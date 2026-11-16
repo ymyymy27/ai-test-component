@@ -444,7 +444,6 @@ def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path(tmp_path) -> No
                 source_attempt_ids=("old-attempt-1",),
             ),
         ),
-        previous_attempt_ids_by_step={"step-1": ("old-attempt-1",)},
     )
 
     runner.execute_attempt(_attempt(), _request())

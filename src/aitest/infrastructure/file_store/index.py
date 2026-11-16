@@ -327,20 +327,12 @@ def _key_cmp(left: Key, right: Key) -> int:
     return -1 if len(left) < len(right) else 1
 
 
-def _key_lt(left: Key, right: Key) -> bool:
-    return _key_cmp(left, right) < 0
 
 
-def _key_le(left: Key, right: Key) -> bool:
-    return _key_cmp(left, right) <= 0
 
 
-def _key_gt(left: Key, right: Key) -> bool:
-    return _key_cmp(left, right) > 0
 
 
-def _key_ge(left: Key, right: Key) -> bool:
-    return _key_cmp(left, right) >= 0
 
 
 def _prefix_equals(key: Key, prefix: tuple[Any, ...]) -> bool:

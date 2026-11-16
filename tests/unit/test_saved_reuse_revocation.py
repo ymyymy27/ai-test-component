@@ -233,7 +233,6 @@ def test_caller_previous_attempt_hint_cannot_invalidate_an_independent_source(tm
         FakeExecutionPort(),
         commit_coordinator=coordinator,
         reuse_bases=BASES,
-        previous_attempt_ids_by_step={"step-1": ("independent-source",)},
     )
     runner.start_attempt(_attempt(), _request())
     assert [item.case_id for item in runner.reuse_invalidations] == ["case-1"]

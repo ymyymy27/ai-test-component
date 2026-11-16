@@ -174,7 +174,6 @@ def test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_ret
         port,
         commit_coordinator=fixture_coordinator(unit, ((_attempt(), _request()),)),
         reuse_bases=(CaseReuseBasis("case-1", ("old",)),),
-        previous_attempt_ids_by_step={"step-1": ("old",)},
     )
     before = unit.current_commit_sequence()
     with pytest.raises(OSError, match="injected"):

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Final, Literal, Protocol
+from typing import Any, Final, Literal
 
 VIEW_PREFERENCE_AGGREGATE: Final[Literal["project_view_preference"]] = "project_view_preference"
 VIEW_PREFERENCE_SCHEMA = "aitest.project-view-preference/1.0"
@@ -89,18 +89,6 @@ def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PreferenceError(f"{name} must be nonempty text")
     return value
-
-
-class PreferenceUnitOfWork(Protocol):
-    def stage_record(
-        self,
-        *,
-        aggregate_kind: str,
-        record_id: str,
-        expected_revision: int | None,
-        payload: Mapping[str, object],
-        require_unchanged: bool = False,
-    ) -> Any: ...
 
 
 @dataclass(frozen=True, slots=True)

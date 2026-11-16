@@ -250,23 +250,12 @@ def register_use_cases(package: str, handlers: Mapping[str, Handler]) -> None:
     _GLOBAL_BOOTSTRAP.register_use_cases(package, handlers)
 
 
-def create_api(
-    workspace_root: Path | None = None,
-    handlers: Mapping[str, Handler] | None = None,
-) -> LocalAPI:
+def create_api(workspace_root: Path | None = None) -> LocalAPI:
     """创建本地协议 API 实例。
-
-    .. deprecated::
-        ``handlers`` 参数为**过时兼容接口**，仅用于旧代码一次性本地 API 创建。
-        B/C/D 上层包**禁止使用 handlers 参数**，必须通过 :func:`register_use_cases`
-        注册用例，再由 ``create_api(workspace_root)`` 装配唯一核心实例。
-        直接传入 handlers 会绕过统一注册窗口和所有者校验，属于后门风险。
 
     .. note::
         本入口仅作进程内装配；跨进程唯一核心请用 :func:`acquire_endpoint`。
     """
-    if handlers is not None:
-        return LocalAPI(instance_id=str(uuid4()), handlers=dict(handlers))
     if workspace_root is None:
         return LocalAPI(
             instance_id=str(uuid4()),

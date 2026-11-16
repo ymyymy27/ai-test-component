@@ -2,7 +2,7 @@
 
 import hashlib
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -90,7 +90,6 @@ class SerialRunner:
         start_validator: StartValidationPort | None = None,
         commit_coordinator: ExecutionCommitCoordinator | None = None,
         reuse_bases: Sequence[CaseReuseBasis] = (),
-        previous_attempt_ids_by_step: Mapping[str, Sequence[str]] | None = None,
         dispatch_allowed: Callable[[ExecutionRequest], bool] | None = None,
     ) -> None:
         if poll_interval_seconds < 0:
@@ -102,7 +101,6 @@ class SerialRunner:
         self._start_validator = start_validator
         self._commit_coordinator = commit_coordinator
         self._reuse_bases = tuple(reuse_bases)
-        # Keep the legacy constructor keyword; do not read its hints as authority.
         self._reuse_context: tuple[str, str] | None = None
         self._reuse_invalidations: list[CaseReuseInvalidation] = []
         self._intent_claims: dict[tuple[str, str], Attempt] = {}

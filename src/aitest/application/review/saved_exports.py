@@ -161,7 +161,6 @@ class SavedExportService:
         artifacts: ExportArtifactPort,
         projector: ExportProjectionPort | None,
         objects: ExportObjectStore | None = None,
-        instance_id: str = "local-core",
     ) -> None:
         for name, value in (
             ("unit", unit),
@@ -188,7 +187,6 @@ class SavedExportService:
         self._artifacts = artifacts
         self._projector = projector
         self._objects = objects
-        self._instance_id = instance_id
 
     # ------------------------------------------------------------ 动作
 

@@ -8,8 +8,8 @@ links, basis text and verification method.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -257,17 +257,3 @@ def materialize_test_selection(
     return scope, tuple(sorted(cases, key=lambda case: case.case_id)), warnings
 
 
-def selection_to_payload(
-    selection: TestSelectionDraft,
-    cases: Sequence[Case],
-    scope: AcceptanceScope,
-    warnings: Sequence[str],
-) -> dict[str, Any]:
-    return {
-        "schema_version": TEST_SELECTION_SCHEMA,
-        "goal": selection.goal,
-        "selection": selection.model_dump(mode="json"),
-        "scope_id": scope.scope_id,
-        "case_ids": [case.case_id for case in cases],
-        "warnings": list(warnings),
-    }

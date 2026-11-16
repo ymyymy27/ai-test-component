@@ -218,13 +218,6 @@ from aitest.source_wiring import (
     _technical_identity as _technical_identity,
 )
 
-_INSTANCE_ID_FILE = ".core-instance-id"
-_DEFAULT_WORKER_MODULE = "aitest.interfaces.local.core_worker"
-_DEFAULT_CONNECT_TIMEOUT_MS = 200
-_DEFAULT_WAIT_TIMEOUT_SECONDS = 5.0
-_DEFAULT_POLL_INTERVAL_SECONDS = 0.05
-
-
 
 @dataclass(frozen=True, slots=True)
 class CoreInstance:
@@ -315,8 +308,6 @@ def assemble_workspace_core(
     business_verification_resolver: BusinessVerificationResolver | None = None,
     business_verification_port: BusinessVerificationCapturePort | None = None,
     migration_backup_root: Path | None = None,
-    verify_start_interpreter: bool = True,
-    verify_start_source: bool = True,
     execution_enabled: bool = True,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
@@ -647,19 +638,13 @@ def assemble_workspace_core(
                     read_step_timeout=lambda project, environment, revision: _frozen_step_timeout(
                         reader, project, environment, revision
                     ),
-                    interpreter_verifier=(
-                        _interpreter_verifier() if verify_start_interpreter else None
-                    ),
-                    source_verification_provider=(
-                        _source_verification_provider(
-                            snapshot_store,
-                            reader,
-                            dependencies.source_analysis,
-                            FileObjectStore(root),
-                            instance_id=instance_id,
-                        )
-                        if verify_start_source
-                        else None
+                    interpreter_verifier=_interpreter_verifier(),
+                    source_verification_provider=_source_verification_provider(
+                        snapshot_store,
+                        reader,
+                        dependencies.source_analysis,
+                        FileObjectStore(root),
+                        instance_id=instance_id,
                     ),
                 )
             ),
@@ -975,7 +960,6 @@ def assemble_workspace_core(
             artifacts=FileReportArtifactPort(root, instance_id=instance_id),
             projector=SafeMaterialProjector(),
             objects=FileObjectStore(root),
-            instance_id=instance_id,
         )
         # 只读的复测简报（P1-FR14 §5 末段）：只投影文本、不写记录、不含证据正文。
         repair_briefs = SavedRepairBrief(

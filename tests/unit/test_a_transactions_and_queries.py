@@ -6,13 +6,12 @@ import pytest
 from pydantic import ValidationError
 
 from aitest.application.errors import WorkspaceInUse
-from aitest.bootstrap import create_api
 from aitest.contracts.commands import Command
 from aitest.contracts.queries import QuerySpec
 from aitest.infrastructure.file_store.index import FileQueryIndex, decode_cursor
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
-from aitest.interfaces.local.api import EntryKind, Session
+from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from tests.support.shared_write import write_records
 
 
@@ -64,7 +63,7 @@ def test_request_id_is_deduplicated_and_cannot_replace_intent_id() -> None:
         calls += 1
         return {"request_id": command.request_id}
 
-    api = create_api(handlers={"query": handler})
+    api = LocalAPI(instance_id="test-instance", handlers={"query": handler})
     session = Session("session-1", EntryKind.INTERACTIVE_CLI)
     command = Command(request_id="request-1", action="query")
 

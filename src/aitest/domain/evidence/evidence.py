@@ -92,7 +92,6 @@ class TruthClass(StrEnum):
     UNKNOWN = "unknown"
 
 
-Authenticity = TruthClass
 
 
 class MockDeclarationSource(StrEnum):
@@ -331,7 +330,6 @@ class ExternalImportRef:
 
 
 __all__ = [
-    "Authenticity",
     "CodeIdentity",
     "EvidenceCaptureSource",
     "EvidenceGap",

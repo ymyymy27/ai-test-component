@@ -132,14 +132,13 @@ def test_exact_revision_query_seeks_only_the_target_identity(tmp_path, monkeypat
 
 def test_local_api_preserves_unsupported_query_error_code():
     from aitest.application.planning.substrate import RecordQuery
-    from aitest.bootstrap import create_api
     from aitest.contracts.commands import Command
-    from aitest.interfaces.local.api import EntryKind, Session
+    from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
     def handler(command):
         return RecordQuery(project_id="p", record_id="x")
 
-    api = create_api(handlers={"query": handler})
+    api = LocalAPI(instance_id="test-instance", handlers={"query": handler})
     response = api.dispatch(
         Command(request_id="query-invalid", action="query"), Session("s", EntryKind.INTERACTIVE_CLI)
     )
