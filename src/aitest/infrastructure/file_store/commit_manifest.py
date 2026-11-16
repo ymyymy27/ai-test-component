@@ -360,7 +360,9 @@ class FileCommitStore:
         if value["schema"] == COMPLETE_SCHEMA:
             validate_complete(self.root, value)
 
-    def verify_material(self, value: dict[str, Any], *, changed_only: bool = False) -> None:
+    def verify_material(
+        self, value: dict[str, Any], *, changed_only: bool = False, deep: bool = True
+    ) -> None:
         """Check prepared roots and changed bodies.
 
         ``changed_only`` verifies byte identity only for files introduced by this
@@ -447,7 +449,7 @@ class FileCommitStore:
                 changed_paths = {
                     str(ref["path"]) for ref in value["file_digests"]
                 } - parent_paths
-            verify_complete(self.root, value, changed_paths=changed_paths)
+            verify_complete(self.root, value, changed_paths=changed_paths, deep=deep)
 
     def _verify_business(
         self,
@@ -586,7 +588,11 @@ class FileCommitStore:
         value = self.read_manifest(digest)
         if value["workspace_id"] != self._workspace_id():
             raise CommitMaterialError("prepared workspace identity has changed")
-        prior = self.read_current(verify_material=True)
+        prior = self.read_current()
+        if prior is not None:
+            # Presence (not re-hash) is enough to catch deleted historical material;
+            # startup/recovery still performs the full byte walk.
+            self.verify_material(prior["manifest"], deep=False)
         parent = prior["pointer"]["manifest_digest"] if prior is not None else None
         if value["parent_manifest"] != parent:
             raise CommitMaterialError("prepared commit was based on a different current root")

@@ -60,6 +60,25 @@ def _clear_known_secret_registry() -> None:
     known_secrets().clear()
 
 
+@pytest.fixture(autouse=True)
+def _fast_fsync(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip real fsync in ordinary tests; durability tests re-patch explicitly.
+
+    Set ``AITEST_REAL_FSYNC=1`` to exercise the real flush path.
+    """
+
+    import os
+
+    if os.environ.get("AITEST_REAL_FSYNC") == "1":
+        return
+    from aitest.infrastructure.file_store.publication_backend import FilePublicationBackend
+
+    monkeypatch.setattr(os, "fsync", lambda _descriptor: None)
+    monkeypatch.setattr(FilePublicationBackend, "_flush", lambda self, _descriptor: None)
+    monkeypatch.setattr(FilePublicationBackend, "_flush_directory", lambda self, _directory: None)
+
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _clean_repository_tmp_dirs() -> None:
     """会话开始与结束时各清理一次（开始清历史遗留，结束清本轮遗留）。"""

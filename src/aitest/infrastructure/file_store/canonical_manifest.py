@@ -275,8 +275,24 @@ def complete_manifest(
     return value
 
 
+def file_presence(root: Path, ref: dict[str, Any]) -> bool:
+    """Cheap closure check: the listed file still exists at the recorded size."""
+    from .commit_manifest import FileCommitStore
+
+    path = root / str(ref["path"])
+    FileCommitStore.reject_links(path)
+    try:
+        return path.is_file() and path.stat().st_size == ref["size"]
+    except OSError:
+        return False
+
+
 def verify_complete(
-    root: Path, value: dict[str, Any], *, changed_paths: set[str] | None = None
+    root: Path,
+    value: dict[str, Any],
+    *,
+    changed_paths: set[str] | None = None,
+    deep: bool = True,
 ) -> None:
     """Verify canonical material; ``changed_paths`` limits byte reads to one commit.
 
@@ -289,10 +305,12 @@ def verify_complete(
     validate_complete(root, value)
     actual = set()
     for ref in value["file_digests"]:
-        if (changed_paths is None or ref["path"] in changed_paths) and (
-            file_reference(root, ref["path"]) != ref
-        ):
-            raise CommitMaterialError("canonical commit file bytes changed")
+        if changed_paths is None or ref["path"] in changed_paths:
+            verified = (
+                file_reference(root, ref["path"]) == ref if deep else file_presence(root, ref)
+            )
+            if not verified:
+                raise CommitMaterialError("canonical commit file bytes changed")
         actual.add(ref["path"])
     if not required_files(root, value) <= actual:
         raise CommitMaterialError("canonical file digests omit required commit material")
