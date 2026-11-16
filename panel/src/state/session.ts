@@ -1,13 +1,15 @@
-/** 面板会话状态：只缓存界面需要的读取结果，不计算业务结论。
+/** 面板会话状态：一张测试单从选项目到结果的相位机。
  *
- * 结论、覆盖分母、用例结果都直接取自 CLI 返回字段；
- * 写入动作完成后重新读取，不在本地推导“已通过”。
+ * 只有一个主视图，相位在同一页内切换；历史、项目详情、调整与证据是抽屉。
+ * 结论、覆盖、用例结果都直接取自 CLI 返回字段；写入动作完成后重新读取，
+ * 不在本地推导“已通过”。
  */
 import { reactive } from "vue";
 
 import { api } from "@/api/commands";
 import { describeError, type FriendlyError } from "@/api/errors";
 import { readHostContext, readHostState, writeHostState, type HostContext } from "@/api/host";
+import { sourceLabel } from "@/api/labels";
 import type {
   DoctorFacts,
   IssueSummary,
@@ -17,19 +19,76 @@ import type {
   RunDetail,
   RunSummary,
   RunStatus,
+  SuggestResult,
+  TargetCandidate,
   Task,
   Verdict,
 } from "@/api/types";
 
-export type View =
-  | "project"
-  | "wizard"
-  | "run"
-  | "result"
-  | "history"
-  | "evidence"
-  | "issues"
-  | "settings";
+export type Phase = "no-project" | "proposal" | "running" | "result";
+export type Screen = "session" | "settings";
+
+const DEFAULT_TARGET = "验证项目能否启动并跑通主流程";
+
+export interface DraftItem {
+  id: string;
+  text: string;
+  savedText: string;
+  observable: boolean;
+  enabled: boolean;
+  source: string;
+  status: "active" | "pending";
+}
+
+export interface ProposalState {
+  candidates: TargetCandidate[];
+  index: number;
+  fallback: string;
+  goal: string;
+  basis: string;
+  taskId: string;
+  taskRevision: number;
+  taskGoal: string;
+  items: DraftItem[];
+  itemsLoading: boolean;
+  itemsError: FriendlyError | null;
+  itemsDirty: boolean;
+  preset: "all_applicable" | "selected";
+  selected: string[];
+  moduleIds: string[];
+  suggestLoading: boolean;
+  suggestError: FriendlyError | null;
+  previewPlan: Plan | null;
+  previewSignature: string;
+  starting: boolean;
+  startError: FriendlyError | null;
+}
+
+function createProposal(): ProposalState {
+  return {
+    candidates: [],
+    index: -1,
+    fallback: "",
+    goal: "",
+    basis: "",
+    taskId: "",
+    taskRevision: 0,
+    taskGoal: "",
+    items: [],
+    itemsLoading: false,
+    itemsError: null,
+    itemsDirty: false,
+    preset: "all_applicable",
+    selected: [],
+    moduleIds: [],
+    suggestLoading: false,
+    suggestError: null,
+    previewPlan: null,
+    previewSignature: "",
+    starting: false,
+    startError: null,
+  };
+}
 
 export interface LastRun {
   status: RunStatus;
@@ -40,7 +99,7 @@ export interface LastRun {
 }
 
 interface PersistedState {
-  view?: View;
+  screen?: Screen;
   projectId?: string;
   runId?: string;
   planId?: string;
@@ -50,7 +109,8 @@ interface SessionState {
   ready: boolean;
   booting: boolean;
   bootError: FriendlyError | null;
-  view: View;
+  screen: Screen;
+  phase: Phase;
   projects: ProjectSummary[];
   project: Project | null;
   doctor: DoctorFacts | null;
@@ -65,17 +125,23 @@ interface SessionState {
   plan: Plan | null;
   task: Task | null;
   issues: IssueSummary[];
+  proposal: ProposalState;
   loading: Record<string, boolean>;
   notice: string;
   hostContext: HostContext | null;
   prefillRoot: string;
+  historyOpen: boolean;
+  adjustOpen: boolean;
+  projectOpen: boolean;
+  evidenceOpen: boolean;
 }
 
 export const session = reactive<SessionState>({
   ready: false,
   booting: false,
   bootError: null,
-  view: "project",
+  screen: "session",
+  phase: "no-project",
   projects: [],
   project: null,
   doctor: null,
@@ -90,13 +156,19 @@ export const session = reactive<SessionState>({
   plan: null,
   task: null,
   issues: [],
+  proposal: createProposal(),
   loading: {},
   notice: "",
   hostContext: null,
   prefillRoot: "",
+  historyOpen: false,
+  adjustOpen: false,
+  projectOpen: false,
+  evidenceOpen: false,
 });
 
 let contextWaiters: ((context: HostContext | null) => void)[] = [];
+let localSeq = 0;
 
 /** 编辑器在面板打开后推送上下文；这里只缓存，不推导项目结论。 */
 export function applyHostContext(raw: unknown): void {
@@ -151,7 +223,7 @@ async function waitHostContext(): Promise<HostContext | null> {
 
 function persist(): void {
   const state: PersistedState = {
-    view: session.view,
+    screen: session.screen,
     projectId: session.project?.project_id,
     runId: session.activeRunId,
     planId: session.activePlanId,
@@ -173,6 +245,10 @@ export function flash(message: string): void {
 
 export function clearNotice(): void {
   session.notice = "";
+}
+
+export function dismissBootError(): void {
+  session.bootError = null;
 }
 
 export function computeEnv(facts: DoctorFacts | null): "ok" | "warn" | "error" | "unknown" {
@@ -266,22 +342,53 @@ async function loadLastRun(summary: RunSummary | undefined): Promise<void> {
   }
 }
 
-export async function openProject(projectId: string, options: { keepView?: boolean } = {}): Promise<void> {
+/** 读取项目与最近运行，不决定相位；切项目与启动都走这里。 */
+export async function openProject(projectId: string): Promise<void> {
   setLoading("project", true);
   try {
     const data = await api.showProject(projectId);
     session.project = data.project;
-    if (!options.keepView) {
-      session.view = "project";
-    }
+    session.bootError = null;
+    session.result = null;
+    session.plan = null;
+    session.task = null;
+    session.activeRunId = "";
+    session.activePlanId = "";
+    session.activeTaskId = "";
     await refreshHistory();
     await loadLastRun(session.history[0]);
-    persist();
   } catch (error) {
     session.bootError = describeError(error);
   } finally {
     setLoading("project", false);
   }
+}
+
+/** 相位判断：最近一次运行直接回放，否则准备建议测试单。 */
+async function routeAfterProject(): Promise<void> {
+  session.screen = "session";
+  session.historyOpen = false;
+  session.adjustOpen = false;
+  session.projectOpen = false;
+  session.evidenceOpen = false;
+  if (!session.project) {
+    session.phase = "no-project";
+    return;
+  }
+  const latest = session.history[0];
+  if (latest) {
+    const opened = await openResult(latest.run_id);
+    if (opened) {
+      return;
+    }
+  }
+  await loadProposal();
+}
+
+export async function switchProject(projectId: string): Promise<void> {
+  await openProject(projectId);
+  await routeAfterProject();
+  persist();
 }
 
 export async function addProjectByPath(root: string, name?: string): Promise<boolean> {
@@ -290,7 +397,9 @@ export async function addProjectByPath(root: string, name?: string): Promise<boo
     const created = await api.addProject(root.trim(), name);
     await loadProjects();
     await openProject(created.project_id);
-    flash(created.existing ? "这个目录已经登记过，已切换到现有项目" : "项目已登记，已扫描模块与最近运行");
+    await routeAfterProject();
+    flash(created.existing ? "这个目录已经登记过，已切换到现有项目" : "项目已登记");
+    persist();
     return true;
   } catch (error) {
     session.bootError = describeError(error);
@@ -325,28 +434,15 @@ export async function bootstrap(): Promise<void> {
       session.projects.find((item) => item.project_id === saved?.projectId) ??
       session.projects[0];
     if (target) {
-      await openProject(target.project_id, { keepView: true });
-      if (saved?.view === "result" && saved.runId) {
-        await openResult(saved.runId, { keepView: true });
-        session.view = "result";
-      } else if (
-        (saved?.view === "evidence" || saved?.view === "issues") &&
-        saved.runId
-      ) {
-        await openResult(saved.runId, { keepView: true });
-        session.view = saved.view;
-      } else if (saved?.view === "run" && saved.runId) {
-        session.activeRunId = saved.runId;
-        session.view = "run";
-      } else if (saved?.view === "history") {
-        session.view = "history";
-      } else if (saved?.view === "settings") {
-        session.view = "settings";
-      } else {
-        session.view = "project";
+      await openProject(target.project_id);
+      await routeAfterProject();
+      if (saved?.screen === "settings") {
+        session.screen = "settings";
       }
     } else {
-      session.view = "project";
+      session.project = null;
+      session.screen = "session";
+      session.phase = "no-project";
     }
     persist();
   } finally {
@@ -355,37 +451,494 @@ export async function bootstrap(): Promise<void> {
   }
 }
 
-export function go(view: View): void {
-  session.view = view;
-  session.bootError = null;
-  persist();
+// -- 测试单：建议 -----------------------------------------------------------
+
+export function applicableItems(): DraftItem[] {
+  return session.proposal.items.filter(
+    (item) => item.observable && item.status === "active",
+  );
 }
 
-export function startWizard(): void {
-  session.bootError = null;
-  session.notice = "";
-  session.view = "wizard";
-  persist();
+export function selectedItems(): DraftItem[] {
+  const ids = new Set(session.proposal.selected);
+  return applicableItems().filter((item) => ids.has(item.id));
 }
 
-export async function openHistory(): Promise<void> {
-  session.view = "history";
-  await refreshHistory();
-  persist();
+export function selectedCount(): number {
+  return selectedItems().length;
 }
 
-export async function openRun(runId: string): Promise<void> {
-  session.activeRunId = runId;
-  session.view = "run";
-  persist();
+export function applicableCount(): number {
+  return applicableItems().length;
 }
 
-export async function openResult(
-  runId: string,
-  options: { keepView?: boolean } = {},
+function syncSelection(): void {
+  const proposal = session.proposal;
+  const applicable = applicableItems();
+  const enabled = applicable.filter((item) => item.enabled);
+  proposal.selected = enabled.map((item) => item.id);
+  proposal.preset =
+    applicable.length > 0 && enabled.length === applicable.length
+      ? "all_applicable"
+      : "selected";
+}
+
+function invalidatePreview(): void {
+  session.proposal.previewPlan = null;
+  session.proposal.previewSignature = "";
+}
+
+function scopeSignature(): string {
+  const proposal = session.proposal;
+  return [
+    proposal.preset,
+    proposal.moduleIds.slice().sort().join(","),
+    proposal.preset === "selected" ? proposal.selected.slice().sort().join(",") : "all",
+  ].join("|");
+}
+
+function fillTask(task: Task): void {
+  const proposal = session.proposal;
+  proposal.taskId = task.task_id;
+  proposal.taskRevision = task.revision;
+  proposal.taskGoal = task.title;
+  proposal.items = task.acceptance_items.map((item) => ({
+    id: item.item_id,
+    text: item.text,
+    savedText: item.text,
+    observable: item.observable,
+    enabled: item.observable && item.status === "active",
+    source: item.source ?? "",
+    status: item.status,
+  }));
+  proposal.itemsDirty = false;
+  session.task = task;
+  session.activeTaskId = task.task_id;
+  syncSelection();
+}
+
+async function selectTarget(
+  target: { title: string; reason?: string; source?: string },
+  index: number,
 ): Promise<void> {
+  if (!session.project || !target.title.trim()) {
+    return;
+  }
+  const proposal = session.proposal;
+  proposal.index = index;
+  proposal.goal = target.title.trim();
+  proposal.basis = [target.reason?.trim(), sourceLabel(target.source)]
+    .filter(Boolean)
+    .join(" · ");
+  proposal.itemsLoading = true;
+  proposal.itemsError = null;
+  proposal.startError = null;
+  try {
+    const created = await api.addTask({
+      projectId: session.project.project_id,
+      title: proposal.goal,
+      goal: proposal.goal,
+      requirement: proposal.goal,
+    });
+    const data = await api.showTask(session.project.project_id, created.task_id);
+    fillTask(data.task);
+    invalidatePreview();
+  } catch (error) {
+    proposal.itemsError = describeError(error);
+  } finally {
+    proposal.itemsLoading = false;
+  }
+}
+
+/** 目标候选 → 任务；只提取验收标准，不启动运行。 */
+export async function loadProposal(): Promise<void> {
+  if (!session.project) {
+    session.phase = "no-project";
+    return;
+  }
+  session.screen = "session";
+  session.phase = "proposal";
+  session.proposal = createProposal();
+  session.bootError = null;
+  const proposal = session.proposal;
+  proposal.suggestLoading = true;
+  try {
+    const result: SuggestResult = await api.suggestTargets(session.project.project_id);
+    proposal.candidates = result.candidates ?? [];
+    proposal.fallback = result.fallback ?? "";
+  } catch (error) {
+    proposal.suggestError = describeError(error);
+  } finally {
+    proposal.suggestLoading = false;
+  }
+  const first = proposal.candidates[0];
+  const target = first
+    ? { title: first.title, reason: first.reason, source: first.source }
+    : { title: proposal.fallback || DEFAULT_TARGET, reason: "", source: "" };
+  await selectTarget(target, first ? 0 : -2);
+}
+
+/** 换一个目标：重新提取验收标准，不启动运行。 */
+export async function chooseTarget(index: number): Promise<void> {
+  const proposal = session.proposal;
+  if (index === -2) {
+    await selectTarget(
+      { title: proposal.fallback || DEFAULT_TARGET, reason: "", source: "" },
+      -2,
+    );
+    return;
+  }
+  const candidate = proposal.candidates[index];
+  if (!candidate) {
+    return;
+  }
+  await selectTarget(candidate, index);
+}
+
+/** 自己写一句：同样只提取验收标准，不启动运行。 */
+export async function chooseCustomTarget(title: string): Promise<void> {
+  await selectTarget({ title, reason: "手动填写", source: "" }, -1);
+}
+
+export async function newTarget(): Promise<void> {
+  await loadProposal();
+}
+
+export function toggleProposalItem(item: DraftItem): void {
+  if (!item.observable || item.status !== "active") {
+    return;
+  }
+  item.enabled = !item.enabled;
+  syncSelection();
+  invalidatePreview();
+}
+
+export function setProposalPreset(preset: "all_applicable" | "selected"): void {
+  const proposal = session.proposal;
+  proposal.preset = preset;
+  if (preset === "all_applicable") {
+    for (const item of proposal.items) {
+      item.enabled = item.observable && item.status === "active";
+    }
+    syncSelection();
+  }
+  invalidatePreview();
+}
+
+export function toggleProposalModule(moduleId: string): void {
+  const proposal = session.proposal;
+  proposal.moduleIds = proposal.moduleIds.includes(moduleId)
+    ? proposal.moduleIds.filter((id) => id !== moduleId)
+    : [...proposal.moduleIds, moduleId];
+  invalidatePreview();
+}
+
+export function addProposalItem(text: string): void {
+  const value = text.trim();
+  if (!value) {
+    return;
+  }
+  localSeq += 1;
+  const proposal = session.proposal;
+  proposal.items.push({
+    id: `local-${localSeq}`,
+    text: value,
+    savedText: "",
+    observable: true,
+    enabled: true,
+    source: "手动补充",
+    status: "active",
+  });
+  proposal.itemsDirty = true;
+  syncSelection();
+  invalidatePreview();
+}
+
+export function updateProposalItem(
+  id: string,
+  patch: { text?: string; observable?: boolean },
+): void {
+  const proposal = session.proposal;
+  const item = proposal.items.find((row) => row.id === id);
+  if (!item) {
+    return;
+  }
+  if (typeof patch.text === "string" && patch.text.trim()) {
+    item.text = patch.text.trim();
+  }
+  if (typeof patch.observable === "boolean" && patch.observable !== item.observable) {
+    item.observable = patch.observable;
+    item.status = patch.observable ? "active" : "pending";
+    item.enabled = patch.observable;
+  }
+  proposal.itemsDirty = true;
+  syncSelection();
+  invalidatePreview();
+}
+
+export function removeProposalItem(id: string): void {
+  const proposal = session.proposal;
+  proposal.items = proposal.items.filter((item) => item.id !== id);
+  proposal.itemsDirty = true;
+  syncSelection();
+  invalidatePreview();
+}
+
+/** 把验收项改动写回任务；没有任务时创建一条。 */
+async function saveItems(): Promise<boolean> {
+  const proposal = session.proposal;
+  if (!session.project) {
+    return false;
+  }
+  if (!proposal.itemsDirty && proposal.taskId) {
+    return true;
+  }
+  const filled = proposal.items.filter((item) => item.text.trim().length > 0);
+  if (filled.length === 0) {
+    proposal.itemsError = {
+      title: "至少保留一条验收标准",
+      detail: "",
+      next: "补充一条可观察的标准，或换一个测试目标",
+    };
+    return false;
+  }
+  proposal.itemsLoading = true;
+  proposal.itemsError = null;
+  try {
+    if (proposal.taskId) {
+      await api.updateTask({
+        projectId: session.project.project_id,
+        taskId: proposal.taskId,
+        revision: proposal.taskRevision,
+        items: filled.map((item) => ({
+          ...(item.id.startsWith("local-") ? {} : { item_id: item.id }),
+          text: item.text.trim(),
+          observable: item.observable,
+          status: item.status,
+          source: item.source || "手动补充",
+        })),
+      });
+    } else {
+      const created = await api.addTask({
+        projectId: session.project.project_id,
+        title: proposal.goal || DEFAULT_TARGET,
+        goal: proposal.goal || DEFAULT_TARGET,
+        acceptanceItems: filled.map((item) => ({
+          text: item.text.trim(),
+          observable: item.observable,
+          source: item.source || "手动补充",
+        })),
+      });
+      proposal.taskId = created.task_id;
+    }
+    const data = await api.showTask(session.project.project_id, proposal.taskId);
+    const flags = filled.map((item) => item.enabled);
+    fillTask(data.task);
+    proposal.items.forEach((item, index) => {
+      item.enabled = flags[index] ?? item.enabled;
+    });
+    syncSelection();
+    proposal.itemsDirty = false;
+    invalidatePreview();
+    return true;
+  } catch (error) {
+    proposal.itemsError = describeError(error);
+    return false;
+  } finally {
+    proposal.itemsLoading = false;
+  }
+}
+
+export async function saveAdjustment(): Promise<boolean> {
+  const saved = await saveItems();
+  if (saved) {
+    flash("验收标准与范围已保存");
+  }
+  return saved;
+}
+
+async function generatePlan(): Promise<string> {
+  const proposal = session.proposal;
+  if (!session.project || !proposal.taskId) {
+    throw new Error("缺少测试任务");
+  }
+  const payload = {
+    projectId: session.project.project_id,
+    taskId: proposal.taskId,
+    preset: proposal.preset,
+    moduleIds: proposal.moduleIds,
+    acceptanceItemIds:
+      proposal.preset === "selected"
+        ? proposal.selected
+        : applicableItems().map((item) => item.id),
+  };
+  let generated;
+  try {
+    generated = await api.generatePlan(payload);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (code !== "HOST_CALL_FAILED" && code !== "PANEL_TIMEOUT") {
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    generated = await api.generatePlan(payload);
+  }
+  session.activePlanId = generated.plan_id;
+  return generated.plan_id;
+}
+
+/** 调整抽屉里的模板处置：需要先有一份与当前范围一致的预览计划。 */
+export async function applyProposalTemplate(
+  templateName: string,
+): Promise<FriendlyError | null> {
+  const proposal = session.proposal;
+  if (!session.project || !proposal.taskId || !templateName) {
+    return { title: "还不能应用模板", detail: "", next: "先生成验收标准" };
+  }
+  try {
+    if (proposal.previewPlan && proposal.previewSignature === scopeSignature()) {
+      await api.applyTemplate({
+        projectId: session.project.project_id,
+        taskId: proposal.taskId,
+        templateName,
+        planId: proposal.previewPlan.plan_id,
+      });
+    } else {
+      if (!(await saveItems())) {
+        return proposal.itemsError;
+      }
+      const planId = await generatePlan();
+      const generated = await api.showPlan(session.project.project_id, planId);
+      proposal.previewPlan = generated.plan;
+      proposal.previewSignature = scopeSignature();
+      await api.applyTemplate({
+        projectId: session.project.project_id,
+        taskId: proposal.taskId,
+        templateName,
+        planId,
+      });
+    }
+    const data = await api.showPlan(
+      session.project.project_id,
+      proposal.previewPlan?.plan_id ?? session.activePlanId,
+    );
+    proposal.previewPlan = data.plan;
+    return null;
+  } catch (error) {
+    return describeError(error);
+  }
+}
+
+async function beginRun(planId: string): Promise<void> {
+  if (!session.project) {
+    throw new Error("缺少项目");
+  }
+  const started = await api.startRun(session.project.project_id, planId);
+  session.activeRunId = started.run_id;
+  session.activePlanId = planId;
+  session.activeTaskId = session.proposal.taskId || session.activeTaskId;
+  session.result = null;
+  session.phase = "running";
+  session.screen = "session";
+  persist();
+  await refreshRun();
+}
+
+/** 开始测试：一次点击完成保存、生成计划与确认执行。 */
+export async function startTest(): Promise<void> {
+  const proposal = session.proposal;
+  if (!session.project || proposal.starting || applicableItems().length === 0) {
+    return;
+  }
+  proposal.starting = true;
+  proposal.startError = null;
+  try {
+    if (!(await saveItems())) {
+      return;
+    }
+    let planId = "";
+    if (proposal.previewPlan && proposal.previewSignature === scopeSignature()) {
+      planId = proposal.previewPlan.plan_id;
+      session.plan = proposal.previewPlan;
+    } else {
+      planId = await generatePlan();
+      try {
+        const detail = await api.showPlan(session.project.project_id, planId);
+        session.plan = detail.plan;
+      } catch {
+        // 计划读取失败不阻塞执行；运行结果会再按计划号读取一次。
+        session.plan = null;
+      }
+    }
+    await beginRun(planId);
+  } catch (error) {
+    proposal.startError = describeError(error);
+  } finally {
+    proposal.starting = false;
+  }
+}
+
+// -- 运行与结果 -------------------------------------------------------------
+
+export async function refreshRun(): Promise<void> {
+  if (!session.project || !session.activeRunId) {
+    return;
+  }
+  try {
+    const detail = await api.runStatus(session.project.project_id, session.activeRunId);
+    session.result = detail;
+    session.activePlanId = detail.run.plan_id;
+    if (detail.run.status !== "running") {
+      await hydratePlanAndTask(detail.run.plan_id);
+      await loadIssues();
+      if (session.phase === "running") {
+        session.phase = "result";
+        await refreshHistory();
+        await loadLastRun(session.history[0]);
+        persist();
+      }
+    }
+  } catch {
+    // 轮询失败不覆盖已有画面；下一次轮询继续。
+  }
+}
+
+async function hydratePlanAndTask(planId: string): Promise<void> {
   if (!session.project) {
     return;
+  }
+  try {
+    const plan = await api.showPlan(session.project.project_id, planId);
+    session.plan = plan.plan;
+    session.activePlanId = plan.plan.plan_id;
+    const taskId = plan.plan.task_id;
+    if (taskId) {
+      session.activeTaskId = taskId;
+      const task = await api.showTask(session.project.project_id, taskId);
+      session.task = task.task;
+    }
+  } catch {
+    session.plan = null;
+  }
+}
+
+async function loadIssues(): Promise<void> {
+  if (!session.project) {
+    session.issues = [];
+    return;
+  }
+  try {
+    const data = await api.listIssues(session.project.project_id);
+    session.issues = data.issues ?? [];
+  } catch {
+    session.issues = [];
+  }
+}
+
+/** 打开一次运行：运行中进入运行相位，结束的运行直接显示结果。 */
+export async function openResult(runId: string): Promise<boolean> {
+  if (!session.project) {
+    return false;
   }
   setLoading("result", true);
   session.activeRunId = runId;
@@ -393,46 +946,90 @@ export async function openResult(
     const detail = await api.runStatus(session.project.project_id, runId);
     session.result = detail;
     session.activePlanId = detail.run.plan_id;
-    let taskId = "";
-    try {
-      const plan = await api.showPlan(session.project.project_id, detail.run.plan_id);
-      session.plan = plan.plan;
-      taskId = plan.plan.task_id;
-      session.activeTaskId = taskId;
-      if (taskId) {
-        const task = await api.showTask(session.project.project_id, taskId);
-        session.task = task.task;
-      }
-    } catch {
-      session.plan = null;
-      session.task = null;
-    }
-    try {
-      const issues = await api.listIssues(session.project.project_id);
-      session.issues = issues.issues ?? [];
-    } catch {
-      session.issues = [];
-    }
-    if (!options.keepView) {
-      session.view = "result";
-    }
+    await hydratePlanAndTask(detail.run.plan_id);
+    await loadIssues();
+    session.bootError = null;
+    session.phase = detail.run.status === "running" ? "running" : "result";
+    session.screen = "session";
+    session.historyOpen = false;
+    session.evidenceOpen = false;
     persist();
+    return true;
   } catch (error) {
     session.bootError = describeError(error);
+    return false;
   } finally {
     setLoading("result", false);
   }
 }
 
-export async function reloadActiveRun(): Promise<void> {
-  if (!session.project || !session.activeRunId) {
-    return;
+/** 再测一次：优先复用最近计划，计划不在了才重新生成。 */
+export async function rerun(): Promise<FriendlyError | null> {
+  if (!session.project) {
+    return { title: "还没有选择项目", detail: "", next: "先选择一个项目文件夹" };
   }
+  setLoading("rerun", true);
   try {
-    const detail = await api.runStatus(session.project.project_id, session.activeRunId);
-    session.result = detail;
-  } catch {
-    // 轮询失败不覆盖已有画面；下一次轮询继续。
+    let planId = session.activePlanId || session.plan?.plan_id || "";
+    let taskId = session.plan?.task_id || session.task?.task_id || session.activeTaskId;
+    const scope = session.plan?.scope;
+    if (planId) {
+      try {
+        const data = await api.showPlan(session.project.project_id, planId);
+        session.plan = data.plan;
+        taskId = data.plan.task_id;
+      } catch {
+        planId = "";
+      }
+    }
+    if (!planId) {
+      if (!taskId) {
+        return {
+          title: "找不到上次的计划与任务",
+          detail: "",
+          next: "换一个新目标重新开始",
+        };
+      }
+      planId = await api
+        .generatePlan({
+          projectId: session.project.project_id,
+          taskId,
+          preset: scope?.preset ?? "all_applicable",
+          moduleIds: scope?.module_ids ?? [],
+          acceptanceItemIds: scope?.acceptance_item_ids ?? [],
+        })
+        .then((generated) => generated.plan_id);
+    }
+    await beginRun(planId);
+    return null;
+  } catch (error) {
+    return describeError(error);
+  } finally {
+    setLoading("rerun", false);
+  }
+}
+
+export async function rerunItem(acceptanceItemId: string): Promise<FriendlyError | null> {
+  if (!session.project || !session.activePlanId) {
+    return { title: "找不到上次的计划", detail: "", next: "换一个新目标重新开始" };
+  }
+  setLoading("rerun", true);
+  try {
+    const started = await api.startRun(
+      session.project.project_id,
+      session.activePlanId,
+      [acceptanceItemId],
+    );
+    session.activeRunId = started.run_id;
+    session.result = null;
+    session.phase = "running";
+    persist();
+    await refreshRun();
+    return null;
+  } catch (error) {
+    return describeError(error);
+  } finally {
+    setLoading("rerun", false);
   }
 }
 
@@ -443,7 +1040,7 @@ export async function generateAnalysis(): Promise<void> {
   setLoading("analysis", true);
   try {
     await api.runAnalysis(session.project.project_id, session.activeRunId);
-    await reloadActiveRun();
+    await refreshRun();
     flash("失败分析已生成");
   } catch (error) {
     const friendly = describeError(error);
@@ -461,7 +1058,7 @@ export async function cancelActiveRun(): Promise<void> {
   try {
     await api.cancelRun(session.project.project_id, session.activeRunId);
     flash("已请求取消，当前用例结束后停止");
-    await reloadActiveRun();
+    await refreshRun();
   } catch (error) {
     const friendly = describeError(error);
     flash(`${friendly.title}。${friendly.next}`);
@@ -470,3 +1067,51 @@ export async function cancelActiveRun(): Promise<void> {
   }
 }
 
+// -- 抽屉与屏幕 -------------------------------------------------------------
+
+export function openHistoryDrawer(): void {
+  session.historyOpen = true;
+  session.adjustOpen = false;
+  session.projectOpen = false;
+  session.evidenceOpen = false;
+  void refreshHistory();
+}
+
+export function openAdjustDrawer(): void {
+  session.adjustOpen = true;
+  session.historyOpen = false;
+  session.projectOpen = false;
+  session.evidenceOpen = false;
+}
+
+export function openProjectDrawer(): void {
+  session.projectOpen = true;
+  session.historyOpen = false;
+  session.adjustOpen = false;
+  session.evidenceOpen = false;
+}
+
+export function openEvidenceDrawer(): void {
+  session.evidenceOpen = true;
+  session.historyOpen = false;
+  session.adjustOpen = false;
+  session.projectOpen = false;
+}
+
+export function closeDrawers(): void {
+  session.historyOpen = false;
+  session.adjustOpen = false;
+  session.projectOpen = false;
+  session.evidenceOpen = false;
+}
+
+export function openSettings(): void {
+  closeDrawers();
+  session.screen = "settings";
+  persist();
+}
+
+export function backToSession(): void {
+  session.screen = "session";
+  persist();
+}

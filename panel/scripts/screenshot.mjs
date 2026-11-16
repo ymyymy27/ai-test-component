@@ -1,7 +1,7 @@
-/** 用开发服务器的静态 mock 宿主截取面板主路径截图。
+/** 用开发服务器的静态 mock 宿主截取单页测试单的相位与抽屉。
  *
  * 用法：先 `npm run dev`，再 `npm run screenshot -- <输出目录> [baseUrl] [width]`。
- * 默认输出到 docs/validation/2026-11-16-panel-v3，640×900。
+ * 默认输出到 docs/validation/2026-11-16-panel-v4，640×900。
  * 使用本机 Chrome（channel: chrome），不下载浏览器。
  */
 import { mkdir } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { chromium } from "playwright";
 
-const outDir = resolve(process.argv[2] ?? "../docs/validation/2026-11-16-panel-v3");
+const outDir = resolve(process.argv[2] ?? "../docs/validation/2026-11-16-panel-v4");
 const base = (process.argv[3] ?? "http://localhost:5173").replace(/\/$/, "");
 const widthArg = Number(process.argv[4] ?? 640);
 const width = Number.isFinite(widthArg) && widthArg > 0 ? widthArg : 640;
@@ -29,67 +29,54 @@ try {
     console.log(`saved ${join(outDir, name)}`);
   }
 
-  // 项目页：先生成交付摘要，让 chips 出现在主视图。
-  await page.goto(`${base}/?mock=project`, { waitUntil: "networkidle" });
-  await page.waitForSelector('[data-testid="project-overview"]');
-  const draftButton = page.locator('[data-testid="delivery-draft-button"]');
-  if ((await draftButton.count()) > 0) {
-    await draftButton.click();
-    await page.waitForSelector('[data-testid="delivery-edit"]');
-  }
-  await shot("project.png");
+  // 建议测试单：第一条候选为目标，默认全选，一个“开始测试”主按钮。
+  await page.goto(`${base}/?mock=proposal`, { waitUntil: "networkidle" });
+  await page.waitForSelector('[data-testid="test-order"][data-phase="proposal"]');
+  await page.waitForSelector('[data-testid="start-test"]');
+  await page.waitForSelector('[data-testid="proposal-criteria"] li');
+  await shot("proposal.png");
 
-  // 交付说明抽屉：主视图之外才出现字段编辑。
-  const editButton = page.locator('[data-testid="delivery-edit"]');
-  if ((await editButton.count()) > 0) {
-    await editButton.click();
-    await page.waitForSelector('[role="dialog"]');
-    await shot("project-drawer.png");
-    await page.keyboard.press("Escape");
-  }
+  // 调整抽屉：验收项编辑、范围、交付说明、模板与模块建议。
+  await page.locator('[data-testid="open-adjust"]').click();
+  await page.waitForSelector('[data-testid="adjust-drawer"]');
+  await page.waitForTimeout(200);
+  await shot("adjust-drawer.png");
+  await page.keyboard.press("Escape");
 
-  // 向导第 1 步：候选卡片 + 一行“或自己写一句”。
-  await page.getByRole("button", { name: "新建测试" }).click();
-  await page.waitForSelector('[data-testid="wizard-step-1"]');
-  await shot("wizard-step1.png");
+  // 运行相位：同一张单子顶部进度、当前用例、实时证据与取消。
+  await page.goto(`${base}/?mock=running`, { waitUntil: "networkidle" });
+  await page.waitForSelector('[data-testid="run-panel"]');
+  await page.waitForSelector(".current");
+  await shot("running.png");
 
-  // 第 2 步：点候选卡片自动进入，验收项为开关列表。
-  await page.locator('[data-testid="candidate"]').first().click();
-  await page.waitForSelector('[data-testid="wizard-step-2"]');
-  await page.waitForSelector('[data-testid="acceptance-list"]');
-  await shot("wizard-step2.png");
+  // 结果相位：原地变结论、覆盖、失败用例与内联证据。
+  await page.goto(`${base}/?mock=result`, { waitUntil: "networkidle" });
+  await page.waitForSelector('[data-testid="result-panel"]');
+  await page.waitForSelector('[data-testid="failed-case"]');
+  await shot("result.png", true);
 
-  // 第 4 步：范围默认全部适用，直接下一步到确认页。
-  await page.locator('[data-testid="wizard-next"]').click();
-  await page.waitForSelector('[data-testid="wizard-step-3"]');
-  await page.locator('[data-testid="wizard-next"]').click();
-  await page.waitForSelector('[data-testid="wizard-step-4"]');
-  await page.waitForSelector('[data-testid="start-run"]');
-  await shot("wizard-step4.png");
+  // 历史抽屉：时间线，点一项在当前视图回放。
+  await page.locator(".order-nav .nav-btn").filter({ hasText: "历史" }).click();
+  await page.waitForSelector('[data-testid="history-list"]');
+  await shot("history-drawer.png");
+  await page.keyboard.press("Escape");
 
-  // 设置页主视图：没有 JSON 文本框。
-  await page.goto(`${base}/?mock=settings`, { waitUntil: "networkidle" });
+  // 设置：从顶部状态条进入，主视图仍只有事实，JSON 收在高级配置。
+  await page.getByRole("button", { name: "打开设置", exact: true }).click();
   await page.waitForSelector('[data-testid="settings-view"]');
   await shot("settings.png", true);
 
-  // 高级配置：一次只显示一个 JSON 分组。
-  await page.locator('[data-testid="advanced-config"] .advanced-head').click();
-  await page.waitForSelector("textarea#config-services");
-  await page.locator('[data-testid="advanced-config"]').scrollIntoViewIfNeeded();
-  await page.waitForTimeout(150);
-  await shot("settings-advanced.png");
-
-  // 400px 窄幅：确认列布局与操作可达。
+  // 400—900px 约束：420px 窄幅下建议测试单单列可读、主操作可达。
   const narrow = await browser.newPage({
     viewport: { width: 420, height: 900 },
     deviceScaleFactor: 1,
     colorScheme: "dark",
     reducedMotion: "reduce",
   });
-  await narrow.goto(`${base}/?mock=project`, { waitUntil: "networkidle" });
-  await narrow.waitForSelector('[data-testid="project-overview"]');
-  await narrow.screenshot({ path: join(outDir, "project-420.png"), fullPage: true });
-  console.log(`saved ${join(outDir, "project-420.png")}`);
+  await narrow.goto(`${base}/?mock=proposal`, { waitUntil: "networkidle" });
+  await narrow.waitForSelector('[data-testid="start-test"]');
+  await narrow.screenshot({ path: join(outDir, "proposal-420.png"), fullPage: true });
+  console.log(`saved ${join(outDir, "proposal-420.png")}`);
   await narrow.close();
 } finally {
   await browser.close();

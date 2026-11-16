@@ -1,39 +1,48 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
-import ResultView from "@/views/ResultView.vue";
+import ResultPanel from "@/components/ResultPanel.vue";
 import { session } from "@/state/session";
 
 import {
+  ISSUES,
   PLAN,
   PROJECT,
   RUN_DETAIL,
   TASK,
+  TEMPLATE_RESULT,
   installHost,
   resetSession,
+  sessionRoutes,
+  type Route,
 } from "./fixtures";
 
-function prepare(detail = RUN_DETAIL) {
-  installHost({
-    "report.generate": { report_id: "rep_1", outcome: "failed", counts: {} },
-    "report.export": { path: "E:\\reports\\run.md", bytes: 10 },
-    "run.start": { run_id: "run_2", status: "running", scope: { selected: 1, applicable: 3 } },
-  });
+async function settle(times = 3): Promise<void> {
+  for (let index = 0; index < times; index += 1) {
+    await flushPromises();
+  }
+}
+
+function prepare(detail = RUN_DETAIL, overrides: Record<string, Route> = {}) {
+  const harness = installHost(sessionRoutes(overrides));
   resetSession();
   session.project = PROJECT;
+  session.phase = "result";
   session.result = detail;
   session.plan = PLAN;
   session.task = TASK;
+  session.issues = ISSUES;
   session.activeRunId = detail.run.run_id;
   session.activePlanId = PLAN.plan_id;
-  session.view = "result";
+  session.activeTaskId = TASK.task_id;
+  return harness;
 }
 
-describe("结果页", () => {
+describe("结果相位：结论与失败用例", () => {
   it("用一句话结论、色块与 X/Y 覆盖展示结果", async () => {
     prepare();
-    const wrapper = mount(ResultView);
-    await flushPromises();
+    const wrapper = mount(ResultPanel);
+    await settle();
 
     expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("失败");
     expect(wrapper.text()).toContain("所选范围内存在有效失败");
@@ -42,23 +51,36 @@ describe("结果页", () => {
     expect(wrapper.text()).toContain("已完成");
   });
 
-  it("失败用例展示标题、预期、证据与 AI 分析四段", async () => {
+  it("失败用例内联证据缩略卡与执行输出，AI 分析紧随其后", async () => {
     prepare();
-    const wrapper = mount(ResultView);
-    await flushPromises();
+    const wrapper = mount(ResultPanel);
+    await settle();
 
-    expect(wrapper.text()).toContain("失败用例（1）");
-    expect(wrapper.text()).toContain("重复提交同一订单");
+    const card = wrapper.find('[data-testid="failed-case"]');
+    expect(card.text()).toContain("重复提交同一订单");
+    expect(card.text()).toContain("订单列表只出现一条");
+    expect(card.text()).toContain("AssertionError");
 
-    await wrapper.find(".case-head").trigger("click");
-    expect(wrapper.text()).toContain("订单列表只出现一条");
-    expect(wrapper.text()).toContain("evidence/order-list.png");
-    expect(wrapper.text()).toContain("AssertionError");
+    const tiles = card.findAll(".tile");
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].text()).toContain("order-list.png");
+    expect(tiles[0].text()).toContain("2.0 KB");
 
     expect(wrapper.text()).toContain("观察到的事实");
     expect(wrapper.text()).toContain("候选原因");
-    expect(wrapper.text()).toContain("未验证与下一步");
     expect(wrapper.text()).toContain("生产环境是否同样");
+  });
+
+  it("点内联证据会用宿主打开已保存的文件", async () => {
+    const harness = prepare();
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    await wrapper.find('[data-testid="failed-case"] .tile').trigger("click");
+    await flushPromises();
+
+    expect(harness.opened).toEqual(["C:/data/ws/evidence/run_1/order-list.png"]);
+    expect(wrapper.text()).toContain("已请求用系统程序打开");
   });
 
   it("缺少未验证范围的分析不展示正文", async () => {
@@ -70,42 +92,65 @@ describe("结果页", () => {
       },
     };
     prepare(detail);
-    const wrapper = mount(ResultView);
-    await flushPromises();
+    const wrapper = mount(ResultPanel);
+    await settle();
 
     expect(wrapper.text()).toContain("分析不合格，已隐藏");
     expect(wrapper.text()).not.toContain("半截内容");
   });
+});
 
-  it("按验收项重跑只提交该验收项并新建运行", async () => {
-    const harness = installHost({
-      "run.start": { run_id: "run_2", status: "running", scope: { selected: 1, applicable: 3 } },
-    });
-    resetSession();
-    session.project = PROJECT;
-    session.result = RUN_DETAIL;
-    session.plan = PLAN;
-    session.task = TASK;
-    session.activeRunId = RUN_DETAIL.run.run_id;
-    const wrapper = mount(ResultView);
+describe("结果相位：内联问题", () => {
+  it("问题标题是主信息，更新状态调用 issue.update", async () => {
+    const harness = prepare();
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    const block = wrapper.find('[data-testid="issue-inline"]');
+    expect(block.text()).toContain("重复提交生成两条订单");
+    expect(block.text()).toContain("issue_abc123");
+
+    await block.find(".status-label select").setValue("in_progress");
     await flushPromises();
 
-    const rerun = wrapper
-      .findAll(".rerun button")
-      .find((button) => button.text().includes("下单后订单列表出现该订单"));
-    expect(rerun).toBeTruthy();
-    await rerun?.trigger("click");
+    const update = harness.calls.find((call) => call.command === "issue.update");
+    expect(update?.payload["issue_id"]).toBe("issue_abc123");
+    expect(update?.payload["status"]).toBe("in_progress");
+    expect(block.text()).toContain("状态已更新为“处理中”");
+  });
+
+  it("关闭问题引用当前运行作为证据", async () => {
+    const harness = prepare();
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "关闭问题")
+      ?.trigger("click");
     await flushPromises();
 
-    const start = harness.calls.find((call) => call.command === "run.start");
-    expect(start?.options.confirm).toBe(true);
-    expect(start?.payload["acceptance_item_ids"]).toEqual(["ai_1"]);
-    expect(session.view).toBe("run");
+    const close = harness.calls.find((call) => call.command === "issue.close");
+    expect(close?.payload["run_id"]).toBe(RUN_DETAIL.run.run_id);
+    expect(wrapper.text()).toContain("问题已关闭");
+  });
+
+  it("运行中不能关闭问题", async () => {
+    const running = {
+      outcome: null,
+      run: { ...RUN_DETAIL.run, status: "running" as const },
+    };
+    prepare(running);
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    const close = wrapper.findAll("button").find((button) => button.text() === "关闭问题");
+    expect(close?.attributes("disabled")).toBeDefined();
   });
 });
 
-describe("未覆盖清单", () => {
-  it("结果页展示未选中的适用验收项，最多 5 条并给出剩余数量", async () => {
+describe("结果相位：覆盖、链路与模板", () => {
+  it("展示未选中的适用验收项，最多 5 条并给出剩余数量", async () => {
     const detail = {
       ...RUN_DETAIL,
       uncovered_items: [
@@ -118,8 +163,8 @@ describe("未覆盖清单", () => {
       ],
     };
     prepare(detail);
-    const wrapper = mount(ResultView);
-    await flushPromises();
+    const wrapper = mount(ResultPanel);
+    await settle();
 
     const list = wrapper.find('[data-testid="uncovered-list"]');
     expect(list.exists()).toBe(true);
@@ -131,11 +176,75 @@ describe("未覆盖清单", () => {
     expect(text).toContain("还有 1 条未显示");
   });
 
-  it("全部覆盖时不显示未覆盖清单", async () => {
-    prepare({ ...RUN_DETAIL, uncovered_items: [] });
-    const wrapper = mount(ResultView);
-    await flushPromises();
+  it("链路折叠块展示首错节点、上下游与代码位置", async () => {
+    prepare({
+      ...RUN_DETAIL,
+      link: {
+        first_anomaly: { node_id: "log:12", status: "error" },
+        upstream: [{ node_id: "log:1", status: "passed" }],
+        downstream: [{ node_id: "log:14", status: "unknown" }],
+        location: { known: true, path: "app.log", line: 12 },
+      },
+    });
+    const wrapper = mount(ResultPanel);
+    await settle();
 
-    expect(wrapper.find('[data-testid="uncovered-list"]').exists()).toBe(false);
+    const block = wrapper.find('[data-testid="link-block"]');
+    expect(block.text()).toContain("首错节点");
+    expect(block.text()).toContain("log:12");
+    expect(block.text()).toContain("log:1");
+    expect(block.text()).toContain("log:14");
+    expect(block.text()).toContain("app.log:12");
+  });
+
+  it("计划里的模板处置只读展示，不进入必测分母", async () => {
+    prepare();
+    session.plan = { ...PLAN, templates: [TEMPLATE_RESULT] };
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    const block = wrapper.find('[data-testid="template-block"]');
+    expect(block.text()).toContain("模板检查项");
+    expect(block.text()).toContain("服务能启动");
+    expect(block.text()).toContain("适用");
+    expect(block.text()).toContain("状态可核对");
+    expect(block.text()).toContain("未知");
+    expect(block.text()).toContain("不进入必测分母");
+  });
+});
+
+describe("结果相位：报告与意见", () => {
+  it("导出报告先生成再按路径保存", async () => {
+    const harness = prepare();
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    await wrapper.findAll("button").find((button) => button.text() === "导出报告")?.trigger("click");
+    const input = wrapper.find("input#export-path");
+    expect(input.exists()).toBe(true);
+    await input.setValue("E:\\reports\\run.md");
+    await wrapper.findAll("button").find((button) => button.text() === "导出")?.trigger("click");
+    await settle();
+
+    const generate = harness.calls.find((call) => call.command === "report.generate");
+    expect(generate?.payload).toMatchObject({ run_id: RUN_DETAIL.run.run_id });
+    const exported = harness.calls.find((call) => call.command === "report.export");
+    expect(exported?.payload).toMatchObject({ path: "E:\\reports\\run.md" });
+    expect(wrapper.text()).toContain("已导出到");
+  });
+
+  it("保存验收意见并显示回执", async () => {
+    const harness = prepare();
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    await wrapper.find("input#opinion-by").setValue("李四");
+    await wrapper.find("textarea#opinion-text").setValue("复测通过");
+    await wrapper.findAll("button").find((button) => button.text() === "保存意见")?.trigger("click");
+    await settle();
+
+    const opinion = harness.calls.find((call) => call.command === "report.opinion");
+    expect(opinion?.payload).toMatchObject({ by: "李四", text: "复测通过" });
+    expect(wrapper.text()).toContain("已记录");
   });
 });

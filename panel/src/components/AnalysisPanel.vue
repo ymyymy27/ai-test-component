@@ -96,10 +96,11 @@ const state = computed(() => {
 
 <style scoped>
 .analysis {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  padding: var(--space-4);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: var(--space-4) 0 0;
 }
 
 .analysis-head {

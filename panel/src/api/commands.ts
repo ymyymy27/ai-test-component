@@ -107,6 +107,27 @@ export const api = {
     return callHost("task.show", { project_id: projectId, task_id: taskId });
   },
 
+  /** 验收项增删改：后端以整份验收项替换并递增修订号。 */
+  updateTask(input: {
+    projectId: string;
+    taskId: string;
+    revision: number;
+    items: {
+      item_id?: string;
+      text: string;
+      observable: boolean;
+      status: "active" | "pending";
+      source?: string;
+    }[];
+  }): Promise<AddTaskResult> {
+    return callHost("task.update", {
+      project_id: input.projectId,
+      task_id: input.taskId,
+      expected_revision: input.revision,
+      patch: { acceptance_items: input.items },
+    });
+  },
+
   draftDelivery(
     projectId: string,
     taskId: string,

@@ -4,21 +4,16 @@ import { computed, onMounted } from "vue";
 import { isHostReady } from "@/api/host";
 import AppHeader from "@/components/AppHeader.vue";
 import EmptyState from "@/components/EmptyState.vue";
+import Icon from "@/components/Icon.vue";
 import SkeletonBlock from "@/components/SkeletonBlock.vue";
-import EvidenceView from "@/views/EvidenceView.vue";
-import HistoryView from "@/views/HistoryView.vue";
-import IssuesView from "@/views/IssuesView.vue";
-import ProjectView from "@/views/ProjectView.vue";
-import ResultView from "@/views/ResultView.vue";
-import RunView from "@/views/RunView.vue";
+import SessionView from "@/views/SessionView.vue";
 import SettingsView from "@/views/SettingsView.vue";
-import WizardView from "@/views/WizardView.vue";
 import {
   bootstrap,
   clearNotice,
-  go,
-  openProject,
+  openSettings,
   session,
+  switchProject,
 } from "@/state/session";
 
 const hostReady = computed(() => isHostReady());
@@ -28,10 +23,6 @@ onMounted(() => {
     void bootstrap();
   }
 });
-
-function switchProject(projectId: string): void {
-  void openProject(projectId);
-}
 </script>
 
 <template>
@@ -43,7 +34,7 @@ function switchProject(projectId: string): void {
     :project="session.project"
     :env="session.env"
     @select="switchProject"
-    @settings="go('settings')"
+    @settings="openSettings"
   />
 
   <main id="main" class="container">
@@ -68,18 +59,12 @@ function switchProject(projectId: string): void {
       <div v-if="session.notice" class="notice-bar" role="status">
         <span>{{ session.notice }}</span>
         <button type="button" class="notice-close" aria-label="关闭提示" @click="clearNotice">
-          ×
+          <Icon name="close" :size="13" />
         </button>
       </div>
 
-      <ProjectView v-if="session.view === 'project'" />
-      <WizardView v-else-if="session.view === 'wizard'" />
-      <RunView v-else-if="session.view === 'run'" />
-      <ResultView v-else-if="session.view === 'result'" />
-      <EvidenceView v-else-if="session.view === 'evidence'" />
-      <IssuesView v-else-if="session.view === 'issues'" />
-      <HistoryView v-else-if="session.view === 'history'" />
-      <SettingsView v-else-if="session.view === 'settings'" />
+      <SettingsView v-if="session.screen === 'settings'" />
+      <SessionView v-else />
     </template>
   </main>
 </template>
@@ -121,7 +106,6 @@ function switchProject(projectId: string): void {
   border: 0;
   border-radius: 4px;
   color: var(--text-3);
-  font-size: 16px;
   line-height: 1;
 }
 

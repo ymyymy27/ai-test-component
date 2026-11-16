@@ -10,8 +10,8 @@ import ErrorNotice from "@/components/ErrorNotice.vue";
 import Icon from "@/components/Icon.vue";
 import StatusDot from "@/components/StatusDot.vue";
 import {
+  backToSession,
   flash,
-  go,
   refreshDoctor,
   repairEnvironment,
   session,
@@ -246,9 +246,9 @@ onMounted(() => {
 <template>
   <div class="stack" data-testid="settings-view">
     <div class="head">
-      <button type="button" class="back" @click="go('project')">
+      <button type="button" class="back" @click="backToSession">
         <Icon name="arrow-left" :size="15" />
-        返回
+        返回测试单
       </button>
     </div>
 
@@ -377,7 +377,7 @@ onMounted(() => {
 
       <div v-if="advancedOpen" id="advanced-config-body" class="advanced-body">
         <p v-if="!session.project" class="hint">
-          还没有选择项目。回到项目页选择项目后，这里会显示可编辑的服务、链路与运行器配置。
+          还没有选择项目。回到测试单选择项目后，这里会显示可编辑的服务、链路与运行器配置。
         </p>
 
         <template v-else>
@@ -442,7 +442,7 @@ onMounted(() => {
     </section>
 
     <p class="footnote">
-      设置里的模型与链路能力不改变已有的测试判定；任何未验证项都会在结果页标出。
+      设置里的模型与链路能力不改变已有的测试判定；任何未验证项都会在测试单的结果里标出。
     </p>
   </div>
 </template>

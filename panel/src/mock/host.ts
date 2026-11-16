@@ -3,7 +3,7 @@
  * 数据是与契约同形的演示数据，不连接真实工作空间，也不进入生产构建。
  */
 import type { HostBridge } from "@/api/host";
-import type { DoctorFacts } from "@/api/types";
+import type { DoctorFacts, IssueSummary, TemplateResult } from "@/api/types";
 
 const NOW = "2026-11-16T14:20:00+08:00";
 const TASK_ID = "task_demo";
@@ -291,7 +291,7 @@ const config = {
 };
 
 
-const issues = [
+const issues: IssueSummary[] = [
   {
     issue_id: "issue_1",
     title: "重复提交同一幂等键生成两条订单",
@@ -308,6 +308,70 @@ const issues = [
   },
 ];
 
+const evidenceFiles = [
+  {
+    ref: "evidence/screenshot-order-list.png",
+    name: "screenshot-order-list.png",
+    path: "C:\\Users\\demo\\AppData\\Roaming\\aitest\\workspaces\\ws_demo\\projects\\proj_demo\\runs\\run_demo\\evidence\\screenshot-order-list.png",
+    bytes: 184320,
+    exists: true,
+  },
+  {
+    ref: "evidence/response.json",
+    name: "response.json",
+    path: "C:\\Users\\demo\\AppData\\Roaming\\aitest\\workspaces\\ws_demo\\projects\\proj_demo\\runs\\run_demo\\evidence\\response.json",
+    bytes: 2048,
+    exists: true,
+  },
+  {
+    ref: "evidence/stock-log.txt",
+    name: "stock-log.txt",
+    path: "C:\\Users\\demo\\AppData\\Roaming\\aitest\\workspaces\\ws_demo\\projects\\proj_demo\\runs\\run_demo\\evidence\\stock-log.txt",
+    bytes: 4096,
+    exists: true,
+  },
+  {
+    ref: "evidence/missing.log",
+    name: "missing.log",
+    path: "",
+    bytes: 0,
+    exists: false,
+    missing_reason: "证据文件不在运行目录中",
+  },
+];
+
+const templateResult: TemplateResult = {
+  template_id: "python-service",
+  name: "Python服务",
+  version: "1.0.0",
+  applied_at: NOW,
+  items: [
+    {
+      item_id: "startup",
+      layer: "L1",
+      objective: "服务能启动",
+      disposition: "applicable",
+      reason: "有启动命令",
+    },
+    {
+      item_id: "state",
+      layer: "L2",
+      objective: "状态可核对",
+      disposition: "unknown",
+      reason: "模型未提供理由",
+    },
+    {
+      item_id: "k8s",
+      layer: "L3",
+      objective: "集群探针",
+      disposition: "not_applicable",
+      reason: "项目没有 Kubernetes 配置",
+    },
+  ],
+  summary: { applicable: 1, not_applicable: 1, unsupported: 0, unknown: 1 },
+};
+
+
 function ok(data: unknown) {
   return { ok: true as const, data };
 }
@@ -316,14 +380,27 @@ function fail(code: string, message: string, nextStep: string) {
   return { ok: false as const, error: { code, message, next_step: nextStep } };
 }
 
-export function installMockHost(scenario = "result"): void {
+export function installMockHost(scenario = "proposal"): void {
   const initial = {
-    view: scenario,
+    screen: scenario === "settings" ? "settings" : "session",
     projectId: project.project_id,
     runId: RUN_ID,
     planId: PLAN_ID,
   };
   let state: unknown = initial;
+  let startedRun = false;
+  let taskRevision = 2;
+  let taskItems: {
+    item_id: string;
+    text: string;
+    observable: boolean;
+    status: "active" | "pending";
+    source: string;
+  }[] = items.map((item) => ({
+    ...item,
+    status: item.status === "pending" ? "pending" : "active",
+  }));
+  const planTemplates: TemplateResult[] = [];
 
   const host: HostBridge = {
     getState: () => state,
@@ -358,7 +435,15 @@ export function installMockHost(scenario = "result"): void {
         case "delivery.save":
           return ok({ delivery_id: "dlv_demo", revision: 1, complete: true });
         case "template.list":
-          return ok({ templates: [] });
+          return ok({ templates: [{ template_id: "python-service", name: "Python服务", version: "1.0.0", item_count: 3 }] });
+        case "template.apply":
+          planTemplates.push(templateResult);
+          return ok({
+            template: templateResult,
+            path: "tasks/task_demo/templates/python-service.json",
+            plan_id: PLAN_ID,
+            plan_revision: 2,
+          });
         case "task.suggest":
           return ok({
             candidates: [
@@ -379,40 +464,72 @@ export function installMockHost(scenario = "result"): void {
         case "task.add":
           return ok({
             task_id: TASK_ID,
-            revision: 1,
-            acceptance_items: items.map((item) => ({
+            revision: taskRevision,
+            acceptance_items: taskItems.map((item) => ({
               item_id: item.item_id,
               status: item.status,
               text: item.text,
             })),
           });
         case "task.show":
-          return ok({ task });
+          return ok({ task: { ...task, acceptance_items: taskItems, revision: taskRevision } });
+        case "task.update": {
+          const patch = (body["patch"] ?? {}) as {
+            acceptance_items?: {
+              item_id?: string;
+              text: string;
+              observable?: boolean;
+              status?: string;
+              source?: string;
+            }[];
+          };
+          const incoming = patch.acceptance_items ?? [];
+          taskItems = incoming.map((item, index) => ({
+            item_id: item.item_id ?? `ai_demo_${index}`,
+            text: item.text,
+            observable: item.observable ?? true,
+            status: item.status === "pending" ? "pending" : "active",
+            source: item.source ?? "手动补充",
+          }));
+          taskRevision += 1;
+          return ok({
+            task_id: TASK_ID,
+            revision: taskRevision,
+            previous_revision: taskRevision - 1,
+            acceptance_items: taskItems.map((item) => ({
+              item_id: item.item_id,
+              status: item.status,
+              text: item.text,
+            })),
+          });
+        }
         case "plan.generate": {
           const scope = (body["scope"] ?? {}) as {
             preset?: string;
             acceptance_item_ids?: string[];
           };
+          const applicable = items.filter((item) => item.observable && item.status === "active").length;
           const selected =
             scope.preset === "all_applicable"
-              ? items.length
+              ? applicable
               : (scope.acceptance_item_ids ?? []).length;
           return ok({
             plan_id: PLAN_ID,
             revision: 1,
             status: "published",
             scope: { ...plan.scope, ...scope },
-            coverage: { selected, applicable: items.length },
+            coverage: { selected, applicable },
             cases: planCases.length,
           });
         }
         case "plan.show":
-          return ok({ plan });
+          return ok({ plan: { ...plan, templates: planTemplates } });
         case "run.start":
-          return ok({ run_id: RUN_ID, status: "running", scope: { selected: 1, applicable: 8 } });
+          startedRun = true;
+          return ok({ run_id: RUN_ID, status: "running", scope: { selected: 3, applicable: 8 } });
         case "run.status":
           if (body["run_id"] === RUN_ID) {
-            if (scenario === "run") {
+            if (scenario === "running" || startedRun) {
               return ok({
                 run: {
                   ...run,
@@ -430,10 +547,18 @@ export function installMockHost(scenario = "result"): void {
             run: { ...run, run_id: String(body["run_id"] ?? ""), status: "cancelled" },
             outcome: "incomplete",
           });
-        case "run.list":
+        case "run.list": {
+          if (scenario === "proposal") {
+            return ok({ runs: [] });
+          }
           return ok({
             runs: [
-              { run_id: RUN_ID, status: "completed", started_at: NOW, heartbeat_at: NOW },
+              {
+                run_id: RUN_ID,
+                status: scenario === "running" ? "running" : "completed",
+                started_at: NOW,
+                heartbeat_at: NOW,
+              },
               {
                 run_id: "run_prev",
                 status: "cancelled",
@@ -448,12 +573,48 @@ export function installMockHost(scenario = "result"): void {
               },
             ],
           });
+        }
         case "run.cancel":
           return ok({ cancel_requested: true });
         case "analysis.run":
           return ok({ status: "generated", analysis: run.analysis[0] });
         case "issue.list":
           return ok({ issues });
+        case "issue.update": {
+          const issue = issues.find((item) => item.issue_id === body["issue_id"]);
+          if (issue) {
+            issue.status = String(body["status"] ?? issue.status) as IssueSummary["status"];
+          }
+          return ok({
+            issue_id: String(body["issue_id"] ?? ""),
+            status: issue?.status ?? "pending",
+            revision: 2,
+          });
+        }
+        case "issue.close": {
+          const issue = issues.find((item) => item.issue_id === body["issue_id"]);
+          if (issue) {
+            issue.status = "closed";
+          }
+          return ok({ issue_id: String(body["issue_id"] ?? ""), status: "closed" });
+        }
+        case "evidence.list":
+          return ok({ run_id: String(body["run_id"] ?? ""), evidence: evidenceFiles });
+        case "module.suggest":
+          return ok({
+            modules: [
+              {
+                name: "order",
+                responsibility: "下单与查询",
+                owner: "张三",
+                deps: [{ to: "stock", type: "calls", note: "扣减" }],
+              },
+              { name: "stock", responsibility: "库存扣减与回滚", owner: "李四", deps: [] },
+            ],
+            registered: project.modules.map((item) => item.name),
+          });
+        case "module.add":
+          return ok({ module_id: "mod_new", revision: 5 });
         case "report.generate":
           return ok({ report_id: "rep_demo", outcome: "failed", counts: { selected: 3, applicable: 8 } });
         case "report.export":

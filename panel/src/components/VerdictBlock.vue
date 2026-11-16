@@ -56,10 +56,12 @@ const sentence = computed(() =>
 .verdict {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-4) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  padding: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
 }
 
 .head {
@@ -99,8 +101,7 @@ const sentence = computed(() =>
 }
 
 .tone-passed {
-  background: linear-gradient(180deg, var(--passed-fill), transparent 120px), var(--surface);
-  border-color: rgba(134, 179, 148, 0.28);
+  background: linear-gradient(180deg, var(--passed-fill), transparent 120px);
 }
 
 .tone-passed .word {
@@ -108,8 +109,7 @@ const sentence = computed(() =>
 }
 
 .tone-failed {
-  background: linear-gradient(180deg, var(--failed-fill), transparent 120px), var(--surface);
-  border-color: rgba(214, 141, 132, 0.3);
+  background: linear-gradient(180deg, var(--failed-fill), transparent 120px);
 }
 
 .tone-failed .word {
@@ -117,8 +117,7 @@ const sentence = computed(() =>
 }
 
 .tone-incomplete {
-  background: linear-gradient(180deg, var(--incomplete-fill), transparent 120px), var(--surface);
-  border-color: rgba(201, 168, 111, 0.28);
+  background: linear-gradient(180deg, var(--incomplete-fill), transparent 120px);
 }
 
 .tone-incomplete .word {
