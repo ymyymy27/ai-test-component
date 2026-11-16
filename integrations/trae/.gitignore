@@ -1,0 +1,2 @@
+# 运行时安装材料由 scripts/build-wheel.mjs 在打包前生成，不入库。
+media/runtime/

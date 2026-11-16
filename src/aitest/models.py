@@ -140,6 +140,7 @@ class Plan(Model):
     applicable_count: int = 0
     rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
+    templates: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
     revision: int = 1
@@ -275,6 +276,7 @@ class Report(Model):
     layers: dict[str, int] = Field(default_factory=dict)
     rules_version_id: str | None = None
     source_commit: str | None = None
+    templates: list[dict[str, Any]] = Field(default_factory=list)
     environment: dict[str, Any] = Field(default_factory=dict)
     github: dict[str, Any] | None = None
     uncovered_items: list[str] = Field(default_factory=list)

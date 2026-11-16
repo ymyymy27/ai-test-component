@@ -14,6 +14,10 @@ from typing import Any, Literal
 
 from aitest import __version__
 from aitest.config import model_key_source
+from aitest.core.delivery import build_context as build_delivery_context
+from aitest.core.modules import build_context as build_module_context
+from aitest.core.modules import invalid_dependencies
+from aitest.core.templates import apply_template, list_templates, load_template
 from aitest.errors import AiTestError, invalid_path, invalid_request
 from aitest.model_config import build_client
 from aitest.models import (
@@ -21,6 +25,7 @@ from aitest.models import (
     Delivery,
     Dependency,
     Module,
+    Plan,
     Project,
     RuleVersion,
     Task,
@@ -358,6 +363,29 @@ def cmd_module_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     return {"modules": [m.model_dump(mode="json") for m in project.modules]}
 
 
+def cmd_module_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Return AI module suggestions without writing anything."""
+    del confirm
+    project = _project(ws, payload)
+    client = build_client(ws, project.project_id)
+    if client is None:
+        raise AiTestError(
+            "MODEL_UNAVAILABLE",
+            "未配置模型密钥，无法建议模块",
+            "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
+        )
+    suggestions = client.suggest_modules(build_module_context(project))
+    registered = {module.name for module in project.modules}
+    invalid = invalid_dependencies(suggestions, registered)
+    if invalid:
+        raise AiTestError(
+            "MODEL_OUTPUT_INVALID",
+            "模块依赖指向未建议且未登记的模块：" + "、".join(invalid),
+            "重试建议，或先登记被引用的模块",
+        )
+    return {"modules": suggestions, "registered": sorted(registered)}
+
+
 # -- task -------------------------------------------------------------------
 
 
@@ -597,6 +625,92 @@ def cmd_delivery_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     return {"delivery": read_model(path, Delivery).model_dump(mode="json")}
 
 
+def cmd_delivery_draft(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Draft a delivery note from read-only project facts; never persist it."""
+    del confirm
+    project = _project(ws, payload)
+    task = _task(ws, payload)
+    commit = _text(payload, "commit").strip()
+    client = build_client(ws, project.project_id)
+    if client is None:
+        raise AiTestError(
+            "MODEL_UNAVAILABLE",
+            "未配置模型密钥，无法起草交付说明",
+            "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
+        )
+    context = build_delivery_context(project, task, commit)
+    draft = client.draft_delivery(context)
+    files = context["files"]
+    return {
+        "draft": draft,
+        "sources": {
+            "readme": files["readme"]["path"],
+            "manifest": files["manifest"]["path"],
+            "commit_stat": bool(files["commit_stat"]),
+        },
+    }
+
+
+# -- templates --------------------------------------------------------------
+
+
+def _task_templates_dir(ws: Workspace, project_id: str, task_id: str) -> Path:
+    return ws.project_dir(project_id) / "tasks" / task_id / "templates"
+
+
+def cmd_template_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del ws, payload, confirm
+    return {"templates": list_templates()}
+
+
+def cmd_template_apply(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Dispose template items with the model and store the result as advice only."""
+    del confirm
+    project = _project(ws, payload)
+    task = _task(ws, payload)
+    name = _text({"template_name": _require(payload, "template_name")}, "template_name")
+    plan_id = _text(payload, "plan_id").strip()
+    plan_path: Path | None = None
+    plan: Plan | None = None
+    if plan_id:
+        plan_path = ws.project_dir(project.project_id) / "plans" / f"{plan_id}.json"
+        if not plan_path.is_file():
+            raise AiTestError("INVALID_REQUEST", f"计划不存在：{plan_id}", "先 plan.generate")
+        plan = read_model(plan_path, Plan)
+        if plan.task_id != task.task_id:
+            raise invalid_request("计划不属于该任务", "改用同一任务下的计划 ID")
+    template = load_template(name)
+    client = build_client(ws, project.project_id)
+    if client is None:
+        raise AiTestError(
+            "MODEL_UNAVAILABLE",
+            "未配置模型密钥，无法处置模板",
+            "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
+        )
+    result = apply_template(client, template, project, task)
+    target = _task_templates_dir(ws, project.project_id, task.task_id) / (
+        f"{result['template_id']}.json"
+    )
+    write_json(target, {"schema_version": 1, **result})
+    revision = None
+    if plan is not None and plan_path is not None:
+        kept = [
+            entry
+            for entry in plan.templates
+            if entry.get("template_id") != result["template_id"]
+        ]
+        plan.templates = [*kept, result]
+        plan.revision += 1
+        write_model(plan_path, plan)
+        revision = plan.revision
+    return {
+        "template": result,
+        "path": str(target.relative_to(ws.root)).replace("\\", "/"),
+        "plan_id": plan_id,
+        "plan_revision": revision,
+    }
+
+
 # -- rules ------------------------------------------------------------------
 
 
@@ -699,6 +813,7 @@ REGISTRY: dict[str, Handler] = {
     "module.add": cmd_module_add,
     "module.update": cmd_module_update,
     "module.list": cmd_module_list,
+    "module.suggest": cmd_module_suggest,
     "task.suggest": cmd_task_suggest,
     "task.add": cmd_task_add,
     "task.update": cmd_task_update,
@@ -706,6 +821,9 @@ REGISTRY: dict[str, Handler] = {
     "task.show": cmd_task_show,
     "delivery.save": cmd_delivery_save,
     "delivery.show": cmd_delivery_show,
+    "delivery.draft": cmd_delivery_draft,
+    "template.list": cmd_template_list,
+    "template.apply": cmd_template_apply,
     "rules.save": cmd_rules_save,
     "rules.list": cmd_rules_list,
     "rules.show": cmd_rules_show,
@@ -723,6 +841,7 @@ MUTATING = {
     "task.add",
     "task.update",
     "delivery.save",
+    "template.apply",
     "rules.save",
     "rules.bind",
     "rules.import",

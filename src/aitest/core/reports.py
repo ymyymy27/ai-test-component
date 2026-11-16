@@ -208,6 +208,34 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
     return index
 
 
+def _template_entries(
+    ws: Workspace, project_id: str, task: Task | None, plan: Plan
+) -> list[dict[str, Any]]:
+    entries = list(plan.templates)
+    seen = {
+        str(entry.get("template_id"))
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("template_id")
+    }
+    if task is None:
+        return entries
+    directory = ws.project_dir(project_id) / "tasks" / task.task_id / "templates"
+    if not directory.is_dir():
+        return entries
+    for path in sorted(directory.glob("*.json")):
+        try:
+            data = read_json(path)
+        except AiTestError:
+            continue
+        entry = {key: value for key, value in data.items() if key != "schema_version"}
+        template_id = str(entry.get("template_id") or "")
+        if not template_id or template_id in seen:
+            continue
+        seen.add(template_id)
+        entries.append(entry)
+    return entries
+
+
 def _mock_judgement(
     project: Project,
     run: Run,
@@ -310,6 +338,7 @@ def build_report(
         layers=_layers(plan),
         rules_version_id=plan.rules_version_id or project.rules_version_id,
         source_commit=source_commit,
+        templates=_template_entries(ws, project.project_id, task, plan),
         environment=_environment(ws, project.project_id),
         github=github,
         uncovered_items=uncovered,

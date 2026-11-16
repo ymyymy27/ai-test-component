@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 
+import { api } from "@/api/commands";
+import { describeError, type FriendlyError } from "@/api/errors";
 import {
   RUN_STATUS_BADGE,
   RUN_STATUS_LABEL,
@@ -8,6 +10,7 @@ import {
   VERDICT_TONE,
   formatDateTime,
 } from "@/api/labels";
+import type { ModuleSuggestion, TaskSummary } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
 import Badge from "@/components/Badge.vue";
 import EmptyState from "@/components/EmptyState.vue";
@@ -16,9 +19,11 @@ import Icon from "@/components/Icon.vue";
 import CoverageMeter from "@/components/CoverageMeter.vue";
 import {
   addProjectByPath,
+  flash,
   go,
   isBusy,
   openHistory,
+  openProject,
   openResult,
   session,
   startWizard,
@@ -29,6 +34,64 @@ const pathValue = ref("");
 const nameValue = ref("");
 const touched = ref(false);
 const pathInput = ref<HTMLInputElement | null>(null);
+
+type DeliveryTextKey =
+  | "done"
+  | "not_done"
+  | "changed_modules"
+  | "interface_changes"
+  | "run_commands"
+  | "test_data"
+  | "dependencies"
+  | "mocks"
+  | "self_test_evidence";
+
+const DELIVERY_FIELDS: {
+  key: DeliveryTextKey;
+  label: string;
+  hint: string;
+  rows: number;
+}[] = [
+  { key: "done", label: "已完成", hint: "每行一条", rows: 2 },
+  { key: "not_done", label: "未完成", hint: "每行一条；没有就留空", rows: 2 },
+  { key: "changed_modules", label: "改动模块", hint: "每行一个模块名", rows: 2 },
+  { key: "interface_changes", label: "接口变更", hint: "每行一条", rows: 2 },
+  { key: "run_commands", label: "运行命令", hint: "每行一条；不知道就留空", rows: 2 },
+  { key: "test_data", label: "测试数据", hint: "说明测试数据环境", rows: 2 },
+  { key: "dependencies", label: "依赖", hint: "每行一个依赖", rows: 2 },
+  { key: "mocks", label: "Mock", hint: "每行一个被 Mock 的依赖", rows: 2 },
+  { key: "self_test_evidence", label: "自测证据", hint: "每行一条证据", rows: 2 },
+];
+
+const deliveryText = reactive<Record<DeliveryTextKey, string>>({
+  done: "",
+  not_done: "",
+  changed_modules: "",
+  interface_changes: "",
+  run_commands: "",
+  test_data: "",
+  dependencies: "",
+  mocks: "",
+  self_test_evidence: "",
+});
+
+const delivery = reactive({
+  tasks: [] as TaskSummary[],
+  taskId: "",
+  commit: "",
+  loading: false,
+  saving: false,
+  error: null as FriendlyError | null,
+  saved: "",
+});
+
+const moduleSuggest = reactive({
+  items: [] as ModuleSuggestion[],
+  loading: false,
+  saving: false,
+  error: null as FriendlyError | null,
+  shown: false,
+});
 
 const busy = computed(() => isBusy("projectAdd") || isBusy("project"));
 const trimmedPath = computed(() => pathValue.value.trim());
@@ -43,6 +106,7 @@ onMounted(() => {
   if (!pathValue.value && session.prefillRoot) {
     pathValue.value = session.prefillRoot;
   }
+  void loadTasks();
 });
 
 watch(
@@ -53,6 +117,152 @@ watch(
     }
   },
 );
+
+watch(
+  () => session.project?.project_id,
+  () => {
+    void loadTasks();
+  },
+);
+
+async function loadTasks(): Promise<void> {
+  if (!session.project) {
+    delivery.tasks = [];
+    delivery.taskId = "";
+    return;
+  }
+  try {
+    const data = await api.listTasks(session.project.project_id);
+    delivery.tasks = data.tasks ?? [];
+    if (delivery.taskId && !delivery.tasks.some((task) => task.task_id === delivery.taskId)) {
+      delivery.taskId = "";
+    }
+    if (!delivery.taskId && delivery.tasks.length > 0) {
+      delivery.taskId = delivery.tasks[0].task_id;
+    }
+  } catch {
+    delivery.tasks = [];
+  }
+}
+
+function splitLines(key: DeliveryTextKey): string[] {
+  return deliveryText[key]
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function fillDraft(draft: Record<DeliveryTextKey, string[]>): void {
+  for (const field of DELIVERY_FIELDS) {
+    deliveryText[field.key] = draft[field.key].join("\n");
+  }
+}
+
+async function draftDelivery(): Promise<void> {
+  if (!session.project || !delivery.taskId) {
+    return;
+  }
+  delivery.loading = true;
+  delivery.error = null;
+  delivery.saved = "";
+  try {
+    const result = await api.draftDelivery(
+      session.project.project_id,
+      delivery.taskId,
+      delivery.commit.trim() || undefined,
+    );
+    fillDraft(result.draft);
+    delivery.saved = "草稿已填入，可修改后保存；还没有写入工作空间。";
+    flash("已生成交付说明草稿");
+  } catch (error) {
+    delivery.error = describeError(error);
+  } finally {
+    delivery.loading = false;
+  }
+}
+
+async function saveDelivery(): Promise<void> {
+  if (!session.project || !delivery.taskId) {
+    return;
+  }
+  delivery.saving = true;
+  delivery.error = null;
+  try {
+    const result = await api.saveDelivery({
+      projectId: session.project.project_id,
+      taskId: delivery.taskId,
+      commit: delivery.commit.trim(),
+      done: splitLines("done"),
+      not_done: splitLines("not_done"),
+      changed_modules: splitLines("changed_modules"),
+      interface_changes: splitLines("interface_changes"),
+      run_commands: splitLines("run_commands"),
+      test_data: deliveryText.test_data.trim(),
+      dependencies: splitLines("dependencies"),
+      mocks: splitLines("mocks"),
+      self_test_evidence: splitLines("self_test_evidence"),
+    });
+    delivery.saved = result.complete
+      ? "交付说明已保存，运行命令与提交都已填写。"
+      : "交付说明已保存，但缺运行命令或提交，标记为不完整。";
+    flash(delivery.saved);
+  } catch (error) {
+    delivery.error = describeError(error);
+  } finally {
+    delivery.saving = false;
+  }
+}
+
+async function suggestModules(): Promise<void> {
+  if (!session.project) {
+    return;
+  }
+  moduleSuggest.loading = true;
+  moduleSuggest.error = null;
+  moduleSuggest.shown = false;
+  try {
+    const result = await api.suggestModules(session.project.project_id);
+    moduleSuggest.items = result.modules ?? [];
+    moduleSuggest.shown = true;
+  } catch (error) {
+    moduleSuggest.items = [];
+    moduleSuggest.error = describeError(error);
+  } finally {
+    moduleSuggest.loading = false;
+  }
+}
+
+async function confirmSuggestions(): Promise<void> {
+  if (!session.project || moduleSuggest.items.length === 0) {
+    return;
+  }
+  moduleSuggest.saving = true;
+  moduleSuggest.error = null;
+  try {
+    for (const item of moduleSuggest.items) {
+      await api.addModule(session.project.project_id, {
+        name: item.name,
+        responsibility: item.responsibility,
+        owner: item.owner,
+        deps: item.deps,
+      });
+    }
+    flash(`已写入 ${moduleSuggest.items.length} 个模块`);
+    moduleSuggest.items = [];
+    moduleSuggest.shown = false;
+    await openProject(session.project.project_id, { keepView: true });
+  } catch (error) {
+    moduleSuggest.error = describeError(error);
+  } finally {
+    moduleSuggest.saving = false;
+  }
+}
+
+function clearSuggestions(): void {
+  moduleSuggest.items = [];
+  moduleSuggest.shown = false;
+  moduleSuggest.error = null;
+}
 
 function openPicker(): void {
   picking.value = true;
@@ -197,6 +407,127 @@ async function submit(): Promise<void> {
           <span v-else class="scan-note">第一次运行后这里会显示最近一次状态。</span>
         </div>
       </div>
+
+      <section class="card stack" data-testid="delivery-draft">
+        <div class="section-title">
+          <h2>交付说明</h2>
+          <span class="section-note">AI 只起草，保存前可以改</span>
+        </div>
+        <div class="delivery-head">
+          <label class="field">
+            <span class="label">任务</span>
+            <select v-model="delivery.taskId" class="input" data-testid="delivery-task">
+              <option v-if="delivery.tasks.length === 0" value="">还没有任务</option>
+              <option v-for="task in delivery.tasks" :key="task.task_id" :value="task.task_id">
+                {{ task.title || task.task_id }}
+              </option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="label">提交（可选）</span>
+            <input
+              v-model="delivery.commit"
+              class="input mono"
+              type="text"
+              placeholder="例如 abc123"
+              spellcheck="false"
+            />
+          </label>
+        </div>
+        <div class="row">
+          <AppButton
+            :loading="delivery.loading"
+            :disabled="!delivery.taskId"
+            data-testid="delivery-draft-button"
+            @click="draftDelivery"
+          >
+            AI 起草交付说明
+          </AppButton>
+          <AppButton
+            variant="primary"
+            :loading="delivery.saving"
+            :disabled="!delivery.taskId"
+            data-testid="delivery-save-button"
+            @click="saveDelivery"
+          >
+            保存交付说明
+          </AppButton>
+        </div>
+        <p class="hint">
+          起草会读取 README、项目清单与 git 改动统计，不会自动保存；保存只写入工作空间。
+        </p>
+        <p v-if="delivery.saved" class="hint" data-testid="delivery-saved">{{ delivery.saved }}</p>
+        <ErrorNotice
+          v-if="delivery.error"
+          :error="delivery.error"
+          :show-retry="false"
+          @retry="() => {}"
+        />
+        <div class="delivery-grid">
+          <label v-for="field in DELIVERY_FIELDS" :key="field.key" class="field">
+            <span class="label">{{ field.label }}</span>
+            <textarea
+              v-model="deliveryText[field.key]"
+              class="input textarea"
+              :rows="field.rows"
+              :aria-label="field.label"
+            ></textarea>
+            <span class="hint">{{ field.hint }}</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card stack" data-testid="module-suggest">
+        <div class="section-title">
+          <h2>模块建议</h2>
+          <span class="section-note">建议不写库，确认后逐个登记</span>
+        </div>
+        <div class="row">
+          <AppButton
+            :loading="moduleSuggest.loading"
+            data-testid="module-suggest-button"
+            @click="suggestModules"
+          >
+            AI 建议模块
+          </AppButton>
+          <AppButton
+            v-if="moduleSuggest.items.length"
+            variant="primary"
+            :loading="moduleSuggest.saving"
+            data-testid="module-confirm-button"
+            @click="confirmSuggestions"
+          >
+            确认写入 {{ moduleSuggest.items.length }} 个模块
+          </AppButton>
+          <AppButton
+            v-if="moduleSuggest.items.length"
+            variant="ghost"
+            @click="clearSuggestions"
+          >
+            取消
+          </AppButton>
+        </div>
+        <ErrorNotice
+          v-if="moduleSuggest.error"
+          :error="moduleSuggest.error"
+          :show-retry="false"
+          @retry="() => {}"
+        />
+        <ul v-if="moduleSuggest.items.length" class="suggestions" data-testid="module-suggestions">
+          <li v-for="item in moduleSuggest.items" :key="item.name">
+            <div class="suggestion-head">
+              <strong>{{ item.name }}</strong>
+              <span v-if="item.owner" class="quiet">负责人：{{ item.owner }}</span>
+            </div>
+            <p v-if="item.responsibility" class="suggestion-note">{{ item.responsibility }}</p>
+            <p v-if="item.deps.length" class="suggestion-note">
+              依赖：
+              {{ item.deps.map((dep) => `${dep.to}（${dep.type}）`).join("、") }}
+            </p>
+          </li>
+        </ul>
+        <p v-else-if="moduleSuggest.shown" class="hint">模型没有给出模块建议。</p>
+      </section>
 
       <section class="last card">
         <div class="section-title">
@@ -409,6 +740,63 @@ async function submit(): Promise<void> {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.delivery-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.textarea {
+  min-height: 62px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.suggestions li {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestions li:last-child {
+  border-bottom: 0;
+}
+
+.suggestion-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.suggestion-note {
+  margin-top: 3px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+@media (max-width: 700px) {
+  .delivery-head,
+  .delivery-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {

@@ -2,10 +2,12 @@
 import { callHost } from "./host";
 import type {
   AddTaskResult,
+  DeliveryDraft,
   DoctorFacts,
   EvidenceItem,
   GeneratedPlan,
   IssueSummary,
+  ModuleSuggestion,
   Opinion,
   Plan,
   Project,
@@ -16,6 +18,9 @@ import type {
   RunSummary,
   SuggestResult,
   Task,
+  TaskSummary,
+  TemplateResult,
+  TemplateSummary,
 } from "./types";
 
 export const api = {
@@ -54,6 +59,27 @@ export const api = {
     return callHost("task.suggest", { project_id: projectId });
   },
 
+  listTasks(projectId: string): Promise<{ tasks: TaskSummary[] }> {
+    return callHost("task.list", { project_id: projectId });
+  },
+
+  addModule(
+    projectId: string,
+    input: { name: string; responsibility?: string; owner?: string; deps?: unknown[] },
+  ): Promise<{ module_id: string; revision: number }> {
+    return callHost("module.add", {
+      project_id: projectId,
+      name: input.name,
+      responsibility: input.responsibility ?? "",
+      owner: input.owner ?? "",
+      deps: input.deps ?? [],
+    });
+  },
+
+  suggestModules(projectId: string): Promise<{ modules: ModuleSuggestion[]; registered: string[] }> {
+    return callHost("module.suggest", { project_id: projectId });
+  },
+
   addTask(input: {
     projectId: string;
     title: string;
@@ -79,6 +105,71 @@ export const api = {
 
   showTask(projectId: string, taskId: string): Promise<{ task: Task }> {
     return callHost("task.show", { project_id: projectId, task_id: taskId });
+  },
+
+  draftDelivery(
+    projectId: string,
+    taskId: string,
+    commit?: string,
+  ): Promise<{ draft: DeliveryDraft; sources: { readme: string; manifest: string; commit_stat: boolean } }> {
+    return callHost("delivery.draft", {
+      project_id: projectId,
+      task_id: taskId,
+      ...(commit ? { commit } : {}),
+    });
+  },
+
+  saveDelivery(input: {
+    projectId: string;
+    taskId: string;
+    commit: string;
+    done: string[];
+    not_done: string[];
+    changed_modules: string[];
+    interface_changes: string[];
+    run_commands: string[];
+    test_data: string;
+    dependencies: string[];
+    mocks: string[];
+    self_test_evidence: string[];
+  }): Promise<{ delivery_id: string; revision: number; complete: boolean }> {
+    return callHost("delivery.save", {
+      project_id: input.projectId,
+      task_id: input.taskId,
+      commit: input.commit,
+      done: input.done,
+      not_done: input.not_done,
+      changed_modules: input.changed_modules,
+      interface_changes: input.interface_changes,
+      run_commands: input.run_commands,
+      test_data: input.test_data,
+      dependencies: input.dependencies,
+      mocks: input.mocks,
+      self_test_evidence: input.self_test_evidence,
+    });
+  },
+
+  listTemplates(): Promise<{ templates: TemplateSummary[] }> {
+    return callHost("template.list", {});
+  },
+
+  applyTemplate(input: {
+    projectId: string;
+    taskId: string;
+    templateName: string;
+    planId?: string;
+  }): Promise<{
+    template: TemplateResult;
+    path: string;
+    plan_id: string;
+    plan_revision: number | null;
+  }> {
+    return callHost("template.apply", {
+      project_id: input.projectId,
+      task_id: input.taskId,
+      template_name: input.templateName,
+      ...(input.planId ? { plan_id: input.planId } : {}),
+    });
   },
 
   generatePlan(input: {

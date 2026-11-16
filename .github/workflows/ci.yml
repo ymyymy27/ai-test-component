@@ -76,6 +76,18 @@ jobs:
       - name: Package Trae extension
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm --prefix integrations/trae run package
+      # 首次使用要在离线状态安装自带的 aitest wheel；VSIX 缺 wheel 视为打包失败。
+      - name: Verify the VSIX carries the offline wheel
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $vsix = Join-Path $env:GITHUB_WORKSPACE 'integrations\trae\dist\aitest-trae.vsix'
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($vsix)
+          $wheels = @($zip.Entries | Where-Object { $_.FullName -match '^extension/media/runtime/.*\.whl$' })
+          $zip.Dispose()
+          if ($wheels.Count -eq 0) { throw 'VSIX 缺少 extension/media/runtime/*.whl' }
+          $wheels | ForEach-Object { Write-Host $_.FullName }
       # Builds dist/*.whl, installs it into a temp venv and runs `doctor`
       # there, asserting an `ok: true` envelope. No artifact metadata checks.
       - name: Smoke-test built wheel
@@ -99,6 +111,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # 扩展构建会先打 aitest wheel（media/runtime），离线安装材料随 VSIX 分发。
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -118,4 +134,8 @@ jobs:
         run: npm --prefix integrations/trae test
       - name: Build Trae extension
         run: npm --prefix integrations/trae run build
+      - name: Check the extension build carries the offline wheel
+        shell: bash
+        run: |
+          ls -l integrations/trae/media/runtime/*.whl
 

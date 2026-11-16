@@ -62,7 +62,7 @@
         "aitest.pythonPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "已安装 aitest 的 Python 3.11+ 解释器路径。留空时依次尝试工作区 `.venv`、`py -3`、PATH 中的 `python`。"
+          "markdownDescription": "已安装 aitest 的 Python 3.11+ 解释器路径。留空时依次尝试工作区 `.venv`、`py -3`、PATH 中的 `python`；都没有时会自动准备便携运行时（下载到 `%APPDATA%/aitest/runtime/<版本>/` 并用 VSIX 自带 wheel 离线安装）。"
         },
         "aitest.workspacePath": {
           "type": "string",
@@ -74,7 +74,8 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "build": "npm run check && node scripts/build.mjs",
+    "build:wheel": "node scripts/build-wheel.mjs",
+    "build": "npm run check && npm run build:wheel && node scripts/build.mjs",
     "package": "npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix",
     "test": "node --test tests/*.test.mjs",
     "build:panel": "node scripts/build-panel.mjs"

@@ -16,6 +16,8 @@ import type {
   Plan,
   PlanCase,
   TargetCandidate,
+  TemplateDisposition,
+  TemplateSummary,
 } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
 import Badge from "@/components/Badge.vue";
@@ -73,6 +75,23 @@ const draft = reactive({
 const newItem = ref("");
 const suggestStarted = ref(false);
 const localSeq = ref(0);
+
+const DISPOSITION_LABEL: Record<TemplateDisposition, string> = {
+  applicable: "适用",
+  not_applicable: "不适用",
+  unsupported: "不支持",
+  unknown: "未知",
+};
+
+const templatePanel = reactive({
+  options: [] as TemplateSummary[],
+  choice: "",
+  loading: false,
+  applying: false,
+  error: null as FriendlyError | null,
+});
+
+const appliedTemplates = computed(() => draft.planDetail?.templates ?? []);
 
 const projectId = computed(() => session.project?.project_id ?? "");
 
@@ -434,10 +453,51 @@ function toggleModule(moduleId: string): void {
   }
 }
 
+async function loadTemplates(): Promise<void> {
+  if (templatePanel.loading || templatePanel.options.length > 0) {
+    return;
+  }
+  templatePanel.loading = true;
+  try {
+    const data = await api.listTemplates();
+    templatePanel.options = data.templates ?? [];
+    if (!templatePanel.choice && templatePanel.options.length > 0) {
+      templatePanel.choice = templatePanel.options[0].template_id;
+    }
+  } catch {
+    templatePanel.options = [];
+  } finally {
+    templatePanel.loading = false;
+  }
+}
+
+async function applyTemplate(): Promise<void> {
+  if (!projectId.value || !draft.taskId || !draft.plan || !templatePanel.choice) {
+    return;
+  }
+  templatePanel.applying = true;
+  templatePanel.error = null;
+  try {
+    await api.applyTemplate({
+      projectId: projectId.value,
+      taskId: draft.taskId,
+      templateName: templatePanel.choice,
+      planId: draft.plan.plan_id,
+    });
+    const detail = await api.showPlan(projectId.value, draft.plan.plan_id);
+    draft.planDetail = detail.plan;
+  } catch (error) {
+    templatePanel.error = describeError(error);
+  } finally {
+    templatePanel.applying = false;
+  }
+}
+
 async function ensurePlan(force = false): Promise<void> {
   if (!draft.taskId) {
     return;
   }
+  void loadTemplates();
   if (!force && draft.planDetail && draft.planSignature === planSignature.value) {
     return;
   }
@@ -882,6 +942,61 @@ onMounted(() => {
         </div>
 
         <UncoveredList v-if="uncoveredItems.length" :items="uncoveredItems" class="uncovered-block" />
+
+        <section class="template-block" data-testid="template-block">
+          <div class="section-title">
+            <h2>模板检查项</h2>
+            <span class="section-note">只读提示：不进入必测分母，也不改变验收项</span>
+          </div>
+          <div class="template-controls">
+            <select
+              v-model="templatePanel.choice"
+              class="template-select"
+              aria-label="选择模板"
+              :disabled="templatePanel.loading || templatePanel.options.length === 0"
+            >
+              <option v-if="templatePanel.options.length === 0" value="">没有可用模板</option>
+              <option
+                v-for="template in templatePanel.options"
+                :key="template.template_id"
+                :value="template.template_id"
+              >
+                {{ template.name }}（{{ template.item_count }} 项）
+              </option>
+            </select>
+            <AppButton
+              size="sm"
+              :loading="templatePanel.applying"
+              :disabled="!templatePanel.choice || templatePanel.options.length === 0"
+              data-testid="apply-template"
+              @click="applyTemplate"
+            >
+              应用模板
+            </AppButton>
+          </div>
+          <ErrorNotice
+            v-if="templatePanel.error"
+            :error="templatePanel.error"
+            :show-retry="false"
+            @retry="() => {}"
+          />
+          <div v-for="template in appliedTemplates" :key="template.template_id" class="template-result">
+            <div class="template-head">
+              <h3>{{ template.name }}</h3>
+              <span class="quiet">{{ template.version }} · {{ template.applied_at }}</span>
+            </div>
+            <ul class="template-items">
+              <li v-for="item in template.items" :key="item.item_id">
+                <span class="disposition" :class="`disposition-${item.disposition}`">
+                  {{ DISPOSITION_LABEL[item.disposition] }}
+                </span>
+                <span class="template-objective">{{ item.objective || item.item_id }}</span>
+                <span class="template-reason">{{ item.reason || "未提供理由" }}</span>
+              </li>
+            </ul>
+          </div>
+          <p v-if="appliedTemplates.length === 0" class="hint">还没有应用模板。</p>
+        </section>
 
         <div class="effects">
           <div class="effect">
@@ -1507,6 +1622,97 @@ onMounted(() => {
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--surface);
+}
+
+.template-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.template-controls {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.template-select {
+  min-height: 30px;
+  padding: 4px 8px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.template-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.template-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.template-head h3 {
+  font-size: var(--fs-13);
+}
+
+.template-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-items li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  line-height: 1.55;
+}
+
+.disposition {
+  padding: 1px 7px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.disposition-applicable {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+
+.disposition-unsupported,
+.disposition-unknown {
+  color: var(--incomplete);
+}
+
+.template-objective {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.template-reason {
+  color: var(--text-3);
 }
 
 .summary-item + .summary-item {

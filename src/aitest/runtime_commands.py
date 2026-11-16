@@ -28,6 +28,7 @@ from aitest.core.analysis import analyze_run
 from aitest.core.evidence import data_prefix, evidence_bytes, save_evidence
 from aitest.core.expectations import align_generated_sources, annotate_cases
 from aitest.core.issues import add_issue
+from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
 from aitest.core.reports import build_report
 from aitest.core.scope import applicable_items, uncovered_items
@@ -52,7 +53,7 @@ from aitest.models import (
     new_id,
 )
 from aitest.security import redact, scan_script
-from aitest.storage.files import read_model, write_model
+from aitest.storage.files import read_json, read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
 
@@ -634,10 +635,25 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         except AiTestError:
             task = None
         uncovered = uncovered_items(task, plan.scope)
+    link: dict[str, Any] | None = None
+    link_path = run_dir / "link.json"
+    if link_path.is_file():
+        imported = read_json(link_path)
+        stored = imported.get("location")
+        if isinstance(stored, dict):
+            link = stored
+        else:
+            nodes = imported.get("nodes")
+            assertions = imported.get("assertions")
+            link = locate_link(
+                nodes if isinstance(nodes, list) else [],
+                assertions if isinstance(assertions, list) else [],
+            )
     return {
         "run": run.model_dump(mode="json"),
         "outcome": outcome,
         "uncovered_items": uncovered,
+        "link": link,
     }
 
 
@@ -813,6 +829,15 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         "unmapped_files": report.unmapped_files,
         "uncovered_items": report.uncovered_items,
         "layers": report.layers,
+        "templates": [
+            {
+                "template_id": entry.get("template_id"),
+                "name": entry.get("name"),
+                "summary": entry.get("summary") or {},
+            }
+            for entry in report.templates
+            if isinstance(entry, dict)
+        ],
     }
 
 
@@ -962,6 +987,31 @@ def _export_lines(report: Report) -> list[str]:
             )
     else:
         lines.append("- 未判定")
+    lines.append("")
+    lines.append("## 模板处置")
+    if not report.templates:
+        lines.append("- 未应用模板")
+    else:
+        for entry in report.templates:
+            if not isinstance(entry, dict):
+                continue
+            raw_summary = entry.get("summary")
+            summary: dict[str, Any] = raw_summary if isinstance(raw_summary, dict) else {}
+            lines.append(
+                f"- {entry.get('name') or entry.get('template_id') or '模板'}"
+                f"（适用 {summary.get('applicable', 0)}，"
+                f"不适用 {summary.get('not_applicable', 0)}，"
+                f"不支持 {summary.get('unsupported', 0)}，"
+                f"未知 {summary.get('unknown', 0)}）"
+            )
+            raw_items = entry.get("items")
+            items: list[Any] = raw_items if isinstance(raw_items, list) else []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                label = item.get("objective") or item.get("item_id") or ""
+                reason = item.get("reason") or "未提供理由"
+                lines.append(f"  - {label}：{item.get('disposition', 'unknown')}（{reason}）")
     lines.append("")
     lines.append("## 验收意见")
     if report.opinion is None:

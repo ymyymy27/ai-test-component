@@ -121,8 +121,15 @@ export function createBridge(config) {
   };
 }
 
-export async function findPython(settings) {
+export async function ensureRuntime(settings, deps) {
   state.runtimeChecks.push(settings);
+  state.runtimeDeps = deps;
+  return state.runtime;
+}
+
+export async function findPython(settings) {
+  state.discoveryChecks = (state.discoveryChecks ?? 0) + 1;
+  state.discoverySettings = settings;
   return state.runtime;
 }
 `,
@@ -150,7 +157,7 @@ await build({
 const { state } = await import(pathToFileURL(shim).href);
 const { activate } = await import(pathToFileURL(join(fixture, "extension.mjs")).href);
 
-activate({ subscriptions: [], extensionUri: extensionRoot });
+activate({ subscriptions: [], extensionUri: { fsPath: extensionRoot } });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -227,6 +234,8 @@ test("panel call dispatches through the bridge with discovered runtime and setti
   assert.deepEqual(call.config.pythonArgs, ["-3"]);
   assert.equal(call.config.workspacePath, "C:/data/ws");
   assert.equal(call.config.timeoutMs, 30000);
+  // 便携运行时只从 VSIX 自带的 media/runtime 取 wheel。
+  assert.equal(state.runtimeDeps.wheelDir, join(extensionRoot, "media", "runtime"));
   const result = state.sent.at(-1);
   assert.equal(result.ok, true);
   assert.equal(result.id, "call-1");

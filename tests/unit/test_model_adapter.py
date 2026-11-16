@@ -234,3 +234,84 @@ def test_analyze_failure_requires_unverified(payload: dict[str, Any]) -> None:
     ):
         _client(base_url).analyze_failure({"run_id": "R1"}, ["log"])
     _assert_error(exc, "MODEL_OUTPUT_INVALID")
+
+
+def test_draft_delivery_defaults_missing_fields_to_empty_arrays() -> None:
+    content = json.dumps({"done": ["下单接口"], "attempted": ["忽略"]}, ensure_ascii=False)
+    with _serve(content) as base_url:
+        draft = _client(base_url).draft_delivery({"task": "下单验证"})
+    assert draft["done"] == ["下单接口"]
+    assert "attempted" not in draft
+    for field in (
+        "not_done",
+        "changed_modules",
+        "interface_changes",
+        "run_commands",
+        "test_data",
+        "dependencies",
+        "mocks",
+        "self_test_evidence",
+    ):
+        assert draft[field] == []
+
+
+def test_draft_delivery_unwraps_nested_object_and_drops_blanks() -> None:
+    content = json.dumps(
+        {
+            "delivery": {
+                "done": ["下单", " ", 3],
+                "run_commands": [],
+                "test_data": ["测试库"],
+            }
+        },
+        ensure_ascii=False,
+    )
+    with _serve(content) as base_url:
+        draft = _client(base_url).draft_delivery({})
+    assert draft["done"] == ["下单"]
+    assert draft["run_commands"] == []
+    assert draft["test_data"] == ["测试库"]
+
+
+def test_suggest_modules_normalizes_dependencies() -> None:
+    content = json.dumps(
+        {
+            "modules": [
+                {
+                    "name": "order",
+                    "responsibility": "下单",
+                    "deps": [{"to": "stock", "note": "扣减库存"}],
+                    "extra": "ignored",
+                },
+                {"name": "stock", "owner": "张三"},
+            ]
+        },
+        ensure_ascii=False,
+    )
+    with _serve(content) as base_url:
+        modules = _client(base_url).suggest_modules({"project": {"name": "订单"}})
+    assert modules == [
+        {
+            "name": "order",
+            "responsibility": "下单",
+            "owner": "",
+            "deps": [{"to": "stock", "type": "calls", "note": "扣减库存"}],
+        },
+        {"name": "stock", "responsibility": "", "owner": "张三", "deps": []},
+    ]
+
+
+def test_suggest_modules_rejects_unknown_dependency_type() -> None:
+    content = json.dumps(
+        {"modules": [{"name": "order", "deps": [{"to": "stock", "type": "magic"}]}]}
+    )
+    with _serve(content) as base_url, pytest.raises(AiTestError) as exc:
+        _client(base_url).suggest_modules({})
+    _assert_error(exc, "MODEL_OUTPUT_INVALID")
+
+
+def test_suggest_modules_rejects_duplicate_names() -> None:
+    content = json.dumps({"modules": [{"name": "order"}, {"name": "order"}]})
+    with _serve(content) as base_url, pytest.raises(AiTestError) as exc:
+        _client(base_url).suggest_modules({})
+    _assert_error(exc, "MODEL_OUTPUT_INVALID")

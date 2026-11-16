@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
+from aitest.core.link_location import locate_link
 from aitest.errors import AiTestError
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -490,7 +491,12 @@ def import_link(
                 "缺少请求 ID，未执行数据库查询" if (db_query or "").strip() else "未配置数据库查询",
             ),
         ]
-        return {"nodes": [], "assertions": [], "gaps": gaps}
+        return {
+            "nodes": [],
+            "assertions": [],
+            "gaps": gaps,
+            "location": locate_link([], []),
+        }
 
     log_nodes, log_gaps, assertions = _collect_logs(
         request_id,
@@ -502,8 +508,10 @@ def import_link(
     )
     db_nodes, db_gaps = _collect_db(request_id, db_query, runner, fields)
 
+    nodes = [*log_nodes, *db_nodes]
     return {
-        "nodes": [*log_nodes, *db_nodes],
+        "nodes": nodes,
         "assertions": assertions,
         "gaps": [*log_gaps, *db_gaps],
+        "location": locate_link(nodes, assertions),
     }

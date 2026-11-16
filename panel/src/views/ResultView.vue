@@ -103,6 +103,17 @@ const stalled = computed(() =>
 const analysis = computed(() => run.value?.analysis?.[0]);
 const canAnalyze = computed(() => failed.value.length > 0 || stalled.value.length > 0);
 
+const link = computed(() => session.result?.link ?? null);
+const linkLocation = computed(() => {
+  const location = link.value?.location;
+  if (!location) {
+    return { known: false, text: "没有链路数据，位置未知。" };
+  }
+  return location.known
+    ? { known: true, text: `${location.path}:${location.line}` }
+    : { known: false, text: location.reason };
+});
+
 const failedItems = computed(() => {
   const seen = new Set<string>();
   const rows: { itemId: string; text: string }[] = [];
@@ -275,6 +286,44 @@ function refreshResult(): void {
             :item-text="row.itemText"
             :index="row.index"
           />
+        </div>
+      </section>
+
+      <section class="block" data-testid="link-block">
+        <div class="section-title">
+          <h2>链路</h2>
+          <span class="section-note">首错节点、上下游与代码位置</span>
+        </div>
+        <div class="link-card">
+          <div class="link-row">
+            <span class="link-label">首错节点</span>
+            <span v-if="link?.first_anomaly" class="link-value mono">
+              {{ link.first_anomaly.node_id }}（{{ link.first_anomaly.status || "unknown" }}）
+            </span>
+            <span v-else class="link-value">没有发现非 passed 节点</span>
+          </div>
+          <div class="link-row">
+            <span class="link-label">上游</span>
+            <span class="link-value">
+              {{ link?.upstream.length ? link.upstream.map((node) => node.node_id).join(" → ") : "无" }}
+            </span>
+          </div>
+          <div class="link-row">
+            <span class="link-label">下游</span>
+            <span class="link-value">
+              {{
+                link?.downstream.length
+                  ? link.downstream.map((node) => node.node_id).join("、")
+                  : "无"
+              }}
+            </span>
+          </div>
+          <div class="link-row">
+            <span class="link-label">位置</span>
+            <span class="link-value mono" :class="{ unknown: !linkLocation.known }">
+              {{ linkLocation.known ? linkLocation.text : `未知范围：${linkLocation.text}` }}
+            </span>
+          </div>
         </div>
       </section>
 
@@ -492,6 +541,41 @@ function refreshResult(): void {
   border-radius: var(--r-card);
   background: var(--surface);
   overflow: hidden;
+}
+
+.link-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.link-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: 9px var(--space-4);
+  font-size: var(--fs-12);
+  line-height: 1.55;
+}
+
+.link-row + .link-row {
+  border-top: 1px solid var(--line);
+}
+
+.link-label {
+  color: var(--text-3);
+}
+
+.link-value {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.link-value.unknown {
+  color: var(--incomplete);
 }
 
 .issue-card {

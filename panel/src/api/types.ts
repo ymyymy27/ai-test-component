@@ -41,6 +41,85 @@ export interface Module {
   status?: string;
 }
 
+export interface ModuleDependency {
+  to: string;
+  type: "calls" | "interface" | "shared_data";
+  note?: string;
+}
+
+export interface ModuleSuggestion {
+  name: string;
+  responsibility: string;
+  owner: string;
+  deps: ModuleDependency[];
+}
+
+export interface DeliveryDraft {
+  done: string[];
+  not_done: string[];
+  changed_modules: string[];
+  interface_changes: string[];
+  run_commands: string[];
+  test_data: string[];
+  dependencies: string[];
+  mocks: string[];
+  self_test_evidence: string[];
+}
+
+export interface TaskSummary {
+  task_id: string;
+  title: string;
+  revision: number;
+}
+
+export type TemplateDisposition =
+  | "applicable"
+  | "not_applicable"
+  | "unsupported"
+  | "unknown";
+
+export interface TemplateSummary {
+  template_id: string;
+  name: string;
+  version: string;
+  item_count: number;
+}
+
+export interface TemplateItemResult {
+  item_id: string;
+  layer: string;
+  objective: string;
+  disposition: TemplateDisposition;
+  reason: string;
+}
+
+export interface TemplateResult {
+  template_id: string;
+  name: string;
+  version: string;
+  applied_at: string;
+  items: TemplateItemResult[];
+  summary: Record<TemplateDisposition, number>;
+}
+
+export interface LinkNode {
+  node_id: string;
+  type?: string;
+  status?: string;
+  message?: string;
+  evidence_ref?: string;
+  parent_id?: string;
+}
+
+export interface LinkLocation {
+  first_anomaly: LinkNode | null;
+  upstream: LinkNode[];
+  downstream: LinkNode[];
+  location:
+    | { known: true; path: string; line: number }
+    | { known: false; reason: string };
+}
+
 export interface Project {
   project_id: string;
   name: string;
@@ -113,6 +192,7 @@ export interface Plan {
   scope: Scope;
   applicable_count: number;
   cases: PlanCase[];
+  templates?: TemplateResult[];
   status: "draft" | "published";
   revision: number;
 }
@@ -181,6 +261,8 @@ export interface RunDetail {
   outcome: Verdict | null;
   /** "id：text" rows for applicable acceptance items this run did not select. */
   uncovered_items?: string[];
+  /** Imported link localisation, or null when no link.json exists. */
+  link?: LinkLocation | null;
 }
 
 export interface IssueSummary {

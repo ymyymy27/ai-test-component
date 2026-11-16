@@ -131,6 +131,18 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `type`：`calls / interface / shared_data`。
 
+#### `module.suggest`
+
+入参 `{"project_id": "proj_..."}`。读取项目根目录结构、README、清单与一个入口文件的只读摘要，调用模型给出模块建议，不写库。
+
+返回：
+
+```json
+{"modules": [{"name": "order", "responsibility": "下单与查询", "owner": "", "deps": [{"to": "stock", "type": "calls", "note": "扣减库存"}]}], "registered": ["payment"]}
+```
+
+`deps.to` 必须指向本次建议中的模块或已登记模块，否则返回 `MODEL_OUTPUT_INVALID`；模型不可用返回 `MODEL_UNAVAILABLE`。用户确认后逐条调用 `module.add` 写入。
+
 ### 4.2 目标与任务
 
 #### `task.suggest`
@@ -199,6 +211,18 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 入参 `{"task_id"}`；无记录时返回 `data: null`。
 
+#### `delivery.draft`
+
+入参 `{"project_id": "proj_...", "task_id": "task_...", "commit": "abc123"}`；`commit` 可省略。读取项目 README、`pyproject.toml` 或 `package.json`、`git show --stat`（失败不阻塞）与任务目标，调用模型生成草稿，**不落盘**。
+
+返回：
+
+```json
+{"draft": {"done": ["下单接口"], "not_done": [], "changed_modules": ["order"], "interface_changes": [], "run_commands": [], "test_data": [], "dependencies": [], "mocks": [], "self_test_evidence": []}, "sources": {"readme": "README.md", "manifest": "pyproject.toml", "commit_stat": true}}
+```
+
+九个字段都是字符串数组；模型没给或格式不合法时为空数组，不编造运行命令。模型不可用返回 `MODEL_UNAVAILABLE`。草稿由用户修改后再调用 `delivery.save`，CLI 不自动保存。
+
 ### 4.4 规则
 
 #### `rules.save`
@@ -266,7 +290,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `run.status` / `run.list`
 
-- `status` 入参 `{"run_id"}`，返回运行、用例状态、证据引用、结论（若已结束）；
+- `status` 入参 `{"run_id"}`，返回运行、用例状态、证据引用、结论（若已结束）；若运行目录已有 `link.json`，附带 `link` 字段（首错节点、上下游与位置，见 4.10）；没有链路数据时为 `null`；
 - `list` 入参 `{"project_id", "limit": 20}`，按时间倒序。
 
 #### `run.cancel`
@@ -313,7 +337,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `report.generate`
 
-入参 `{"run_id"}`；返回 `report_id`、`outcome`、`counts`、`coverage`、`changed_modules`、`unmapped_files`。
+入参 `{"run_id"}`；返回 `report_id`、`outcome`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。
 
 #### `report.export`
 
@@ -355,7 +379,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"run_id": "run_...", "request_id": "req-1"}
 ```
 
-返回 `{"nodes": [], "assertions": [], "gaps": [{"node_id": "log", "reason": "未找到该请求的日志"}]}`。
+返回 `{"nodes": [], "assertions": [], "gaps": [{"node_id": "log", "reason": "未找到该请求的日志"}], "location": {"first_anomaly": null, "upstream": [], "downstream": [], "location": {"known": false, "reason": "没有可定位的异常节点"}}}`。`location.first_anomaly` 取首个非 `passed` 节点（或首个非 `passed` 断言所属节点）；`location.location` 从证据引用的 `file:line` 解析，解析不到时 `known: false` 并给出原因。已有 `nodes / assertions / gaps` 字段不变。
 
 #### `link.assert`
 
@@ -380,6 +404,32 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 ```
 
 `repairs` 为 AI 建议的修复项，含 `risk` 与 `command`；低风险项可带 `auto: true`。
+
+### 4.12 模板
+
+#### `template.list`
+
+入参 `{}`；返回内置模板清单：
+
+```json
+{"templates": [{"template_id": "python-service", "name": "Python 服务", "version": "1.0.0", "item_count": 5}]}
+```
+
+模板来自 `src/aitest/resources/templates/*.json`；只读清单，不写入项目。
+
+#### `template.apply`
+
+入参 `{"project_id": "proj_...", "task_id": "task_...", "template_name": "python-service", "plan_id": "plan_..."}`；`plan_id` 可省略。调用模型逐项处置，`disposition` 为 `applicable / not_applicable / unsupported`，每项带 `reason`；不适用或不支持缺理由时降级为 `unknown`。
+
+结果同时写入任务旁 `tasks/<task_id>/templates/<template_id>.json`；给出 `plan_id` 时再合并进 `plan.templates` 并递增计划修订号。模板不进入必测分母，也不修改验收项。
+
+返回：
+
+```json
+{"template": {"template_id": "python-service", "name": "Python 服务", "version": "1.0.0", "applied_at": "...", "items": [{"item_id": "build", "layer": "L1", "objective": "...", "disposition": "applicable", "reason": "..."}], "summary": {"applicable": 4, "not_applicable": 1, "unsupported": 0, "unknown": 0}}, "path": "projects/<id>/tasks/<task_id>/templates/python-service.json", "plan_id": "plan_...", "plan_revision": 2}
+```
+
+模型不可用返回 `MODEL_UNAVAILABLE`；模板不存在或 `plan_id` 不属于该任务返回 `INVALID_REQUEST`。
 
 ## 5 数据文件
 
@@ -413,7 +463,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `plan.json`：
 
 ```json
-{"schema_version": 1, "plan_id": "plan_...", "task_id": "task_...", "scope": {"preset": "selected", "module_ids": [], "acceptance_item_ids": []}, "rules_version_id": "rule_...", "cases": [{"case_id": "case_...", "acceptance_item_id": "ai_...", "layer": "L2", "preconditions": [], "steps": [], "expected": "", "expectation_source": "", "verify_method": "", "mock_allowed": true, "importance": "high", "depends_on": "service"}], "status": "published", "revision": 1}
+{"schema_version": 1, "plan_id": "plan_...", "task_id": "task_...", "scope": {"preset": "selected", "module_ids": [], "acceptance_item_ids": []}, "rules_version_id": "rule_...", "cases": [{"case_id": "case_...", "acceptance_item_id": "ai_...", "layer": "L2", "preconditions": [], "steps": [], "expected": "", "expectation_source": "", "verify_method": "", "mock_allowed": true, "importance": "high", "depends_on": "service"}], "templates": [{"template_id": "python-service", "name": "Python 服务", "items": [], "summary": {"applicable": 0, "not_applicable": 0, "unsupported": 0, "unknown": 0}}], "status": "published", "revision": 1}
 ```
 
 `run.json`：

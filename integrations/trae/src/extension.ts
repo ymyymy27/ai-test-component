@@ -13,7 +13,7 @@ import { join } from "node:path";
 import * as vscode from "vscode";
 
 import { createBridge, type BridgeError, type BridgeResult } from "./bridge";
-import { findPython, type RuntimeCheck } from "./runtime";
+import { ensureRuntime, findPython, type PreparedRuntime, type RuntimeCheck } from "./runtime";
 
 const VIEW_ID = "aitest.sidebar";
 const PANEL_TITLE = "AI 辅助测试";
@@ -42,6 +42,10 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "task.list",
   "task.show",
   "task.suggest",
+  "module.suggest",
+  "delivery.draft",
+  "template.list",
+  "template.apply",
   "plan.generate",
   "plan.show",
   "run.start",
@@ -66,6 +70,10 @@ const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "plan.generate": 120_000,
   "task.add": 120_000,
   "task.suggest": 60_000,
+  "module.suggest": 60_000,
+  "delivery.draft": 120_000,
+  "template.list": 30_000,
+  "template.apply": 120_000,
   "analysis.run": 120_000,
   "report.generate": 120_000,
   "report.export": 60_000,
@@ -92,7 +100,10 @@ interface PanelHandle {
 let panel: PanelHandle | null = null;
 let panelReady = false;
 let queued: unknown[] = [];
-let runtimeCache: { key: string; value: Promise<RuntimeCheck> } | null = null;
+let runtimeCache: { key: string; value: Promise<PreparedRuntime> } | null = null;
+/** 自动绑定工作区只做发现，不触发便携运行时下载。 */
+let discoveryCache: { key: string; value: Promise<RuntimeCheck> } | null = null;
+let extensionRoot = "";
 let workspaceBinding: WorkspaceBinding = {
   projectId: "",
   projectRoot: "",
@@ -112,14 +123,30 @@ export function readSettings(): Settings {
 
 function clearRuntimeCache(): void {
   runtimeCache = null;
+  discoveryCache = null;
 }
 
-function runtimeFor(settings: Settings): Promise<RuntimeCheck> {
+function runtimeFor(settings: Settings): Promise<PreparedRuntime> {
   const key = `${settings.pythonPath}\u0000${settings.workspacePath}`;
   if (runtimeCache === null || runtimeCache.key !== key) {
-    runtimeCache = { key, value: findPython(settings) };
+    runtimeCache = {
+      key,
+      value: ensureRuntime(settings, {
+        // 便携运行时用 VSIX 自带的 wheel 离线安装；不联网取包。
+        ...(extensionRoot ? { wheelDir: join(extensionRoot, "media", "runtime") } : {}),
+        log: logExt,
+      }),
+    };
   }
   return runtimeCache.value;
+}
+
+function discoveredRuntime(settings: Settings): Promise<RuntimeCheck> {
+  const key = `${settings.pythonPath}\u0000${settings.workspacePath}`;
+  if (discoveryCache === null || discoveryCache.key !== key) {
+    discoveryCache = { key, value: findPython(settings) };
+  }
+  return discoveryCache.value;
 }
 
 function workspaceRoots(): string[] {
@@ -153,7 +180,7 @@ async function listProjectRoots(): Promise<{ project_id: string; root: string }[
     return [];
   }
   try {
-    const runtime = await runtimeFor(settings);
+    const runtime = await discoveredRuntime(settings);
     if (!runtime.ok || runtime.pythonPath === null) {
       return [];
     }
@@ -220,6 +247,7 @@ function refreshWorkspaceBinding(): Promise<WorkspaceBinding> {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  extensionRoot = context.extensionUri.fsPath;
   void refreshWorkspaceBinding();
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view: vscode.WebviewView): void {
@@ -548,9 +576,13 @@ async function execute(
   }
   const runtime = await runtimeFor(settings);
   if (!runtime.ok || runtime.pythonPath === null) {
+    const failure = runtime.failure;
+    const stageNote = failure
+      ? `；自动准备在 ${failure.stage} 阶段失败（${failure.code}：${failure.detail}）`
+      : "";
     return localError(
       "PYTHON_NOT_FOUND",
-      `未找到可用的 Python 3.11+ 环境（缺项：${runtime.missing.join("、")}）`,
+      `未找到可用的 Python 3.11+ 环境（缺项：${runtime.missing.join("、")}）${stageNote}`,
       runtime.installHint,
       { runtime },
     );

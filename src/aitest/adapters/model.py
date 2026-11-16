@@ -60,6 +60,40 @@ _SYSTEM_FAILURE = (
     "unverified 必须存在且至少包含一条内容；不要输出 JSON 之外的任何文本。"
 )
 
+_DELIVERY_FIELDS = (
+    "done",
+    "not_done",
+    "changed_modules",
+    "interface_changes",
+    "run_commands",
+    "test_data",
+    "dependencies",
+    "mocks",
+    "self_test_evidence",
+)
+
+_SYSTEM_DELIVERY = (
+    "你是交付说明起草助手。只输出一个 JSON 对象，格式为 "
+    '{"done": ["已完成"], "not_done": ["未完成"], "changed_modules": ["模块"], '
+    '"interface_changes": ["接口变更"], "run_commands": ["运行命令"], '
+    '"test_data": ["测试数据说明"], "dependencies": ["依赖"], "mocks": ["Mock"], '
+    '"self_test_evidence": ["自测证据"]}。'
+    "所有字段都必须是字符串数组；没有内容时返回空数组。"
+    "只依据给出的 README、清单、git stat 与任务目标，不要编造运行命令、依赖或证据。"
+    "不要输出 JSON 之外的任何文本。"
+)
+
+_DEPENDENCY_TYPES = frozenset({"calls", "interface", "shared_data"})
+
+_SYSTEM_MODULES = (
+    "你是模块建议助手。只输出一个 JSON 对象，格式为 "
+    '{"modules": [{"name": "模块名", "responsibility": "职责", "owner": "负责人", '
+    '"deps": [{"to": "依赖的模块名", "type": "calls|interface|shared_data", '
+    '"note": "说明"}]}]}。'
+    "deps.to 只能指向本次建议中的模块或项目已登记的模块；"
+    "无法确认负责人时 owner 留空；不要输出 JSON 之外的任何文本。"
+)
+
 
 def _invalid(message: str) -> AiTestError:
     return AiTestError("MODEL_OUTPUT_INVALID", message, "检查模型输出结构后重试")
@@ -98,6 +132,24 @@ def _require_text_list(mapping: dict[str, Any], key: str, *, allow_empty: bool) 
         items.append(entry)
     if not allow_empty and not items:
         raise _invalid(f"字段 {key} 不能为空")
+    return items
+
+
+def _optional_text(mapping: dict[str, Any], key: str) -> str:
+    value = mapping.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else ""
+
+
+def _text_list_or_empty(value: object) -> list[str]:
+    """Keep only non-empty strings; anything else degrades to an empty list."""
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for entry in value:
+        if isinstance(entry, str) and entry.strip():
+            items.append(entry.strip())
     return items
 
 
@@ -330,3 +382,67 @@ class ModelClient:
             "unverified": _require_text_list(data, "unverified", allow_empty=False),
             "next_steps": _require_text_list(data, "next_steps", allow_empty=True),
         }
+
+    def draft_delivery(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Draft the eight delivery sections; anything absent becomes ``[]``."""
+        data = self.complete_json(
+            _SYSTEM_DELIVERY, json.dumps(context, ensure_ascii=False)
+        )
+        nested = data.get("delivery")
+        if isinstance(nested, dict):
+            data = _as_mapping(nested, "delivery 必须是对象")
+        return {
+            field: _text_list_or_empty(data.get(field)) for field in _DELIVERY_FIELDS
+        }
+
+    def suggest_modules(self, context: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return validated module suggestions whose deps stay inside the set."""
+        data = self.complete_json(
+            _SYSTEM_MODULES, json.dumps(context, ensure_ascii=False)
+        )
+        raw = data.get("modules")
+        if raw is None:
+            raw = data.get("suggestions")
+        if not isinstance(raw, list):
+            raise _invalid("字段 modules 必须是数组")
+        modules: list[dict[str, Any]] = []
+        names: set[str] = set()
+        for entry in raw:
+            item = _as_mapping(entry, "modules 的条目必须是对象")
+            name = _require_text(item, "name").strip()
+            if name in names:
+                raise _invalid(f"模块名称重复：{name}")
+            names.add(name)
+            modules.append(
+                {
+                    "name": name,
+                    "responsibility": _optional_text(item, "responsibility"),
+                    "owner": _optional_text(item, "owner"),
+                    "deps": _suggested_deps(item),
+                }
+            )
+        return modules
+
+
+def _suggested_deps(item: dict[str, Any]) -> list[dict[str, str]]:
+    raw = item.get("deps")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise _invalid("字段 deps 必须是数组")
+    deps: list[dict[str, str]] = []
+    for entry in raw:
+        dep = _as_mapping(entry, "deps 的条目必须是对象")
+        target = _require_text(dep, "to").strip()
+        kind = _optional_text(dep, "type") or "calls"
+        if kind not in _DEPENDENCY_TYPES:
+            raise _invalid("依赖 type 必须是 calls、interface 或 shared_data")
+        deps.append(
+            {
+                "to": target,
+                "type": kind,
+                "note": _optional_text(dep, "note"),
+            }
+        )
+    return deps
+

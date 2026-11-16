@@ -3,6 +3,7 @@ src/**
 scripts/**
 tsconfig.json
 package-lock.json
+.gitignore
 dist/*.vsix
 
 tests/**
