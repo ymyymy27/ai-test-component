@@ -52,6 +52,14 @@ describe("交付说明起草", () => {
     await wrapper.find('[data-testid="delivery-draft-button"]').trigger("click");
     await flushPromises();
 
+    // 摘要卡片只给 chips；“查看 / 编辑”打开抽屉后才出现字段。
+    expect(wrapper.find("textarea").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="delivery-draft"]').text()).toContain("order");
+    expect(wrapper.find('[data-testid="delivery-draft"]').text()).toContain("pytest tests/test_order.py");
+
+    await wrapper.find('[data-testid="delivery-edit"]').trigger("click");
+    await flushPromises();
+
     const done = wrapper.find('textarea[aria-label="已完成"]').element as HTMLTextAreaElement;
     expect(done.value).toBe("下单接口");
     const testData = wrapper.find('textarea[aria-label="测试数据"]').element as HTMLTextAreaElement;
@@ -168,7 +176,8 @@ async function reachConfirm(overrides: Record<string, Route> = {}) {
   session.projects = [{ project_id: PROJECT.project_id, name: PROJECT.name, root: PROJECT.root }];
   const wrapper = mount(WizardView, { attachTo: document.body });
   await flushPromises();
-  await wrapper.find("textarea").setValue("验证下单流程");
+  await wrapper.find(".writer-link").trigger("click");
+  await wrapper.find("#goal-input").setValue("验证下单流程");
   await wrapper.find('[data-testid="wizard-next"]').trigger("click");
   await flushPromises();
   await wrapper.find('[data-testid="wizard-next"]').trigger("click");

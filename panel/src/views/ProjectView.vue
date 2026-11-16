@@ -12,11 +12,11 @@ import {
 } from "@/api/labels";
 import type { ModuleSuggestion, TaskSummary } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
+import AppDrawer from "@/components/AppDrawer.vue";
 import Badge from "@/components/Badge.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import ErrorNotice from "@/components/ErrorNotice.vue";
 import Icon from "@/components/Icon.vue";
-import CoverageMeter from "@/components/CoverageMeter.vue";
 import {
   addProjectByPath,
   flash,
@@ -34,6 +34,7 @@ const pathValue = ref("");
 const nameValue = ref("");
 const touched = ref(false);
 const pathInput = ref<HTMLInputElement | null>(null);
+const drawerOpen = ref(false);
 
 type DeliveryTextKey =
   | "done"
@@ -81,6 +82,7 @@ const delivery = reactive({
   commit: "",
   loading: false,
   saving: false,
+  generated: false,
   error: null as FriendlyError | null,
   saved: "",
 });
@@ -100,6 +102,24 @@ const pathError = computed(() =>
 );
 
 const lastRun = computed(() => session.lastRun);
+const currentTask = computed(
+  () => delivery.tasks.find((task) => task.task_id === delivery.taskId) ?? null,
+);
+
+const hasDraft = computed(() =>
+  DELIVERY_FIELDS.some((field) => deliveryText[field.key].trim().length > 0),
+);
+
+const deliverySummary = computed(() => [
+  {
+    key: "changed_modules",
+    label: "变更模块",
+    items: splitLines("changed_modules"),
+  },
+  { key: "run_commands", label: "运行方式", items: splitLines("run_commands") },
+  { key: "mocks", label: "Mock", items: splitLines("mocks") },
+  { key: "not_done", label: "已知问题", items: splitLines("not_done") },
+]);
 
 onMounted(() => {
   // 编辑器只有一个工作区目录时会带入路径，用户仍然可以修改。
@@ -121,6 +141,15 @@ watch(
 watch(
   () => session.project?.project_id,
   () => {
+    // 切换项目时丢弃上一份草稿，避免把 A 项目的摘要显示在 B 项目下。
+    for (const field of DELIVERY_FIELDS) {
+      deliveryText[field.key] = "";
+    }
+    delivery.commit = "";
+    delivery.saved = "";
+    delivery.generated = false;
+    delivery.error = null;
+    drawerOpen.value = false;
     void loadTasks();
   },
 );
@@ -154,7 +183,12 @@ function splitLines(key: DeliveryTextKey): string[] {
 
 function fillDraft(draft: Record<DeliveryTextKey, string[]>): void {
   for (const field of DELIVERY_FIELDS) {
-    deliveryText[field.key] = draft[field.key].join("\n");
+    const value: unknown = draft[field.key];
+    deliveryText[field.key] = Array.isArray(value)
+      ? value.filter((line): line is string => typeof line === "string").join("\n")
+      : typeof value === "string"
+        ? value
+        : "";
   }
 }
 
@@ -172,8 +206,8 @@ async function draftDelivery(): Promise<void> {
       delivery.commit.trim() || undefined,
     );
     fillDraft(result.draft);
-    delivery.saved = "草稿已填入，可修改后保存；还没有写入工作空间。";
-    flash("已生成交付说明草稿");
+    delivery.generated = true;
+    flash("已生成交付摘要；保存后才会写入工作空间");
   } catch (error) {
     delivery.error = describeError(error);
   } finally {
@@ -206,11 +240,16 @@ async function saveDelivery(): Promise<void> {
       ? "交付说明已保存，运行命令与提交都已填写。"
       : "交付说明已保存，但缺运行命令或提交，标记为不完整。";
     flash(delivery.saved);
+    drawerOpen.value = false;
   } catch (error) {
     delivery.error = describeError(error);
   } finally {
     delivery.saving = false;
   }
+}
+
+function openDeliveryDrawer(): void {
+  drawerOpen.value = true;
 }
 
 async function suggestModules(): Promise<void> {
@@ -340,7 +379,6 @@ async function submit(): Promise<void> {
       </div>
     </form>
 
-
     <!-- 无项目：只保留选择目录与说明 -->
     <template v-if="!session.project">
       <EmptyState title="先选择一个项目文件夹" icon="folder">
@@ -354,7 +392,6 @@ async function submit(): Promise<void> {
         </template>
       </EmptyState>
 
-
       <div class="footnote">
         <Icon name="info" :size="14" />
         <span>需要先设置用户数据工作空间与 Python 解释器，才能登记项目。</span>
@@ -364,106 +401,238 @@ async function submit(): Promise<void> {
 
     <!-- 有项目 -->
     <template v-else>
-      <div class="project-head">
-        <div class="head-copy">
-          <h1>{{ session.project.name }}</h1>
-          <p class="root mono" :title="session.project.root">{{ session.project.root }}</p>
-        </div>
-        <AppButton variant="ghost" size="sm" @click="openPicker">
-          <Icon name="plus" :size="14" />
-          登记其他目录
-        </AppButton>
-      </div>
-
-      <div class="scan" role="list" aria-label="项目扫描结果">
-        <div class="scan-item" role="listitem">
-          <span class="scan-label">模块</span>
-          <span class="scan-value numeric">{{ session.project.modules.length }}</span>
-          <div v-if="session.project.modules.length" class="chips">
-            <span
-              v-for="module in session.project.modules"
-              :key="module.module_id"
-              class="chip"
-              :title="module.responsibility || module.status || ''"
-            >
-              {{ module.name }}
-            </span>
+      <section class="overview card" data-testid="project-overview">
+        <div class="overview-head">
+          <div class="head-copy">
+            <h1>{{ session.project.name }}</h1>
+            <p class="root mono" :title="session.project.root">{{ session.project.root }}</p>
           </div>
-          <span v-else class="scan-note">还没有登记模块</span>
+          <div class="head-actions">
+            <AppButton variant="primary" @click="startWizard">
+              <Icon name="play" :size="14" />
+              新建测试
+            </AppButton>
+            <AppButton variant="secondary" @click="openHistory">
+              <Icon name="history" :size="14" />
+              查看历史
+            </AppButton>
+          </div>
         </div>
-        <div class="scan-item" role="listitem">
-          <span class="scan-label">入口</span>
-          <span class="scan-value">运行前检查</span>
-          <span class="scan-note">由源码可运行性检查确认构建与入口，面板不单独保存入口路径。</span>
-        </div>
-        <div class="scan-item" role="listitem">
-          <span class="scan-label">最近运行</span>
-          <span v-if="lastRun" class="scan-value">{{ formatDateTime(lastRun.startedAt) }}</span>
-          <span v-else class="scan-value">还没有</span>
-          <span v-if="lastRun" class="scan-note">
-            {{ RUN_STATUS_LABEL[lastRun.status] }}，覆盖
-            <span class="numeric">{{ lastRun.selected }}/{{ lastRun.applicable }}</span>
-          </span>
-          <span v-else class="scan-note">第一次运行后这里会显示最近一次状态。</span>
-        </div>
-      </div>
 
-      <section class="card stack" data-testid="delivery-draft">
+        <dl class="facts">
+          <div class="fact">
+            <dt>模块</dt>
+            <dd>
+              <span class="numeric">{{ session.project.modules.length }}</span>
+              <span v-if="session.project.modules.length" class="chips">
+                <span
+                  v-for="module in session.project.modules"
+                  :key="module.module_id"
+                  class="chip"
+                  :title="module.responsibility || module.status || ''"
+                >
+                  {{ module.name }}
+                </span>
+              </span>
+              <span v-else class="quiet">还没有登记模块</span>
+            </dd>
+          </div>
+          <div class="fact">
+            <dt>入口</dt>
+            <dd>
+              运行前检查
+              <span class="fact-note">由源码可运行性检查确认，面板不单独保存入口路径</span>
+            </dd>
+          </div>
+          <div class="fact">
+            <dt>最近运行</dt>
+            <dd v-if="lastRun">
+              <span class="numeric">{{ formatDateTime(lastRun.startedAt) }}</span>
+              <Badge :tone="RUN_STATUS_BADGE[lastRun.status]">
+                {{ RUN_STATUS_LABEL[lastRun.status] }}
+              </Badge>
+            </dd>
+            <dd v-else>还没有运行</dd>
+          </div>
+          <div class="fact">
+            <dt>上次结论</dt>
+            <dd>
+              <template v-if="lastRun">
+                <Badge v-if="lastRun.outcome" :tone="VERDICT_TONE[lastRun.outcome]">
+                  {{ VERDICT_LABEL[lastRun.outcome] }}
+                </Badge>
+                <Badge v-else tone="neutral">结论未生成</Badge>
+                <span class="coverage-line numeric">
+                  {{ lastRun.selected }} / {{ lastRun.applicable }}
+                </span>
+                <span class="quiet">已选 / 适用</span>
+                <button
+                  type="button"
+                  class="link"
+                  @click="openResult(session.history[0].run_id)"
+                >
+                  查看结果
+                </button>
+              </template>
+              <span v-else class="quiet">第一次运行后显示</span>
+            </dd>
+          </div>
+        </dl>
+
+        <details class="more" data-testid="module-suggest">
+          <summary>更多</summary>
+          <div class="more-panel">
+            <div class="more-row">
+              <AppButton
+                size="sm"
+                :loading="moduleSuggest.loading"
+                data-testid="module-suggest-button"
+                @click="suggestModules"
+              >
+                AI 建议模块
+              </AppButton>
+              <AppButton
+                v-if="moduleSuggest.items.length"
+                size="sm"
+                variant="primary"
+                :loading="moduleSuggest.saving"
+                data-testid="module-confirm-button"
+                @click="confirmSuggestions"
+              >
+                确认写入 {{ moduleSuggest.items.length }} 个模块
+              </AppButton>
+              <AppButton
+                v-if="moduleSuggest.items.length"
+                size="sm"
+                variant="ghost"
+                @click="clearSuggestions"
+              >
+                取消
+              </AppButton>
+              <AppButton size="sm" variant="ghost" @click="openPicker">登记其他目录</AppButton>
+            </div>
+            <ErrorNotice
+              v-if="moduleSuggest.error"
+              :error="moduleSuggest.error"
+              :show-retry="false"
+              @retry="() => {}"
+            />
+            <ul
+              v-if="moduleSuggest.items.length"
+              class="suggestions"
+              data-testid="module-suggestions"
+            >
+              <li v-for="item in moduleSuggest.items" :key="item.name">
+                <div class="suggestion-head">
+                  <strong>{{ item.name }}</strong>
+                  <span v-if="item.owner" class="quiet">负责人：{{ item.owner }}</span>
+                </div>
+                <p v-if="item.responsibility" class="suggestion-note">{{ item.responsibility }}</p>
+                <p v-if="item.deps.length" class="suggestion-note">
+                  依赖：
+                  {{ item.deps.map((dep) => `${dep.to}（${dep.type}）`).join("、") }}
+                </p>
+              </li>
+            </ul>
+            <p v-else-if="moduleSuggest.shown" class="hint">模型没有给出模块建议。</p>
+            <p v-else class="hint">建议不写库；确认后再逐条登记。</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="card delivery" data-testid="delivery-draft">
         <div class="section-title">
           <h2>交付说明</h2>
-          <span class="section-note">AI 只起草，保存前可以改</span>
+          <div class="title-actions">
+            <span v-if="currentTask" class="section-note truncate">
+              {{ currentTask.title || currentTask.task_id }}
+            </span>
+            <span v-else class="section-note">还没有任务</span>
+            <AppButton
+              v-if="hasDraft"
+              size="sm"
+              variant="secondary"
+              data-testid="delivery-edit"
+              @click="openDeliveryDrawer"
+            >
+              查看 / 编辑
+            </AppButton>
+          </div>
         </div>
-        <div class="delivery-head">
-          <label class="field">
-            <span class="label">任务</span>
-            <select v-model="delivery.taskId" class="input" data-testid="delivery-task">
-              <option v-if="delivery.tasks.length === 0" value="">还没有任务</option>
-              <option v-for="task in delivery.tasks" :key="task.task_id" :value="task.task_id">
-                {{ task.title || task.task_id }}
-              </option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="label">提交（可选）</span>
-            <input
-              v-model="delivery.commit"
-              class="input mono"
-              type="text"
-              placeholder="例如 abc123"
-              spellcheck="false"
-            />
-          </label>
+
+        <div v-if="hasDraft" class="summary">
+          <div v-for="group in deliverySummary" :key="group.key" class="summary-group">
+            <span class="summary-key">{{ group.label }}</span>
+            <span v-if="group.items.length" class="chips">
+              <span v-for="item in group.items" :key="item" class="chip">{{ item }}</span>
+            </span>
+            <span v-else class="quiet summary-empty">未记录</span>
+          </div>
+          <p class="hint summary-note">
+            {{
+              delivery.generated
+                ? "这是本次生成的草稿；保存后写入工作空间，重开面板需要重新生成。"
+                : "草稿只在本次面板会话中保留。"
+            }}
+          </p>
         </div>
-        <div class="row">
+
+        <div v-else class="empty-line">
+          <p class="muted">
+            AI 读取 README、项目清单与 git 改动，起草变更模块、运行方式、Mock 与已知问题。
+          </p>
           <AppButton
+            size="sm"
             :loading="delivery.loading"
             :disabled="!delivery.taskId"
             data-testid="delivery-draft-button"
             @click="draftDelivery"
           >
-            AI 起草交付说明
-          </AppButton>
-          <AppButton
-            variant="primary"
-            :loading="delivery.saving"
-            :disabled="!delivery.taskId"
-            data-testid="delivery-save-button"
-            @click="saveDelivery"
-          >
-            保存交付说明
+            AI 生成摘要
           </AppButton>
         </div>
-        <p class="hint">
-          起草会读取 README、项目清单与 git 改动统计，不会自动保存；保存只写入工作空间。
+
+        <p v-if="!delivery.taskId" class="hint">
+          新建测试后会生成一条任务，交付说明从那条任务起草。
         </p>
         <p v-if="delivery.saved" class="hint" data-testid="delivery-saved">{{ delivery.saved }}</p>
         <ErrorNotice
-          v-if="delivery.error"
+          v-if="delivery.error && !drawerOpen"
           :error="delivery.error"
           :show-retry="false"
           @retry="() => {}"
         />
-        <div class="delivery-grid">
+      </section>
+
+      <AppDrawer
+        :open="drawerOpen"
+        title="交付说明"
+        note="AI 只起草，字段都可以改；保存写入工作空间。"
+        @close="drawerOpen = false"
+      >
+        <div class="drawer-fields">
+          <div class="drawer-top">
+            <label class="field">
+              <span class="label">任务</span>
+              <select v-model="delivery.taskId" class="input" data-testid="delivery-task">
+                <option v-if="delivery.tasks.length === 0" value="">还没有任务</option>
+                <option v-for="task in delivery.tasks" :key="task.task_id" :value="task.task_id">
+                  {{ task.title || task.task_id }}
+                </option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="label">提交（可选）</span>
+              <input
+                v-model="delivery.commit"
+                class="input mono"
+                type="text"
+                placeholder="例如 abc123"
+                spellcheck="false"
+              />
+            </label>
+          </div>
+
           <label v-for="field in DELIVERY_FIELDS" :key="field.key" class="field">
             <span class="label">{{ field.label }}</span>
             <textarea
@@ -474,112 +643,33 @@ async function submit(): Promise<void> {
             ></textarea>
             <span class="hint">{{ field.hint }}</span>
           </label>
-        </div>
-      </section>
 
-      <section class="card stack" data-testid="module-suggest">
-        <div class="section-title">
-          <h2>模块建议</h2>
-          <span class="section-note">建议不写库，确认后逐个登记</span>
-        </div>
-        <div class="row">
-          <AppButton
-            :loading="moduleSuggest.loading"
-            data-testid="module-suggest-button"
-            @click="suggestModules"
-          >
-            AI 建议模块
-          </AppButton>
-          <AppButton
-            v-if="moduleSuggest.items.length"
-            variant="primary"
-            :loading="moduleSuggest.saving"
-            data-testid="module-confirm-button"
-            @click="confirmSuggestions"
-          >
-            确认写入 {{ moduleSuggest.items.length }} 个模块
-          </AppButton>
-          <AppButton
-            v-if="moduleSuggest.items.length"
-            variant="ghost"
-            @click="clearSuggestions"
-          >
-            取消
-          </AppButton>
-        </div>
-        <ErrorNotice
-          v-if="moduleSuggest.error"
-          :error="moduleSuggest.error"
-          :show-retry="false"
-          @retry="() => {}"
-        />
-        <ul v-if="moduleSuggest.items.length" class="suggestions" data-testid="module-suggestions">
-          <li v-for="item in moduleSuggest.items" :key="item.name">
-            <div class="suggestion-head">
-              <strong>{{ item.name }}</strong>
-              <span v-if="item.owner" class="quiet">负责人：{{ item.owner }}</span>
-            </div>
-            <p v-if="item.responsibility" class="suggestion-note">{{ item.responsibility }}</p>
-            <p v-if="item.deps.length" class="suggestion-note">
-              依赖：
-              {{ item.deps.map((dep) => `${dep.to}（${dep.type}）`).join("、") }}
-            </p>
-          </li>
-        </ul>
-        <p v-else-if="moduleSuggest.shown" class="hint">模型没有给出模块建议。</p>
-      </section>
-
-      <section class="last card">
-        <div class="section-title">
-          <h2>上次结论</h2>
-          <span v-if="lastRun" class="section-note">
-            {{ formatDateTime(lastRun.startedAt) }}
-          </span>
-        </div>
-        <template v-if="lastRun">
-          <div class="last-row">
-            <div class="last-verdict">
-              <Badge
-                v-if="lastRun.outcome"
-                :tone="VERDICT_TONE[lastRun.outcome]"
-              >
-                {{ VERDICT_LABEL[lastRun.outcome] }}
-              </Badge>
-              <Badge v-else tone="running">结论未生成</Badge>
-              <span class="status-prefix">运行</span>
-              <Badge :tone="RUN_STATUS_BADGE[lastRun.status]">
-                {{ RUN_STATUS_LABEL[lastRun.status] }}
-              </Badge>
-            </div>
-            <CoverageMeter
-              :selected="lastRun.selected"
-              :applicable="lastRun.applicable"
-              size="sm"
-            />
-            <AppButton size="sm" variant="secondary" @click="openResult(session.history[0].run_id)">
-              查看结果
-            </AppButton>
-          </div>
           <p class="hint">
-            结论只对最近一次运行所选的范围成立；未选验收项不计入。
+            起草会读取 README、项目清单与 git 改动统计，不会自动保存；保存只写入工作空间。
           </p>
-        </template>
-        <div v-else class="last-empty">
-          <p class="muted">这个项目还没有运行记录。</p>
-          <p class="hint">从“新建测试”开始：选目标、确认验收标准、选定范围，再执行。</p>
+          <ErrorNotice
+            v-if="delivery.error"
+            :error="delivery.error"
+            :show-retry="false"
+            @retry="() => {}"
+          />
         </div>
-      </section>
 
-      <div class="actions">
-        <AppButton variant="primary" @click="startWizard">
-          <Icon name="play" :size="14" />
-          新建测试
-        </AppButton>
-        <AppButton variant="secondary" @click="openHistory">
-          <Icon name="history" :size="14" />
-          查看历史
-        </AppButton>
-      </div>
+        <template #footer>
+          <AppButton :loading="delivery.loading" :disabled="!delivery.taskId" @click="draftDelivery">
+            AI 起草
+          </AppButton>
+          <AppButton
+            variant="primary"
+            :loading="delivery.saving"
+            :disabled="!delivery.taskId"
+            data-testid="delivery-save-button"
+            @click="saveDelivery"
+          >
+            保存交付说明
+          </AppButton>
+        </template>
+      </AppDrawer>
     </template>
   </div>
 </template>
@@ -634,13 +724,21 @@ async function submit(): Promise<void> {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
+  font-size: var(--fs-12);
 }
 
-.project-head {
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.overview-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .head-copy {
@@ -656,47 +754,70 @@ async function submit(): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 46ch;
 }
 
-.scan {
+.head-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--line);
   border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  border-radius: var(--r-control);
   overflow: hidden;
 }
 
-.scan-item {
+.fact {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: var(--space-4);
   min-width: 0;
+  padding: 10px var(--space-3);
+  background: var(--surface-raised);
 }
 
-.scan-item + .scan-item {
-  border-left: 1px solid var(--line);
-}
-
-.scan-label {
+.fact dt {
   font-size: var(--fs-12);
   color: var(--text-3);
 }
 
-.scan-value {
-  font-size: var(--fs-16);
-  font-weight: 600;
+.fact dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: var(--fs-13);
+  min-width: 0;
 }
 
-.scan-note {
+.fact dd :deep(.badge) {
+  flex: none;
+}
+
+.coverage-line {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fact-note {
+  display: block;
+  flex: 1 1 100%;
   font-size: var(--fs-12);
   color: var(--text-3);
   line-height: 1.5;
 }
 
 .chips {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
 }
@@ -704,60 +825,122 @@ async function submit(): Promise<void> {
 .chip {
   font-size: var(--fs-12);
   color: var(--text-2);
-  background: var(--surface-raised);
+  background: var(--surface-sunken);
   border: 1px solid var(--line);
   border-radius: var(--r-chip);
   padding: 0 6px;
   white-space: nowrap;
 }
 
-.last-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-4);
+.more {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
 }
 
-.last-verdict {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.status-prefix {
+.more summary {
+  cursor: pointer;
+  list-style: none;
+  width: fit-content;
   font-size: var(--fs-12);
   color: var(--text-3);
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
-.last-empty {
+.more summary::-webkit-details-marker {
+  display: none;
+}
+
+.more summary::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.more[open] summary::before {
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.more summary:hover {
+  color: var(--text-2);
+  background: var(--surface-raised);
+}
+
+.more-panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
-.actions {
+.more-row {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-.delivery-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+.delivery {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.delivery-grid {
+.delivery .section-title {
+  margin-bottom: 0;
+}
+
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.summary-group {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: baseline;
   gap: var(--space-3);
 }
 
-.textarea {
-  min-height: 62px;
-  resize: vertical;
-  line-height: 1.55;
+.summary-key {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.summary-empty {
+  font-size: var(--fs-12);
+}
+
+.summary-note {
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--line);
+}
+
+.empty-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.empty-line .muted {
+  font-size: var(--fs-13);
+  max-width: 54ch;
+  line-height: 1.6;
 }
 
 .suggestions {
@@ -765,12 +948,12 @@ async function submit(): Promise<void> {
   margin: 0;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  border-radius: var(--r-control);
+  background: var(--surface-sunken);
 }
 
 .suggestions li {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
 }
 
@@ -792,31 +975,50 @@ async function submit(): Promise<void> {
   line-height: 1.55;
 }
 
-@media (max-width: 700px) {
-  .delivery-head,
-  .delivery-grid {
-    grid-template-columns: 1fr;
+.drawer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.drawer-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.textarea {
+  min-height: 56px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
-  .scan {
+  .facts {
     grid-template-columns: 1fr;
   }
 
-  .scan-item + .scan-item {
-    border-left: 0;
-    border-top: 1px solid var(--line);
+  .head-actions {
+    width: 100%;
   }
 
-  .last-row {
+  .head-actions :deep(.btn) {
+    flex: 1 1 auto;
+  }
+
+  .summary-group {
     grid-template-columns: 1fr;
-    align-items: start;
-    gap: var(--space-3);
+    gap: 4px;
   }
 
-  .last-row > :last-child {
-    justify-self: start;
+  .drawer-top {
+    grid-template-columns: 1fr;
   }
 }
 </style>

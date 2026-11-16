@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
 import { api } from "@/api/commands";
 import { describeError, type FriendlyError } from "@/api/errors";
@@ -22,7 +22,6 @@ import type {
 import AppButton from "@/components/AppButton.vue";
 import Badge from "@/components/Badge.vue";
 import ErrorNotice from "@/components/ErrorNotice.vue";
-import Field from "@/components/Field.vue";
 import Icon from "@/components/Icon.vue";
 import SkeletonBlock from "@/components/SkeletonBlock.vue";
 import StepRail from "@/components/StepRail.vue";
@@ -40,9 +39,9 @@ interface DraftItem {
 }
 
 const steps = [
-  { title: "测什么", hint: "选一个目标，或自己写" },
-  { title: "验收标准", hint: "可观察、可判定" },
-  { title: "范围", hint: "按验收项选择" },
+  { title: "测什么", hint: "选一句或自己写" },
+  { title: "验收标准", hint: "默认全部纳入" },
+  { title: "范围", hint: "默认全部适用" },
   { title: "确认", hint: "看计划再开始" },
 ];
 
@@ -76,6 +75,17 @@ const newItem = ref("");
 const suggestStarted = ref(false);
 const localSeq = ref(0);
 
+// 正常路径不常驻输入框：写目标、编辑验收项、补一条都按需展开。
+const writing = ref(false);
+const writingInput = ref<HTMLInputElement | null>(null);
+const editingId = ref("");
+const editText = ref("");
+const editObservable = ref(true);
+const editInput = ref<HTMLInputElement | null>(null);
+const showAdd = ref(false);
+const addInput = ref<HTMLInputElement | null>(null);
+const scopeExpanded = ref(false);
+
 const DISPOSITION_LABEL: Record<TemplateDisposition, string> = {
   applicable: "适用",
   not_applicable: "不适用",
@@ -104,6 +114,7 @@ const selectedCount = computed(() =>
     : applicableItems.value.filter((item) => draft.selected.includes(item.id)).length,
 );
 const applicableCount = computed(() => applicableItems.value.length);
+const excludedCount = computed(() => Math.max(0, applicableCount.value - selectedCount.value));
 const canNextFromCriteria = computed(
   () => draft.items.some((item) => item.observable && item.text.trim().length > 0),
 );
@@ -169,6 +180,23 @@ const planSummary = computed(() => {
   };
 });
 
+const dispositionChips = computed(() => {
+  const totals: Record<TemplateDisposition, number> = {
+    applicable: 0,
+    not_applicable: 0,
+    unsupported: 0,
+    unknown: 0,
+  };
+  for (const template of appliedTemplates.value) {
+    for (const key of Object.keys(totals) as TemplateDisposition[]) {
+      totals[key] += template.summary?.[key] ?? 0;
+    }
+  }
+  return (Object.keys(totals) as TemplateDisposition[])
+    .filter((key) => totals[key] > 0)
+    .map((key) => ({ key, label: DISPOSITION_LABEL[key], count: totals[key] }));
+});
+
 async function loadSuggestions(): Promise<void> {
   if (suggestStarted.value || !projectId.value) {
     return;
@@ -194,6 +222,7 @@ function chooseCandidate(index: number): void {
   }
   draft.candidateIndex = index;
   draft.goal = candidate.title;
+  writing.value = false;
 }
 
 function chooseFallback(): void {
@@ -209,12 +238,39 @@ function onGoalInput(): void {
   }
 }
 
+async function openWriter(): Promise<void> {
+  writing.value = true;
+  draft.candidateIndex = -1;
+  await nextTick();
+  writingInput.value?.focus();
+}
+
+function closeWriter(): void {
+  writing.value = false;
+  draft.goal = "";
+  draft.candidateIndex = -1;
+}
+
+async function pickCandidate(index: number): Promise<void> {
+  chooseCandidate(index);
+  await next();
+}
+
+async function chooseFallbackAndGo(): Promise<void> {
+  chooseFallback();
+  await next();
+}
+
 function goStep(step: number): void {
   if (step < 1 || step > 4 || step > draft.step) {
     return;
   }
   draft.step = step;
   draft.startError = null;
+  if (step === 1 && draft.goal && draft.candidateIndex < 0) {
+    // 回到第一步时，自己写的目标仍然可见可改。
+    writing.value = true;
+  }
   if (step === 4) {
     void ensurePlan();
   }
@@ -296,6 +352,7 @@ async function loadTask(taskId: string): Promise<void> {
       ? "all_applicable"
       : "selected";
   draft.itemsDirty = false;
+  editingId.value = "";
 }
 
 function toggleEnabled(item: DraftItem): void {
@@ -327,33 +384,59 @@ function toggleSelected(item: DraftItem): void {
 
 function setPreset(preset: "all_applicable" | "selected"): void {
   draft.preset = preset;
+  scopeExpanded.value = preset === "selected";
   if (preset === "all_applicable") {
     draft.selected = applicableItems.value.map((item) => item.id);
   }
 }
 
-function markEdited(): void {
-  draft.itemsDirty = true;
+function setEditInput(el: unknown): void {
+  editInput.value = (el as HTMLInputElement | null) ?? null;
 }
 
-function toggleObservable(item: DraftItem): void {
-  item.observable = !item.observable;
-  if (!item.observable) {
-    item.enabled = false;
-    draft.selected = draft.selected.filter((id) => id !== item.id);
-    draft.preset = "selected";
-  } else {
-    item.enabled = true;
-    if (!draft.selected.includes(item.id)) {
-      draft.selected.push(item.id);
+async function startEdit(item: DraftItem): Promise<void> {
+  editingId.value = item.id;
+  editText.value = item.text;
+  editObservable.value = item.observable;
+  await nextTick();
+  editInput.value?.focus();
+}
+
+function cancelEdit(): void {
+  editingId.value = "";
+}
+
+function commitEdit(item: DraftItem): void {
+  const text = editText.value.trim();
+  if (text) {
+    item.text = text;
+  }
+  if (editObservable.value !== item.observable) {
+    item.observable = editObservable.value;
+    if (!item.observable) {
+      item.enabled = false;
+      draft.selected = draft.selected.filter((id) => id !== item.id);
+      draft.preset = "selected";
+    } else {
+      item.enabled = true;
+      if (!draft.selected.includes(item.id)) {
+        draft.selected.push(item.id);
+      }
     }
   }
   draft.itemsDirty = true;
+  editingId.value = "";
 }
 
 function retrySuggest(): void {
   suggestStarted.value = false;
   void loadSuggestions();
+}
+
+async function openAdd(): Promise<void> {
+  showAdd.value = true;
+  await nextTick();
+  addInput.value?.focus();
 }
 
 function addItem(): void {
@@ -376,12 +459,14 @@ function addItem(): void {
   draft.preset = "selected";
   draft.itemsDirty = true;
   newItem.value = "";
+  showAdd.value = false;
 }
 
 function removeItem(item: DraftItem): void {
   draft.items = draft.items.filter((row) => row.id !== item.id);
   draft.selected = draft.selected.filter((id) => id !== item.id);
   draft.itemsDirty = true;
+  editingId.value = "";
 }
 
 const goalChanged = computed(
@@ -396,6 +481,7 @@ async function reextract(): Promise<void> {
   draft.selected = [];
   draft.preset = "all_applicable";
   draft.itemsDirty = false;
+  draft.step = 2;
   await ensureTask();
 }
 
@@ -590,9 +676,7 @@ onMounted(() => {
     <section v-if="draft.step === 1" class="step" data-testid="wizard-step-1">
       <header class="step-head">
         <h1>这次要验证什么？</h1>
-        <p class="muted">
-          可以选一个建议，也可以把目标改得更具体。写清楚“谁在什么场景下做什么、结果应该是什么”。
-        </p>
+        <p class="muted">选一句最接近的，或自己写一句。验收标准会从目标里提取。</p>
       </header>
 
       <SkeletonBlock v-if="draft.suggestLoading" :lines="3" label="正在生成目标候选" />
@@ -603,76 +687,78 @@ onMounted(() => {
         @retry="retrySuggest"
       />
 
-      <div v-else-if="draft.candidates.length" class="candidates">
-        <button
-          v-for="(candidate, index) in draft.candidates"
-          :key="candidate.title"
-          type="button"
-          class="candidate"
-          :class="{ chosen: draft.candidateIndex === index }"
-          :aria-pressed="draft.candidateIndex === index"
-          data-testid="candidate"
-          @click="chooseCandidate(index)"
-        >
-          <span class="candidate-title">{{ candidate.title }}</span>
-          <span class="candidate-meta">
-            <span v-if="candidate.reason">{{ candidate.reason }}</span>
-            <span v-if="sourceLabel(candidate.source)" class="source">
-              来源：{{ sourceLabel(candidate.source) }}
+      <template v-else>
+        <div v-if="draft.candidates.length" class="candidates" role="list">
+          <button
+            v-for="(candidate, index) in draft.candidates"
+            :key="candidate.title"
+            type="button"
+            class="candidate"
+            :class="{ chosen: draft.candidateIndex === index }"
+            :aria-pressed="draft.candidateIndex === index"
+            data-testid="candidate"
+            role="listitem"
+            @click="pickCandidate(index)"
+          >
+            <span class="candidate-title">{{ candidate.title }}</span>
+            <span class="candidate-meta">
+              <span v-if="candidate.reason">{{ candidate.reason }}</span>
+              <span v-if="sourceLabel(candidate.source)" class="source">
+                来源：{{ sourceLabel(candidate.source) }}
+              </span>
             </span>
-          </span>
-          <span class="candidate-mark" aria-hidden="true">
-            <Icon v-if="draft.candidateIndex === index" name="check" :size="13" />
-          </span>
-        </button>
-      </div>
-
-      <div v-else-if="!draft.suggestLoading" class="no-signal">
-        <div class="no-signal-copy">
-          <p class="muted">
-            这个项目还没有足够的提交或历史记录，先给一个通用目标：
-          </p>
-          <button type="button" class="fallback" @click="chooseFallback">
-            {{ draft.fallback || "验证项目能否启动并跑通主流程" }}
+            <span class="candidate-mark" aria-hidden="true">
+              <Icon name="chevron-right" :size="14" />
+            </span>
           </button>
         </div>
-      </div>
 
-      <Field
-        label="本次目标"
-        for-id="goal-input"
-        hint="可以直接修改上面的建议；也可以完全自己写。"
-        required
-      >
-        <textarea
-          id="goal-input"
-          v-model="draft.goal"
-          class="textarea"
-          rows="3"
-          placeholder="例如：验证下单成功后订单出现在列表里，库存扣减一次"
-          @input="onGoalInput"
-        ></textarea>
-      </Field>
-
-      <div class="step-actions">
-        <AppButton
-          variant="primary"
-          :disabled="!draft.goal.trim()"
-          data-testid="wizard-next"
-          @click="next"
+        <button
+          v-else-if="!draft.suggestLoading"
+          type="button"
+          class="fallback"
+          @click="chooseFallbackAndGo"
         >
-          下一步：确认验收标准
-        </AppButton>
+          <span class="fallback-label">先用一个通用目标</span>
+          <span class="fallback-text">{{ draft.fallback || "验证项目能否启动并跑通主流程" }}</span>
+        </button>
+      </template>
+
+      <div class="writer">
+        <button v-if="!writing" type="button" class="writer-link" @click="openWriter">
+          <Icon name="plus" :size="13" />
+          或自己写一句
+        </button>
+        <form v-else class="writer-form" @submit.prevent="next">
+          <input
+            id="goal-input"
+            ref="writingInput"
+            v-model="draft.goal"
+            class="writer-input"
+            type="text"
+            placeholder="例如：下单成功后订单出现在列表里，库存只扣一次"
+            autocomplete="off"
+            @input="onGoalInput"
+          />
+          <AppButton
+            html-type="submit"
+            variant="primary"
+            size="sm"
+            :disabled="!draft.goal.trim()"
+            data-testid="wizard-next"
+          >
+            继续
+          </AppButton>
+          <AppButton size="sm" variant="ghost" @click="closeWriter">收起</AppButton>
+        </form>
       </div>
     </section>
 
     <!-- 第 2 步：验收标准 -->
     <section v-else-if="draft.step === 2" class="step" data-testid="wizard-step-2">
       <header class="step-head">
-        <h1>哪些结果可以判定？</h1>
-        <p class="muted">
-          验收标准要能被观察到：看到什么、查到什么、返回什么。左侧勾选决定这次是否纳入，下方“可观察”决定它能不能作为验收依据；不可观察的条目不会进入范围。
-        </p>
+        <h1>确认验收标准</h1>
+        <p class="muted">默认全部纳入。关掉不需要的，或补一条；每条都要能被观察到。</p>
       </header>
 
       <SkeletonBlock
@@ -690,91 +776,89 @@ onMounted(() => {
           @retry="ensureTask"
         />
 
-        <div v-if="!draft.items.length" class="empty-note">
-          <p class="muted">
-            {{
-              draft.itemsError
-                ? "也可以先自己补一条可观察的标准继续。"
-                : "没有提取出可观察的验收标准。可以直接补一条，例如“下单后订单列表出现该订单，且库存只减一次”。"
-            }}
-          </p>
-        </div>
-
-        <ul v-else class="items" data-testid="acceptance-list">
+        <ul v-if="draft.items.length" class="items" data-testid="acceptance-list">
           <li
             v-for="item in draft.items"
             :key="item.id"
             class="item"
-            :class="{ off: !item.observable }"
+            :class="{ off: !item.observable, editing: editingId === item.id }"
           >
-            <label class="enable">
-              <input
-                type="checkbox"
-                :checked="item.enabled"
+            <template v-if="editingId === item.id">
+              <div class="edit">
+                <input
+                  :ref="setEditInput"
+                  v-model="editText"
+                  class="edit-input"
+                  type="text"
+                  aria-label="编辑验收标准"
+                  @keydown.enter.prevent="commitEdit(item)"
+                />
+                <div class="edit-row">
+                  <label class="observable">
+                    <input v-model="editObservable" type="checkbox" />
+                    可作为验收依据
+                  </label>
+                  <span class="edit-actions">
+                    <AppButton size="sm" @click="commitEdit(item)">完成</AppButton>
+                    <AppButton size="sm" variant="ghost" @click="cancelEdit">取消</AppButton>
+                    <AppButton size="sm" variant="danger" @click="removeItem(item)">移除</AppButton>
+                  </span>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <button
+                type="button"
+                class="switch"
+                role="switch"
+                :aria-checked="item.enabled"
                 :disabled="!item.observable"
-                :aria-label="`启用：${item.text}`"
-                @change="toggleEnabled(item)"
-              />
-              <span class="enable-text">启用</span>
-            </label>
-            <div class="item-main">
-              <input
-                v-model="item.text"
-                class="item-input"
-                type="text"
-                :disabled="!item.observable"
-                :aria-label="`验收标准：${item.text}`"
-                @input="markEdited"
-              />
-              <div class="item-meta">
-                <label class="observable">
-                  <input
-                    type="checkbox"
-                    :checked="item.observable"
-                    @change="toggleObservable(item)"
-                  />
-                  可观察
-                </label>
-                <span v-if="item.source" class="quiet">来源：{{ item.source }}</span>
-                <span v-if="!item.observable" class="unobservable">
-                  不可观察：不能作为验收依据，暂不进入范围
+                :aria-label="`纳入：${item.text}`"
+                @click="toggleEnabled(item)"
+              >
+                <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              </button>
+              <div class="item-main">
+                <span class="item-text">{{ item.text }}</span>
+                <span class="item-meta">
+                  <span v-if="!item.observable" class="unobservable">不可观察，暂不纳入</span>
+                  <span v-else-if="item.source" class="quiet">{{ item.source }}</span>
                 </span>
               </div>
-            </div>
-            <button
-              type="button"
-              class="remove"
-              :aria-label="`移除：${item.text}`"
-              @click="removeItem(item)"
-            >
-              <Icon name="close" :size="14" />
-            </button>
+              <button type="button" class="edit-link" @click="startEdit(item)">编辑</button>
+            </template>
           </li>
         </ul>
 
-        <form class="add-item" @submit.prevent="addItem">
+        <div v-if="!draft.items.length && !draft.itemsError" class="empty-note">
+          <p class="muted">没有提取出可观察的验收标准，补一条就可以继续。</p>
+        </div>
+
+        <form v-if="showAdd" class="add-item" @submit.prevent="addItem">
           <input
+            ref="addInput"
             v-model="newItem"
             class="add-input"
             type="text"
-            placeholder="补一条可观察的验收标准"
+            placeholder="例如：下单后订单列表出现该订单，且库存只减一次"
             aria-label="补充验收标准"
           />
-          <AppButton html-type="submit" size="sm" :disabled="!newItem.trim()">
-            <Icon name="plus" :size="13" />
-            添加
+          <AppButton html-type="submit" size="sm" :disabled="!newItem.trim()">添加</AppButton>
+          <AppButton size="sm" variant="ghost" @click="showAdd = false; newItem = ''">
+            取消
           </AppButton>
         </form>
+        <button v-else type="button" class="add-link" @click="openAdd">
+          <Icon name="plus" :size="13" />
+          添加一条
+        </button>
 
         <div v-if="goalChanged" class="goal-change">
-          <p class="hint">目标已修改；当前验收标准仍来自上一次提取。</p>
+          <span class="hint">目标改了，当前标准仍来自上一次提取。</span>
           <AppButton size="sm" variant="ghost" :loading="draft.itemsLoading" @click="reextract">
             按新目标重新提取
           </AppButton>
         </div>
-        <p v-if="draft.itemsDirty" class="hint">
-          改动会保存到这次任务的验收标准；下一步时自动保存。
-        </p>
         <p v-if="!canNextFromCriteria" class="error-text">
           至少需要一条可观察的验收标准才能继续。
         </p>
@@ -797,10 +881,8 @@ onMounted(() => {
     <!-- 第 3 步：范围 -->
     <section v-else-if="draft.step === 3" class="step" data-testid="wizard-step-3">
       <header class="step-head">
-        <h1>这次覆盖哪些验收标准？</h1>
-        <p class="muted">
-          选择单位是验收项，不挑用例。范围越小结论越窄，未选的条目不计入本次结论。
-        </p>
+        <h1>这次覆盖多少</h1>
+        <p class="muted">默认全部适用。范围越小结论越窄，未选的条目不进入本次结论。</p>
       </header>
 
       <div v-if="!applicableCount" class="empty-note">
@@ -809,65 +891,77 @@ onMounted(() => {
       </div>
 
       <template v-else>
-        <div class="scope-head">
-          <div class="segmented" role="radiogroup" aria-label="范围方式">
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="draft.preset === 'all_applicable'"
-              :class="{ on: draft.preset === 'all_applicable' }"
-              @click="setPreset('all_applicable')"
-            >
-              全部适用
-            </button>
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="draft.preset === 'selected'"
-              :class="{ on: draft.preset === 'selected' }"
-              @click="setPreset('selected')"
-            >
-              自选
-            </button>
+        <div class="scope-card">
+          <div class="scope-head">
+            <div class="segmented" role="radiogroup" aria-label="范围方式">
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="draft.preset === 'all_applicable'"
+                :class="{ on: draft.preset === 'all_applicable' }"
+                @click="setPreset('all_applicable')"
+              >
+                全部适用
+              </button>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="draft.preset === 'selected'"
+                :class="{ on: draft.preset === 'selected' }"
+                @click="setPreset('selected')"
+              >
+                自选
+              </button>
+            </div>
+            <div class="count" data-testid="range-count">
+              已选 <strong class="numeric">{{ selectedCount }}</strong>
+              <span class="quiet">/ 适用</span>
+              <span class="numeric">{{ applicableCount }}</span>
+              条
+            </div>
           </div>
-          <div class="count" data-testid="range-count">
-            已选 <strong class="numeric">{{ selectedCount }}</strong>
-            <span class="quiet">/ 适用</span>
-            <span class="numeric">{{ applicableCount }}</span>
-            条
+
+          <div class="meter" aria-hidden="true">
+            <span
+              class="meter-fill"
+              :style="{
+                width: `${applicableCount ? Math.round((selectedCount / applicableCount) * 100) : 0}%`,
+              }"
+            ></span>
           </div>
+
+          <p class="hint scope-note">
+            <template v-if="draft.preset === 'all_applicable'">
+              全部 {{ applicableCount }} 条适用验收项都会进入本次范围。
+            </template>
+            <template v-else-if="excludedCount > 0">
+              已排除 {{ excludedCount }} 条；这些不进入本次结论。
+            </template>
+            <template v-else>已选中全部适用条目。</template>
+          </p>
         </div>
 
-        <div class="meter" aria-hidden="true">
-          <span
-            class="meter-fill"
-            :style="{
-              width: `${applicableCount ? Math.round((selectedCount / applicableCount) * 100) : 0}%`,
-            }"
-          ></span>
-        </div>
-
-        <div v-if="session.project && session.project.modules.length" class="modules">
-          <div class="modules-head">
-            <h2>涉及模块（可选）</h2>
-            <span class="hint">模块信息随计划保存，用来说明改动范围；验收项仍按条目选择。</span>
+        <details v-if="session.project?.modules.length" class="modules">
+          <summary>按模块筛选（可选）</summary>
+          <div class="modules-body">
+            <p class="hint">模块随计划保存，用来说明改动范围；验收项仍按条目选择。</p>
+            <div class="module-chips">
+              <button
+                v-for="module in session.project.modules"
+                :key="module.module_id"
+                type="button"
+                class="chip"
+                :class="{ on: draft.moduleIds.includes(module.module_id) }"
+                :aria-pressed="draft.moduleIds.includes(module.module_id)"
+                @click="toggleModule(module.module_id)"
+              >
+                {{ module.name }}
+              </button>
+            </div>
           </div>
-          <div class="chips">
-            <button
-              v-for="module in session.project.modules"
-              :key="module.module_id"
-              type="button"
-              class="chip"
-              :class="{ on: draft.moduleIds.includes(module.module_id) }"
-              :aria-pressed="draft.moduleIds.includes(module.module_id)"
-              @click="toggleModule(module.module_id)"
-            >
-              {{ module.name }}
-            </button>
-          </div>
-        </div>
+        </details>
 
-        <ul class="scope-list" data-testid="scope-list">
+        <ul v-if="scopeExpanded" class="scope-list" data-testid="scope-list">
           <li v-for="item in draft.items" :key="item.id" :class="{ off: !item.observable }">
             <label class="scope-row">
               <input
@@ -904,9 +998,7 @@ onMounted(() => {
     <section v-else class="step" data-testid="wizard-step-4">
       <header class="step-head">
         <h1>确认计划后开始</h1>
-        <p class="muted">
-          计划按验收项生成并已发布。开始测试会新建一次运行，并记录确认时间。
-        </p>
+        <p class="muted">计划已按验收项生成。开始测试会新建一次运行并记录确认时间。</p>
       </header>
 
       <SkeletonBlock v-if="draft.planLoading" :lines="5" label="正在生成测试计划" />
@@ -943,143 +1035,166 @@ onMounted(() => {
 
         <UncoveredList v-if="uncoveredItems.length" :items="uncoveredItems" class="uncovered-block" />
 
-        <section class="template-block" data-testid="template-block">
-          <div class="section-title">
-            <h2>模板检查项</h2>
-            <span class="section-note">只读提示：不进入必测分母，也不改变验收项</span>
-          </div>
-          <div class="template-controls">
-            <select
-              v-model="templatePanel.choice"
-              class="template-select"
-              aria-label="选择模板"
-              :disabled="templatePanel.loading || templatePanel.options.length === 0"
-            >
-              <option v-if="templatePanel.options.length === 0" value="">没有可用模板</option>
-              <option
-                v-for="template in templatePanel.options"
-                :key="template.template_id"
-                :value="template.template_id"
-              >
-                {{ template.name }}（{{ template.item_count }} 项）
-              </option>
-            </select>
-            <AppButton
-              size="sm"
-              :loading="templatePanel.applying"
-              :disabled="!templatePanel.choice || templatePanel.options.length === 0"
-              data-testid="apply-template"
-              @click="applyTemplate"
-            >
-              应用模板
-            </AppButton>
-          </div>
-          <ErrorNotice
-            v-if="templatePanel.error"
-            :error="templatePanel.error"
-            :show-retry="false"
-            @retry="() => {}"
-          />
-          <div v-for="template in appliedTemplates" :key="template.template_id" class="template-result">
-            <div class="template-head">
-              <h3>{{ template.name }}</h3>
-              <span class="quiet">{{ template.version }} · {{ template.applied_at }}</span>
-            </div>
-            <ul class="template-items">
-              <li v-for="item in template.items" :key="item.item_id">
-                <span class="disposition" :class="`disposition-${item.disposition}`">
-                  {{ DISPOSITION_LABEL[item.disposition] }}
-                </span>
-                <span class="template-objective">{{ item.objective || item.item_id }}</span>
-                <span class="template-reason">{{ item.reason || "未提供理由" }}</span>
-              </li>
-            </ul>
-          </div>
-          <p v-if="appliedTemplates.length === 0" class="hint">还没有应用模板。</p>
-        </section>
-
-        <div class="effects">
-          <div class="effect">
+        <ul class="effects">
+          <li class="effect">
             <span class="effect-key">副作用</span>
             <span>可能写入测试数据；默认不自动清理，使用前先确认数据环境。</span>
-          </div>
-          <div class="effect">
+          </li>
+          <li class="effect">
             <span class="effect-key">依赖</span>
-            <span>缺少依赖时用例标为阻塞，不会自动安装，也不会伪造通过。</span>
-          </div>
-          <div class="effect">
-            <span class="effect-key">预计耗时</span>
+            <span>缺少依赖时用例标为阻塞，不自动安装，也不伪造通过。</span>
+          </li>
+          <li class="effect">
+            <span class="effect-key">耗时</span>
             <span>后端未提供估算；按用例数量与项目启动时间而定。</span>
+          </li>
+        </ul>
+
+        <section class="template-block" data-testid="template-block">
+          <div class="template-head">
+            <h2>模板检查项</h2>
+            <span class="hint">只读提示：不进入必测分母，也不改变验收项</span>
           </div>
-        </div>
+          <div v-if="appliedTemplates.length" class="template-summary">
+            <span
+              v-for="chip in dispositionChips"
+              :key="chip.key"
+              class="disposition"
+              :class="`disposition-${chip.key}`"
+            >
+              {{ chip.label }}
+              <span class="numeric">{{ chip.count }}</span>
+            </span>
+            <span class="quiet template-names">
+              {{ appliedTemplates.map((template) => template.name).join("、") }}
+            </span>
+          </div>
+          <p v-else class="hint">还没有应用模板。</p>
 
-        <div class="groups">
-          <article v-for="group in groupedCases" :key="group.item.id" class="group">
-            <header class="group-head">
-              <h2>{{ group.item.text }}</h2>
-              <span class="quiet">{{ group.cases.length }} 条用例</span>
-            </header>
-            <ul class="case-list">
-              <li v-for="planCase in group.cases" :key="planCase.case_id" class="plan-case">
-                <div class="plan-case-head">
-                  <Badge tone="neutral">{{ LAYER_LABEL[planCase.layer] }}</Badge>
-                  <span v-if="planCase.importance" class="importance">
-                    {{ IMPORTANCE_LABEL[planCase.importance] ?? planCase.importance }}
+          <details class="template-more">
+            <summary>{{ appliedTemplates.length ? "查看或应用模板" : "应用模板" }}</summary>
+            <div class="template-controls">
+              <select
+                v-model="templatePanel.choice"
+                class="template-select"
+                aria-label="选择模板"
+                :disabled="templatePanel.loading || templatePanel.options.length === 0"
+              >
+                <option v-if="templatePanel.options.length === 0" value="">没有可用模板</option>
+                <option
+                  v-for="template in templatePanel.options"
+                  :key="template.template_id"
+                  :value="template.template_id"
+                >
+                  {{ template.name }}（{{ template.item_count }} 项）
+                </option>
+              </select>
+              <AppButton
+                size="sm"
+                :loading="templatePanel.applying"
+                :disabled="!templatePanel.choice || templatePanel.options.length === 0"
+                data-testid="apply-template"
+                @click="applyTemplate"
+              >
+                应用模板
+              </AppButton>
+            </div>
+            <ErrorNotice
+              v-if="templatePanel.error"
+              :error="templatePanel.error"
+              :show-retry="false"
+              @retry="() => {}"
+            />
+            <div
+              v-for="template in appliedTemplates"
+              :key="template.template_id"
+              class="template-result"
+            >
+              <div class="template-result-head">
+                <h3>{{ template.name }}</h3>
+                <span class="quiet">{{ template.version }} · {{ template.applied_at }}</span>
+              </div>
+              <ul class="template-items">
+                <li v-for="item in template.items" :key="item.item_id">
+                  <span class="disposition" :class="`disposition-${item.disposition}`">
+                    {{ DISPOSITION_LABEL[item.disposition] }}
                   </span>
-                  <span class="method">{{ methodLabel(planCase.verify_method) }}</span>
-                </div>
-                <p class="expected">{{ planCase.title || planCase.expected }}</p>
-                <p v-if="planCase.title && planCase.expected" class="expected-note">
-                  预期：{{ planCase.expected }}
-                </p>
-                <details v-if="planCase.steps?.length || planCase.preconditions?.length" class="more">
-                  <summary>查看步骤</summary>
-                  <div v-if="planCase.preconditions?.length" class="more-block">
-                    <h3>前置条件</h3>
-                    <ul>
-                      <li v-for="(line, index) in planCase.preconditions" :key="index">{{ line }}</li>
-                    </ul>
-                  </div>
-                  <div v-if="planCase.steps?.length" class="more-block">
-                    <h3>步骤</h3>
-                    <ol>
-                      <li v-for="(line, index) in planCase.steps" :key="index">{{ line }}</li>
-                    </ol>
-                  </div>
-                </details>
-                <p v-if="dependencyLabel(planCase.depends_on)" class="dep">
-                  {{ dependencyLabel(planCase.depends_on) }}
-                </p>
-              </li>
-            </ul>
-          </article>
-          <article v-if="projectCases.length" class="group">
-            <header class="group-head">
-              <h2>项目级检查</h2>
-              <span class="quiet">{{ projectCases.length }} 条</span>
-            </header>
-            <ul class="case-list">
-              <li v-for="planCase in projectCases" :key="planCase.case_id" class="plan-case">
-                <div class="plan-case-head">
-                  <Badge tone="neutral">{{ LAYER_LABEL[planCase.layer] }}</Badge>
-                  <span class="method">{{ methodLabel(planCase.verify_method) }}</span>
-                </div>
-                <p class="expected">{{ planCase.title || planCase.expected }}</p>
-                <p v-if="planCase.title && planCase.expected" class="expected-note">
-                  预期：{{ planCase.expected }}
-                </p>
-                <p v-if="dependencyLabel(planCase.depends_on)" class="dep">
-                  {{ dependencyLabel(planCase.depends_on) }}
-                </p>
-              </li>
-            </ul>
-          </article>
-          <p v-if="!groupedCases.length && !projectCases.length" class="hint">计划里还没有用例。</p>
-        </div>
+                  <span class="template-objective">{{ item.objective || item.item_id }}</span>
+                  <span class="template-reason">{{ item.reason || "未提供理由" }}</span>
+                </li>
+              </ul>
+            </div>
+          </details>
+        </section>
 
-        <p class="hint">
-          关闭面板不会中断运行；重新打开可以在历史里找到这次运行。
-        </p>
+        <details class="cases-details" data-testid="case-details">
+          <summary>查看用例明细（{{ planSummary.cases }} 条）</summary>
+          <div class="groups">
+            <article v-for="group in groupedCases" :key="group.item.id" class="group">
+              <header class="group-head">
+                <h2>{{ group.item.text }}</h2>
+                <span class="quiet">{{ group.cases.length }} 条用例</span>
+              </header>
+              <ul class="case-list">
+                <li v-for="planCase in group.cases" :key="planCase.case_id" class="plan-case">
+                  <div class="plan-case-head">
+                    <Badge tone="neutral">{{ LAYER_LABEL[planCase.layer] }}</Badge>
+                    <span v-if="planCase.importance" class="importance">
+                      {{ IMPORTANCE_LABEL[planCase.importance] ?? planCase.importance }}
+                    </span>
+                    <span class="method">{{ methodLabel(planCase.verify_method) }}</span>
+                  </div>
+                  <p class="expected">{{ planCase.title || planCase.expected }}</p>
+                  <p v-if="planCase.title && planCase.expected" class="expected-note">
+                    预期：{{ planCase.expected }}
+                  </p>
+                  <details v-if="planCase.steps?.length || planCase.preconditions?.length" class="more">
+                    <summary>查看步骤</summary>
+                    <div v-if="planCase.preconditions?.length" class="more-block">
+                      <h3>前置条件</h3>
+                      <ul>
+                        <li v-for="(line, index) in planCase.preconditions" :key="index">{{ line }}</li>
+                      </ul>
+                    </div>
+                    <div v-if="planCase.steps?.length" class="more-block">
+                      <h3>步骤</h3>
+                      <ol>
+                        <li v-for="(line, index) in planCase.steps" :key="index">{{ line }}</li>
+                      </ol>
+                    </div>
+                  </details>
+                  <p v-if="dependencyLabel(planCase.depends_on)" class="dep">
+                    {{ dependencyLabel(planCase.depends_on) }}
+                  </p>
+                </li>
+              </ul>
+            </article>
+            <article v-if="projectCases.length" class="group">
+              <header class="group-head">
+                <h2>项目级检查</h2>
+                <span class="quiet">{{ projectCases.length }} 条</span>
+              </header>
+              <ul class="case-list">
+                <li v-for="planCase in projectCases" :key="planCase.case_id" class="plan-case">
+                  <div class="plan-case-head">
+                    <Badge tone="neutral">{{ LAYER_LABEL[planCase.layer] }}</Badge>
+                    <span class="method">{{ methodLabel(planCase.verify_method) }}</span>
+                  </div>
+                  <p class="expected">{{ planCase.title || planCase.expected }}</p>
+                  <p v-if="planCase.title && planCase.expected" class="expected-note">
+                    预期：{{ planCase.expected }}
+                  </p>
+                  <p v-if="dependencyLabel(planCase.depends_on)" class="dep">
+                    {{ dependencyLabel(planCase.depends_on) }}
+                  </p>
+                </li>
+              </ul>
+            </article>
+            <p v-if="!groupedCases.length && !projectCases.length" class="hint">计划里还没有用例。</p>
+          </div>
+        </details>
+
+        <p class="hint">关闭面板不会中断运行；重新打开可以在历史里找到这次运行。</p>
 
         <ErrorNotice
           v-if="draft.startError"
@@ -1194,7 +1309,7 @@ onMounted(() => {
 .step-head {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .step-head h1 {
@@ -1203,21 +1318,23 @@ onMounted(() => {
 
 .step-head p {
   font-size: var(--fs-13);
-  max-width: 62ch;
+  max-width: 60ch;
   line-height: 1.6;
 }
 
+/* 第 1 步：候选卡片 */
+
 .candidates {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
 }
 
 .candidate {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   padding: var(--space-3) var(--space-4);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1225,12 +1342,14 @@ onMounted(() => {
   text-align: left;
   transition:
     border-color 140ms ease,
-    background-color 140ms ease;
+    background-color 140ms ease,
+    transform 140ms ease;
 }
 
 .candidate:hover {
-  border-color: var(--line-strong);
+  border-color: var(--accent-line);
   background: var(--surface-raised);
+  transform: translateY(-1px);
 }
 
 .candidate.chosen {
@@ -1241,7 +1360,7 @@ onMounted(() => {
 .candidate-title {
   font-size: var(--fs-13);
   font-weight: 500;
-  padding-right: 24px;
+  padding-right: 22px;
   line-height: 1.5;
 }
 
@@ -1254,71 +1373,98 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-.source {
-  color: var(--text-3);
-}
-
 .candidate-mark {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 10px;
+  color: var(--text-disabled);
+  transition: color 140ms ease;
+}
+
+.candidate:hover .candidate-mark {
   color: var(--accent);
 }
 
-.no-signal {
+.fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   padding: var(--space-3) var(--space-4);
   background: var(--surface);
   border: 1px dashed var(--line-strong);
   border-radius: var(--r-control);
-}
-
-.no-signal-copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  align-items: flex-start;
-}
-
-.fallback {
-  padding: 7px 10px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  color: var(--accent);
-  font-size: var(--fs-13);
   text-align: left;
 }
 
 .fallback:hover {
   border-color: var(--accent-line);
+  background: var(--surface-raised);
 }
 
-.textarea,
-.item-input,
+.fallback-label {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.fallback-text {
+  font-size: var(--fs-13);
+  color: var(--accent);
+}
+
+.writer {
+  padding-top: var(--space-1);
+}
+
+.writer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+
+.writer-link:hover {
+  color: var(--accent);
+}
+
+.writer-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.writer-input,
+.edit-input,
 .add-input {
-  width: 100%;
-  padding: 7px 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 10px;
   background: var(--surface-sunken);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
   color: var(--text);
   font-size: var(--fs-13);
-  line-height: 1.55;
-  resize: vertical;
 }
 
-.textarea::placeholder,
+.writer-input::placeholder,
+.edit-input::placeholder,
 .add-input::placeholder {
   color: var(--text-disabled);
 }
 
-.textarea:focus,
-.item-input:focus,
+.writer-input:focus,
+.edit-input:focus,
 .add-input:focus {
   border-color: var(--accent-line);
   outline: none;
   box-shadow: 0 0 0 2px rgba(130, 175, 205, 0.16);
 }
+
+/* 第 2 步：验收项开关列表 */
 
 .items {
   list-style: none;
@@ -1334,7 +1480,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: 11px var(--space-4);
   border-bottom: 1px solid var(--line);
 }
 
@@ -1342,8 +1488,12 @@ onMounted(() => {
   border-bottom: 0;
 }
 
+.item.editing {
+  background: var(--surface-raised);
+}
+
 .item.off {
-  opacity: 0.72;
+  opacity: 0.66;
 }
 
 .item-main {
@@ -1351,74 +1501,144 @@ onMounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
-.item-input {
-  background: transparent;
-  border-color: transparent;
-  padding: 2px 4px;
-}
-
-.item-input:hover:not(:disabled) {
-  background: var(--surface-sunken);
-  border-color: var(--line);
-}
-
-.item-input:disabled {
-  color: var(--text-3);
-}
-
-.enable {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 5px;
-  flex: none;
-}
-
-.enable-text {
-  font-size: 11px;
-  color: var(--text-3);
+.item-text {
+  font-size: var(--fs-13);
+  line-height: 1.55;
 }
 
 .item-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   font-size: var(--fs-12);
   color: var(--text-3);
-  padding-left: 4px;
-}
-
-.observable {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
 }
 
 .unobservable {
   color: var(--incomplete);
 }
 
-.remove {
+.switch {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 24px;
   flex: none;
+  padding: 0;
   background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--text-3);
+  border: 0;
+  margin-top: 1px;
 }
 
-.remove:hover {
-  color: var(--failed);
-  border-color: var(--line);
-  background: var(--surface-raised);
+.switch-track {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 140ms ease;
+}
+
+.switch[aria-checked="true"] .switch-track {
+  background: var(--accent-fill-strong);
+  border-color: var(--accent-line);
+}
+
+.switch[aria-checked="true"] .switch-knob {
+  background: var(--accent);
+  transform: translateX(12px);
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.edit-link {
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  border-radius: 4px;
+}
+
+.edit-link:hover {
+  color: var(--accent);
+  background: var(--surface-sunken);
+}
+
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.observable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.add-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+
+.add-link:hover {
+  color: var(--accent);
+}
+
+.add-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .empty-note {
@@ -1443,13 +1663,16 @@ onMounted(() => {
   border-radius: var(--r-control);
 }
 
-.add-item {
-  display: flex;
-  gap: var(--space-2);
-}
+/* 第 3 步：范围 */
 
-.add-item .add-input {
-  flex: 1 1 auto;
+.scope-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
 }
 
 .scope-head {
@@ -1491,7 +1714,7 @@ onMounted(() => {
 
 .count strong {
   color: var(--text);
-  font-size: var(--fs-16);
+  font-size: var(--fs-20);
   font-weight: 600;
 }
 
@@ -1510,28 +1733,66 @@ onMounted(() => {
   transition: width 180ms ease;
 }
 
+.scope-note {
+  margin: 0;
+}
+
 .modules {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--space-3) var(--space-4);
+}
+
+.modules summary,
+.template-more summary,
+.cases-details summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  width: fit-content;
+}
+
+.modules summary::-webkit-details-marker,
+.template-more summary::-webkit-details-marker,
+.cases-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.modules summary::before,
+.template-more summary::before,
+.cases-details summary::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.modules[open] summary::before,
+.template-more[open] summary::before,
+.cases-details[open] summary::before {
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.modules summary:hover,
+.template-more summary:hover,
+.cases-details summary:hover {
+  color: var(--text-2);
+}
+
+.modules-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  margin-top: var(--space-3);
 }
 
-.modules-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.modules-head h2 {
-  font-size: var(--fs-13);
-}
-
-.chips {
+.module-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1601,6 +1862,8 @@ onMounted(() => {
   line-height: 1.55;
 }
 
+/* 第 4 步：确认 */
+
 .summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1615,104 +1878,6 @@ onMounted(() => {
   flex-direction: column;
   gap: 3px;
   padding: var(--space-4);
-}
-
-.uncovered-block {
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-}
-
-.template-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-}
-
-.template-controls {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.template-select {
-  min-height: 30px;
-  padding: 4px 8px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  color: var(--text);
-  font-size: var(--fs-12);
-}
-
-.template-result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
-}
-
-.template-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.template-head h3 {
-  font-size: var(--fs-13);
-}
-
-.template-items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.template-items li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  font-size: var(--fs-12);
-  line-height: 1.55;
-}
-
-.disposition {
-  padding: 1px 7px;
-  border-radius: var(--r-chip);
-  border: 1px solid var(--line-strong);
-  color: var(--text-2);
-  white-space: nowrap;
-}
-
-.disposition-applicable {
-  color: var(--accent);
-  border-color: var(--accent-line);
-}
-
-.disposition-unsupported,
-.disposition-unknown {
-  color: var(--incomplete);
-}
-
-.template-objective {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.template-reason {
-  color: var(--text-3);
 }
 
 .summary-item + .summary-item {
@@ -1736,41 +1901,186 @@ onMounted(() => {
   line-height: 1.5;
 }
 
+.uncovered-block {
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
 .effects {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  background: var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--r-control);
+  background: var(--surface);
   overflow: hidden;
 }
 
 .effect {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 58px 1fr;
   gap: var(--space-3);
-  padding: 9px var(--space-4);
-  background: var(--surface);
+  padding: 7px var(--space-3);
   font-size: var(--fs-12);
   color: var(--text-2);
   line-height: 1.55;
+}
+
+.effect + .effect {
+  border-top: 1px solid var(--line);
 }
 
 .effect-key {
   color: var(--text-3);
 }
 
+.template-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.template-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.template-head h2 {
+  font-size: var(--fs-13);
+}
+
+.template-head .hint {
+  max-width: 52ch;
+}
+
+.template-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.template-names {
+  font-size: var(--fs-12);
+}
+
+.template-more {
+  margin-top: var(--space-1);
+}
+
+.template-controls {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.template-select {
+  min-height: 30px;
+  padding: 4px 8px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.template-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.template-result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.template-result-head h3 {
+  font-size: var(--fs-13);
+}
+
+.template-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-items li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  line-height: 1.55;
+}
+
+.disposition {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  white-space: nowrap;
+  font-size: var(--fs-12);
+}
+
+.disposition-applicable {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+
+.disposition-unsupported,
+.disposition-unknown {
+  color: var(--incomplete);
+}
+
+.template-objective {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.template-reason {
+  color: var(--text-3);
+}
+
+.cases-details {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
 .groups {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .group {
   border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
+  border-radius: var(--r-control);
   overflow: hidden;
 }
 
@@ -1779,7 +2089,7 @@ onMounted(() => {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
   background: var(--surface-raised);
 }
@@ -1796,7 +2106,7 @@ onMounted(() => {
 }
 
 .plan-case {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--line);
 }
 
@@ -1919,7 +2229,7 @@ input[type="checkbox"]:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 520px) {
   .summary {
     grid-template-columns: 1fr;
   }
@@ -1940,6 +2250,16 @@ input[type="checkbox"]:disabled {
 
   .step-actions :deep(.btn) {
     width: 100%;
+  }
+
+  .writer-form,
+  .add-item {
+    flex-wrap: wrap;
+  }
+
+  .writer-form :deep(.btn),
+  .add-item :deep(.btn) {
+    flex: 1 1 auto;
   }
 }
 </style>

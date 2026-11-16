@@ -1,4 +1,4 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
 import SettingsView from "@/views/SettingsView.vue";
@@ -25,15 +25,39 @@ function prepare(routes: Record<string, unknown> = {}) {
   return harness;
 }
 
-describe("设置页项目配置", () => {
-  it("加载后按分组展示模型密钥状态与可编辑配置", async () => {
+async function openAdvanced(wrapper: VueWrapper) {
+  await wrapper.find('[data-testid="advanced-config"] .advanced-head').trigger("click");
+  await flushPromises();
+}
+
+describe("设置页主视图", () => {
+  it("只显示环境、模型、工作空间与 GitHub 事实，不出现 JSON 输入框", async () => {
     prepare();
     const wrapper = mount(SettingsView);
     await flushPromises();
 
     const text = wrapper.text();
-    expect(text).toContain("项目配置");
+    expect(text).toContain("环境自检");
+    expect(text).toContain("3.13.1");
+    expect(text).toContain("C:\\data\\ws");
     expect(text).toContain("模型密钥");
+    expect(text).toContain("GitHub");
+    expect(text).toContain("高级配置");
+    expect(text).toContain("不安装软件");
+
+    expect(wrapper.find("textarea").exists()).toBe(false);
+    expect(wrapper.findAll('input[type="text"]')).toHaveLength(0);
+    expect(wrapper.findAll("input").length).toBe(0);
+    expect(wrapper.html()).not.toContain("api_key");
+  });
+
+  it("高级配置展开后一次只显示一个分组的 JSON", async () => {
+    prepare();
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    await openAdvanced(wrapper);
+    const text = wrapper.text();
     expect(text).toContain("服务");
     expect(text).toContain("链路");
     expect(text).toContain("运行器");
@@ -41,29 +65,40 @@ describe("设置页项目配置", () => {
     expect(text).toContain("源码可运行（L1）");
     expect(text).toContain("https://api.example");
 
+    expect(wrapper.findAll("textarea")).toHaveLength(1);
     const services = wrapper.find("textarea#config-services");
     expect(services.exists()).toBe(true);
     expect((services.element as HTMLTextAreaElement).value).toContain("uvicorn app:main");
+
+    // 切换到“证据预算”后只保留该分组。
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().includes("证据预算"))?.trigger("click");
+    expect(wrapper.findAll("textarea")).toHaveLength(1);
+    expect(wrapper.find("textarea#config-services").exists()).toBe(false);
+    expect(wrapper.find("textarea#config-evidence").exists()).toBe(true);
   });
 
   it("不提供密钥编辑入口", async () => {
     prepare();
     const wrapper = mount(SettingsView);
     await flushPromises();
+    await openAdvanced(wrapper);
 
-    expect(wrapper.findAll("input").length).toBe(0);
     expect(wrapper.find("textarea#config-model").exists()).toBe(false);
     expect(wrapper.html()).not.toContain("api_key");
   });
+});
 
+describe("设置页项目配置", () => {
   it("保存可编辑分组并调用 project.config update", async () => {
     const harness = prepare();
     const wrapper = mount(SettingsView);
     await flushPromises();
+    await openAdvanced(wrapper);
 
     await wrapper
       .find("textarea#config-services")
       .setValue(JSON.stringify({ api: { start: "python -m app" } }));
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().includes("证据预算"))?.trigger("click");
     await wrapper
       .find("textarea#config-evidence")
       .setValue(JSON.stringify({ media_budget_mb: 50 }));
@@ -82,11 +117,13 @@ describe("设置页项目配置", () => {
     expect(wrapper.text()).not.toContain("api_key");
   });
 
-  it("JSON 写错时指出分组和下一步", async () => {
+  it("JSON 写错时跳到对应分组，指出问题与下一步", async () => {
     prepare();
     const wrapper = mount(SettingsView);
     await flushPromises();
+    await openAdvanced(wrapper);
 
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().includes("链路"))?.trigger("click");
     await wrapper.find("textarea#config-link").setValue("{not json");
     await wrapper.findAll("button").find((button) => button.text() === "保存项目配置")?.trigger("click");
     await flushPromises();
@@ -94,6 +131,7 @@ describe("设置页项目配置", () => {
     const text = wrapper.text();
     expect(text).toContain("“链路”的 JSON 无法解析");
     expect(text).toContain("下一步");
+    expect(wrapper.find("textarea#config-link").exists()).toBe(true);
   });
 
   it("保存失败时显示哪里错了和下一步", async () => {
@@ -113,6 +151,7 @@ describe("设置页项目配置", () => {
     });
     const wrapper = mount(SettingsView);
     await flushPromises();
+    await openAdvanced(wrapper);
 
     await wrapper.findAll("button").find((button) => button.text() === "保存项目配置")?.trigger("click");
     await flushPromises();
@@ -128,6 +167,7 @@ describe("服务配置说明", () => {
     prepare();
     const wrapper = mount(SettingsView);
     await flushPromises();
+    await openAdvanced(wrapper);
 
     const text = wrapper.text();
     expect(text).toContain("单服务：{ start, health, stop, ... }");

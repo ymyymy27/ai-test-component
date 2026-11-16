@@ -78,6 +78,27 @@ describe("项目页", () => {
     expect(text).toContain("新建测试");
     expect(text).toContain("查看历史");
   });
+
+  it("项目数据齐全时主视图也不常驻交付输入框", async () => {
+    installHost({
+      "task.list": {
+        tasks: [{ task_id: TASK.task_id, title: TASK.title, revision: 1 }],
+      },
+    });
+    resetSession();
+    session.project = PROJECT;
+    session.projects = [{ project_id: PROJECT.project_id, name: PROJECT.name, root: PROJECT.root }];
+    const wrapper = mount(ProjectView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="project-overview"]').exists()).toBe(true);
+    expect(wrapper.findAll("textarea")).toHaveLength(0);
+    expect(wrapper.findAll('input[type="text"]')).toHaveLength(0);
+    expect(wrapper.find("select").exists()).toBe(false);
+    expect(wrapper.text()).toContain("AI 生成摘要");
+    // 模块建议收在“更多”折叠区里，默认不展开。
+    expect(wrapper.find('details[data-testid="module-suggest"]').attributes("open")).toBeUndefined();
+  });
 });
 
 describe("历史与设置", () => {

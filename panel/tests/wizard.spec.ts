@@ -22,8 +22,9 @@ async function mountWizard(overrides: Record<string, Route> = {}) {
   return { wrapper, harness };
 }
 
-async function answerGoal(wrapper: VueWrapper) {
-  await wrapper.find("textarea").setValue("验证下单流程");
+async function answerGoal(wrapper: VueWrapper, text = "验证下单流程") {
+  await wrapper.find(".writer-link").trigger("click");
+  await wrapper.find("#goal-input").setValue(text);
   await wrapper.find('[data-testid="wizard-next"]').trigger("click");
   await flushPromises();
 }
@@ -35,60 +36,87 @@ async function reachScope(wrapper: VueWrapper) {
 }
 
 describe("新建测试向导", () => {
-  it("第一步展示目标候选，选中候选后写入目标", async () => {
+  it("第一步只有候选卡片，不出现常驻输入框", async () => {
     const { wrapper } = await mountWizard();
     expect(wrapper.find('[data-testid="wizard-step-1"]').exists()).toBe(true);
 
-    const candidates = wrapper.findAll('[data-testid="candidate"]');
-    expect(candidates).toHaveLength(2);
-
-    await candidates[0].trigger("click");
-    const goal = wrapper.find("textarea").element as HTMLTextAreaElement;
-    expect(goal.value).toBe("验证下单成功后订单只出现一次");
-
-    const next = wrapper.find('[data-testid="wizard-next"]');
-    expect(next.attributes("disabled")).toBeUndefined();
+    expect(wrapper.findAll('[data-testid="candidate"]')).toHaveLength(2);
+    expect(wrapper.findAll('input[type="text"]')).toHaveLength(0);
+    expect(wrapper.findAll("textarea")).toHaveLength(0);
+    expect(wrapper.find(".writer-link").text()).toContain("或自己写一句");
   });
 
-  it("目标为空时不能进入下一步", async () => {
-    const { wrapper } = await mountWizard();
-    const next = wrapper.find('[data-testid="wizard-next"]');
-    expect(next.attributes("disabled")).toBeDefined();
-  });
-
-  it("从目标进入验收标准，并逐条启用/停用", async () => {
+  it("点候选卡片即选中并直接进入下一步", async () => {
     const { wrapper, harness } = await mountWizard();
-    await answerGoal(wrapper);
+    await wrapper.findAll('[data-testid="candidate"]')[0].trigger("click");
+    await flushPromises();
 
     expect(wrapper.find('[data-testid="wizard-step-2"]').exists()).toBe(true);
     const addCall = harness.calls.find((call) => call.command === "task.add");
     expect(addCall?.payload).toMatchObject({
       project_id: PROJECT.project_id,
-      title: "验证下单流程",
-      requirement: "验证下单流程",
+      title: "验证下单成功后订单只出现一次",
+      requirement: "验证下单成功后订单只出现一次",
     });
+  });
 
+  it("点“自己写一句”后只出现一个输入框，空目标不能继续", async () => {
+    const { wrapper } = await mountWizard();
+    expect(wrapper.find('[data-testid="wizard-next"]').exists()).toBe(false);
+
+    await wrapper.find(".writer-link").trigger("click");
+    expect(wrapper.findAll('input[type="text"]')).toHaveLength(1);
+    expect(wrapper.findAll("textarea")).toHaveLength(0);
+    expect(wrapper.find('[data-testid="wizard-next"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.find("#goal-input").setValue("验证下单流程");
+    expect(wrapper.find('[data-testid="wizard-next"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("第二步是开关列表，默认全部启用，补一条才出现输入框", async () => {
+    const { wrapper } = await mountWizard();
+    await answerGoal(wrapper);
+
+    expect(wrapper.find('[data-testid="wizard-step-2"]').exists()).toBe(true);
     const rows = wrapper.findAll('[data-testid="acceptance-list"] li');
     expect(rows).toHaveLength(3);
     expect(rows[2].classes()).toContain("off");
     expect(rows[2].text()).toContain("不可观察");
 
-    const checkbox = rows[0].find('input[type="checkbox"]');
-    await checkbox.setValue(false);
-    expect((checkbox.element as HTMLInputElement).checked).toBe(false);
-    expect((rows[2].find('input[type="checkbox"]').element as HTMLInputElement).disabled).toBe(true);
+    // 正常路径没有常驻文本框。
+    expect(wrapper.findAll('[data-testid="acceptance-list"] input[type="text"]')).toHaveLength(0);
+    expect(wrapper.findAll(".add-input")).toHaveLength(0);
+
+    const firstSwitch = rows[0].find('[role="switch"]');
+    expect(firstSwitch.attributes("aria-checked")).toBe("true");
+    await firstSwitch.trigger("click");
+    expect(firstSwitch.attributes("aria-checked")).toBe("false");
+    expect(rows[0].text()).toContain("订单列表出现该订单");
+
+    const disabledSwitch = rows[2].find('[role="switch"]');
+    expect(disabledSwitch.attributes("disabled")).toBeDefined();
+
+    await wrapper.find(".add-link").trigger("click");
+    expect(wrapper.findAll(".add-input")).toHaveLength(1);
+    await wrapper.find(".add-input").setValue("库存只扣减一次");
+    await wrapper.find(".add-item").trigger("submit");
+    expect(wrapper.findAll('[data-testid="acceptance-list"] li')).toHaveLength(4);
+    expect(wrapper.findAll(".add-input")).toHaveLength(0);
   });
 
-  it("范围页显示已选与适用数量，切换自选后计数随勾选变化", async () => {
+  it("第三步默认全部适用且不显示勾选列表，自选后才展开", async () => {
     const { wrapper } = await mountWizard();
     await reachScope(wrapper);
 
     expect(wrapper.find('[data-testid="wizard-step-3"]').exists()).toBe(true);
     const count = wrapper.find('[data-testid="range-count"]');
     expect(count.text().replace(/\s+/g, "")).toContain("已选2/适用2条");
+    expect(wrapper.find('[data-testid="scope-list"]').exists()).toBe(false);
+    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0);
 
-    const presetButtons = wrapper.findAll('.segmented button');
+    const presetButtons = wrapper.findAll(".segmented button");
     await presetButtons[1].trigger("click");
+    expect(wrapper.find('[data-testid="scope-list"]').exists()).toBe(true);
 
     const checkboxes = wrapper.findAll('[data-testid="scope-list"] input[type="checkbox"]');
     expect(checkboxes).toHaveLength(3);
@@ -108,6 +136,8 @@ describe("新建测试向导", () => {
     expect(harness.calls.some((call) => call.command === "plan.generate")).toBe(true);
     expect(harness.calls.some((call) => call.command === "plan.show")).toBe(true);
 
+    // 明细默认折叠，但内容仍可展开查看。
+    expect(wrapper.find('[data-testid="case-details"]').exists()).toBe(true);
     const text = wrapper.text();
     expect(text).toContain("下单后订单列表出现该订单");
     expect(text).toContain("重复提交同一订单");
@@ -124,7 +154,7 @@ describe("新建测试向导", () => {
   });
 
   it("验收标准提取失败时说明原因，并保留手动补充入口", async () => {
-    const { wrapper, harness } = await mountWizard({
+    const { wrapper } = await mountWizard({
       "task.add": {
         __error: {
           code: "MODEL_UNAVAILABLE",
@@ -137,8 +167,8 @@ describe("新建测试向导", () => {
 
     expect(wrapper.text()).toContain("模型没有配置或连接不上");
     expect(wrapper.text()).toContain("下一步：配置模型密钥后重试");
+    await wrapper.find(".add-link").trigger("click");
     expect(wrapper.find(".add-input").exists()).toBe(true);
-    expect(harness.calls.some((call) => call.command === "task.add")).toBe(true);
   });
 
   it("计划生成失败时给出可重试的错误说明", async () => {

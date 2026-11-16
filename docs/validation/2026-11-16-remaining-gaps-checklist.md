@@ -10,6 +10,7 @@
 - [x] H3 Python 自动准备：缺失时下载便携 Python、建 venv、离线安装自带 wheel（`integrations/trae/README.md`；真实 GitHub 下载未联网实测）
 - [x] H4 AI 起草模块与关系：扫描项目后给模块/依赖建议，用户确认后写入
 - [x] H5 链路定位展示：首错节点、上下游、代码位置或未知范围，面板可见
+- [x] H6 面板输入精简：项目页交付字段收进抽屉、向导按需输入、设置页 JSON 收进高级配置；正常路径不再出现常驻文本框（`panel npm test` 50 项、`panel npm run build`、`integrations/trae npm run build`、静态 mock 截图 `docs/validation/2026-11-16-panel-v3/`；真实 Trae 本轮未重新安装验证）
 
 ## I 验证缺口
 

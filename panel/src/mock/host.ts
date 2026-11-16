@@ -266,6 +266,31 @@ const doctor: DoctorFacts = {
   repairs_done: [],
 };
 
+const tasks = [{ task_id: TASK_ID, title: task.title, revision: 2 }];
+
+const deliveryDraft = {
+  done: ["下单接口与订单列表查询", "库存扣减事务化"],
+  not_done: ["并发下单的库存回滚仍有窗口"],
+  changed_modules: ["order", "stock", "pay"],
+  interface_changes: ["POST /orders 增加幂等键"],
+  run_commands: ["python -m pytest tests/test_order.py"],
+  test_data: ["本地测试库 order_test，每次运行前重置"],
+  dependencies: ["postgres 16", "redis 7"],
+  mocks: ["支付回调：tests/conftest.py 使用本地桩"],
+  self_test_evidence: ["本地 12 条用例通过", "下单截图 evidence/order-list.png"],
+};
+
+const config = {
+  model: { base_url: "https://api.example", name: "deepseek-chat", timeout_seconds: 90 },
+  services: { api: { start: "uvicorn app:main --port 8000", health: "http://localhost:8000/health" } },
+  link: { log_paths: ["logs/app.log"], log_format: "jsonl" },
+  runners: { http: { timeout_seconds: 30 } },
+  evidence: { media_budget_mb: 100, video: false },
+  l1: { build: "python -m compileall src", entry: ["app.main"] },
+  data: { cleanup: "rm -rf aitest_{run_id}" },
+};
+
+
 const issues = [
   {
     issue_id: "issue_1",
@@ -321,6 +346,19 @@ export function installMockHost(scenario = "result"): void {
           return ok({ project });
         case "project.add":
           return ok({ project_id: project.project_id, revision: 1, existing: true });
+        case "project.config":
+          if (body["action"] === "update") {
+            return ok({ config: { ...config, ...(body["patch"] as Record<string, unknown>) } });
+          }
+          return ok({ config });
+        case "task.list":
+          return ok({ tasks });
+        case "delivery.draft":
+          return ok({ draft: deliveryDraft, sources: { readme: "README.md", manifest: "pyproject.toml", commit_stat: true } });
+        case "delivery.save":
+          return ok({ delivery_id: "dlv_demo", revision: 1, complete: true });
+        case "template.list":
+          return ok({ templates: [] });
         case "task.suggest":
           return ok({
             candidates: [
@@ -350,15 +388,24 @@ export function installMockHost(scenario = "result"): void {
           });
         case "task.show":
           return ok({ task });
-        case "plan.generate":
+        case "plan.generate": {
+          const scope = (body["scope"] ?? {}) as {
+            preset?: string;
+            acceptance_item_ids?: string[];
+          };
+          const selected =
+            scope.preset === "all_applicable"
+              ? items.length
+              : (scope.acceptance_item_ids ?? []).length;
           return ok({
             plan_id: PLAN_ID,
             revision: 1,
             status: "published",
-            scope: plan.scope,
-            coverage: { selected: 3, applicable: 8 },
+            scope: { ...plan.scope, ...scope },
+            coverage: { selected, applicable: items.length },
             cases: planCases.length,
           });
+        }
         case "plan.show":
           return ok({ plan });
         case "run.start":
