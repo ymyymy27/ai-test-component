@@ -33,7 +33,7 @@
 - `docs/validation/2026-11-16-trae-panel/README.md`：真实 Trae CN 面板完成项目、目标、计划、执行确认、运行、报告与导出；
 - `docs/validation/2026-11-16-github-real/README.md`：`github.read` 读取公开仓库成功。
 
-已登记验收：25 条 `verified`、1 条 `not_verified`；仅 AC25 缺 AI 修复。
+已登记验收：26 条 `verified`。
 
 ## 4 未验证（不得写成通过）
 
@@ -41,13 +41,13 @@
 | --- | --- |
 | 真实 Trae 安装、面板点击、确认 | 已完成（见 trae-panel 证据） |
 | 试点项目 L1/L2/L3 | 已完成（Flaskr 试点） |
-| 模型失败路径 | 超时、非法输出、限额 |
-| GitHub 失败路径 | 未登录、无权限、私有仓库、网络失败 |
-| 链路采集 | 真实日志与只读数据库 |
+| 模型失败路径 | 非法输出已测；超时与限额未测 |
+| GitHub 失败路径 | 私有仓库/不存在仓库已测；未登录与网络失败未测 |
+| 链路采集 | 已完成日志+只读查询实测 |
 | Playwright 执行 | 前端项目与浏览器环境 |
 | 服务启动/停止 | 真实服务与端口 |
 | 磁盘不足、worker 被杀 | 故障注入证据 |
-| 验收登记 | 25 verified / 1 not_verified |
+| 验收登记 | 26 verified |
 
 ## 5 结论
 

@@ -46,6 +46,12 @@ _SYSTEM_ITEMS = (
     "每条必须可观察；不可观察的写 observable=false。不要输出 JSON 之外的任何文本。"
 )
 
+_SYSTEM_ENV = (
+    "你是环境诊断助手。根据给出的检查事实，用中文解释失败原因并给出可复制的修复命令。"
+    "只输出一个 JSON 对象：{\"explanation\": \"说明\", \"commands\": [\"命令\"]}。"
+    "不要执行任何命令，不要输出 JSON 之外的文本。"
+)
+
 _SYSTEM_FAILURE = (
     "你是失败分析助手。只输出一个 JSON 对象，格式为 "
     '{"observed": "观察到的事实", "evidence_refs": ["证据引用"], '
@@ -277,6 +283,17 @@ class ModelClient:
                 }
             )
         return items
+
+    def explain_environment(self, facts: dict[str, Any]) -> dict[str, Any]:
+        """Explain doctor facts without executing anything."""
+        data = self.complete_json(_SYSTEM_ENV, json.dumps(facts, ensure_ascii=False))
+        commands = data.get("commands", [])
+        if not isinstance(commands, list):
+            raise _invalid("字段 commands 必须是数组")
+        return {
+            "explanation": _require_text(data, "explanation"),
+            "commands": [str(item) for item in commands if str(item).strip()],
+        }
 
     def analyze_failure(self, run: dict[str, Any], evidence: list[str]) -> dict[str, Any]:
         """Return the five-part failure analysis, including verified unknowns."""

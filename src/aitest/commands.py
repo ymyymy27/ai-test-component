@@ -62,7 +62,7 @@ def _project_dir_for_task(ws: Workspace, task: Task) -> Path:
 
 
 def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
-    del payload, confirm
+    del confirm
     meta = ws.init()
     writable = os.access(ws.root, os.W_OK)
     python_ok = sys.version_info >= (3, 11)
@@ -70,7 +70,33 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
     repairs: list[dict[str, Any]] = []
     if not writable:
         repairs.append({"risk": "high", "command": "修正工作空间权限", "auto": False})
-    return {
+    if gh_path is None:
+        repairs.append(
+            {
+                "risk": "high",
+                "command": "winget install --id GitHub.cli",
+                "auto": False,
+            }
+        )
+    if model_key_source() == "none":
+        repairs.append(
+            {
+                "risk": "high",
+                "command": "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
+                "auto": False,
+            }
+        )
+    done: list[str] = []
+    if bool(payload.get("repair")):
+        for name in ("projects", "requests", "backups"):
+            directory = ws.root / name
+            directory.mkdir(parents=True, exist_ok=True)
+            done.append(f"ensure:{name}")
+        probe = ws.root / "requests" / ".write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        done.append("write-probe")
+    facts: dict[str, Any] = {
         "workspace": {"ok": writable, "path": str(ws.root), "workspace_id": meta.workspace_id},
         "python": {"ok": python_ok, "version": platform.python_version()},
         "package": {"ok": True, "version": __version__},
@@ -78,7 +104,21 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
         "github": {"ok": gh_path is not None, "path": gh_path},
         "proxy": {"ok": True},
         "repairs": repairs,
+        "repairs_done": done,
     }
+    if not all(
+        bool(facts[key]["ok"]) for key in ("workspace", "python", "package", "model", "github")
+    ) or bool(payload.get("explain")):
+        projects = ws.list_projects()
+        client = build_client(ws, projects[0].project_id) if projects else None
+        if client is not None:
+            try:
+                explanation = client.explain_environment(facts)
+            except AiTestError:
+                explanation = None
+            if explanation is not None:
+                facts["explanation"] = explanation
+    return facts
 
 
 # -- project ----------------------------------------------------------------

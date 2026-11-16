@@ -603,7 +603,7 @@
     {
       "id": "P1-AC25",
       "owner": null,
-      "result": "not_verified",
+      "result": "verified",
       "scenario": "环境缺 Python 或 `gh`",
       "expected": "分别报告缺项；低风险项 AI 可修，高风险只给命令",
       "related_frs": [
@@ -611,16 +611,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": "doctor 在无 gh 的 PATH 下报告 github 缺失，但低风险自动修复尚未接线。",
+      "actual": "doctor 报告 gh 缺失；repair=true 自动重建工作空间目录并做写入探针；高风险仅给 winget 命令；AI 给出解释与命令。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-cli-acceptance/ac25-doctor-missing.json",
-        "description": "doctor 缺项输出",
+        "path": "docs/validation/2026-11-16-cli-acceptance/ac25-doctor-repair.json",
+        "description": "doctor 修复与 AI 解释输出",
         "method": "real_cli"
       },
-      "unverified_reason": "缺少 AI 解释与低风险自动修复的实现与真实修复证据。",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/ac25-doctor-repair.json"
+      ]
     },
     {
       "id": "P1-AC26",
@@ -746,7 +748,7 @@
     },
     {
       "id": "P1-AC25",
-      "result": "not_verified"
+      "result": "verified"
     },
     {
       "id": "P1-AC26",

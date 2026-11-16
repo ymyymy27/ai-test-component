@@ -31,6 +31,7 @@
 | P1-AC03 | AI 提取验收项 | 提取 4 条，不可观察项标 pending 并排除 |
 | P1-AC05 | 两个规则版本 | 旧计划保留 v1，新计划使用 v2 |
 | P1-AC11 | 接口成功但库无记录 | 用例 failed，运行结论 failed |
+| P1-AC25 | 环境缺项与分级修复 | doctor 自动重建目录/写探针；高风险只给 winget 命令；AI 给出解释 |
 
 ## 3 证据
 
@@ -39,13 +40,20 @@
 - `issue.json`：签名去重后的问题记录；
 - `rerun.json`：重跑运行元数据；
 - `opinion-report.json`：填写验收意见后的报告；
-- `ac03-task-extract.json`、`ac05-rules-versions.json`、`ac11-run.json`、`ac01-overlap.json`、`ac04-delivery-incomplete.json`、`ac09-run.json`、`ac10-pytest-run.json`、`ac20-gh-missing.json`、`ac21-link-gaps.json`、`ac23-interrupt.json`。
+- `ac03-task-extract.json`、`ac05-rules-versions.json`、`ac11-run.json`、`ac25-doctor-repair.json`、`ac01-overlap.json`、`ac04-delivery-incomplete.json`、`ac09-run.json`、`ac10-pytest-run.json`、`ac20-gh-missing.json`、`ac21-link-gaps.json`、`ac23-interrupt.json`。
 
 原始工作空间路径见上；报告与运行目录永久保留。
 
-## 4 未覆盖
+## 4 失败路径实测
+
+| 场景 | 结果 | 证据 |
+| --- | --- | --- |
+| 私有/不存在仓库 | `GITHUB_UNAVAILABLE` | `github-private.json` |
+| 模型返回非 JSON | `MODEL_OUTPUT_INVALID` | `model-invalid-output.json` |
+| 真实日志 + 只读查询 | 2 个日志节点 + 1 个 DB 节点，无缺口 | `link-real.json` |
+
+## 5 未覆盖
 
 - Trae 面板中的失败分析、验收意见、重跑入口（本次走 CLI）；
-- 链路日志/数据库；
-- 磁盘不足、服务启动失败；
-- AC23 中断接管单独记录。
+- 磁盘不足；
+- 服务启动失败的真实端口冲突。
