@@ -26,24 +26,28 @@
 - `python scripts/check_docs_facts.py`：0 处差异；
 - `integrations/trae`：`npm test` 22 项通过，`npm run build` 成功。
 
-## 3 已做的本地冒烟
+## 3 已做的真实环境验证
 
-- `docs/validation/2026-11-16-plugin-local-smoke/README.md`：真实 CLI 进程完成 project → task → plan → run → report → backup，结论 passed。
-- 覆盖脚本执行、危险脚本拦截、运行中断接管、备份目标非空拒绝。
+- `docs/validation/2026-11-16-plugin-local-smoke/README.md`：真实 CLI 进程完成 project → task → plan → run → report → backup，结论 passed；
+- `docs/validation/2026-11-16-pilot-flaskr/README.md`：Flaskr 试点，真实模型生成 6 条用例，HTTP + Playwright 全部通过，报告 passed；
+- `docs/validation/2026-11-16-trae-panel/README.md`：真实 Trae CN 面板完成项目、目标、计划、执行确认、运行、报告与导出；
+- `docs/validation/2026-11-16-github-real/README.md`：`github.read` 读取公开仓库成功。
+
+已登记验收：AC02、AC06、AC07、AC08、AC12、AC13、AC18 为 `verified`；其余 19 条 `untested`。
 
 ## 4 未验证（不得写成通过）
 
 | 项 | 缺什么 |
 | --- | --- |
-| 真实 Trae 安装、面板点击、确认 | 真实 Trae 环境与人工操作证据 |
-| 试点项目 L1/L2/L3 | 一个前后端试点项目与真实证据 |
-| 模型 API 生成目标/用例/分析/Mock | 真实模型账号与输出样本 |
-| GitHub 关联 | 真实私有仓库与 `gh` 登录态 |
+| 真实 Trae 安装、面板点击、确认 | 已完成（见 trae-panel 证据） |
+| 试点项目 L1/L2/L3 | 已完成（Flaskr 试点） |
+| 模型失败路径 | 超时、非法输出、限额 |
+| GitHub 失败路径 | 未登录、无权限、私有仓库、网络失败 |
 | 链路采集 | 真实日志与只读数据库 |
 | Playwright 执行 | 前端项目与浏览器环境 |
 | 服务启动/停止 | 真实服务与端口 |
 | 磁盘不足、worker 被杀 | 故障注入证据 |
-| 验收登记 | 26 条 AC 仍为 `untested` |
+| 验收登记 | 7 条 verified，19 条 untested |
 
 ## 5 结论
 
