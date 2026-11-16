@@ -1,0 +1,14 @@
+{
+  "run_id": "run_c32d7a2761f6",
+  "plan_id": "plan_753fd6b155dc",
+  "status": "completed",
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_38ae53f46627"
+    ],
+    "frozen_at": "2026-11-16T16:28:12+08:00",
+    "module_ids": [],
+    "preset": "all_applicable"
+  },
+  "confirmed_by": "cli"
+}

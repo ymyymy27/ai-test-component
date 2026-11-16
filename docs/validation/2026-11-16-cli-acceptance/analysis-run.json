@@ -1,0 +1,171 @@
+{
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "case_60c53577a530 与 case_991ccceef6a3 对应的验收项（ai_38ae53f46627、ai_c2bced2b3130、ai_b891f87d6bc8 之一或多个）存在实现缺陷或断言不满足"
+        },
+        {
+          "cause": "两个失败用例共享同一底层依赖或前置条件，导致同时失败"
+        },
+        {
+          "cause": "失败用例的环境或数据准备不充分，导致执行即失败"
+        },
+        {
+          "cause": "失败消息为空说明断言或异常捕获未输出诊断信息，可能是测试框架或用例配置问题"
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_60c53577a530-0.log",
+        "evidence/case_991ccceef6a3-0.log",
+        "evidence/case_6eac7143c8e4-0.log"
+      ],
+      "generated_at": "2026-11-16T16:28:03+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "读取两个失败用例的证据日志，提取错误堆栈与断言信息",
+        "将失败用例映射到 scope 中的验收项 ID",
+        "对比通过用例与失败用例的执行路径，定位差异点",
+        "根据日志结论复现失败并修复，然后重跑该 run 的失败用例"
+      ],
+      "observed": "运行 run_e29421f4e474 状态为 completed，共 6 个用例：4 个通过（case_6eac7143c8e4、case_0360955f6717、case_3d8a565370e2、case_2b9758d635ed），2 个失败（case_60c53577a530、case_991ccceef6a3）。两个失败用例均为第 1 次尝试即失败，且失败消息为空，仅留下证据日志引用。运行时间窗口极短（16:17:59 至 16:18:00），analysis 与 mock_judgement 均为空。",
+      "status": "generated",
+      "unverified": [
+        "尚未读取 evidence/case_60c53577a530-0.log 与 evidence/case_991ccceef6a3-0.log 的具体内容，失败根因未知",
+        "尚未确认两个失败用例分别对应哪个验收项",
+        "尚未验证两个失败用例是否共享同一依赖或前置条件",
+        "尚未确认失败是产品缺陷还是测试/环境问题"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_6eac7143c8e4-0.log"
+          ],
+          "finished_at": "2026-11-16T16:17:59+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-16T16:17:59+08:00"
+        }
+      ],
+      "case_id": "case_6eac7143c8e4",
+      "evidence_refs": [
+        "evidence/case_6eac7143c8e4-0.log"
+      ],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-16T16:17:59+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-16T16:17:59+08:00"
+        }
+      ],
+      "case_id": "case_0360955f6717",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_60c53577a530-0.log"
+          ],
+          "finished_at": "2026-11-16T16:18:00+08:00",
+          "message": "",
+          "result": "failed",
+          "started_at": "2026-11-16T16:18:00+08:00"
+        }
+      ],
+      "case_id": "case_60c53577a530",
+      "evidence_refs": [
+        "evidence/case_60c53577a530-0.log"
+      ],
+      "result": "failed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-16T16:18:00+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-16T16:18:00+08:00"
+        }
+      ],
+      "case_id": "case_3d8a565370e2",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_991ccceef6a3-0.log"
+          ],
+          "finished_at": "2026-11-16T16:18:00+08:00",
+          "message": "",
+          "result": "failed",
+          "started_at": "2026-11-16T16:18:00+08:00"
+        }
+      ],
+      "case_id": "case_991ccceef6a3",
+      "evidence_refs": [
+        "evidence/case_991ccceef6a3-0.log"
+      ],
+      "result": "failed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-16T16:18:00+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-16T16:18:00+08:00"
+        }
+      ],
+      "case_id": "case_2b9758d635ed",
+      "evidence_refs": [],
+      "result": "passed"
+    }
+  ],
+  "confirmed_at": "2026-11-16T16:17:59+08:00",
+  "confirmed_by": "pilot",
+  "evidence_refs": [
+    "evidence/case_6eac7143c8e4-0.log",
+    "evidence/case_60c53577a530-0.log",
+    "evidence/case_991ccceef6a3-0.log"
+  ],
+  "heartbeat_at": "2026-11-16T16:18:00+08:00",
+  "mock_judgement": [],
+  "pid": 44940,
+  "plan_id": "plan_753fd6b155dc",
+  "project_id": "proj_ec988a2b14d7",
+  "run_id": "run_e29421f4e474",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_38ae53f46627",
+      "ai_c2bced2b3130",
+      "ai_b891f87d6bc8"
+    ],
+    "frozen_at": "2026-11-16T16:17:59+08:00",
+    "module_ids": [],
+    "preset": "all_applicable"
+  },
+  "started_at": "2026-11-16T16:17:59+08:00",
+  "status": "completed"
+}

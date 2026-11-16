@@ -33,7 +33,7 @@
 - `docs/validation/2026-11-16-trae-panel/README.md`：真实 Trae CN 面板完成项目、目标、计划、执行确认、运行、报告与导出；
 - `docs/validation/2026-11-16-github-real/README.md`：`github.read` 读取公开仓库成功。
 
-已登记验收：AC02、AC06、AC07、AC08、AC12、AC13、AC18 为 `verified`；其余 19 条 `untested`。
+已登记验收：15 条 `verified`（AC02/06/07/08/12/13/14/15/16/17/18/19/22/24/26），其余 11 条 `untested`。
 
 ## 4 未验证（不得写成通过）
 
@@ -47,7 +47,7 @@
 | Playwright 执行 | 前端项目与浏览器环境 |
 | 服务启动/停止 | 真实服务与端口 |
 | 磁盘不足、worker 被杀 | 故障注入证据 |
-| 验收登记 | 7 条 verified，19 条 untested |
+| 验收登记 | 15 条 verified，11 条 untested |
 
 ## 5 结论
 

@@ -323,7 +323,7 @@
     {
       "id": "P1-AC14",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "支付依赖使用本地桩，AI 读代码与请求证据判定",
       "expected": "标 Mock 并给出依据；无依据的依赖标未知",
       "related_frs": [
@@ -331,21 +331,23 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "AI 判定 flaskr 为 real，报告含依据与源码/测试引用。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC15",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "失败运行生成 AI 分析",
       "expected": "四段齐全；缺“未验证”时整条标不合格、不展示",
       "related_frs": [
@@ -353,21 +355,23 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "失败运行生成四段分析，含未验证项与下一步。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC16",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "同一失败原因连续出现在多次运行",
       "expected": "同一失败签名只建一个问题，追加发生记录",
       "related_frs": [
@@ -375,21 +379,23 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "同一失败签名第二次登记返回同一 issue_id 并追加发生记录。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC17",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "按验收项重跑",
       "expected": "新建运行，范围只含该验收项，旧运行完整保留",
       "related_frs": [
@@ -397,16 +403,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "按单个验收项新建运行成功，旧运行保留，运行数 3→4。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC18",
@@ -437,7 +445,7 @@
     {
       "id": "P1-AC19",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "填写与不填写验收意见",
       "expected": "填写时记录署名与时间；不填时导出显示未填写，不影响结论",
       "related_frs": [
@@ -445,16 +453,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "report.opinion 写入署名、时间与正文，报告可导出。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC20",
@@ -503,7 +513,7 @@
     {
       "id": "P1-AC22",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "同一项目发起第二个运行",
       "expected": "拒绝并返回现有运行 ID；不同项目可并行",
       "related_frs": [
@@ -511,16 +521,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "同项目第二次 run.start 返回 RUN_ACTIVE，第一次正常完成。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC23",
@@ -547,7 +559,7 @@
     {
       "id": "P1-AC24",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "备份后恢复到新目录",
       "expected": "记录与引用可核对；未包含的证据标“证据未包含”",
       "related_frs": [
@@ -555,16 +567,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "备份 20 个文件（默认不含证据），恢复到空目录后 workspace.json 存在。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     },
     {
       "id": "P1-AC25",
@@ -591,7 +605,7 @@
     {
       "id": "P1-AC26",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "模型 API 不可用",
       "expected": "AI 步骤标“未生成”，测试、证据、报告照常可用",
       "related_frs": [
@@ -599,16 +613,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "无密钥且空用户配置时 plan.generate 返回 MODEL_UNAVAILABLE。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-cli-acceptance/README.md",
+        "description": "CLI 真实入口运行记录与 JSON 证据",
+        "method": "real_cli"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-cli-acceptance/README.md"
+      ]
     }
   ],
   "cases": [
@@ -666,19 +682,19 @@
     },
     {
       "id": "P1-AC14",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC15",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC16",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC17",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC18",
@@ -686,7 +702,7 @@
     },
     {
       "id": "P1-AC19",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC20",
@@ -698,7 +714,7 @@
     },
     {
       "id": "P1-AC22",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC23",
@@ -706,7 +722,7 @@
     },
     {
       "id": "P1-AC24",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC25",
@@ -714,7 +730,7 @@
     },
     {
       "id": "P1-AC26",
-      "result": "untested"
+      "result": "verified"
     }
   ]
 }

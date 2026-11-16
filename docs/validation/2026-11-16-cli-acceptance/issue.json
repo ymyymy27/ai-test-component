@@ -1,0 +1,26 @@
+{
+  "disposition": null,
+  "fix_version": null,
+  "issue_id": "issue_57e59f6df867",
+  "occurrences": [
+    {
+      "at": "2026-11-16T16:28:11+08:00",
+      "case_id": "case_x",
+      "evidence_refs": [],
+      "run_id": "run_e29421f4e474"
+    },
+    {
+      "at": "2026-11-16T16:28:11+08:00",
+      "case_id": "case_x",
+      "evidence_refs": [],
+      "run_id": "run_e29421f4e474"
+    }
+  ],
+  "project_id": "proj_ec988a2b14d7",
+  "revision": 2,
+  "schema_version": 1,
+  "severity": "P2",
+  "signature": "case_x:assertion",
+  "status": "pending",
+  "title": "重复失败"
+}
