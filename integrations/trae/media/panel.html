@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src {{cspSource}} data:; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}';">
+  <title>AI 辅助测试</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      padding: 0 14px 24px;
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+    }
+    h1 { font-size: 15px; margin: 12px 0 4px; font-weight: 600; }
+    h2 { font-size: 13px; margin: 18px 0 8px; font-weight: 600; }
+    section {
+      border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, #444));
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    label { display: block; margin: 6px 0 2px; font-size: 12px; opacity: 0.9; }
+    input[type="text"], textarea, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 2px;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    textarea { min-height: 64px; resize: vertical; }
+    button {
+      margin: 6px 6px 0 0;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 2px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      cursor: pointer;
+    }
+    button:hover { background: var(--vscode-button-hoverBackground); }
+    button.secondary {
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+    button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+    .row > .grow { flex: 1 1 180px; min-width: 140px; }
+    .muted { opacity: 0.75; font-size: 12px; }
+    .message { margin: 8px 0 0; padding: 6px 8px; border-radius: 2px; font-size: 12px; white-space: pre-wrap; }
+    .message:empty { display: none; }
+    .message.error { background: var(--vscode-inputValidation-errorBackground, #5a1d1d); border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100); }
+    .message.info { background: var(--vscode-inputValidation-infoBackground, #063b49); border: 1px solid var(--vscode-inputValidation-infoBorder, #007acc); }
+    .message.warn { background: var(--vscode-inputValidation-warningBackground, #352a05); border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500); }
+    ul.plain { list-style: none; margin: 6px 0 0; padding: 0; }
+    ul.plain > li { padding: 6px 8px; border: 1px solid var(--vscode-panel-border, #444); border-radius: 3px; margin-bottom: 6px; }
+    ul.plain > li button { margin: 4px 0 0; }
+    .checks { margin-top: 6px; }
+    .checks label { display: flex; gap: 6px; align-items: flex-start; margin: 3px 0; opacity: 1; }
+    .checks input { margin-top: 2px; }
+    .pill { display: inline-block; padding: 1px 6px; border-radius: 9px; font-size: 11px; border: 1px solid currentColor; margin-left: 6px; }
+    .pill.ok { color: var(--vscode-testing-iconPassed, #3fb950); }
+    .pill.bad { color: var(--vscode-testing-iconFailed, #f85149); }
+    pre.block {
+      margin: 8px 0 0;
+      padding: 8px;
+      max-height: 260px;
+      overflow: auto;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 12px;
+      background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.12));
+      border-radius: 3px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .confirm-box { margin-top: 10px; padding: 10px; border: 1px dashed var(--vscode-focusBorder, #007acc); border-radius: 4px; }
+    .hidden { display: none !important; }
+    .grid { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; font-size: 12px; margin-top: 6px; }
+    .grid > .k { opacity: 0.75; }
+  </style>
+</head>
+<body>
+  <h1>AI 辅助测试</h1>
+  <div class="muted" id="context-line">工作空间：未配置</div>
+
+  <section id="section-environment">
+    <h2>环境自检</h2>
+    <button id="btn-doctor" type="button">运行 doctor</button>
+    <div class="message" id="doctor-message"></div>
+    <div class="grid" id="doctor-grid"></div>
+    <ul class="plain" id="doctor-repairs"></ul>
+  </section>
+
+  <section id="section-project">
+    <h2>项目</h2>
+    <div class="row">
+      <div class="grow">
+        <label for="sel-project">已登记项目</label>
+        <select id="sel-project"></select>
+      </div>
+      <button class="secondary" id="btn-refresh-projects" type="button">刷新</button>
+    </div>
+    <label for="new-root">新建项目目录（绝对路径）</label>
+    <input id="new-root" type="text" placeholder="例如 D:\work\order-service">
+    <div class="row">
+      <div class="grow">
+        <label for="new-name">项目名称（可空）</label>
+        <input id="new-name" type="text">
+      </div>
+      <div class="grow">
+        <label for="new-goal">项目目标（可空）</label>
+        <input id="new-goal" type="text">
+      </div>
+    </div>
+    <button id="btn-create-project" type="button">新建项目</button>
+    <div class="message" id="project-message"></div>
+  </section>
+
+  <section id="section-task">
+    <h2>目标与任务</h2>
+    <button class="secondary" id="btn-suggest" type="button">获取 AI 目标候选</button>
+    <ul class="plain" id="candidate-list"></ul>
+    <label for="task-goal">测试目标（可选候选，也可自定义）</label>
+    <input id="task-goal" type="text" placeholder="例如：上线前验证下单流程">
+    <label for="task-items">验收项（每行一条可观察结果；计划按验收项生成）</label>
+    <textarea id="task-items" placeholder="下单后订单列表出现该订单&#10;取消订单后库存恢复"></textarea>
+    <button id="btn-create-task" type="button">创建任务</button>
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label for="sel-task">已有任务</label>
+        <select id="sel-task"></select>
+      </div>
+      <button class="secondary" id="btn-refresh-tasks" type="button">刷新任务</button>
+    </div>
+    <div class="message" id="task-message"></div>
+  </section>
+
+  <section id="section-plan">
+    <h2>范围与计划</h2>
+    <div class="row">
+      <label style="margin:0"><input type="radio" name="preset" value="all_applicable" checked> 全部适用</label>
+      <label style="margin:0"><input type="radio" name="preset" value="selected"> 自选范围</label>
+    </div>
+    <div class="checks" id="scope-items"><div class="muted">先创建或加载任务。</div></div>
+    <button id="btn-generate-plan" type="button">生成计划</button>
+    <button class="secondary" id="btn-show-plan" type="button">查看计划详情</button>
+    <div class="message" id="plan-message"></div>
+    <pre class="block hidden" id="plan-detail"></pre>
+  </section>
+
+  <section id="section-run">
+    <h2>执行确认</h2>
+    <div class="muted" id="run-summary">尚未生成计划。</div>
+    <button id="btn-prepare-run" type="button">准备执行</button>
+    <div class="confirm-box hidden" id="confirm-box">
+      <div id="confirm-text"></div>
+      <button id="btn-confirm-run" type="button">确认并执行</button>
+      <button class="secondary" id="btn-cancel-run" type="button">取消</button>
+    </div>
+    <div class="message" id="run-message"></div>
+  </section>
+
+  <section id="section-result">
+    <h2>运行状态与结果</h2>
+    <div class="muted" id="run-status-line">尚未启动运行。</div>
+    <div class="grid" id="run-grid"></div>
+    <pre class="block hidden" id="run-detail"></pre>
+    <button class="secondary" id="btn-refresh-run" type="button">刷新运行</button>
+    <button id="btn-generate-report" type="button">生成报告</button>
+    <div class="row" style="margin-top:6px">
+      <div class="grow">
+        <label for="export-path">导出路径（绝对路径）</label>
+        <input id="export-path" type="text" placeholder="工作空间/reports/report.md">
+      </div>
+      <button class="secondary" id="btn-export-report" type="button">导出报告</button>
+    </div>
+    <div class="message" id="result-message"></div>
+    <pre class="block hidden" id="report-detail"></pre>
+  </section>
+
+  <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

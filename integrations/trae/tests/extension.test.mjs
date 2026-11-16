@@ -1,0 +1,276 @@
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
+
+// 显式 VS Code API / bridge / runtime 夹具：证明扩展接线，不启动真实 Trae。
+const root = resolve("../..");
+const extensionRoot = join(root, "integrations", "trae");
+const base = join(root, ".runtime/tmp");
+await mkdir(base, { recursive: true });
+const fixture = await mkdtemp(join(base, "extension-unit-"));
+const shim = join(fixture, "host.mjs");
+await writeFile(
+  shim,
+  `
+import { join } from "node:path";
+
+export const state = {
+  settings: { pythonPath: "", workspacePath: "" },
+  runtime: { ok: true, pythonPath: "fake-python", pythonArgs: [], version: "3.12.1",
+    packageVersion: "0.1.0", candidates: [], missing: [], installHint: "fixture hint" },
+  runtimeChecks: [],
+  commands: new Map(),
+  sent: [],
+  panels: [],
+  panelOptions: null,
+  bridgeCalls: [],
+  bridgeConfigs: [],
+  responses: [],
+  revealed: 0,
+};
+
+function makePanel() {
+  const webview = {
+    html: "",
+    cspSource: "vscode-resource:",
+    options: {},
+    asWebviewUri: (uri) => ({ toString: () => "webview:" + uri.fsPath }),
+    onDidReceiveMessage: (cb) => {
+      state.receive = cb;
+      return { dispose() { state.receiveDisposed = true; } };
+    },
+    postMessage: (message) => {
+      state.sent.push(message);
+      return Promise.resolve(true);
+    },
+  };
+  return {
+    webview,
+    reveal() { state.revealed += 1; },
+    onDidDispose(cb) { state.panelDispose = cb; },
+    dispose() { state.disposed = true; },
+  };
+}
+
+export const workspace = {
+  isTrusted: true,
+  getConfiguration: () => ({
+    get: (key, fallback) => state.settings[key] ?? fallback,
+  }),
+  onDidChangeConfiguration: (cb) => {
+    state.configurationListener = cb;
+    return { dispose() {} };
+  },
+};
+
+export const commands = {
+  registerCommand: (name, cb) => {
+    state.commands.set(name, cb);
+    return { dispose() {} };
+  },
+  executeCommand: async (...args) => { state.executed = args; },
+};
+
+export const window = {
+  registerWebviewViewProvider: (id, provider, options) => {
+    state.viewProvider = { id, provider, options };
+    return { dispose() {} };
+  },
+  createWebviewPanel: (viewType, title, column, options) => {
+    state.panelOptions = options;
+    const panel = makePanel();
+    state.panels.push(panel);
+    return panel;
+  },
+  showWarningMessage: (text) => { state.warning = text; },
+};
+
+export const ViewColumn = { One: 1 };
+export const Uri = {
+  joinPath: (...parts) => {
+    const fsPath = join(...parts.map((part) => (typeof part === "string" ? part : part.fsPath)));
+    return { fsPath, toString: () => fsPath };
+  },
+};
+
+export function createBridge(config) {
+  state.bridgeConfigs.push(config);
+  return {
+    async call(command, payload, options) {
+      state.bridgeCalls.push({ command, payload, options, config });
+      return state.responses.shift() ?? { ok: true, request_id: "fixture", data: {} };
+    },
+  };
+}
+
+export async function findPython(settings) {
+  state.runtimeChecks.push(settings);
+  return state.runtime;
+}
+`,
+);
+
+await build({
+  entryPoints: ["src/extension.ts"],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  outfile: join(fixture, "extension.mjs"),
+  plugins: [
+    {
+      name: "explicit-host-fixture",
+      setup(builder) {
+        builder.onResolve({ filter: /^(vscode|\.\/bridge|\.\/runtime)$/ }, () => ({
+          path: pathToFileURL(shim).href,
+          external: true,
+        }));
+      },
+    },
+  ],
+});
+
+const { state } = await import(pathToFileURL(shim).href);
+const { activate } = await import(pathToFileURL(join(fixture, "extension.mjs")).href);
+
+activate({ subscriptions: [], extensionUri: extensionRoot });
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+
+async function until(predicate, label) {
+  for (let index = 0; index < 200; index += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("未等到：" + label);
+}
+
+after(async () => {
+  assert.ok(fixture.startsWith(join(base, "extension-unit-")));
+  await rm(fixture, { recursive: true, force: true });
+});
+
+test("activation registers only the three commands and the sidebar view", () => {
+  assert.deepEqual([...state.commands.keys()].sort(), [
+    "aitest.checkEnvironment",
+    "aitest.openPanel",
+    "aitest.runStatus",
+  ]);
+  assert.equal(state.viewProvider.id, "aitest.sidebar");
+  assert.equal(state.viewProvider.options.webviewOptions.retainContextWhenHidden, true);
+});
+
+test("openPanel renders media/panel.html with nonce and script URI", () => {
+  state.commands.get("aitest.openPanel")();
+  assert.equal(state.panels.length, 1);
+  const webview = state.panels[0].webview;
+  assert.equal(state.panelOptions.enableScripts, true);
+  assert.equal(webview.html.includes("AI 辅助测试"), true);
+  assert.equal(webview.html.includes("{{"), false);
+  assert.match(webview.html, /nonce-[a-f0-9]{48}/);
+  assert.equal(webview.html.includes("webview:" + join(extensionRoot, "media", "panel.js")), true);
+  assert.equal(/core-bridge|onboarding|api\.js/.test(webview.html), false);
+});
+
+test("ready publishes settings context and flushes queued panel commands", async () => {
+  state.sent.length = 0;
+  state.commands.get("aitest.checkEnvironment")();
+  assert.equal(state.revealed, 1);
+  assert.equal(state.sent.length, 0);
+  state.receive({ type: "ready" });
+  await tick();
+  const context = state.sent.find((message) => message.type === "context");
+  assert.equal(context.workspacePath, "");
+  assert.equal(context.pythonPath, "");
+  assert.equal(state.sent.some((message) => message.type === "command" && message.command === "doctor"), true);
+});
+
+test("panel call dispatches through the bridge with discovered runtime and settings", async () => {
+  state.settings.workspacePath = "C:/data/ws";
+  state.settings.pythonPath = "C:/configured/python.exe";
+  state.runtime = { ...state.runtime, pythonPath: "C:/found/python.exe", pythonArgs: ["-3"] };
+  state.bridgeCalls.length = 0;
+  state.receive({ type: "call", id: "call-1", command: "doctor", payload: { verbose: true } });
+  await until(() => state.sent.some((message) => message.type === "result" && message.id === "call-1"), "doctor result");
+  const call = state.bridgeCalls.at(-1);
+  assert.equal(call.command, "doctor");
+  assert.deepEqual(call.payload, { verbose: true });
+  assert.equal(call.options.confirm, false);
+  assert.equal(call.config.pythonPath, "C:/found/python.exe");
+  assert.deepEqual(call.config.pythonArgs, ["-3"]);
+  assert.equal(call.config.workspacePath, "C:/data/ws");
+  assert.equal(call.config.timeoutMs, 30000);
+  const result = state.sent.at(-1);
+  assert.equal(result.ok, true);
+  assert.equal(result.id, "call-1");
+});
+
+test("run.start keeps confirmation, other commands cannot smuggle it", async () => {
+  state.bridgeCalls.length = 0;
+  state.receive({
+    type: "call",
+    id: "run-confirm",
+    command: "run.start",
+    payload: { project_id: "p", plan_id: "plan_1" },
+    confirm: true,
+  });
+  await until(() => state.bridgeCalls.length === 1, "run.start call");
+  assert.equal(state.bridgeCalls[0].options.confirm, true);
+
+  state.receive({ type: "call", id: "doctor-confirm", command: "doctor", payload: {}, confirm: true });
+  await until(() => state.bridgeCalls.length === 2, "doctor call");
+  assert.equal(state.bridgeCalls[1].options.confirm, false);
+});
+
+test("commands outside the panel allowlist never reach the bridge", async () => {
+  state.bridgeCalls.length = 0;
+  state.receive({ type: "call", id: "blocked", command: "backup.create", payload: {} });
+  await until(() => state.sent.some((message) => message.type === "result" && message.id === "blocked"), "blocked result");
+  assert.equal(state.bridgeCalls.length, 0);
+  const result = state.sent.at(-1);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "COMMAND_NOT_ALLOWED");
+});
+
+test("missing workspace and missing Python are explicit local errors", async () => {
+  state.settings.workspacePath = "";
+  state.bridgeCalls.length = 0;
+  state.receive({ type: "call", id: "no-workspace", command: "doctor", payload: {} });
+  await until(() => state.sent.some((message) => message.type === "result" && message.id === "no-workspace"), "workspace error");
+  assert.equal(state.bridgeCalls.length, 0);
+  assert.equal(state.sent.at(-1).error.code, "WORKSPACE_NOT_CONFIGURED");
+
+  state.settings.workspacePath = "C:/data/ws";
+  state.settings.pythonPath = "C:/missing/python.exe";
+  state.runtime = {
+    ok: false,
+    pythonPath: null,
+    pythonArgs: [],
+    version: null,
+    packageVersion: null,
+    candidates: [],
+    missing: ["Python 3.11+", "aitest 包"],
+    installHint: "请安装 Python 3.11+",
+  };
+  state.receive({ type: "call", id: "no-python", command: "doctor", payload: {} });
+  await until(() => state.sent.some((message) => message.type === "result" && message.id === "no-python"), "python error");
+  const result = state.sent.at(-1);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "PYTHON_NOT_FOUND");
+  assert.equal(result.error.next_step, "请安装 Python 3.11+");
+  assert.deepEqual(result.details.runtime.missing, ["Python 3.11+", "aitest 包"]);
+  assert.equal(state.bridgeCalls.length, 0);
+});
+
+test("configuration change republishes the context", async () => {
+  state.sent.length = 0;
+  state.settings.workspacePath = "D:/other-ws";
+  state.configurationListener({ affectsConfiguration: (section) => section === "aitest" });
+  await tick();
+  const context = state.sent.find((message) => message.type === "context");
+  assert.equal(context.workspacePath, "D:/other-ws");
+});

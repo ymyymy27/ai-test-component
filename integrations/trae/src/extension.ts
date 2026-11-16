@@ -1,78 +1,124 @@
-/** Candidate VSIX host adapter. Actual Trae edition/API compatibility is untested.
+/** 轻量 Trae 扩展：激活、打开面板、命令、读取设置、调用 CLI 桥。
  *
- * 本文件把面板与唯一核心接通：webview 只发"要派发什么"，扩展经 `core-bridge`
- * （内部走既有 CLI 与命名管道）派发，再把**结构化回执**原样送回面板。
- * 扩展不计算业务结论、不代签确认、不复制协议。
+ * 这里不保存业务状态、不计算结论、不代签确认：
+ * - 面板只发“要调用哪个 CLI 命令 + 参数”；
+ * - 扩展读取 `aitest.pythonPath` / `aitest.workspacePath`，经 `runtime.ts` 发现解释器；
+ * - 所有业务数据由 `bridge.ts` 调 `python -m aitest.cli` 取回并原样转给面板。
  */
+import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+
 import * as vscode from "vscode";
-import {wizardMessage, type WizardSession} from "./onboarding";
-import { randomBytes, randomUUID } from "node:crypto";
 
-import { dispatchControlled, dispatchReadOnly, dispatchWrite, ensureCore, restartCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
+import { createBridge, type BridgeError, type BridgeResult } from "./bridge";
+import { findPython, type RuntimeCheck } from "./runtime";
 
-const PANEL_VIEW_TYPE = "aitest";
-const DISPATCH_TIMEOUT_MS = 30_000;
-type PanelHost = Pick<vscode.WebviewPanel, "webview" | "onDidDispose">;
-type PendingConfirmation = { resolve: (confirmed: boolean) => void; timer: NodeJS.Timeout };
-const pendingConfirmations = new Map<string, PendingConfirmation>();
+const VIEW_ID = "aitest.sidebar";
+const PANEL_TITLE = "AI 辅助测试";
 
-function readSettings(): { python: string; workspaceRoot: string; pythonCarriersFile: string; businessQueriesFile: string; modelConfigurationFile: string; projectId: string | null; runId: string | null } {
+/** 面板可调用的命令白名单；新增命令先在这里显式放行。 */
+const PANEL_COMMANDS: ReadonlySet<string> = new Set([
+  "doctor",
+  "project.add",
+  "project.list",
+  "project.show",
+  "task.add",
+  "task.list",
+  "task.show",
+  "task.suggest",
+  "plan.generate",
+  "plan.show",
+  "run.start",
+  "run.status",
+  "run.list",
+  "report.generate",
+  "report.export",
+]);
+
+/** 只有用户显式确认的命令才接受 `--confirm`。 */
+const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start"]);
+
+const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
+  "run.start": 60_000,
+  "report.generate": 60_000,
+  "report.export": 60_000,
+  doctor: 30_000,
+};
+
+interface Settings {
+  readonly pythonPath: string;
+  readonly workspacePath: string;
+}
+
+interface PanelHandle {
+  readonly webview: vscode.Webview;
+  reveal(): void;
+}
+
+let panel: PanelHandle | null = null;
+let panelReady = false;
+let queued: unknown[] = [];
+let runtimeCache: { key: string; value: Promise<RuntimeCheck> } | null = null;
+
+export function readSettings(): Settings {
   const configuration = vscode.workspace.getConfiguration("aitest");
-  const python = configuration.get<unknown>("pythonPath", "python");
-  const workspace = configuration.get<unknown>("workspaceRoot", "");
+  const python = configuration.get<unknown>("pythonPath", "");
+  const workspace = configuration.get<unknown>("workspacePath", "");
   return {
-    python: typeof python === "string" ? python : "",
-    workspaceRoot: typeof workspace === "string" ? workspace : "",
-    pythonCarriersFile: textOrNull(configuration.get<unknown>("pythonCarriersFile", "")) ?? "",
-    businessQueriesFile: textOrNull(configuration.get<unknown>("businessQueriesFile", "")) ?? "",
-    modelConfigurationFile: textOrNull(configuration.get<unknown>("modelConfigurationFile", "")) ?? "",
-    projectId: identityOrNull(configuration.get<string>("projectId", "")),
-    runId: identityOrNull(configuration.get<string>("runId", "")),
+    pythonPath: typeof python === "string" ? python.trim() : "",
+    workspacePath: typeof workspace === "string" ? workspace.trim() : "",
   };
 }
 
-export function activate(context: vscode.ExtensionContext): void {
-  const docked = typeof vscode.window.registerWebviewViewProvider === "function";
-  if (docked) {
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider("aitest.sidebar", {
-      resolveWebviewView(view) {
-        if (!vscode.workspace.isTrusted) { return; }
-        view.webview.options = {enableScripts:true,
-          localResourceRoots:[vscode.Uri.joinPath(context.extensionUri,"dist")]};
-        attachPanel(context, view);
-      },
-    }, {webviewOptions:{retainContextWhenHidden:true}}));
+function clearRuntimeCache(): void {
+  runtimeCache = null;
+}
+
+function runtimeFor(settings: Settings): Promise<RuntimeCheck> {
+  const key = `${settings.pythonPath}\u0000${settings.workspacePath}`;
+  if (runtimeCache === null || runtimeCache.key !== key) {
+    runtimeCache = { key, value: findPython(settings) };
   }
-  context.subscriptions.push(
-    vscode.commands.registerCommand("aitest.openPanel", () => {
-      if (docked) { void vscode.commands.executeCommand("aitest.sidebar.focus"); }
-      else { openPanel(context); }
-    }),
-    vscode.commands.registerCommand("aitest.openWorkbench", () => openDetail(context, "workbench")),
-    vscode.commands.registerCommand("aitest.openReport", () => openDetail(context, "review")),
-    vscode.commands.registerCommand("aitest.configureEntry", async () => {
+  return runtimeCache.value;
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+  const provider: vscode.WebviewViewProvider = {
+    resolveWebviewView(view: vscode.WebviewView): void {
       if (!vscode.workspace.isTrusted) {
-        void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。"); return;
+        view.webview.html = trustWarningHtml();
+        return;
       }
-      const settings = readSettings();
-      const python = await vscode.window.showInputBox({title:"AI Test 核心解释器",
-        prompt:"填写已安装 AI Test 的 Python 3.11+ 解释器路径", value:settings.python,
-        ignoreFocusOut:true});
-      if (!python?.trim()) { return; }
-      const folders = await vscode.window.showOpenDialog({title:"选择专用用户数据工作空间（不要选源码目录）",
-        canSelectFiles:false, canSelectFolders:true, canSelectMany:false,
-        ...(settings.workspaceRoot ? {defaultUri:vscode.Uri.file(settings.workspaceRoot)} : {})});
-      if (!folders?.[0]) { return; }
-      const project = await vscode.window.showInputBox({title:"AI Test 项目编号",
-        prompt:"填写既有项目编号，或为新项目保留此新编号", value:settings.projectId ?? randomUUID(),
-        ignoreFocusOut:true, validateInput:value=>identityOrNull(value) ? null : "请输入有效项目编号"});
-      if (!project) { return; }
-      const configuration = vscode.workspace.getConfiguration("aitest");
-      await configuration.update("pythonPath", python, vscode.ConfigurationTarget.Global);
-      await configuration.update("workspaceRoot", folders[0].fsPath, vscode.ConfigurationTarget.Global);
-      await configuration.update("projectId", project, vscode.ConfigurationTarget.Global);
-      await configuration.update("runId", "", vscode.ConfigurationTarget.Global);
-      void vscode.window.showInformationMessage("入口已配置，打开 AI Test 面板连接核心后新建或读取项目。");
+      view.webview.options = {
+        enableScripts: true,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
+      };
+      const listener = attachWebview(context, view.webview);
+      panel = { webview: view.webview, reveal: () => view.show?.(true) };
+      view.onDidDispose(() => {
+        listener.dispose();
+        releasePanel(view.webview);
+      });
+    },
+  };
+
+  if (typeof vscode.window.registerWebviewViewProvider === "function") {
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
+        webviewOptions: { retainContextWhenHidden: true },
+      }),
+    );
+  }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aitest.openPanel", () => openPanel(context)),
+    vscode.commands.registerCommand("aitest.checkEnvironment", () => checkEnvironment(context)),
+    vscode.commands.registerCommand("aitest.runStatus", () => showRunStatus(context)),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("aitest")) {
+        clearRuntimeCache();
+        postContext();
+      }
     }),
   );
 }
@@ -82,297 +128,198 @@ function openPanel(context: vscode.ExtensionContext): void {
     void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。");
     return;
   }
-  const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, "AI 辅助测试", vscode.ViewColumn.One, {
-    enableScripts: true,
-    localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
-  });
-  attachPanel(context, panel);
-  context.subscriptions.push(panel);
-}
-
-/** 在编辑器里打开工作台或报告：同一份面板代码，带一个初始视图标记。已有的同类页签直接复用。 */
-let detailPanels: Partial<Record<"workbench" | "review", vscode.WebviewPanel>> = {};
-
-function openDetail(context: vscode.ExtensionContext, detail: "workbench" | "review"): void {
-  if (!vscode.workspace.isTrusted) {
-    void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。");
+  if (panel !== null) {
+    panel.reveal();
     return;
   }
-  const existing = detailPanels[detail];
-  if (existing) { existing.reveal(vscode.ViewColumn.Active); return; }
-  const title = detail === "review" ? "AI 测试 · 报告与问题" : "AI 测试 · 测试工作台";
-  const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, title, vscode.ViewColumn.Active, {
-    enableScripts: true,
-    localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
-    retainContextWhenHidden: true,
-  });
-  detailPanels[detail] = panel;
-  panel.onDidDispose(() => { if (detailPanels[detail] === panel) { delete detailPanels[detail]; } });
-  attachPanel(context, panel, detail);
-  context.subscriptions.push(panel);
-}
-
-function attachPanel(context: vscode.ExtensionContext, panel: PanelHost, detail?: "workbench" | "review"): void {
-  const script = panel.webview.asWebviewUri(
-    vscode.Uri.joinPath(context.extensionUri, "dist", "panel.js"),
+  const created = vscode.window.createWebviewPanel(
+    "aitestPanel",
+    PANEL_TITLE,
+    vscode.ViewColumn.One,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
+    },
   );
-  const nonceValue = randomBytes(24).toString("hex");
-  const preset = detail ? `<script nonce="${nonceValue}">window.__AITEST_DETAIL="${detail}";</script>` : "";
-  panel.webview.html = `<!doctype html><html lang="zh-CN"><head>
-      <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none';
-        script-src 'nonce-${nonceValue}'; style-src 'unsafe-inline';">
-      <title>AI 辅助测试</title></head><body><ai-test-panel></ai-test-panel>
-      ${preset}<script nonce="${nonceValue}" src="${script}"></script></body></html>`;
-  const scope: PanelScope = { key: "", id: randomUUID() };
-  panel.webview.onDidReceiveMessage((message: unknown) => {
-    void handleWebviewMessage(panel, message, scope, context);
-  });
-  const configurationWatch = vscode.workspace.onDidChangeConfiguration(event => {
-    if (event.affectsConfiguration("aitest")) { publishProject(panel, scope); }
-  });
-  panel.onDidDispose(() => configurationWatch.dispose());
-}
-
-function textOrNull(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-function identityOrNull(value: unknown): string | null {
-  return typeof value === "string" && value.trim() && value.length <= 128
-    && !/[\u0000-\u001f]/.test(value) ? value : null;
-}
-
-interface PanelScope { key: string; id: string; wizard?:WizardSession; wizardBusy?:boolean }
-
-function publishProject(panel: PanelHost, scope: PanelScope): string {
-  const settings = readSettings();
-  const key = JSON.stringify(settings);
-  if (key !== scope.key) { scope.key = key; scope.id = randomUUID(); }
-  post(panel, { kind: "projectContext", project_id: settings.projectId ?? "",
-    run_id: settings.projectId ? settings.runId : null, context_id: scope.id });
-  return key;
-}
-
-/** 只接受"要派发什么"；参数必须是 JSON 对象，身份字段不补造。 */
-function toDispatchRequest(raw: Record<string, unknown>): DispatchRequest | null {
-  const action = textOrNull(raw["action"]);
-  if (action === null) {
-    return null;
-  }
-  const parameters = raw["parameters"];
-  if (
-    parameters !== undefined &&
-    (typeof parameters !== "object" || parameters === null || Array.isArray(parameters))
-  ) {
-    return null;
-  }
-  return {
-    action,
-    parameters: (parameters as Record<string, unknown> | undefined) ?? {},
-    projectId: textOrNull(raw["projectId"]),
-    ...(raw["intentId"] !== undefined ? { intentId: identityOrNull(raw["intentId"]) } : {}),
-    ...(raw["target"] !== undefined ? { target: identityOrNull(raw["target"]) } : {}),
-    ...(raw["expectedRevision"] !== undefined ? { expectedRevision: raw["expectedRevision"] as number } : {}),
-    ...(raw["bindingRevision"] !== undefined ? { bindingRevision: raw["bindingRevision"] as number } : {}),
+  const listener = attachWebview(context, created.webview);
+  panel = {
+    webview: created.webview,
+    reveal: () => created.reveal(vscode.ViewColumn.One),
   };
+  created.onDidDispose(() => {
+    listener.dispose();
+    releasePanel(created.webview);
+  });
+  context.subscriptions.push(created);
 }
 
-async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: PanelScope, context:vscode.ExtensionContext): Promise<void> {
-  if (!vscode.workspace.isTrusted) { return; }
-  if (typeof message !== "object" || message === null) {
+function checkEnvironment(context: vscode.ExtensionContext): void {
+  openPanel(context);
+  clearRuntimeCache();
+  sendToPanel({ type: "command", command: "doctor" });
+}
+
+function showRunStatus(context: vscode.ExtensionContext): void {
+  openPanel(context);
+  sendToPanel({ type: "command", command: "runStatus" });
+}
+
+function releasePanel(webview: vscode.Webview): void {
+  if (panel?.webview === webview) {
+    panel = null;
+    panelReady = false;
+    queued = [];
+  }
+}
+
+function sendToPanel(message: unknown): void {
+  if (panel === null) {
     return;
   }
-  const raw = message as Record<string, unknown>;
-  if(raw.kind === "openDetail"){ openDetail(context, raw.detail === "review" ? "review" : "workbench"); return; }
-  if(raw.kind === "openSource"){
-    const relativePath=textOrNull(raw.path);
-    const line=typeof raw.line==="number"&&Number.isSafeInteger(raw.line)&&raw.line>=1?raw.line:null;
-    const root=vscode.workspace.workspaceFolders?.[0]?.uri;
-    if(!relativePath||line===null||!root)return;
-    const normalized=relativePath.replaceAll("\\","/");
-    if(normalized.startsWith("/")||normalized.split("/").includes(".."))return;
-    const target=vscode.Uri.joinPath(root,...normalized.split("/"));
-    try{await vscode.workspace.fs.stat(target);}catch{return;}
-    const document=await vscode.workspace.openTextDocument(target);
-    await vscode.window.showTextDocument(document,{selection:new vscode.Range(line-1,0,line-1,0)});
+  if (!panelReady) {
+    queued.push(message);
     return;
   }
-  if(raw.kind === "runNotification"){
-    const notice = textOrNull(raw.message);
-    if (notice) void vscode.window.showInformationMessage(notice);
-    return;
-  }
-  if(typeof raw.kind==="string" && raw.kind.startsWith("wizard")){
-    if(!identityOrNull(raw.clientRequestId)||scope.wizardBusy)return;
-    scope.wizardBusy=true;
-    try{scope.wizard=await wizardMessage(context,raw,scope.wizard,readSettings(),payload=>post(panel,payload));}
-    finally{scope.wizardBusy=false;}
-    return;
-  }
-  if (raw["kind"] === "confirmationResult") {
-    const requestId = identityOrNull(raw["clientRequestId"]);
-    const pending = requestId ? pendingConfirmations.get(requestId) : undefined;
-    if (pending) {
-      clearTimeout(pending.timer);
-      pendingConfirmations.delete(requestId!);
-      pending.resolve(raw["confirmed"] === true);
-    }
-    return;
-  }
-  if (raw["kind"] === "openSettings") {
-    await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:aitest-local.aitest-trae");
-    return;
-  }
-  const clientRequestId = identityOrNull(raw["clientRequestId"]);
-  if (clientRequestId === null) { return; }
-  const expectedContext = publishProject(panel, scope);
-  if (raw["kind"] === "ensureCore") {
-    const { python, workspaceRoot, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
-    const ensured = await ensureCore(python, workspaceRoot, 60_000, pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
-    if (JSON.stringify(readSettings()) !== expectedContext) {
-      publishProject(panel, scope);
-      post(panel, { kind: "outcome", action: "ensure-core", status: "unavailable",
-        code: "PROJECT_CONTEXT_CHANGED", message: "连接期间宿主配置变化，请重新核对核心", clientRequestId });
-      return;
-    }
-    post(panel, {
-      kind: "outcome",
-      action: "ensure-core",
-      status: ensured.status,
-      code: ensured.code,
-      message: ensured.message,
-      response: ensured.response,
-      clientRequestId,
-    });
-    return;
-  }
-  if (raw["kind"] === "restartCore") {
-    const { python, workspaceRoot, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
-    const restarted = await restartCore(python, workspaceRoot, 120_000, pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
-    if (JSON.stringify(readSettings()) !== expectedContext) {
-      publishProject(panel, scope);
-      post(panel, { kind: "outcome", action: "restart-core", status: "unavailable",
-        code: "PROJECT_CONTEXT_CHANGED", message: "重启期间宿主配置变化，请重新核对核心", clientRequestId });
-      return;
-    }
-    post(panel, {
-      kind: "outcome",
-      action: "restart-core",
-      status: restarted.status,
-      code: restarted.code,
-      message: restarted.message,
-      response: restarted.response,
-      clientRequestId,
-    });
-    return;
-  }
-  if (raw["kind"] === "nativeBatch") {
-    post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
-      code: "LEGACY_NATIVE_BATCH_REMOVED",
-      message: "面板已改为逐项授权；原生批量入口不再提供。", clientRequestId });
-    return;
-  }
-  if (raw["kind"] !== "dispatch" && raw["kind"] !== "controlledDispatch"
-      && raw["kind"] !== "writeDispatch") {
-    return;
-  }
-  if ((raw["kind"] === "controlledDispatch" || raw["kind"] === "writeDispatch")
-      && raw["contextId"] !== scope.id) {
-    post(panel, { kind: "outcome", action: textOrNull(raw["action"]), status: "refused",
-      code: "PROJECT_CONTEXT_MISMATCH", message: "提交时的宿主配置已失效，请刷新后核对工作空间与操作输入", clientRequestId });
-    return;
-  }
-  const request = toDispatchRequest(raw);
-  if (request === null) {
-    post(panel, {
-      kind: "outcome",
-      action: null,
-      status: "refused",
-      code: "INVALID_REQUEST",
-      message: "派发请求缺少动作名，或参数不是 JSON 对象",
-      clientRequestId,
-    });
-    return;
-  }
-  const { python, workspaceRoot, projectId, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
-  if ((request.projectId !== null && request.projectId !== projectId)
-      || (["query", "read_view", "discover_tests", "suggest_regression", "check_source", "inspect_case_reuse", "copy_repair_brief"].includes(request.action) && projectId === null)) {
-    post(panel, { kind: "outcome", action: request.action, status: "refused",
-      code: "PROJECT_CONTEXT_MISMATCH", message: "请求与宿主所选项目不一致，请重新选择项目", clientRequestId });
-    return;
-  }
-  let outcome: DispatchOutcome;
+  void panel.webview.postMessage(message);
+}
+
+function postContext(): void {
+  const settings = readSettings();
+  sendToPanel({
+    type: "context",
+    pythonPath: settings.pythonPath,
+    workspacePath: settings.workspacePath,
+  });
+}
+
+function attachWebview(
+  context: vscode.ExtensionContext,
+  webview: vscode.Webview,
+): vscode.Disposable {
+  const nonce = randomBytes(24).toString("hex");
+  const script = webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "media", "panel.js"),
+  );
+  webview.html = renderPanelHtml(context, webview, nonce, script.toString());
+  return webview.onDidReceiveMessage((message: unknown) => {
+    void handleMessage(message, webview);
+  });
+}
+
+function renderPanelHtml(
+  context: vscode.ExtensionContext,
+  webview: vscode.Webview,
+  nonce: string,
+  scriptUri: string,
+): string {
   try {
-    // Even the first doctor request must use the configured, host-owned launcher.
-    // A dispatch CLI can otherwise start an unconfigured core owned by that short-lived CLI.
-    const connected = await ensureCore(python, workspaceRoot, 60_000,
-      pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
-    if (JSON.stringify(readSettings()) !== expectedContext) {
-      publishProject(panel, scope);
-      post(panel, { kind: "outcome", action: request.action, status: "unavailable",
-        code: "PROJECT_CONTEXT_CHANGED", message: "连接期间宿主配置变化，操作尚未派发，请重新核对", clientRequestId });
-      return;
-    }
-    if (connected.status !== "ok") {
-      post(panel, { kind: "outcome", action: request.action, ...connected, clientRequestId });
-      return;
-    }
-    const connectedResult = connected.response?.["result"];
-    const pipeName = connectedResult && typeof connectedResult === "object"
-      && !Array.isArray(connectedResult)
-      && typeof (connectedResult as Record<string, unknown>)["pipe_name"] === "string"
-      ? (connectedResult as Record<string, unknown>)["pipe_name"] as string
-      : undefined;
-    outcome = raw["kind"] === "controlledDispatch"
-      ? await dispatchControlled(
-          python,
-          workspaceRoot,
-          { ...request, projectId },
-          clientRequestId,
-          270_000,
-          (prompt) => new Promise<boolean>((resolve) => {
-            const promptId = "panel-confirm-" + randomUUID();
-            const timer = setTimeout(() => {
-              pendingConfirmations.delete(promptId);
-              resolve(false);
-            }, 120_000);
-            pendingConfirmations.set(promptId, { resolve, timer });
-            post(panel, { kind: "confirmationPrompt", clientRequestId: promptId, prompt });
-          }),
-          pipeName,
-        )
-      : raw["kind"] === "writeDispatch"
-        ? await dispatchWrite(python, workspaceRoot, { ...request, projectId }, clientRequestId)
-        : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
-  } catch (error) {
-    // 白名单外动作在此被拒：扩展不代签确认，也不把它降级成"可用"。
-    outcome = {
-      status: "refused",
-      code: "ENTRY_ACTION_NOT_ALLOWED",
-      message: error instanceof Error ? error.message : "该动作不能由面板发起",
-    };
-  }
-  if (JSON.stringify(readSettings()) !== expectedContext) {
-    publishProject(panel, scope);
-    post(panel, { kind: "outcome", action: request.action, status: "unavailable",
-      code: "PROJECT_CONTEXT_CHANGED", message: "操作期间宿主上下文变化，原回执未应用；写入结果须按原意图核实", clientRequestId });
-    return;
-  }
-  post(panel, { kind: "outcome", action: request.action, ...outcome, clientRequestId });
-  if(request.action==="register_run" && outcome.status==="ok" && scope.wizard?.project_id===projectId){
-    const result=outcome.response?.result as Record<string,unknown>|undefined;
-    if(result?.project_id===projectId && identityOrNull(result?.run_id)){
-      await vscode.workspace.getConfiguration("aitest").update("runId",result!.run_id,vscode.ConfigurationTarget.Global);
-      publishProject(panel,scope);
-    }
+    const template = readFileSync(
+      vscode.Uri.joinPath(context.extensionUri, "media", "panel.html").fsPath,
+      "utf8",
+    );
+    return template
+      .replaceAll("{{cspSource}}", webview.cspSource)
+      .replaceAll("{{nonce}}", nonce)
+      .replaceAll("{{scriptUri}}", scriptUri);
+  } catch {
+    return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+      <title>${PANEL_TITLE}</title></head><body>
+      <p>面板资源缺失：media/panel.html 未随扩展安装。</p></body></html>`;
   }
 }
 
-function post(panel: PanelHost, payload: Record<string, unknown>): void {
-  void panel.webview.postMessage(payload);
+function trustWarningHtml(): string {
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+    <title>${PANEL_TITLE}</title></head><body>
+    <p>请先通过编辑器确认工作区信任，再打开 AI 测试面板。</p></body></html>`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function handleMessage(message: unknown, webview: vscode.Webview): Promise<void> {
+  if (!isRecord(message)) {
+    return;
+  }
+  if (message["type"] === "ready") {
+    panelReady = true;
+    postContext();
+    for (const item of queued) {
+      await webview.postMessage(item);
+    }
+    queued = [];
+    return;
+  }
+  if (message["type"] !== "call") {
+    return;
+  }
+  const id = typeof message["id"] === "string" ? message["id"] : "";
+  const command = typeof message["command"] === "string" ? message["command"] : "";
+  const payload = isRecord(message["payload"]) ? message["payload"] : {};
+  const result = await execute(command, payload, message["confirm"] === true);
+  await webview.postMessage({ type: "result", id, ...result });
+}
+
+async function execute(
+  command: string,
+  payload: Record<string, unknown>,
+  confirmRequested: boolean,
+): Promise<BridgeResult> {
+  if (!PANEL_COMMANDS.has(command)) {
+    return localError(
+      "COMMAND_NOT_ALLOWED",
+      `面板不能调用命令：${command || "(空)"}`,
+      "只允许面板列出的命令；如需新命令，先在扩展中放行",
+    );
+  }
+  const settings = readSettings();
+  if (!settings.workspacePath) {
+    return localError(
+      "WORKSPACE_NOT_CONFIGURED",
+      "尚未设置 aitest.workspacePath（用户数据工作空间）",
+      "在设置中填写工作空间目录；不要指向源码或安装目录",
+    );
+  }
+  const runtime = await runtimeFor(settings);
+  if (!runtime.ok || runtime.pythonPath === null) {
+    return localError(
+      "PYTHON_NOT_FOUND",
+      `未找到可用的 Python 3.11+ 环境（缺项：${runtime.missing.join("、")}）`,
+      runtime.installHint,
+      { runtime },
+    );
+  }
+  const bridge = createBridge({
+    pythonPath: runtime.pythonPath,
+    pythonArgs: runtime.pythonArgs,
+    workspacePath: settings.workspacePath,
+    timeoutMs: COMMAND_TIMEOUT_MS[command],
+  });
+  const confirm = confirmRequested && CONFIRMABLE_COMMANDS.has(command);
+  return bridge.call(command, payload, { confirm });
+}
+
+function localError(
+  code: string,
+  message: string,
+  nextStep?: string,
+  details?: unknown,
+): BridgeResult {
+  const error: BridgeError = {
+    code,
+    message,
+    ...(nextStep ? { next_step: nextStep } : {}),
+  };
+  return { ok: false, error, ...(details === undefined ? {} : { details }) };
 }
 
 export function deactivate(): void {
-  // Disposing an editor entry never means canceling a business run.
+  // 关闭面板或扩展不取消业务运行；运行状态由 CLI 的 run.json 保存。
+  queued = [];
+  panel = null;
+  panelReady = false;
 }

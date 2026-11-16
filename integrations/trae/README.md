@@ -1,23 +1,43 @@
-# Trae 薄扩展候选 0.4.10
+# Trae 轻量扩展 0.5.0
 
-0.4.10 接新手向导、模型设置与源码根选择；面板已含工作台/报告宽版、核验主按钮、补证表单和报告证据入口。0.4.10 曾安装到本机 Trae 做创建项目续验，最新面板尚未重新安装；真实 Trae 全流程仍未验收。当前状态只查 `docs/现状.md`，范围见 `docs/归档/validation/p1-onboarding-live-20261016/README.md`。
+薄 UI：每个动作调用一次本地 `python -m aitest.cli`，不启动常驻核心，不使用命名管道。扩展不读写业务文件、不计算结论、不代签确认；面板只展示 CLI 返回值。
 
-共享面板读取唯一核心的项目/运行/问题/报告/事件；新增受控高级操作入口和新建项目模板。扩展不直接写业务文件或生成确认事实。**真实 Trae 中国版/国际版的安装与完整用户流程仍未验收；普通 Python 实际来源、默认独立业务核验与 0.4.8 四用例样例报告链有证据，但不证明当前最新构建的全部业务。**
+## 结构
 
-先安装同版本Python包（Windows、Python 3.11–3.13，原生确认需要tkinter/Tcl），在编辑器命令面板执行 `AI Test: 配置工作空间与项目`，选择已存在的专用用户数据目录和项目编号。用户数据目录不能选源码或安装目录。
+```text
+src/
+  extension.ts   # 激活、打开面板、命令、读取设置、调用 bridge
+  bridge.ts      # child_process 调 CLI、解析一行 JSON、超时/退出码/非法 JSON 转结构化错误
+  runtime.ts     # Python 发现（设置 → 工作区 .venv → py -3 → python）与版本/import 校验
+  process.ts     # 子进程最小接口与统一环境
+media/
+  panel.html     # 面板骨架与样式
+  panel.js       # 纯 JS 面板：项目、目标、计划、执行确认、轮询、报告、doctor
+```
 
-扩展在 `src/extension.ts` 实际注册 4 个命令：`aitest.openPanel`（打开测试面板）、`aitest.configureEntry`（配置工作空间与项目）、`aitest.openWorkbench`、`aitest.openReport`。后两个未在 `package.json` 的 `contributes.commands` 声明，因此不出现在命令面板，只能被其他入口以 `executeCommand` 调用。
+## 设置
 
-执行 `AI Test: 打开测试面板` → 连接核心 → 刷新核心状态。仅新核心声明 `native-confirmation/1` 后启用受控操作。在“更多 → 诊断”点击“填写新建项目”，修改实际名称/目标，再请求核心窗口确认；关闭/取消/超时不提交。
+- `aitest.pythonPath`：已安装 `aitest` 的 Python 3.11+ 解释器；留空时自动发现。
+- `aitest.workspacePath`：用户数据工作空间（不是源码目录）。CLI 以 `--workspace` 使用。
 
-高级操作JSON只填 `action / intent_id / expected_revision / binding_revision / target / parameters`。项目由宿主显式选择，传输请求号由入口分配；业务意图不能用请求号替代。取消或结果未知时保留原意图核对，不能通过自动换号重跑。不要粘贴凭据正文。准确材料在核心窗口展示，网页/AI不能提交“已确认”代签。
+找不到可用解释器时，面板与命令只显示缺项和安装提示；扩展不会自动下载运行时（见 `src/runtime.ts` 的 TODO）。
 
-旧核心没有此传输能力会明确拒绝；安装新包不会热替换活动实例。应经既有受控关闭端排空再启动，不能强杀有活动或未知执行的核心。`aitest.runId` 用于读取所选运行，面板不从目录猜测项目或运行身份。
+## 命令
 
-从仓库根先构建 `src/aitest/resources/panel`，再在本目录执行 `npm ci` 与 `npm run package`。候选制品为 `dist/aitest-trae.vsix`。CLI/MCP复用同一核心；普通relay仍不能签署人工动作。
+| 命令 | 作用 |
+| --- | --- |
+| `aitest.openPanel` | 打开测试面板 |
+| `aitest.checkEnvironment` | 打开面板并运行 `doctor` |
+| `aitest.runStatus` | 打开面板并查看当前项目最近一次运行 |
 
-本次 Node 使用明确假 CLI/宿主，浏览器为真实 Chromium 加模拟宿主；它们只证明入口组件，不证明实际 Trae 或实际人工点击。操作步骤见 `docs/归档/文档重构-2026-11-14/一期工程整改/04-交接/0.4.8-Trae实测与连接修复.md`，历史 0.4.2 步骤与准确范围见 `docs/归档/一期工程整改/04-交接-旧版本/0.4.2-项目创建与Python环境登记.md` 和 `docs/归档/validation/p1-native-entry-20261015/README.md`。
+面板经由扩展白名单调用 `project.*`、`task.*`、`plan.*`、`run.*`、`report.*` 与 `doctor`；其余命令不暴露。`run.start` 只有在面板确认框中点击“确认并执行”才带 `--confirm`。
 
-机器级设置 `aitest.pythonCarriersFile` 指向操作者核对的宿主 Python 载体登记文件，仅新核心启动时使用；既有核心需受控重启。CLI `python-carrier --help` 可生成实际虚拟环境登记，新建项目表单要求真实名称和测试目标。
+## 构建与测试
 
-0.4.7 新增机器级 aitest.modelConfigurationFile，配置只保存 HTTPS 端点与凭据引用；正文存 Windows 凭据管理器。启动 CLI 退出后由真实宿主进程继续持有核心生命周期，兼容 Windows 虚拟环境启动器。完整说明见 `docs/归档/一期工程整改/04-交接-旧版本/0.4.7-Trae与模型配置.md`。
+```bash
+npm ci
+npm test
+npm run build
+```
+
+`npm test` 只使用假子进程验证 bridge/runtime 与扩展接线，不启动真实 Trae 或真实 CLI。真实 Trae 中的安装、面板交互与完整业务闭环仍需单独验收，未验证项不写成通过。

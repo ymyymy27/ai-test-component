@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from aitest import integration_commands as _integration_commands  # noqa: F401
 from aitest import runtime_commands as _runtime_commands  # noqa: F401 - registers commands
 from aitest.commands import MUTATING, REGISTRY, cached_result, store_result
 from aitest.errors import AiTestError, invalid_request

@@ -1,7 +1,13 @@
 import { build } from "esbuild";
-import { copyFile, mkdir } from "node:fs/promises";
-// The shared panel must be built first. Never keep a second panel source in the adapter.
+import { mkdir } from "node:fs/promises";
+
+// 扩展只打包 Node 入口；面板资源按 media/ 原样随扩展安装，不复制到 dist。
 await mkdir("dist", { recursive: true });
-await copyFile("../../src/aitest/resources/panel/dist/index.js", "dist/panel.js");
-await build({ entryPoints: ["src/extension.ts"], bundle: true, platform: "node",
-  format: "cjs", external: ["vscode"], outfile: "dist/extension.js" });
+await build({
+  entryPoints: ["src/extension.ts"],
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  external: ["vscode"],
+  outfile: "dist/extension.js",
+});
