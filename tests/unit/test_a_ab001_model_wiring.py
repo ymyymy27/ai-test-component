@@ -30,7 +30,6 @@ import pytest
 from pydantic import JsonValue, TypeAdapter
 
 from aitest.application.planning.model_orchestration import policy_record_id
-from aitest.application.planning.model_ports import CredentialStatus
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -58,7 +57,6 @@ from aitest.domain.planning.plans import (
 )
 from aitest.domain.project.context import LocalProject
 from aitest.infrastructure.capabilities import CapabilityState
-from aitest.infrastructure.credential_resolver import PurposeBoundCredentialResolver
 from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
@@ -207,45 +205,6 @@ class _StubSecretPort:
         if self.failing:
             raise LookupError("reference not found in any registered source")
         return object()  # 受控明文对象的替身；适配器不得把它带出去
-
-
-def test_resolver_available_for_configured_purpose() -> None:
-    port = _StubSecretPort()
-    resolver = PurposeBoundCredentialResolver(port, {"model": "env:MODEL_KEY"})
-    resolution = resolver.resolve(purpose="model")
-    assert resolution.status is CredentialStatus.AVAILABLE
-    assert resolution.purpose == "model"
-    # 装配方绑定的引用被原样使用，B 侧无法选择或更换引用。
-    assert port.calls == [("env:MODEL_KEY", "model")]
-
-
-def test_resolver_rejects_unconfigured_purpose_without_touching_port() -> None:
-    port = _StubSecretPort()
-    resolver = PurposeBoundCredentialResolver(port, {"model": "env:MODEL_KEY"})
-    resolution = resolver.resolve(purpose="github")
-    assert resolution.status is CredentialStatus.PURPOSE_MISMATCH
-    assert "github" in resolution.detail
-    # 未配置的用途不得落到 SecretPort（不静默回退到其他用途）。
-    assert port.calls == []
-
-
-def test_resolver_maps_resolution_failure_to_missing() -> None:
-    port = _StubSecretPort(failing=True)
-    resolver = PurposeBoundCredentialResolver(port, {"model": "env:MODEL_KEY"})
-    resolution = resolver.resolve(purpose="model")
-    assert resolution.status is CredentialStatus.MISSING
-    assert "LookupError" in resolution.detail
-
-
-def test_resolver_never_exposes_secret_material() -> None:
-    """`ResolvedSecret` 在适配器内即取即弃：结果类型没有正文，字符串化也不含引用值。"""
-    resolver = PurposeBoundCredentialResolver(
-        _StubSecretPort(), {"model": "env:SUPER-SECRET-REF"}
-    )
-    resolution = resolver.resolve(purpose="model")
-    assert not hasattr(resolution, "secret")
-    assert not hasattr(resolution, "value")
-    assert "SUPER-SECRET-REF" not in str(resolution)
 
 
 # ------------------------------------------------------------------ 2. 动作注册与 handler

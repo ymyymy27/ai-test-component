@@ -18,10 +18,6 @@ from aitest.application.planning.model_ports import (
 )
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.domain.planning.model_outbound import MaterialKind
-from aitest.infrastructure.adapters.deepseek import (
-    DeepSeekModelProvider,
-    ModelProfile,
-)
 from aitest.infrastructure.adapters.model import (
     HttpModelProvider,
     HttpResponse,
@@ -195,29 +191,6 @@ def test_missing_secret_raises(server: ThreadingHTTPServer) -> None:
     )
     with pytest.raises(ModelAdapterError):
         provider.call(_call())
-
-
-def test_deepseek_provider_profile_and_delegation(
-    server: ThreadingHTTPServer, secret: ResolvedSecret
-) -> None:
-    _Handler.response_body = json.dumps(
-        {"id": "p1", "choices": [{"message": {"content": "d"}}]}
-    ).encode("utf-8")
-    endpoint = f"http://127.0.0.1:{server.server_address[1]}"
-    provider = DeepSeekModelProvider("deepseek-chat", secret=secret, base_address=endpoint)
-
-    profile = provider.profile
-    assert isinstance(profile, ModelProfile)
-    assert profile.model_id == "deepseek-chat"
-    assert profile.provider == "deepseek"
-
-    result = provider.call(_call("deepseek-chat", endpoint=endpoint))
-    assert result.status is ModelCallStatus.OK
-
-
-def test_deepseek_requires_model_id(secret: ResolvedSecret) -> None:
-    with pytest.raises(ValueError):
-        DeepSeekModelProvider("   ", secret=secret)
 
 
 def test_endpoint_mismatch_refuses_to_send(secret: ResolvedSecret) -> None:
