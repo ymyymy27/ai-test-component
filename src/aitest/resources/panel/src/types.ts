@@ -238,7 +238,6 @@ export interface WizardState {
   goal: string;
   runTier: "quick" | "on_demand" | "full";
   driver: "planned" | "stepwise";
-  dataPolicy: string;
   confirmed: boolean;
   useModel: boolean;
   endpoint: string;

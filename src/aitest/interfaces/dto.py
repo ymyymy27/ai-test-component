@@ -409,7 +409,6 @@ class LayerCountDTO(BaseModel):
     completed: int
     blocked: int
     failed: int
-    pending_verification: int
 
 
 class RunStepDTO(BaseModel):
@@ -502,7 +501,6 @@ class RunViewDTO(BaseModel):
     automatic_completed_count: int
     manual_pending_step_ids: tuple[str, ...]
     blocked_step_ids: tuple[str, ...]
-    pending_verification_step_ids: tuple[str, ...]
     invalidated_step_ids: tuple[str, ...]
     steps: tuple[RunStepDTO, ...]
     layers: tuple[LayerCountDTO, ...] = ()
@@ -534,7 +532,6 @@ def run_view_dto(
     automatic_completed = 0
     manual_pending: list[str] = []
     blocked: list[str] = []
-    pending_verification: list[str] = []
     invalidated: list[str] = []
     layer_counts: dict[str, dict[str, int]] = {}
     for step in facts.steps:
@@ -548,7 +545,6 @@ def run_view_dto(
         level = str(step.level.value)
         counts = layer_counts.setdefault(level, {
             "total": 0, "completed": 0, "blocked": 0, "failed": 0,
-            "pending_verification": 0,
         })
         counts["total"] += 1
         if state == "completed":
@@ -557,14 +553,10 @@ def run_view_dto(
             counts["blocked"] += 1
         elif state == "failed":
             counts["failed"] += 1
-        elif state == "pending_verification":
-            counts["pending_verification"] += 1
         if step.invalidated:
             invalidated.append(step.step_id)
         if state == "blocked":
             blocked.append(step.step_id)
-        if state == "pending_verification":
-            pending_verification.append(step.step_id)
         if adapter_kind is None or adapter_kind not in _MANUAL_ADAPTER_KINDS:
             automatic_total += 1
             if state == "completed":
@@ -627,7 +619,6 @@ def run_view_dto(
         automatic_completed_count=automatic_completed,
         manual_pending_step_ids=tuple(sorted(manual_pending)),
         blocked_step_ids=tuple(sorted(blocked)),
-        pending_verification_step_ids=tuple(sorted(pending_verification)),
         invalidated_step_ids=tuple(sorted(invalidated)),
         steps=tuple(steps),
         layers=tuple(
@@ -667,7 +658,6 @@ _RUNTIME_STATES = frozenset(
         "cancel_requested",
         "cancelling",
         "recovering",
-        "pending_verification",
     }
 )
 _POST_RUN_STATES = frozenset({"completed", "cancelled", "execution_error"})
@@ -680,8 +670,8 @@ class PanelViewDTO(BaseModel):
       不按"有没有记录"猜段；
     - 主屏要用的"情形"事实全部给**已有词汇**：`decisive_failure_case_ids`（断言失败）、
       `gap_codes`（既有 `ReviewGapCode`，含 `environment_evidence_incomplete`／
-      `assertion_basis_unconfirmed` 等）、`manual_pending_step_ids`（待人工操作）、
-      `pending_verification_step_ids`（待核实）；界面按设计分册 §3/§8 的表格映射到文案与主动作，
+      `assertion_basis_unconfirmed` 等）、`manual_pending_step_ids`（待人工操作）；
+      界面按设计分册 §3/§8 的表格映射到文案与主动作，
       **核心不重算判定**（判定来自同一次 `DecisionResult`）。
     - `primary_action` 的动作标识未冻结（见待裁定第 8 项），因此本 DTO 不给候选，避免自造动作名。
     """
@@ -705,7 +695,6 @@ class PanelViewDTO(BaseModel):
     decisive_failure_case_ids: tuple[str, ...]
     gap_codes: tuple[str, ...]
     manual_pending_step_ids: tuple[str, ...]
-    pending_verification_step_ids: tuple[str, ...]
 
 
 def panel_view_dto(
@@ -739,7 +728,6 @@ def panel_view_dto(
         decisive_failure_case_ids=tuple(sorted(decision.decisive_failure_case_ids)),
         gap_codes=tuple(sorted({gap.code.value for gap in decision.gaps})),
         manual_pending_step_ids=run_view.manual_pending_step_ids,
-        pending_verification_step_ids=run_view.pending_verification_step_ids,
     )
 
 

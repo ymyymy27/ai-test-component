@@ -44,11 +44,9 @@ from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
-from aitest.interfaces.local.native_confirmation import (
-    NATIVE_CONFIRMATION_VERSION,
+from aitest.interfaces.local.panel_confirmation import (
     PANEL_CONFIRMATION_VERSION,
     confirm_panel_confirmation,
-    dispatch_native,
     prepare_panel_confirmation,
 )
 
@@ -112,7 +110,6 @@ def dispatch_frame(
     session: Session,
     payload: bytes,
     *,
-    native_dispatch: Callable[[Command], Response] | None = None,
     panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
     panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
 ) -> Response | ShutdownControl:
@@ -136,26 +133,6 @@ def dispatch_frame(
 
     if CONTROL_KEY in obj:
         action = obj.get(CONTROL_KEY)
-        if action == NATIVE_CONFIRMATION_VERSION and native_dispatch is not None:
-            try:
-                command = Command.model_validate(obj.get("command"))
-            except ValidationError:
-                return _protocol_error(
-                    api, _safe_request_id(obj), "INVALID_COMMAND", "原生操作命令无效"
-                )
-            if (
-                set(obj) != {CONTROL_KEY, "request_id", "command"}
-                or obj["request_id"] != command.request_id
-            ):
-                return api._error(command, "INVALID_COMMAND", "原生操作信封或请求号无效")
-            try:
-                return native_dispatch(command)
-            except Exception as error:
-                # A finalizer can fail after a business commit. Keep the sole core
-                # alive and report uncertainty; never replay or acknowledge success.
-                return api._error(
-                    command, "NATIVE_SESSION_FINALIZATION_UNVERIFIED", api._safe_message(error)
-                )
         if (
             action == PANEL_CONFIRMATION_VERSION
             and panel_prepare_dispatch is not None
@@ -217,10 +194,13 @@ def dispatch_frame(
             f"命令不符合合同: {error.error_count()} 个字段错误",
         )
     response = api.dispatch(command, session)
-    if command.action == "doctor" and response.result is not None and native_dispatch is not None:
-        capabilities = [NATIVE_CONFIRMATION_VERSION]
-        if panel_prepare_dispatch is not None and panel_confirm_dispatch is not None:
-            capabilities.append(PANEL_CONFIRMATION_VERSION)
+    if (
+        command.action == "doctor"
+        and response.result is not None
+        and panel_prepare_dispatch is not None
+        and panel_confirm_dispatch is not None
+    ):
+        capabilities = [PANEL_CONFIRMATION_VERSION]
         return response.model_copy(
             update={
                 "result": dict(response.result)
@@ -264,7 +244,6 @@ def serve_connection(
     entry_kind: EntryKind = EntryKind.AGENT_RELAY,
     shutdown_blocker: Callable[[], str | None] | None = None,
     on_wait: Callable[[], None] | None = None,
-    native_dispatch: Callable[[Command], Response] | None = None,
     panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
     panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
 ) -> str:
@@ -294,7 +273,6 @@ def serve_connection(
                 api,
                 session,
                 payload,
-                native_dispatch=native_dispatch,
                 panel_prepare_dispatch=panel_prepare_dispatch,
                 panel_confirm_dispatch=panel_confirm_dispatch,
             )
@@ -597,11 +575,6 @@ def main(argv: list[str] | None = None) -> int:
                     entry_kind=entry_kind,
                     shutdown_blocker=shutdown_blocker,
                     on_wait=continue_work,
-                    native_dispatch=lambda command: dispatch_native(
-                        api,
-                        command,
-                        records=assembly.unit_of_work.repo,
-                    ),
                     panel_prepare_dispatch=lambda session, command: prepare_panel_confirmation(
                         api,
                         session,

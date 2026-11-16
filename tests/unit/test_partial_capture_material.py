@@ -160,7 +160,7 @@ def test_partial_material_failure_is_saved_without_publishing_bad_refs_or_restar
     runner = SerialRunner(port, spool, commit_coordinator=coordinator)
     for _ in range(2):
         result = runner.execute_attempt(_attempt(), _request())
-        assert result.state.value == "pending_verification"
+        assert result.state.value == "unknown"
         assert not result.output_block_refs and result.exit_fact_ref is None
         assert result.unknown_reason_ref == "output_material_unverified"
         assert (

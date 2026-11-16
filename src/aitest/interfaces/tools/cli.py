@@ -36,11 +36,6 @@ def main() -> int:
     doctor.add_argument("--workspace", type=Path)
     dispatch = sub.add_parser("dispatch", help="Forward one complete JSON Command on stdin")
     dispatch.add_argument("--workspace", required=True, type=Path)
-    dispatch.add_argument(
-        "--native-confirmation",
-        action="store_true",
-        help="Request the core-owned Windows confirmation window (never auto-confirms)",
-    )
     sub.add_parser("templates", help="List installed draft template versions")
     carrier = sub.add_parser(
         "python-carrier", help="Generate host venv registration JSON; does not execute it"
@@ -291,9 +286,7 @@ def main() -> int:
             )
             client = CoreClient(acquire_existing_endpoint(args.workspace))
             response = (
-                client.send_native(command)
-                if args.command == "dispatch" and args.native_confirmation
-                else client.send(command)
+                client.send(command)
             )
         except Exception as error:
             code = getattr(error, "code", "CLI_INPUT_OR_CONNECTION_UNVERIFIED")

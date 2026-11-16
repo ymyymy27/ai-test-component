@@ -306,9 +306,9 @@ def test_the_delivered_timeout_snapshot_keeps_the_step_pending_verification() ->
         ExecutionFacts.model_validate(_payload("timeout"))
     )
     step = view.steps[0]
-    assert view.control_state is RunRuntimeState.PENDING_VERIFICATION
-    assert step.state is StepRuntimeState.PENDING_VERIFICATION
-    assert step.current_attempt_state is AttemptRuntimeState.PENDING_VERIFICATION
+    assert view.control_state is RunRuntimeState.EXECUTION_ERROR
+    assert step.state is StepRuntimeState.BLOCKED
+    assert step.current_attempt_state is AttemptRuntimeState.UNKNOWN
     assert step.progress() is StepRuntimeProgress.FACTS_RECORDED
 
 
@@ -317,7 +317,7 @@ def test_the_delivered_unknown_snapshot_is_a_recorded_fact_not_a_pass() -> None:
     view = runtime_facts_from_execution_facts(
         ExecutionFacts.model_validate(_payload("unknown"))
     )
-    assert view.control_state is RunRuntimeState.PENDING_VERIFICATION
+    assert view.control_state is RunRuntimeState.EXECUTION_ERROR
     assert view.steps[0].progress() is StepRuntimeProgress.FACTS_RECORDED
 
 

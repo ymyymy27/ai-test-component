@@ -307,20 +307,10 @@ def test_explicit_non_isolation_is_a_legal_fact() -> None:
     result = create_environment(
         _environment(
             isolation_mode=IsolationMode.NONE,
-            isolation_confirmed=True,
-            data_isolated=None,
         )
     )
     assert result.environment is not None
     assert result.environment.isolation_is_explicitly_disabled is True
-    assert result.environment.data_isolated is None
-
-
-def test_non_default_isolation_requires_explicit_confirmation() -> None:
-    with pytest.raises(ValueError, match="explicitly confirmed"):
-        create_environment(
-            _environment(isolation_mode=IsolationMode.UNMANAGED, isolation_confirmed=False)
-        )
 
 
 def test_secret_refs_are_per_purpose_and_carry_no_body() -> None:

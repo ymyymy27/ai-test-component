@@ -37,7 +37,7 @@ def test_observation_preserves_saved_control_and_updates_step_facts(control, sta
     assert after.run.control_state is control
     assert after.attempts[0].state.value == state.value
     expected_step = (
-        StepStateFact.PENDING_VERIFICATION
+        StepStateFact.BLOCKED
         if state is AttemptState.UNKNOWN
         else StepStateFact.RUNNING
     )
@@ -58,7 +58,7 @@ def test_one_completed_attempt_does_not_confirm_a_global_control_boundary():
         )
         after = project_current_update(before, batch.checkpoint.attempt, committed_at=datetime.now(UTC))  # noqa: E501
         assert after.run.control_state is control
-        assert after.steps[0].state is StepStateFact.PENDING_VERIFICATION
+        assert after.steps[0].state is StepStateFact.BLOCKED
 
 
 @pytest.mark.parametrize("control", [RunControlStateFact.NOT_STARTED, RunControlStateFact.RUNNING])
@@ -72,7 +72,7 @@ def test_admitted_run_still_projects_running_or_unknown_execution(control, state
         before, replace(batch.checkpoint.attempt, state=state), committed_at=datetime.now(UTC)
     )
     assert after.run.control_state is (
-        RunControlStateFact.PENDING_VERIFICATION
+        RunControlStateFact.EXECUTION_ERROR
         if state is AttemptState.UNKNOWN
         else RunControlStateFact.RUNNING
     )
@@ -84,7 +84,7 @@ def test_admitted_run_still_projects_running_or_unknown_execution(control, state
         RunControlStateFact.PAUSE_REQUESTED,
         RunControlStateFact.CANCELLING,
         RunControlStateFact.RECOVERING,
-        RunControlStateFact.PENDING_VERIFICATION,
+        RunControlStateFact.EXECUTION_ERROR,
     ],
 )
 def test_saved_active_collection_cannot_reopen_dispatch_after_restart(tmp_path, control):

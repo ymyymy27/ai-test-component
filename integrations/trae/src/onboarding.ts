@@ -162,7 +162,6 @@ export async function wizardMessage(
       await helper(settings.python,{operation:"credential",reference,value:key});session.reference=reference;
       respond({credential:true,reference});
     }else if(raw.kind==="wizardSetup"){
-      if(raw.dataConfirmed!==true)throw new Error("请先确认测试数据隔离与复位方式。");
       const result=await helper(settings.python,{operation:"setup",...session,
         pytest:typeof session.entry==="string"&&!session.entry.toLowerCase().endsWith(".py")});
       let modelFile="";

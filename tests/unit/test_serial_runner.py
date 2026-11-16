@@ -368,7 +368,7 @@ def test_execution_error_blocks_only_dependents() -> None:
 def test_pending_verification_waits_instead_of_blocking() -> None:
     plan = SerialRunner(FakeExecutionPort()).plan_dispatch(
         (
-            _step("step-1", StepState.PENDING_VERIFICATION),
+            _step("step-1", StepState.BLOCKED),
             _step("step-2", StepState.PENDING, ("step-1",)),
         )
     )

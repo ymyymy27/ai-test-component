@@ -2,22 +2,16 @@
 
 from contextlib import suppress
 from typing import cast
-from uuid import uuid4
 
 from aitest.application.ports import CoreMessagePort
 from aitest.contracts.commands import Command
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.editor_host import CoreEndpoint
-from aitest.interfaces.local.native_confirmation import (
-    NATIVE_CONFIRMATION_TIMEOUT_MS,
-    NATIVE_CONFIRMATION_VERSION,
-)
 from aitest.interfaces.local.pipe import MAX_MESSAGE_BYTES
 
 MAX_COMMAND_BYTES = MAX_MESSAGE_BYTES
 BUSINESS_RESPONSE_TIMEOUT_MS = 130_000
-NATIVE_RESPONSE_TIMEOUT_MS = NATIVE_CONFIRMATION_TIMEOUT_MS + BUSINESS_RESPONSE_TIMEOUT_MS
 LONG_RUNNING_ACTIONS = frozenset({
     "analyze_project", "discover_tests", "generate_draft", "create_report", "export_report",
     "prepare_run", "register_run", "prepare_execution", "execute_step", "retry_step",
@@ -41,28 +35,6 @@ class CoreClient:
             response_timeout_ms=(
                 BUSINESS_RESPONSE_TIMEOUT_MS if command.action in LONG_RUNNING_ACTIONS else None
             ),
-        )
-
-    def send_native(self, command: Command) -> Response:
-        """Ask the verified core to show its own UI; no user-event claim crosses the pipe."""
-        import json
-
-        discovery = self.send(Command(request_id=uuid4().hex, action="doctor"))
-        capabilities = (discovery.result or {}).get("transport_capabilities")
-        if not isinstance(capabilities, list) or NATIVE_CONFIRMATION_VERSION not in capabilities:
-            raise CoreResultUnverified("核心不支持原生确认入口，请核对安装版本并受控重启核心")
-        return self._exchange(
-            command,
-            json.dumps(
-                {
-                    "__aitest_control__": NATIVE_CONFIRMATION_VERSION,
-                    "request_id": command.request_id,
-                    "command": command.model_dump(mode="json"),
-                },
-                ensure_ascii=False,
-                allow_nan=False,
-            ).encode("utf-8"),
-            response_timeout_ms=NATIVE_RESPONSE_TIMEOUT_MS,
         )
 
     def _exchange(

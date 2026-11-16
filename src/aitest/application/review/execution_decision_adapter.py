@@ -323,10 +323,10 @@ def _case_executed(facts: ExecutionFacts, case_id: str) -> bool:
 def _case_pending(facts: ExecutionFacts, case_id: str) -> bool:
     attempts = {item.attempt_id: item for item in facts.attempts}
     for step in _case_steps(facts, case_id):
-        if step.state is StepStateFact.PENDING_VERIFICATION:
+        if step.state is StepStateFact.BLOCKED:
             return True
         attempt = _current_attempt(facts, step, attempts)
-        if attempt is not None and attempt.state is AttemptStateFact.PENDING_VERIFICATION:
+        if attempt is not None and attempt.state is AttemptStateFact.UNKNOWN:
             return True
     return False
 

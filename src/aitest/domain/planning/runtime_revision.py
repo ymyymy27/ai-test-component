@@ -64,7 +64,6 @@ class StepRuntimeState(StrEnum):
     READY = "ready"
     RUNNING = "running"
     BLOCKED = "blocked"
-    PENDING_VERIFICATION = "pending_verification"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     INVALIDATED = "invalidated"
@@ -81,7 +80,6 @@ class AttemptRuntimeState(StrEnum):
     COLLECTING = "collecting"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
-    PENDING_VERIFICATION = "pending_verification"
     EXECUTION_ERROR = "execution_error"
     INVALIDATED = "invalidated"
     UNKNOWN = "unknown"
@@ -97,7 +95,6 @@ class RunRuntimeState(StrEnum):
     CANCEL_REQUESTED = "cancel_requested"
     CANCELLING = "cancelling"
     RECOVERING = "recovering"
-    PENDING_VERIFICATION = "pending_verification"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     EXECUTION_ERROR = "execution_error"
@@ -135,7 +132,7 @@ _REVISABLE_RUN_STATES: frozenset[RunRuntimeState] = frozenset(
         RunRuntimeState.PAUSE_REQUESTED,
         RunRuntimeState.PAUSED,
         RunRuntimeState.RECOVERING,
-        RunRuntimeState.PENDING_VERIFICATION,
+        RunRuntimeState.EXECUTION_ERROR,
     }
 )
 

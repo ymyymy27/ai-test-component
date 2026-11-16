@@ -97,7 +97,7 @@ function chooseStep(ctx: AppContext, steps: Record<string, unknown>[]): string {
     return pending;
   }
   const preferred = steps.find(step =>
-    ["blocked", "pending_verification", "running"].includes(String(step["state"])))
+    ["blocked", "running"].includes(String(step["state"])))
     ?? steps.find(step => step["state"] !== "completed")
     ?? steps[0];
   const selected = String(preferred["step_id"] ?? "");
@@ -459,7 +459,7 @@ function runSummary(ctx: AppContext, run: Record<string, unknown>): HTMLElement 
     }, { icon: "play", disabled: control !== "paused" && control !== "pause_requested" }));
     controls.appendChild(button("取消", async () => {
       await controlRun(ctx, "cancel_run", runId, base);
-    }, { icon: "stop", variant: "danger", disabled: !["not_started", "running", "paused", "pause_requested", "pending_verification"].includes(String(control)) }));
+    }, { icon: "stop", variant: "danger", disabled: !["not_started", "running", "paused", "pause_requested"].includes(String(control)) }));
   }
   return card(
     "",

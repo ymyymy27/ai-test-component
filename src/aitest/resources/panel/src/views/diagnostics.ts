@@ -145,7 +145,7 @@ function contextPrefill(ctx: AppContext, action: string): { values: Record<strin
   const steps = asRecords(run?.["steps"]);
   const selected = state.workbench.selectedStep;
   const step = steps.find(item => item["step_id"] === selected)
-    ?? steps.find(item => ["pending_verification", "blocked", "running"].includes(String(item["state"])))
+    ?? steps.find(item => ["blocked", "running"].includes(String(item["state"])))
     ?? steps.find(item => item["state"] !== "completed");
   const stepId = typeof step?.["step_id"] === "string" ? step["step_id"] : undefined;
   const attemptId = typeof step?.["current_attempt_id"] === "string" ? step["current_attempt_id"] : undefined;

@@ -527,8 +527,6 @@ def build_scenario(name: str) -> Scenario:
             interpreter_requirement="python>=3.13,<3.14",
             dependency_declaration="uv.lock",
             isolation_mode=IsolationMode.VENV,
-            data_isolated=True,
-            data_reset_policy="drop and recreate the local ticket table",
             target_deployment_identity="local-service",
             request_timeout_seconds=30,
             step_timeout_seconds=120,

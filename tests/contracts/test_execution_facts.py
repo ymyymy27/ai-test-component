@@ -37,8 +37,8 @@ def test_execution_facts_fixtures_validate(
 def test_unknown_fixture_does_not_fabricate_cancelled_or_terminal_result() -> None:
     payload = json.loads((FIXTURES / "unknown.json").read_text(encoding="utf-8"))
     facts = ExecutionFacts.model_validate(payload)
-    assert facts.run.control_state == "pending_verification"
-    assert facts.attempts[0].state == "pending_verification"
+    assert facts.run.control_state == "execution_error"
+    assert facts.attempts[0].state == "unknown"
     assert facts.attempts[0].exit_fact is None
     assert facts.attempts[0].unknown_reason_ids
 

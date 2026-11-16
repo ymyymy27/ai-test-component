@@ -53,7 +53,7 @@ def test_stage_follows_the_committed_control_state() -> None:
         ("not_started", "pre_run"),
         ("running", "runtime"),
         ("paused", "runtime"),
-        ("pending_verification", "runtime"),
+        ("execution_error", "post_run"),
         ("completed", "post_run"),
         ("cancelled", "post_run"),
         ("execution_error", "post_run"),
@@ -78,7 +78,7 @@ def test_panel_carries_the_frozen_case_facts_for_the_design_tables() -> None:
     view = _panel(
         (
             ("step-1", "case-1", "running", "manual_evidence", False),
-            ("step-2", "case-1", "pending_verification", "http", False),
+            ("step-2", "case-1", "blocked", "http", False),
         ),
         control_state="running",
         selected=("case-1",),
@@ -86,7 +86,6 @@ def test_panel_carries_the_frozen_case_facts_for_the_design_tables() -> None:
     )
     assert isinstance(view, PanelViewDTO)
     assert view.manual_pending_step_ids == ("step-1",)
-    assert view.pending_verification_step_ids == ("step-2",)
     # 缺口码取自领域判定（本例：未执行 ⇒ 无有效执行依据／未完成范围）。
     assert "no_valid_execution_basis" in view.gap_codes
     assert view.decisive_failure_case_ids == ()

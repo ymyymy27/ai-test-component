@@ -75,7 +75,7 @@ def test_foreign_or_unproven_observation_never_reattaches_or_confirms_stop(tmp_p
         checkpoint, attempt, FileSpoolStore(tmp_path), inspection=_inspection(state, **change)
     )
     assert result.action is RecoveryAction.PENDING_VERIFICATION
-    assert result.attempt.state is AttemptState.PENDING_VERIFICATION
+    assert result.attempt.state is AttemptState.UNKNOWN
     assert result.attempt.execution_handle_ref == attempt.execution_handle_ref
     assert result.gaps
 
@@ -89,7 +89,7 @@ def test_stop_without_exact_confirmation_keeps_execution_pending(tmp_path, confi
         FileSpoolStore(tmp_path),
         inspection=_inspection(ExecutionInspectionState.STOPPED, stop_confirmed=confirmed),
     )
-    assert result.attempt.state is AttemptState.PENDING_VERIFICATION
+    assert result.attempt.state is AttemptState.UNKNOWN
     assert result.action is RecoveryAction.PENDING_VERIFICATION
 
 
@@ -117,7 +117,7 @@ def test_exit_fact_presence_does_not_prove_a_reliable_completed_attempt(tmp_path
         ),
     )
     assert result.action is RecoveryAction.PENDING_VERIFICATION
-    assert result.attempt.state is AttemptState.PENDING_VERIFICATION
+    assert result.attempt.state is AttemptState.UNKNOWN
 
 
 @pytest.mark.parametrize("field", ["resolved_input_digest", "execution_handle_ref"])
@@ -244,7 +244,7 @@ def test_unknown_write_is_not_safe_retry_just_because_it_declares_idempotence(tm
     checkpoint, attempt = _saved(side_effect=SideEffectClass.IDEMPOTENT_WRITE)
     result = recover_attempt(checkpoint, attempt, FileSpoolStore(tmp_path))
     assert result.action is RecoveryAction.PENDING_VERIFICATION
-    assert result.attempt.state is AttemptState.PENDING_VERIFICATION
+    assert result.attempt.state is AttemptState.UNKNOWN
 
 
 def test_pause_and_runtime_revision_share_original_exit_identity_checks():
@@ -299,7 +299,7 @@ def test_inconclusive_exit_cannot_become_completion_or_allow_serial_progress():
         state = SerialRunner._attempt_state_for(
             attempt, _inspection(ExecutionInspectionState.EXITED), collection
         )
-        assert state is AttemptState.PENDING_VERIFICATION
+        assert state is AttemptState.UNKNOWN
         assert SerialRunner._blocks_serial_progress(replace(attempt, state=state, exit_fact_ref=fact))  # noqa: E501
 
 

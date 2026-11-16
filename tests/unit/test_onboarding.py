@@ -63,7 +63,7 @@ def _proposal():
 def form(source="E:/sample"):
     return OnboardingForm(project_id="guided-"+str(uuid4()),workspace_id="workspace",
         source=source,entry="main.py",name="算术检查",goal="检查正常、边界与异常结果",
-        data_policy="仅纯函数，无持久业务数据",dependency_declaration="仅标准库")
+        dependency_declaration="仅标准库")
 
 
 def test_wizard_commands_are_ordinary_commands_without_authority():
@@ -263,8 +263,8 @@ def test_wizard_review_rejects_missing_template_item_without_writing():
 
 def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
     from aitest.bootstrap import assemble_workspace_core
-    from aitest.interfaces.local.native_confirmation import dispatch_native
     from tests.support.environment_resolution import FixtureEnvironmentResolver
+    from tests.support.panel_gesture import dispatch_native
 
     source = tmp_path / "source"
     source.mkdir()
@@ -307,8 +307,8 @@ def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
 def test_v11_project_understanding_drives_one_confirmation_end_to_end(tmp_path):
     from aitest.application.project.understanding import understanding_from_payload
     from aitest.bootstrap import assemble_workspace_core
-    from aitest.interfaces.local.native_confirmation import dispatch_native
     from tests.support.environment_resolution import FixtureEnvironmentResolver
+    from tests.support.panel_gesture import dispatch_native
 
     source = tmp_path / "source"
     source.mkdir()
@@ -543,7 +543,7 @@ def test_model_stage_requires_the_frozen_snapshot_identity():
 def test_discover_stage_runs_real_pytest_collection(tmp_path):
     """A1: the discover stage goes through the real core and reports file-level counts."""
     from aitest.bootstrap import assemble_workspace_core
-    from aitest.interfaces.local.native_confirmation import dispatch_native
+    from tests.support.panel_gesture import dispatch_native
     from tests.unit.test_default_execution_authorization import RELAY
     from tests.unit.test_default_start_source_chain import _chain_environment
 

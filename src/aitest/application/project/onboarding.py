@@ -40,7 +40,6 @@ class OnboardingForm(BaseModel):
     entry: str = Field(min_length=1, max_length=1024)
     name: str = Field(min_length=1, max_length=200)
     goal: str = Field(min_length=1, max_length=8000)
-    data_policy: str = Field(min_length=1, max_length=2000)
     dependency_declaration: str = Field(min_length=1, max_length=2000)
     #: 实际环境解释器版本，例如 3.11.9；不能写成 "3.11+"。
     python_version: str = Field(default="3.11.9", min_length=1, max_length=32)
@@ -306,8 +305,7 @@ def wizard_commands(
             add("binding", "save_binding", {"project_revision": 1, "expected_revision": 0,
                 "binding": binding_to_payload(binding)}, binding_id)
             environment = EnvironmentRef(environment_id, 1, form.python_version,
-                form.dependency_declaration, data_isolated=True,
-                data_reset_policy=form.data_policy, step_timeout_seconds=120)
+                form.dependency_declaration, step_timeout_seconds=120)
             add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
                 "environment": environment_to_payload(
                     environment, project_id=project,

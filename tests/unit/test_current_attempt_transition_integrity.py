@@ -98,7 +98,7 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED, *, historical_middle
                     if attempt.state is AttemptState.INTENT_RECORDED
                     else "running"
                     if attempt.state in {AttemptState.STOP_REQUESTED, AttemptState.COLLECTING}
-                    else "pending_verification"
+                    else "unknown"
                     if attempt.state is AttemptState.UNKNOWN
                     else attempt.state.value
                 ),
@@ -264,7 +264,7 @@ def test_start_updates_current_and_transitive_consumers_before_external_effect(
         AttemptState.RUNNING,
         AttemptState.STOP_REQUESTED,
         AttemptState.COLLECTING,
-        AttemptState.PENDING_VERIFICATION,
+        AttemptState.UNKNOWN,
         AttemptState.UNKNOWN,
     ],
 )
@@ -336,7 +336,7 @@ def test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effec
     assert current.current_attempt_by_step["step-1"] == "replacement"
     assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
     runner, attempt, request = _new_start(domain[0], port, rebuilt)
-    assert runner.start_attempt(attempt, request).state is AttemptState.PENDING_VERIFICATION
+    assert runner.start_attempt(attempt, request).state is AttemptState.UNKNOWN
     assert port.started == []
 
 

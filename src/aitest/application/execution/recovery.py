@@ -133,7 +133,7 @@ def recover_attempt(
             blocks, cursors, gaps = _recovery_material(checkpoint, attempt, spool_store)
             return _result(
                 RecoveryAction.PENDING_VERIFICATION,
-                replace(attempt, state=AttemptState.PENDING_VERIFICATION),
+                replace(attempt, state=AttemptState.UNKNOWN),
                 blocks,
                 cursors,
                 [*gaps, "process_identity_mismatch"],
@@ -162,7 +162,7 @@ def recover_attempt(
         ):
             return _result(
                 RecoveryAction.PENDING_VERIFICATION,
-                replace(attempt, state=AttemptState.PENDING_VERIFICATION),
+                replace(attempt, state=AttemptState.UNKNOWN),
                 blocks,
                 cursors,
                 [*gaps, "stop_confirmation_unavailable"],
@@ -202,7 +202,7 @@ def recover_attempt(
         RecoveryAction.PENDING_VERIFICATION,
         replace(
             attempt,
-            state=AttemptState.PENDING_VERIFICATION,
+            state=AttemptState.UNKNOWN,
             unknown_reason_ref="execution_result_unknown",
         ),
         blocks,

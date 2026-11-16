@@ -344,7 +344,6 @@ class ReportCreationMixin:
             state = step.state.value
             entry = counts.setdefault(level, {
                 "total": 0, "completed": 0, "blocked": 0, "failed": 0,
-                "pending_verification": 0,
             })
             entry["total"] += 1
             if state in entry:

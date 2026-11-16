@@ -145,7 +145,7 @@ def test_runtime_boundary_rejects_current_or_historical_activity():
         AttemptState.STOP_REQUESTED,
         AttemptState.COLLECTING,
         AttemptState.UNKNOWN,
-        AttemptState.PENDING_VERIFICATION,
+        AttemptState.UNKNOWN,
     ]:
         batch = _batch()
         fact = project_attempt_fact(replace(batch.checkpoint.attempt, state=state), is_current=False)  # noqa: E501

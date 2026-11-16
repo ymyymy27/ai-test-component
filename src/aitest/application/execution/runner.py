@@ -152,7 +152,7 @@ class SerialRunner:
             if (
                 step.state is StepState.RUNNING
                 or (
-                    step.state is StepState.PENDING_VERIFICATION
+                    step.state is StepState.BLOCKED
                     and step.current_attempt_id is not None
                 )
                 or (
@@ -211,7 +211,7 @@ class SerialRunner:
                 AttemptState.COLLECTING,
                 AttemptState.UNKNOWN,
             }
-            or attempt.state is AttemptState.PENDING_VERIFICATION
+            or attempt.state is AttemptState.UNKNOWN
             and not has_verified_exit(attempt)
         )
 
@@ -401,7 +401,7 @@ class SerialRunner:
             if existing.execution_handle_ref is None:
                 return replace(
                     existing,
-                    state=AttemptState.PENDING_VERIFICATION,
+                    state=AttemptState.UNKNOWN,
                     unknown_reason_ref="start_intent_without_confirmed_handle",
                 )
             if not existing.intent_digest:
@@ -430,7 +430,7 @@ class SerialRunner:
             if existing.execution_handle_ref is None:
                 return replace(
                     existing,
-                    state=AttemptState.PENDING_VERIFICATION,
+                    state=AttemptState.UNKNOWN,
                     unknown_reason_ref="start_intent_without_confirmed_handle",
                 )
             return existing
@@ -518,7 +518,7 @@ class SerialRunner:
             attempt,
             state=AttemptState.INVALIDATED
             if attempt.state is AttemptState.INVALIDATED
-            else AttemptState.PENDING_VERIFICATION,
+            else AttemptState.UNKNOWN,
             capture_completeness=CaptureCompleteness.GAP,
             unknown_reason_ref=reason,
         )
@@ -816,7 +816,7 @@ class SerialRunner:
             ExecutionInspectionState.LOST,
             ExecutionInspectionState.UNKNOWN,
         }:
-            return AttemptState.PENDING_VERIFICATION
+            return AttemptState.UNKNOWN
         if inspection.state is ExecutionInspectionState.STOPPED:
             return (
                 AttemptState.CANCELLED
@@ -828,7 +828,7 @@ class SerialRunner:
                         exit_fact_ref=collection.exit_fact_ref,
                     )
                 )
-                else AttemptState.PENDING_VERIFICATION
+                else AttemptState.UNKNOWN
             )
         if inspection.state is ExecutionInspectionState.EXITED:
             if collection.complete is not True or not has_reliable_terminal_fact(
@@ -838,14 +838,14 @@ class SerialRunner:
                     exit_fact_ref=collection.exit_fact_ref,
                 )
             ):
-                return AttemptState.PENDING_VERIFICATION
+                return AttemptState.UNKNOWN
             return AttemptState.COMPLETED
         if attempt.state in {
             AttemptState.COMPLETED,
             AttemptState.CANCELLED,
             AttemptState.EXECUTION_ERROR,
         } and not has_reliable_terminal_fact(attempt):
-            return AttemptState.PENDING_VERIFICATION
+            return AttemptState.UNKNOWN
         return attempt.state
 
     @staticmethod
@@ -854,7 +854,7 @@ class SerialRunner:
         collection: ExecutionCollectionResult,
         state: AttemptState,
     ) -> str | None:
-        if state is not AttemptState.PENDING_VERIFICATION:
+        if state is not AttemptState.UNKNOWN:
             return None
         if inspection.unknown_reason is not None:
             return inspection.unknown_reason
@@ -934,8 +934,8 @@ class SerialRunner:
             return StepState.CANCELLED
         if state is AttemptState.INVALIDATED:
             return StepState.INVALIDATED
-        if state in {AttemptState.PENDING_VERIFICATION, AttemptState.UNKNOWN}:
-            return StepState.PENDING_VERIFICATION
+        if state in {AttemptState.UNKNOWN, AttemptState.UNKNOWN}:
+            return StepState.BLOCKED
         return StepState.RUNNING
 
     @staticmethod

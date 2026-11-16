@@ -68,7 +68,7 @@ def test_restart_and_original_intent_replay_rederive_denial_without_memory(tmp_p
     [
         AttemptState.CANCELLED,
         AttemptState.EXECUTION_ERROR,
-        AttemptState.PENDING_VERIFICATION,
+        AttemptState.UNKNOWN,
         AttemptState.UNKNOWN,
     ],
 )
@@ -136,7 +136,7 @@ def test_reply_loss_is_recovered_from_the_published_claim_before_external_start(
         runner.start_attempt(_attempt(), _request())
     recovered, _, _ = _runner(tmp_path)
     result = recovered.start_attempt(_attempt(), _request())
-    assert result.state is AttemptState.PENDING_VERIFICATION
+    assert result.state is AttemptState.UNKNOWN
     assert result.execution_handle_ref is None
     assert len(recovered.reuse_invalidations) == 1
     assert recovered._execution_port.started == []

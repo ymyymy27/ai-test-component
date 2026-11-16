@@ -451,9 +451,6 @@ class EnvironmentRef:
     interpreter_requirement: str
     dependency_declaration: str
     isolation_mode: IsolationMode = IsolationMode.VENV
-    isolation_confirmed: bool = False
-    data_isolated: bool | None = None
-    data_reset_policy: str | None = None
     target_deployment_identity: str | None = None
     request_timeout_seconds: int | None = None
     step_timeout_seconds: int | None = None
@@ -467,8 +464,6 @@ class EnvironmentRef:
             raise ValueError("environment revision must be >= 1")
         _require_text(self.interpreter_requirement, "interpreter_requirement")
         _require_text(self.dependency_declaration, "dependency_declaration")
-        if self.isolation_mode is not IsolationMode.VENV and not self.isolation_confirmed:
-            raise ValueError("a non-default isolation mode must be explicitly confirmed")
         for timeout, timeout_name in (
             (self.request_timeout_seconds, "request_timeout_seconds"),
             (self.step_timeout_seconds, "step_timeout_seconds"),
@@ -476,7 +471,6 @@ class EnvironmentRef:
             if timeout is not None and timeout <= 0:
                 raise ValueError(f"{timeout_name} must be positive when set")
         for optional_text, optional_name in (
-            (self.data_reset_policy, "data_reset_policy"),
             (self.target_deployment_identity, "target_deployment_identity"),
             (self.revision_note, "revision_note"),
         ):

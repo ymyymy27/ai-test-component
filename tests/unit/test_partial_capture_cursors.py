@@ -179,7 +179,7 @@ def test_invalid_partial_cursor_is_saved_as_gap_without_restarting(tmp_path):
     runner = SerialRunner(port, spool, commit_coordinator=coordinator)
     for _ in range(2):
         result = runner.execute_attempt(_attempt(), _request())
-        assert result.state.value == "pending_verification"
+        assert result.state.value == "unknown"
         assert result.capture_completeness is CaptureCompleteness.GAP
         assert result.unknown_reason_ref == "output_cursor_material_unverified"
         assert not result.output_block_refs and not result.output_cursors

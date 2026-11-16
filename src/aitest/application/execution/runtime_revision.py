@@ -217,7 +217,6 @@ def require_runtime_boundary(facts: ExecutionFacts) -> None:
             "stop_requested",
             "collecting",
             "unknown",
-            "pending_verification",
         }
         or (
             attempt.handle is not None
@@ -632,7 +631,7 @@ class SavedRuntimeRevisionReader:
                 "unknown_step_ids": tuple(
                     step.step_id
                     for step in after.steps
-                    if step.state is StepStateFact.PENDING_VERIFICATION
+                    if step.state is StepStateFact.BLOCKED
                 ),
             }
         )

@@ -325,10 +325,10 @@ def test_command_timeout_becomes_pending_verification(tmp_path: Path) -> None:
         )
     )
 
-    assert result.attempts[0].state is AttemptState.PENDING_VERIFICATION
+    assert result.attempts[0].state is AttemptState.UNKNOWN
     assert result.attempts[0].timed_out is True
     assert result.attempts[0].unknown_reason_ref == "command_timeout"
-    assert result.steps[0].state is StepState.PENDING_VERIFICATION
+    assert result.steps[0].state is StepState.BLOCKED
 
 
 def test_long_running_command_finishes_without_poll_budget_pending(

@@ -503,7 +503,7 @@ class StartClaimMixin:
         for old in saved:
             if (
                 old.state not in terminal
-                and not (old.state is AttemptState.PENDING_VERIFICATION and has_verified_exit(old))
+                and not (old.state is AttemptState.UNKNOWN and has_verified_exit(old))
             ) or (old.execution_handle_ref is not None and not has_verified_exit(old)):
                 raise ValueError("serial execution has an active or unverified prior attempt")
         step = next(item for item in current.steps if item.step_id == attempt.step_id)

@@ -116,7 +116,7 @@ def test_recovery_restores_spool_cursors_after_process_loss(tmp_path: Path) -> N
     )
 
     assert result.action is RecoveryAction.PENDING_VERIFICATION
-    assert result.attempt.state is AttemptState.PENDING_VERIFICATION
+    assert result.attempt.state is AttemptState.UNKNOWN
     assert result.recovered_blocks == manifest.blocks
     assert result.recovered_cursors == manifest.cursors
     assert "execution_result_unknown" in result.gaps
@@ -407,9 +407,9 @@ def test_runner_startup_scan_persists_recovery_decision(tmp_path: Path) -> None:
 
     assert len(results) == 1
     assert results[0].action is RecoveryAction.PENDING_VERIFICATION
-    assert results[0].attempt.state is AttemptState.PENDING_VERIFICATION
+    assert results[0].attempt.state is AttemptState.UNKNOWN
     stored = checkpoint_store.load("attempt-1")
-    assert stored.checkpoint.last_committed_stage == "pending_verification"
+    assert stored.checkpoint.last_committed_stage == "unknown"
 
 
 def test_runner_preserves_reliable_terminal_without_inspecting_handle(

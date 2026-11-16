@@ -6,7 +6,7 @@ from aitest.application.project.onboarding import OnboardingForm, wizard_command
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import ExecutionFacts
-from aitest.interfaces.local.native_confirmation import dispatch_native
+from tests.support.panel_gesture import dispatch_native
 from tests.unit.test_default_execution_authorization import RELAY
 from tests.unit.test_default_start_source_chain import _chain_environment
 from tests.unit.test_default_step_execution import execution_command
@@ -54,7 +54,6 @@ def test_pytest_scope_plan_execute_verify_real_core(tmp_path):
         entry="tests",
         name="订单检查",
         goal="验证订单",
-        data_policy="仅本地测试",
         dependency_declaration="仅标准库",
         test_mode=True,
         run_tier="on_demand",

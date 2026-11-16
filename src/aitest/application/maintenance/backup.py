@@ -246,7 +246,7 @@ class SavedBackupEntry:
         state = payload.get("state")
         index_rebuilt = payload.get("index_rebuilt") is True
         gaps = [
-            "active_attempts_pending_verification_via_startup_recovery",
+            "active_attempts_unknown_via_startup_recovery",
             "double_takeover_check_not_performed",
         ]
         if state != "restored":

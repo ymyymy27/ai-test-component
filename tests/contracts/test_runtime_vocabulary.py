@@ -46,7 +46,6 @@ def test_the_active_attempt_states_are_the_non_terminal_ones() -> None:
     terminal = {
         AttemptStateFact.COMPLETED,
         AttemptStateFact.CANCELLED,
-        AttemptStateFact.PENDING_VERIFICATION,
         AttemptStateFact.EXECUTION_ERROR,
         AttemptStateFact.INVALIDATED,
         AttemptStateFact.UNKNOWN,

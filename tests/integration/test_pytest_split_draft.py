@@ -45,7 +45,6 @@ def test_pytest_cluster_can_split_selected_failures_real_core(tmp_path: Path) ->
         entry="tests",
         name="订单检查",
         goal="验证订单",
-        data_policy="仅本地测试",
         dependency_declaration="仅标准库",
         test_mode=True,
         run_tier="on_demand",

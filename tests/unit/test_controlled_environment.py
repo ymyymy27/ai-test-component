@@ -48,7 +48,6 @@ def command(core, project, mode=IsolationMode.NONE, **kwargs):
         "Python 3.13",
         "declared dependencies",
         isolation_mode=mode,
-        isolation_confirmed=mode is not IsolationMode.VENV,
     )
     return environment_command(
         project.project_id,
@@ -253,7 +252,6 @@ def test_non_default_environment_origin_is_consumed_by_c(authoritative, monkeypa
         "Python 3.13",
         "component declaration",
         isolation_mode=IsolationMode.NONE,
-        isolation_confirmed=True,
     )
     cmd = environment_command(
         inputs.project_id,

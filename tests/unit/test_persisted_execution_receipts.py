@@ -141,7 +141,7 @@ def test_confirmed_inspection_without_exit_fact_cannot_make_attempt_cancelled():
     missing = replace(collection, exit_fact_ref=None, complete=False)
     assert (
         SerialRunner._attempt_state_for(attempt, stopped, missing)
-        is AttemptState.PENDING_VERIFICATION
+        is AttemptState.UNKNOWN
     )
 
 

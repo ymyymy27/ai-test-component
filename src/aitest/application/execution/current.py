@@ -116,8 +116,8 @@ def project_current_update(
     }:
         if attempt.state.value in {"intent_recorded", "starting", "running", "collecting"}:
             run_update["control_state"] = RunControlStateFact.RUNNING
-        if attempt.state.value in {"pending_verification", "unknown"}:
-            run_update["control_state"] = RunControlStateFact.PENDING_VERIFICATION
+        if attempt.state.value == "unknown":
+            run_update["control_state"] = RunControlStateFact.EXECUTION_ERROR
     return previous.model_copy(
         update={
             "facts_id": f"execution-update:{attempt.attempt_id}:{revision}",
@@ -140,7 +140,7 @@ def project_current_update(
                     "unknown_step_ids": tuple(
                         step.step_id
                         for step in steps
-                        if step.state is StepStateFact.PENDING_VERIFICATION
+                        if step.state is StepStateFact.BLOCKED
                     ),
                 }
             ),
@@ -162,12 +162,12 @@ def _step_state(
     }:
         return StepStateFact.RUNNING
     if state is AttemptStateFact.UNKNOWN:
-        return StepStateFact.PENDING_VERIFICATION
+        return StepStateFact.BLOCKED
     if (
         state is AttemptStateFact.COMPLETED
         and completeness is not CaptureCompletenessFact.COMPLETE
     ):
         # A completed run with partial capture is not a completed Step: the
         # missing material must stay visible as pending verification.
-        return StepStateFact.PENDING_VERIFICATION
+        return StepStateFact.BLOCKED
     return StepStateFact(state.value)

@@ -93,16 +93,10 @@ def test_client_large_frame_preserves_the_actual_received_bytes():
 
 
 @pytest.mark.parametrize(
-    ("action", "native"),
-    [
-        ("save_context", True),
-        ("prepare_run", False),
-        ("generate_draft", False),
-        ("create_report", False),
-    ],
-    ids=["native-confirmation", "prepare-run", "model-generation", "report-generation"],
+    "action",
+    ["prepare_run", "generate_draft", "create_report"],
 )
-def test_long_running_receipt_survives_more_than_ten_seconds(action, native):
+def test_long_running_receipt_survives_more_than_ten_seconds(action):
     """Real pipe delay, synthetic response: not a human/Trae acceptance claim."""
     import json
 
@@ -110,25 +104,13 @@ def test_long_running_receipt_survives_more_than_ten_seconds(action, native):
     from aitest.contracts.responses import Response
     from aitest.interfaces.local.core_client import CoreClient
     from aitest.interfaces.local.editor_host import CoreEndpoint
-    from aitest.interfaces.local.native_confirmation import NATIVE_CONFIRMATION_VERSION
 
     server, channel = connected_pair()
     failures = []
 
     def serve():
         try:
-            if native:
-                discovery = json.loads(server.read_message())
-                server.write_message(Response(
-                    request_id=discovery["request_id"], instance_id="core",
-                    workspace_id="workspace",
-                    result={"transport_capabilities": [NATIVE_CONFIRMATION_VERSION]},
-                ).model_dump_json().encode())
-                envelope = json.loads(server.read_message())
-                command = envelope["command"]
-                assert envelope["__aitest_control__"] == NATIVE_CONFIRMATION_VERSION
-            else:
-                command = json.loads(server.read_message())
+            command = json.loads(server.read_message())
             time.sleep(10.5)
             server.write_message(Response(
                 request_id=command["request_id"], instance_id="core", workspace_id="workspace",
@@ -142,7 +124,7 @@ def test_long_running_receipt_survives_more_than_ten_seconds(action, native):
     worker.start()
     client = CoreClient(CoreEndpoint("workspace", "core", channel))
     try:
-        result = (client.send_native if native else client.send)(Command(
+        result = client.send(Command(
             request_id="late-receipt", action=action,
             project_id="project",
             intent_id="stable-intent", expected_revision=0,

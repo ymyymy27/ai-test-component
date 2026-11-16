@@ -31,7 +31,6 @@ const LABELS: Record<string, string> = {
   matched: "匹配",
   mismatched: "不匹配",
   no_result: "无结果",
-  pending_verification: "待核验",
   not_started: "未开始",
   invalidated: "已过期",
   missing: "未填",
@@ -74,7 +73,7 @@ const LABELS: Record<string, string> = {
 };
 
 export function label(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "待核实";
+  if (value === null || value === undefined || value === "") return "未提供";
   return LABELS[String(value)] ?? String(value);
 }
 
@@ -95,7 +94,6 @@ export function toneForState(value: unknown): Tone {
       return "danger";
     case "blocked":
     case "pending":
-    case "pending_verification":
     case "present_unconfirmed":
     case "incomplete":
     case "paused":

@@ -45,7 +45,7 @@ _OBSERVABLE = frozenset(
     {
         RunControlStateFact.NOT_STARTED,
         RunControlStateFact.RUNNING,
-        RunControlStateFact.PENDING_VERIFICATION,
+        RunControlStateFact.EXECUTION_ERROR,
     }
 )
 _DISPATCHABLE = frozenset({RunControlStateFact.NOT_STARTED, RunControlStateFact.RUNNING})
@@ -537,14 +537,10 @@ class SavedRunSchedule:
                 observed.append(unobserved.attempt_id)
                 continue
             if pending:
-                status = (
-                    "active"
-                    if all(item.state.value == "running" for item in pending)
-                    else "pending_verification"
-                )
+                status = "active"
                 break
             if facts.run.control_state not in _DISPATCHABLE:
-                status = "pending_verification"
+                status = "blocked"
                 break
             plan = dispatch_plan(facts)
             if facts.steps and all(step.state is StepStateFact.COMPLETED for step in facts.steps):

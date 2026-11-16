@@ -86,7 +86,6 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export const DEFAULT_AI_GOAL = "由 AI 根据项目理解提出验证目标";
-const DEFAULT_DATA_POLICY = "纯内存计算，不连接外部系统，结束后无需清理";
 
 function initialState(): WizardState {
   return {
@@ -99,7 +98,6 @@ function initialState(): WizardState {
     goal: DEFAULT_AI_GOAL,
     runTier: "on_demand",
     driver: "planned",
-    dataPolicy: DEFAULT_DATA_POLICY,
     confirmed: false,
     useModel: true,
     endpoint: "https://api.deepseek.com",
@@ -206,7 +204,6 @@ export class WizardController {
     // 换项目后不能沿用上一个项目的提案、依据回执或覆盖确认。
     this.resetDerived();
     this.state.goal = DEFAULT_AI_GOAL;
-    this.state.dataPolicy = DEFAULT_DATA_POLICY;
     this.state.confirmed = false;
     this.state.stage = "configure";
     this.state.error = "";
@@ -253,8 +250,8 @@ export class WizardController {
 
   async prepareEnvironment(): Promise<void> {
     if (this.state.busy) return;
-    if (!this.state.name.trim() || !this.state.goal.trim() || !this.state.dataPolicy.trim() || !this.state.confirmed) {
-      this.fail("请填写项目名称、验证目标与数据复位说明，并确认数据隔离。");
+    if (!this.state.name.trim() || !this.state.goal.trim() || !this.state.confirmed) {
+      this.fail("请填写项目名称与验证目标，并确认这是本地测试入口。");
       return;
     }
     if (this.state.useModel) {
@@ -270,7 +267,6 @@ export class WizardController {
     }
     this.setBusy(true, "正在准备独立测试环境…");
     const result = await this.host.wizardRequest("wizardSetup", {
-      dataConfirmed: true,
       useModel: this.state.useModel,
       endpoint: this.state.endpoint,
     });
@@ -538,7 +534,6 @@ export class WizardController {
       entry: this.state.session?.entry,
       name: this.state.name.trim(),
       goal: this.state.goal.trim(),
-      data_policy: this.state.dataPolicy.trim(),
       python_version: this.state.pythonVersion,
       dependency_declaration: "独立 Python 3.11+ 环境，仅标准库",
       endpoint: this.state.endpoint,

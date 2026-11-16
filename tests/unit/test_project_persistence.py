@@ -115,8 +115,6 @@ def _environment() -> object:
             interpreter_requirement="python>=3.13,<3.14",
             dependency_declaration="uv.lock",
             isolation_mode=IsolationMode.VENV,
-            data_isolated=True,
-            data_reset_policy="drop and recreate the local table",
             target_deployment_identity="local-service",
             request_timeout_seconds=30,
             step_timeout_seconds=120,
@@ -223,8 +221,6 @@ def test_environment_omits_unset_optional_keys() -> None:
         aggregate_kind="environment", record_id="env-plain", revision=1
     )
     for key in (
-        "data_isolated",
-        "data_reset_policy",
         "target_deployment_identity",
         "request_timeout_seconds",
         "step_timeout_seconds",

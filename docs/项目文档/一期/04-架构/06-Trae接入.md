@@ -129,7 +129,7 @@ CLI（discover → 命名管道 → 回执核对）
 | 入口 | 允许行为 | 人工确认边界 |
 | --- | --- | --- |
 | 面板／受控扩展 | 只读查询、普通写入、受控动作、展示核心冻结的确认提示 | 只有真实用户点击可回传确认；面板不提交挑战、摘要或角色 |
-| 交互 CLI | `dispatch`、`dispatch --native-confirmation`、`ensure-core`、`restart-core`、`doctor` | 原生窗口确认后由核心自己的 UI 会话提交；无 `--yes` 之类替代 |
+| 交互 CLI | `dispatch`、`ensure-core`、`restart-core`、`doctor` | 不提供人工确认；命中 `HUMAN_ACTIONS` 直接拒绝，须从面板完成 |
 | MCP／agent_relay | 只读工具与 7 个普通写入动作 | 命中 `HUMAN_ACTIONS` 直接 `AWAITING_USER_CONFIRMATION`，不暴露确认动作 |
 
 `doctor` 只返回 `READY` 或 `NOT_READY`（工作空间未就绪时），**没有 `DEGRADED`**；结果还带 `protocol`、`supported_actions`、`phase`、`intent_contracts`、`dependencies`（配置了能力门时），核心经 `dispatch_frame` 追加 `transport_capabilities`。
@@ -140,30 +140,27 @@ CLI（discover → 命名管道 → 回执核对）
 
 | 能力 | 版本串 | 启用条件 |
 | --- | --- | --- |
-| 原生窗口确认 | `native-confirmation/1` | 核心带 `native_dispatch`（默认装配即有） |
 | 面板内确认 | `panel-confirmation/2` | 同时带 `panel_prepare_dispatch` 与 `panel_confirm_dispatch`；扩展直接连接核心命名管道发送面板帧 |
 
 面板确认不再经 CLI。扩展先读取 `ensure-core`/`restart-core` 回执中的 `pipe_name`，再直接连接该核心命名管道发送面板帧；不支持 `panel-confirmation/2` 或连接身份不符时拒绝并要求受控重启，不降级为无确认写入。
 
-### 4.2 两种确认路径
+### 4.2 面板确认路径
 
 `ApprovalChallenge` 的领域字段：`challenge_id`、`basis`（`workspace_id`／`project_id`／`intent_id`／`action`／`target`／`input_digest`／`credential_scope_ref`／`materials`）、`origin_session_id`、`origin_entry_kind`、`state`、`created_at`。`ActionConfirmation` 在此基础上增加 `confirmation_id`、`confirmation_intent_id`、`interaction_id`、`confirmed_at_commit`、`confirmed_at`；`ConfirmationRecord` 绑定 `case_id`、`basis_revision`、`basis_text_digest`、`confirmed_at_commit`。
-
-原生路径（`dispatch --native-confirmation`）：核心分配 `native-ui-*` 的 `HUMAN_UI` 会话 → 冻结挑战与材料 → 弹核心自有窗口 → 用户确认后由该会话 `dispatch_user_confirmation`。对 `CHALLENGE_ACTIONS` 之外的 `HUMAN_ACTIONS`（如 `bind_project`、`update_issue`），原生路径只展示同一套只读摘要后直接 `dispatch`，不产生挑战。
 
 面板路径：扩展先发 `{__aitest_control__: "panel-confirmation/2", phase: "prepare", command}`，核心只回脱敏投影 `challenge_id`、`input_digest`、`panel_session_id`、`expires_at`、`prompt{title, note, facts, details}`；用户点击后扩展在同一连接上发 `phase: "confirm"` 并附同一 `request_id` 的 `challenge_id`、`input_digest`。核心要求 prepare/confirm 同连接、同 peer、入口为 `HUMAN_UI`，校验会话、挑战、摘要与修订后写入 `ConfirmationRecord`／`ActionAuthorization`。
 
 | 约束 | 实现事实 |
 | --- | --- |
 | 挑战归属 | 挑战只存在于核心；`prepare` 拒绝调用方携带 `approval_challenge_id`／`user_confirmed`／`interaction`／`input_digest` |
-| 超时 | 核心 `NATIVE_CONFIRMATION_TIMEOUT_MS = 120_000`；扩展侧确认等待同为 120 秒，超时按“未确认”处理 |
+| 超时 | 核心 `PANEL_CONFIRMATION_TIMEOUT_MS = 120_000`；扩展侧确认等待同为 120 秒，超时按“未确认”处理 |
 | 过期 | 会话被摘除后 `confirm` 返回 `PANEL_CONFIRMATION_EXPIRED`，须重新准备 |
 | 幂等 | 同一意图已提交时 `prepare` 直接返回原回执且不带 `prompt`，不再要求第二次手势 |
 | 预览上限 | `details` 超过 `MAX_PROMPT_CHARS = 128_000` 返回 `CONFIRMATION_PREVIEW_LIMIT` |
 
 ### 4.3 已核对的通道缺口
 
-面板把 `HUMAN_ACTIONS` 全集列为受控动作（`panel/src/wizard.ts::CONTROLLED_ACTIONS`），命中即走 `controlledDispatch`；视图当前实际派发其中 `update_issue`、`close_issue`、`record_local_review`、`select_case_reuse`。但核心 `prepare_panel_confirmation` 只接受 10 个 `CHALLENGE_ACTIONS`，其余返回 `ENTRY_ACTION_NOT_ALLOWED`。白名单内的 `bind_project` 同样不在挑战集，`create_plan_grant`／`revoke_plan_grant` 同此。据此，这些动作无法经面板确认通道完成；扩展也不提供“无面板确认时回退原生窗口”的分支（`dispatchControlled` 总是传入 `panelConfirm`）。这是静态核对结论，未在真实 Trae 中实测，处置见第 8 节与风险登记册。
+面板把 `HUMAN_ACTIONS` 全集列为受控动作（`panel/src/wizard.ts::CONTROLLED_ACTIONS`），命中即走 `controlledDispatch`；视图当前实际派发其中 `update_issue`、`close_issue`、`record_local_review`、`select_case_reuse`。但核心 `prepare_panel_confirmation` 只接受 10 个 `CHALLENGE_ACTIONS`，其余返回 `ENTRY_ACTION_NOT_ALLOWED`。白名单内的 `bind_project` 同样不在挑战集，`create_plan_grant`／`revoke_plan_grant` 同此。据此，这些动作无法经面板确认通道完成；系统没有弹窗回退，`dispatchControlled` 始终要求面板确认。这是静态核对结论，未在真实 Trae 中实测，处置见第 8 节与风险登记册。
 
 ## 5 兼容性字段
 
@@ -206,8 +203,8 @@ CLI（discover → 命名管道 → 回执核对）
 | 状态 | 裁决 | 结果 |
 | --- | --- | --- |
 | 有活动执行、包装器或待收尾输出 | `shutdown_blocker()` 非空，`retain_activity()` | 保留服务继续收尾，不中断业务 |
-| 执行器状态不明、可能仍占用工作目录 | 同上 | 保留目录与待核实记录，重启后再核实 |
-| 仅暂停、人工待办、待核实，无待收尾输出 | blocker 为空 | 发布检查点后退出（退出码 6） |
+| 执行器状态不明、可能仍占用工作目录 | 同上 | 保留目录与未知记录，重启后再核实 |
+| 仅暂停、人工待办、未知，无待收尾输出 | blocker 为空 | 发布检查点后退出（退出码 6） |
 | 无活动工作 | blocker 为空 | 退出（退出码 6） |
 | 达到 `--max-clients` 且 blocker 为空 | — | 正常退出（退出码 0） |
 | 同名管道已被另一核心持有 | — | 退出（退出码 3） |

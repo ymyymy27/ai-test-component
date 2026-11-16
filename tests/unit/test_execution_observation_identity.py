@@ -115,7 +115,7 @@ def test_unknown_exit_reason_cannot_be_completed():
         ),
     )
     result = SerialRunner(Mock())._apply_collection(attempt, inspection, collection)
-    assert result.state is AttemptState.PENDING_VERIFICATION
+    assert result.state is AttemptState.UNKNOWN
 
 
 @pytest.mark.parametrize("change", ["inspection", "collection"])
@@ -143,7 +143,7 @@ def test_bad_adapter_observation_is_saved_as_pending_without_restarting(tmp_path
     runner = SerialRunner(port, FileSpoolStore(tmp_path), commit_coordinator=coordinator)
     for _ in range(2):
         result = runner.execute_attempt(_attempt(), _request())
-        assert result.state is AttemptState.PENDING_VERIFICATION
+        assert result.state is AttemptState.UNKNOWN
         assert result.capture_completeness is CaptureCompleteness.GAP
         assert result.exit_fact_ref is None and not result.output_block_refs
         assert (

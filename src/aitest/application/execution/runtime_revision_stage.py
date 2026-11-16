@@ -354,7 +354,7 @@ class RuntimeRevisionStageMixin:
                         "unknown_step_ids": tuple(
                             step.step_id
                             for step in next_steps
-                            if step.state is StepStateFact.PENDING_VERIFICATION
+                            if step.state is StepStateFact.BLOCKED
                         ),
                     }
                 ),

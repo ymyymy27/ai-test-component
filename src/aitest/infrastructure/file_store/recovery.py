@@ -76,7 +76,7 @@ def recover_workspace(root: Path) -> dict[str, object]:
     report["recovery_required"] = active is not None
     if active is not None:
         report["active_request_id"] = active.get("request_id")
-        report["active_marker_state"] = "pending_verification"
+        report["active_marker_state"] = "unverified"
     return report
 
 

@@ -72,7 +72,6 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await reply(page, { kind: "wizardResult", session }, { kind: "wizardChoose" });
   await expect(page.getByText("准备这次测试")).toBeVisible();
 
-  await page.getByLabel("测试数据如何隔离、测试后如何复位").fill("只在内存中计算，不连接业务系统");
   await page.getByRole("button", { name: "确认这是本地测试入口", exact: true }).click();
   const beforePrepare = (await sentMessages(page)).length;
   await page.getByRole("button", { name: "准备环境并分析项目", exact: true }).click();

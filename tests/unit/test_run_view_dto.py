@@ -74,8 +74,8 @@ def _facts(
             attempt_state = (
                 "completed"
                 if state == "completed"
-                else "pending_verification"
-                if state == "pending_verification"
+                else "unknown"
+                if state == "blocked"
                 else "running"
             )
             attempts.append(
@@ -202,7 +202,7 @@ def test_run_view_projects_steps_and_splits_automatic_from_manual() -> None:
             ("step-1", "case-1", "completed", "command", False),
             ("step-2", "case-2", "running", "manual_evidence", False),
             ("step-3", "case-3", "blocked", "command", False),
-            ("step-4", "case-3", "pending_verification", "http", False),
+            ("step-4", "case-3", "blocked", "http", False),
             ("step-5", "case-3", "completed", "command", True),
         ),
         selected=("case-1", "case-2", "case-3"),
@@ -229,7 +229,6 @@ def test_run_view_projects_steps_and_splits_automatic_from_manual() -> None:
     assert dto.automatic_step_count == 4
     assert dto.automatic_completed_count == 1  # step-5 已失效，不算完成
     assert dto.blocked_step_ids == ("step-3",)
-    assert dto.pending_verification_step_ids == ("step-4",)
     assert dto.invalidated_step_ids == ("step-5",)
     assert dto.steps[4].invalidated is True
     assert dto.steps[4].state == "invalidated"

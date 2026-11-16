@@ -139,7 +139,6 @@ function configureStep(ctx: AppContext): HTMLElement {
     project.append(goal);
   }
   project.append(
-    fieldArea("测试数据如何隔离、测试后如何复位", state.dataPolicy, value => { state.dataPolicy = value; }, "例如：只在内存中计算，不连接业务系统，结束后无需清理。"),
     button(
       state.confirmed ? "已确认：这是本地测试入口" : "确认这是本地测试入口",
       () => {

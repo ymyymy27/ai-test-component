@@ -310,9 +310,8 @@ function attentionCard(ctx: AppContext): HTMLElement {
   const run = ctx.state.run ?? {};
   const manual = asStrings(run["manual_pending_step_ids"]);
   const blocked = asStrings(run["blocked_step_ids"]);
-  const pending = asStrings(run["pending_verification_step_ids"]);
   const invalidated = asStrings(run["invalidated_step_ids"]);
-  const total = manual.length + blocked.length + pending.length + invalidated.length;
+  const total = manual.length + blocked.length + invalidated.length;
   if (total === 0) {
     return card(
       "",
@@ -339,7 +338,6 @@ function attentionCard(ctx: AppContext): HTMLElement {
   };
   add(manual, "待人工操作", "打开工作台，按步骤执行并关联证据。");
   add(blocked, "阻塞步骤", "先处理阻塞原因，再继续执行。");
-  add(pending, "待核验", "执行完成后需要独立核验。");
   add(invalidated, "已过期", "上游结果变化，需要重新核对或执行。");
   return card("", cardHead("需要你处理", "按顺序处理，面板不会替你确认。"), list);
 }

@@ -30,21 +30,8 @@ def test_explicitly_disabled_isolation_is_a_legal_fact() -> None:
     """显式不隔离是合法事实，不是缺配置（P1-FR07）。"""
     environment = _environment(
         isolation_mode=IsolationMode.NONE,
-        isolation_confirmed=True,
     )
     assert environment.isolation_is_explicitly_disabled
-
-
-def test_non_default_isolation_must_be_explicitly_confirmed() -> None:
-    for mode in (IsolationMode.NONE, IsolationMode.UNMANAGED):
-        with pytest.raises(ValueError, match="explicitly confirmed"):
-            _environment(isolation_mode=mode, isolation_confirmed=False)
-
-
-def test_unknown_data_isolation_is_none_not_false() -> None:
-    """未知记 None，不得用 False 冒充"未隔离"。"""
-    assert _environment().data_isolated is None
-    assert _environment(data_isolated=False).data_isolated is False
 
 
 def test_environment_requires_identity_and_declaration() -> None:

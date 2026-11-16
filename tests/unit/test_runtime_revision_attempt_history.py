@@ -29,7 +29,6 @@ from tests.unit.test_saved_runtime_revision import (
 RECORDED = (
     "completed",
     "cancelled",
-    "pending_verification",
     "execution_error",
     "invalidated",
     "unknown",

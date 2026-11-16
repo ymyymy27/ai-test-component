@@ -350,7 +350,7 @@ def test_http_workflow_transport_failure_keeps_a_partial_capture(
         )
         assert attempt.state == AttemptStateFact.COMPLETED
         assert attempt.capture_completeness.value == "partial"
-        assert step.state.value == "pending_verification"
+        assert step.state.value == "blocked"
         assert attempt.structured_result_ref is not None
         assert any(
             item.reason_code == "http_request_failed" for item in current.gaps

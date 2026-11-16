@@ -223,7 +223,7 @@ def test_process_boundary_can_finish_while_business_verification_is_pending():
 
     attempt, _, collection = observation()
     pending = replace(
-        attempt, state=AttemptState.PENDING_VERIFICATION, exit_fact_ref=collection.exit_fact_ref
+        attempt, state=AttemptState.UNKNOWN, exit_fact_ref=collection.exit_fact_ref
     )
     assert not execution_boundary_pending(pending)
     assert not execution_boundary_pending(pending)

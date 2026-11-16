@@ -283,7 +283,6 @@
         "collecting",
         "completed",
         "cancelled",
-        "pending_verification",
         "execution_error",
         "invalidated",
         "unknown"
@@ -1267,7 +1266,6 @@
         "cancel_requested",
         "cancelling",
         "recovering",
-        "pending_verification",
         "completed",
         "cancelled",
         "execution_error"
@@ -1928,7 +1926,6 @@
         "ready",
         "running",
         "blocked",
-        "pending_verification",
         "completed",
         "cancelled",
         "invalidated",

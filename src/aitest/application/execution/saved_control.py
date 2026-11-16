@@ -212,7 +212,7 @@ class SavedRunControl:
                     RunControlStateFact.RUNNING,
                     RunControlStateFact.PAUSED,
                     RunControlStateFact.PAUSE_REQUESTED,
-                    RunControlStateFact.PENDING_VERIFICATION,
+                    RunControlStateFact.EXECUTION_ERROR,
                 }:
                     raise RunControlBlocked("run cancellation is already terminal or controlled")
                 next_state = (

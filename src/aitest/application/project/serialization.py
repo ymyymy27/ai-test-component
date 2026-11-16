@@ -292,15 +292,12 @@ def environment_to_payload(
         "interpreter_requirement": environment.interpreter_requirement,
         "dependency_declaration": environment.dependency_declaration,
         "isolation_mode": environment.isolation_mode.value,
-        "isolation_confirmed": environment.isolation_confirmed,
         "network_targets": list(environment.network_targets),
         "secret_refs": [
             _secret_ref_to_payload(secret) for secret in environment.secret_refs
         ],
     }
     optional: dict[str, object] = {
-        "data_isolated": environment.data_isolated,
-        "data_reset_policy": environment.data_reset_policy,
         "target_deployment_identity": environment.target_deployment_identity,
         "request_timeout_seconds": environment.request_timeout_seconds,
         "step_timeout_seconds": environment.step_timeout_seconds,
@@ -330,10 +327,6 @@ def environment_from_payload(payload: Mapping[str, Any]) -> EnvironmentRef:
         isolation_mode = IsolationMode(raw_mode)
     except ValueError as error:
         raise ValueError(f"unknown isolation_mode: {raw_mode}") from error
-
-    confirmed = payload.get("isolation_confirmed", False)
-    if not isinstance(confirmed, bool):
-        raise ValueError("isolation_confirmed must be a boolean")
 
     secrets: list[SecretRef] = []
     raw_secrets = payload.get("secret_refs", [])
@@ -374,19 +367,12 @@ def environment_from_payload(payload: Mapping[str, Any]) -> EnvironmentRef:
             raise ValueError(f"{key} must be an integer when present")
         return value
 
-    isolated = payload.get("data_isolated")
-    if isolated is not None and not isinstance(isolated, bool):
-        raise ValueError("data_isolated must be a boolean when present")
-
     return EnvironmentRef(
         environment_id=_text("environment_id"),
         revision=revision,
         interpreter_requirement=_text("interpreter_requirement"),
         dependency_declaration=_text("dependency_declaration"),
         isolation_mode=isolation_mode,
-        isolation_confirmed=confirmed,
-        data_isolated=isolated,
-        data_reset_policy=_optional_text("data_reset_policy"),
         target_deployment_identity=_optional_text("target_deployment_identity"),
         request_timeout_seconds=_optional_int("request_timeout_seconds"),
         step_timeout_seconds=_optional_int("step_timeout_seconds"),

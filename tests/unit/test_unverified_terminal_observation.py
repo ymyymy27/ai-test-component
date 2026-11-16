@@ -64,7 +64,7 @@ def test_running_observation_does_not_preserve_unverified_terminal_label():
                 capture_completeness=CaptureCompleteness.GAP,
             ),
         )
-        assert result.state is AttemptState.PENDING_VERIFICATION
+        assert result.state is AttemptState.UNKNOWN
         assert result.unknown_reason_ref == "exit_fact_unavailable"
         assert result.exit_fact_ref is None
 

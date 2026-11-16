@@ -203,7 +203,7 @@ def test_lost_reply_after_publishing_claim_never_replays_external_start(tmp_path
     with pytest.raises(OSError, match="reply loss"):
         _runner(tmp_path, port, unit).start_attempt(_attempt(), _request())
     recovered = _runner(tmp_path, port).start_attempt(_attempt(), _request())
-    assert recovered.state is AttemptState.PENDING_VERIFICATION
+    assert recovered.state is AttemptState.UNKNOWN
     assert recovered.execution_handle_ref is None
     assert port.started == []
     assert FileUnitOfWork(tmp_path).current_commit_sequence() == (
@@ -228,7 +228,7 @@ def test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returne
         try:
             assert entered.wait(10)
             recovered = second.start_attempt(_attempt(), _request())
-            assert recovered.state is AttemptState.PENDING_VERIFICATION
+            assert recovered.state is AttemptState.UNKNOWN
             assert recovered.execution_handle_ref is None
         finally:
             release.set()

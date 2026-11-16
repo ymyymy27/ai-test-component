@@ -82,7 +82,7 @@ def test_ambiguous_current_step_facts_are_rejected_instead_of_last_wins() -> Non
 def test_valid_upstream_failure_remains_when_downstream_is_unverified() -> None:
     result = aggregate_case_execution(
         case_id="case", required_step_ids=("s1", "s2"),
-        steps=(completed(), replace(completed("s2"), state=AttemptState.PENDING_VERIFICATION)),
+        steps=(completed(), replace(completed("s2"), state=AttemptState.UNKNOWN)),
         decisive_failure_step_ids=("s1",),
     )
     assert result.has_decisive_failure

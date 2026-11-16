@@ -526,10 +526,10 @@ async function exchangePanel(
       if (buffer.length < 4) { return; }
       const length = buffer.readUInt32BE(0);
       if (buffer.length < 4 + length) { return; }
-      finish({ code: 0, stdout: buffer.subarray(4, 4 + length).toString("utf8"), stderr: "" });
+      finish({ code: 0, stdout: buffer.subarray(4, 4 + length).toString("utf8"), stderr: "", timedOut: false });
     });
     socket.on("error", () => {
-      finish({ code: null, stdout: "", stderr: "" });
+      finish({ code: null, stdout: "", stderr: "", timedOut: false });
     });
   });
 }

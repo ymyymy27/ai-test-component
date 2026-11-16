@@ -292,7 +292,6 @@ button.row:hover{background:color-mix(in srgb,var(--surface-2) 78%,#fff 5%);bord
 .step-dot-mini[data-state=completed]{background:var(--success)}
 .step-dot-mini[data-state=running]{background:var(--info)}
 .step-dot-mini[data-state=blocked],.step-dot-mini[data-state=invalidated]{background:var(--danger)}
-.step-dot-mini[data-state=pending_verification]{background:var(--warning)}
 @media(min-width:760px){
   .workbench-grid{grid-template-columns:250px minmax(0,1fr);align-items:start}
   .step-list{grid-template-columns:1fr;align-content:start;overflow:visible;padding-bottom:0;position:sticky;top:64px;max-height:calc(100vh - 90px);overflow-y:auto}

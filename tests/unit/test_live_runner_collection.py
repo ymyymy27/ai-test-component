@@ -51,7 +51,7 @@ def test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_run
     runner = SerialRunner(port, spool, commit_coordinator=coordinator)
     result = runner.execute_attempt(_attempt(), _request(), max_polls=1)
     if invalid:
-        assert result.state.value == "pending_verification"
+        assert result.state.value == "unknown"
         assert result.unknown_reason_ref == "output_cursor_material_unverified"
     else:
         assert result.output_block_refs == manifest.blocks

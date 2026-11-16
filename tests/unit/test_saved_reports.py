@@ -813,7 +813,7 @@ def test_report_payload_freezes_layer_counts(tmp_path) -> None:
         published_sequence=99,
         layers=[{
             "level": "L2", "total": 2, "completed": 1, "blocked": 0,
-            "failed": 1, "pending_verification": 0,
+            "failed": 1,
         }],
     )
     assert payload["layers"][0]["level"] == "L2"

@@ -91,7 +91,7 @@ def test_public_execution_rejects_injected_input_before_reading():
 
 
 def test_serial_start_blocks_other_active_or_unknown_saved_attempts():
-    for state in [AttemptState.RUNNING, AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION]:
+    for state in [AttemptState.RUNNING, AttemptState.UNKNOWN, AttemptState.UNKNOWN]:
         batch = _batch()
         old = replace(batch.checkpoint.attempt, state=state, exit_fact_ref=None)
         new = replace(old, attempt_id="new-attempt", step_id="step-2")

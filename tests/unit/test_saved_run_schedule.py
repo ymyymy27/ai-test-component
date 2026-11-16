@@ -169,7 +169,7 @@ def test_unknown_handleless_activity_does_not_hide_other_historical_activity():
     action.request.intent_id, action.request.step_id = "original-intent", historical.step_id
     service._original_action = Mock(return_value=("original-action", action))
     result = service._advance(facts.project_id, facts.run_id, "schedule")
-    assert result["status"] == "pending_verification"
+    assert result["status"] == "active"
     assert result["observed_attempt_ids"] == [historical.attempt_id]
     assert not result["dispatched_attempt_ids"]
     service.execution.execute.assert_called_once_with(
@@ -181,19 +181,19 @@ def test_unknown_handleless_activity_does_not_hide_other_historical_activity():
     )
 
 
-def test_schedule_does_not_clear_pending_verification_when_activity_ends():
+def test_schedule_reports_blocked_when_control_is_not_dispatchable():
     service, facts = advance_service(_batch().facts)
     facts = facts.model_copy(
         update={
             "run": facts.run.model_copy(
-                update={"control_state": RunControlStateFact.PENDING_VERIFICATION}
+                update={"control_state": RunControlStateFact.EXECUTION_ERROR}
             )
         }
     )
     service._current.return_value = facts
     assert (
         service._advance(facts.project_id, facts.run_id, "schedule")["status"]
-        == "pending_verification"
+        == "blocked"
     )
     assert not service.execution.mock_calls and not service.unit.mock_calls
 

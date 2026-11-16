@@ -323,9 +323,6 @@ class EnvironmentInputs:
     dependency_declaration: str | None
     revision: int = 1
     isolation_mode: IsolationMode = IsolationMode.VENV
-    isolation_confirmed: bool = False
-    data_isolated: bool | None = None
-    data_reset_policy: str | None = None
     target_deployment_identity: str | None = None
     request_timeout_seconds: int | None = None
     step_timeout_seconds: int | None = None
@@ -386,9 +383,6 @@ def create_environment(inputs: EnvironmentInputs) -> EnvironmentResult:
             interpreter_requirement=inputs.interpreter_requirement,
             dependency_declaration=inputs.dependency_declaration,
             isolation_mode=inputs.isolation_mode,
-            isolation_confirmed=inputs.isolation_confirmed,
-            data_isolated=inputs.data_isolated,
-            data_reset_policy=inputs.data_reset_policy,
             target_deployment_identity=inputs.target_deployment_identity,
             request_timeout_seconds=inputs.request_timeout_seconds,
             step_timeout_seconds=inputs.step_timeout_seconds,
