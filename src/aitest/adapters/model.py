@@ -40,6 +40,12 @@ _SYSTEM_CASES = (
     "不要输出 JSON 之外的任何文本。"
 )
 
+_SYSTEM_ITEMS = (
+    "你是验收项提取助手。只输出一个 JSON 对象，格式为 "
+    '{"items": [{"text": "可观察的验收结果", "observable": true, "source": "原句"}]}。'
+    "每条必须可观察；不可观察的写 observable=false。不要输出 JSON 之外的任何文本。"
+)
+
 _SYSTEM_FAILURE = (
     "你是失败分析助手。只输出一个 JSON 对象，格式为 "
     '{"observed": "观察到的事实", "evidence_refs": ["证据引用"], '
@@ -251,6 +257,26 @@ class ModelClient:
         if missing:
             raise _invalid(f"用例未覆盖验收项：{', '.join(sorted(missing))}")
         return cases
+
+    def extract_acceptance_items(self, requirement: str) -> list[dict[str, Any]]:
+        """Extract observable acceptance items from a free-form requirement."""
+        data = self.complete_json(_SYSTEM_ITEMS, requirement)
+        raw = data.get("items")
+        if not isinstance(raw, list):
+            raise _invalid("字段 items 必须是数组")
+        items: list[dict[str, Any]] = []
+        for entry in raw:
+            item = _as_mapping(entry, "items 的条目必须是对象")
+            text = _require_text(item, "text")
+            observable = item.get("observable", True)
+            items.append(
+                {
+                    "text": text,
+                    "observable": bool(observable),
+                    "source": str(item.get("source") or ""),
+                }
+            )
+        return items
 
     def analyze_failure(self, run: dict[str, Any], evidence: list[str]) -> dict[str, Any]:
         """Return the five-part failure analysis, including verified unknowns."""

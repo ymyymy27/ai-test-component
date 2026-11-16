@@ -1,0 +1,19 @@
+{
+  "changed_modules": [],
+  "commit": "",
+  "complete": false,
+  "delivery_id": "dlv_f746cfd5fa41",
+  "dependencies": [],
+  "done": [
+    "x"
+  ],
+  "interface_changes": [],
+  "mocks": [],
+  "not_done": [],
+  "revision": 1,
+  "run_commands": [],
+  "schema_version": 1,
+  "self_test_evidence": [],
+  "task_id": "task_3830339ad48b",
+  "test_data": ""
+}

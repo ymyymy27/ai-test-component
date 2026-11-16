@@ -222,6 +222,14 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     raw_items = payload.get("acceptance_items", [])
     if not isinstance(raw_items, list):
         raise invalid_request("acceptance_items 必须是数组")
+    if not raw_items:
+        requirement = _text(payload, "requirement")
+        client = build_client(ws, project.project_id)
+        if requirement and client is not None:
+            try:
+                raw_items = client.extract_acceptance_items(requirement)
+            except AiTestError:
+                raw_items = []
     items: list[AcceptanceItem] = []
     for raw in raw_items:
         if not isinstance(raw, dict):

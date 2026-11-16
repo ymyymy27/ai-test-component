@@ -1,0 +1,55 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-16T16:33:33+08:00",
+          "message": "",
+          "result": "failed",
+          "started_at": "2026-11-16T16:33:33+08:00"
+        }
+      ],
+      "case_id": "c1",
+      "evidence_refs": [],
+      "result": "failed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "",
+          "message": "L1 检查未通过",
+          "result": "blocked",
+          "started_at": ""
+        }
+      ],
+      "case_id": "c2",
+      "evidence_refs": [],
+      "result": "blocked"
+    }
+  ],
+  "confirmed_at": "",
+  "confirmed_by": "",
+  "evidence_refs": [],
+  "heartbeat_at": "2026-11-16T16:33:33+08:00",
+  "mock_judgement": [],
+  "pid": null,
+  "plan_id": "plan_ac09",
+  "project_id": "proj_ac09",
+  "run_id": "run_ac09",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "a"
+    ],
+    "frozen_at": null,
+    "module_ids": [],
+    "preset": "all_applicable"
+  },
+  "started_at": "2026-11-16T16:33:33+08:00",
+  "status": "completed"
+}

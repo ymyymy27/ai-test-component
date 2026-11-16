@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "run_id": "run_b2ad9e60277b",
+  "plan_id": "plan_1f4666090241",
+  "project_id": "proj_ec988a2b14d7",
+  "scope": {
+    "preset": "selected",
+    "module_ids": [],
+    "acceptance_item_ids": [
+      "ai_38ae53f46627"
+    ],
+    "frozen_at": "2026-11-16T16:34:32+08:00"
+  },
+  "confirmed_by": "cli",
+  "confirmed_at": "2026-11-16T16:34:32+08:00",
+  "status": "completed",
+  "pid": 26956,
+  "started_at": "2026-11-16T16:34:32+08:00",
+  "heartbeat_at": "2026-11-16T16:34:33+08:00",
+  "cases": [
+    {
+      "case_id": "case_b2bf1bf142fd",
+      "result": "failed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "failed",
+          "started_at": "2026-11-16T16:34:33+08:00",
+          "finished_at": "2026-11-16T16:34:33+08:00",
+          "evidence_refs": [
+            "evidence/case_b2bf1bf142fd-0.log"
+          ],
+          "message": ""
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_b2bf1bf142fd-0.log"
+      ]
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_b2bf1bf142fd-0.log"
+  ],
+  "analysis": [],
+  "mock_judgement": []
+}

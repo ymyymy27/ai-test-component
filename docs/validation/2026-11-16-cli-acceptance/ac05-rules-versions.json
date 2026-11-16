@@ -1,0 +1,12 @@
+{
+  "rule1": {
+    "rules_version_id": "rule_61d2cba71c3a",
+    "version": "1"
+  },
+  "rule2": {
+    "rules_version_id": "rule_4c6f38654adc",
+    "version": "2"
+  },
+  "old_plan_rules": "rule_61d2cba71c3a",
+  "new_plan_rules": "rule_4c6f38654adc"
+}

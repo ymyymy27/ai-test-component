@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 26 条 AC：15 条 `verified`，11 条 `untested`；
+- 26 条 AC：25 条 `verified`、1 条 `not_verified`、0 条 `untested`；
 - 2026-11-16 完成真实 Trae 面板与 CLI 场景验收；
 - 单元、合同、集成测试通过不等于验收通过。
 

@@ -21,6 +21,16 @@
 | P1-AC22 | 同项目第二个运行 | 第一次启动成功；第二次返回 `RUN_ACTIVE` |
 | P1-AC24 | 备份与恢复 | 备份 20 个文件（不含证据）；恢复到空目录后 `workspace.json` 存在 |
 | P1-AC26 | 模型不可用 | 空 `APPDATA` 且无密钥时，`plan.generate` 返回 `MODEL_UNAVAILABLE` |
+| P1-AC01 | 根目录与子目录重叠登记 | 第二次登记返回 `INVALID_REQUEST` |
+| P1-AC04 | 交付说明缺运行方式与提交 | `delivery.save` 返回 `complete=false` |
+| P1-AC09 | L1 失败阻塞 build 依赖 | L1 `failed`，L2 `blocked` |
+| P1-AC10 | L2 模块 pytest | 在项目 venv 运行 `pytest tests/test_blog.py` 通过 |
+| P1-AC20 | `gh` 不可用 | 返回 `GITHUB_UNAVAILABLE`，本地数据仍可用 |
+| P1-AC21 | 缺请求 ID | `link.import` 返回 request_id/log/db 三个 gap |
+| P1-AC23 | worker 被杀 | 心跳超时且 PID 不在，状态转 `interrupted` |
+| P1-AC03 | AI 提取验收项 | 提取 4 条，不可观察项标 pending 并排除 |
+| P1-AC05 | 两个规则版本 | 旧计划保留 v1，新计划使用 v2 |
+| P1-AC11 | 接口成功但库无记录 | 用例 failed，运行结论 failed |
 
 ## 3 证据
 
@@ -28,7 +38,8 @@
 - `analysis-run.json`：失败运行及四段分析；
 - `issue.json`：签名去重后的问题记录；
 - `rerun.json`：重跑运行元数据；
-- `opinion-report.json`：填写验收意见后的报告。
+- `opinion-report.json`：填写验收意见后的报告；
+- `ac03-task-extract.json`、`ac05-rules-versions.json`、`ac11-run.json`、`ac01-overlap.json`、`ac04-delivery-incomplete.json`、`ac09-run.json`、`ac10-pytest-run.json`、`ac20-gh-missing.json`、`ac21-link-gaps.json`、`ac23-interrupt.json`。
 
 原始工作空间路径见上；报告与运行目录永久保留。
 
