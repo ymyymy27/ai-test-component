@@ -6,7 +6,7 @@
 
 | 期次 | 状态 | 目录 |
 | --- | --- | --- |
-| 一期 | 当前唯一交付范围；17 FR / 35 AC，验收 4 verified / 5 not_verified / 1 blocked / 25 untested | [一期](一期/README.md) |
+| 一期 | 当前唯一交付范围；21 FR（验收场景重排中，旧 35 AC 仅历史） | [一期](一期/README.md) |
 | 二期 | 规划稿；6 FR / 9 AC，全 `untested` | [二期](二期/README.md) |
 | 三期 | 规划稿；平台合同未定；2 FR / 8 AC，全 `untested` | [三期](三期/README.md) |
 
