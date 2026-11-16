@@ -12,7 +12,7 @@ import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from aitest.commands import (
     MUTATING,
@@ -25,6 +25,7 @@ from aitest.commands import (
 )
 from aitest.core.verdict import coverage, verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
+from aitest.model_config import build_client, model_settings
 from aitest.models import (
     Analysis,
     Case,
@@ -78,11 +79,32 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     scope.acceptance_item_ids = list(selected)
     raw_cases = payload.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
-        raise AiTestError(
-            "MODEL_UNAVAILABLE",
-            "AI 计划生成尚未接入",
-            "先在 payload 提供 cases，或配置模型后重试",
-        )
+        client = build_client(ws, task.project_id)
+        if client is None:
+            raise AiTestError(
+                "MODEL_UNAVAILABLE",
+                "未配置模型，无法生成计划",
+                "配置模型密钥，或在 payload 提供 cases",
+            )
+        selected_items = [
+            item.model_dump(mode="json")
+            for item in task.acceptance_items
+            if item.item_id in selected
+        ]
+        raw_cases = []
+        for item in client.generate_cases(task.model_dump(mode="json"), selected_items):
+            depends = item.get("depends_on")
+            first = depends[0] if isinstance(depends, list) and depends else None
+            raw_cases.append(
+                {
+                    "acceptance_item_id": item["acceptance_item_id"],
+                    "layer": item["layer"],
+                    "expected": item["expected"],
+                    "expectation_source": item["expectation_source"],
+                    "verify_method": item["verify_method"],
+                    "depends_on": first if first in {"build", "service"} else None,
+                }
+            )
     cases = [Case.model_validate(item) for item in raw_cases]
     covered = {case.acceptance_item_id for case in cases if case.acceptance_item_id}
     missing = [item for item in selected if item not in covered]
@@ -585,9 +607,39 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 def cmd_analysis_run(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     run_dir, run = _run(ws, payload)
-    run.analysis = [Analysis(status="not_generated")]
+    client = build_client(ws, run.project_id)
+    if client is None:
+        run.analysis = [Analysis(status="not_generated")]
+        write_model(run_dir / "run.json", run)
+        return {"status": "not_generated", "analysis": None}
+    failed = [case for case in run.cases if case.result in {"failed", "blocked", "error"}]
+    if not failed:
+        run.analysis = [Analysis(status="not_generated")]
+        write_model(run_dir / "run.json", run)
+        return {"status": "not_generated", "analysis": None}
+    evidence = [ref for case in failed for ref in case.evidence_refs]
+    try:
+        data = client.analyze_failure(run.model_dump(mode="json"), evidence)
+    except AiTestError as exc:
+        status: Literal["invalid", "not_generated"] = (
+            "invalid" if exc.info.code == "MODEL_OUTPUT_INVALID" else "not_generated"
+        )
+        run.analysis = [Analysis(status=status)]
+        write_model(run_dir / "run.json", run)
+        return {"status": status, "analysis": None}
+    analysis = Analysis(
+        status="generated",
+        model=str(model_settings(ws, run.project_id)["name"]),
+        generated_at=iso_now(),
+        observed=data["observed"],
+        evidence_refs=data["evidence_refs"],
+        candidate_causes=[{"cause": item} for item in data["candidate_causes"]],
+        unverified=data["unverified"],
+        next_steps=data["next_steps"],
+    )
+    run.analysis = [analysis]
     write_model(run_dir / "run.json", run)
-    return {"status": "not_generated", "analysis": None}
+    return {"status": "generated", "analysis": analysis.model_dump(mode="json")}
 
 
 REGISTRY.update(

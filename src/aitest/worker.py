@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
+import json
 import sys
 import threading
 from pathlib import Path
 
-from aitest.models import Attempt, Case, Plan, Run
+from aitest.models import Attempt, Case, Plan, Project, Run
+from aitest.runners.command_runner import run_command
+from aitest.runners.http_runner import run_http_sequence
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -42,22 +44,23 @@ def _save_evidence(run_dir: Path, name: str, data: bytes) -> str:
     return str(path.relative_to(run_dir)).replace("\\", "/")
 
 
-def _execute(case: Case) -> tuple[str, list[bytes], str]:
+def _execute(case: Case, workdir: Path) -> tuple[str, list[bytes], str]:
     method = case.verify_method or ""
-    if not method.startswith("command:"):
+    if method.startswith("command:"):
+        result = run_command(method[len("command:") :].strip(), cwd=workdir)
+    elif method.startswith("http:"):
+        try:
+            requests = json.loads(method[len("http:") :])
+        except json.JSONDecodeError:
+            return "error", [], "http 验证方法不是合法 JSON"
+        if not isinstance(requests, list):
+            return "error", [], "http 验证方法必须是请求数组"
+        result = run_http_sequence(requests)
+    else:
         return "error", [], f"暂不支持的验证方式：{method or '空'}"
-    command = method[len("command:") :].strip()
-    if not command:
-        return "error", [], "命令为空"
-    try:
-        completed = subprocess.run(command, shell=True, capture_output=True, timeout=600)
-    except subprocess.TimeoutExpired:
-        return "blocked", [], "执行超时"
-    except OSError as exc:
-        return "error", [], f"命令无法执行：{exc}"
-    result = "passed" if completed.returncode == 0 else "failed"
-    outputs = [item for item in (completed.stdout, completed.stderr) if item]
-    return result, outputs, ""
+    outputs = [item for item in (result.stdout, result.stderr) if item]
+    message = result.error or ""
+    return result.status, outputs, message
 
 
 def _heartbeat(run_path: Path, stop: threading.Event) -> None:
@@ -80,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     run_path = run_dir / "run.json"
     plan = read_model(run_dir / "plan.json", Plan)
     run = read_model(run_path, Run)
+    project = read_model(ws.project_path(args.project), Project)
+    workdir = Path(project.root)
     cases = {case.case_id: case for case in plan.cases}
 
     stop = threading.Event()
@@ -99,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                     Attempt(attempt=1, result="error", message="计划中找不到该用例")
                 )
                 continue
-            result, outputs, message = _execute(case)
+            result, outputs, message = _execute(case, workdir)
             refs = [
                 _save_evidence(run_dir, f"{case.case_id}-{position}.log", data)
                 for position, data in enumerate(outputs)

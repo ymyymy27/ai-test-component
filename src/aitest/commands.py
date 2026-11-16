@@ -14,6 +14,7 @@ from typing import Any
 from aitest import __version__
 from aitest.config import model_key_source
 from aitest.errors import AiTestError, invalid_path, invalid_request
+from aitest.model_config import build_client
 from aitest.models import (
     AcceptanceItem,
     Delivery,
@@ -198,11 +199,20 @@ def cmd_module_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
 def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    del project
+    fallback = "验证项目能否启动并跑通主流程"
+    client = build_client(ws, project.project_id)
+    if client is None:
+        return {"candidates": [], "fallback": fallback, "ai_generated": False}
+    modules = "、".join(module.name for module in project.modules) or "未登记模块"
+    context = f"项目：{project.name}\n目标：{project.goal}\n模块：{modules}"
+    try:
+        candidates = client.suggest_targets(context)
+    except AiTestError:
+        return {"candidates": [], "fallback": fallback, "ai_generated": False}
     return {
-        "candidates": [],
-        "fallback": "验证项目能否启动并跑通主流程",
-        "ai_generated": False,
+        "candidates": candidates,
+        "fallback": fallback,
+        "ai_generated": bool(candidates),
     }
 
 
