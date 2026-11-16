@@ -93,8 +93,9 @@ export const api = {
       task_id: input.taskId,
       scope: {
         preset: input.preset,
-        module_ids: input.moduleIds,
-        acceptance_item_ids: input.preset === "selected" ? input.acceptanceItemIds : [],
+        module_ids: [...input.moduleIds],
+        acceptance_item_ids:
+          input.preset === "selected" ? [...input.acceptanceItemIds] : [],
       },
     });
   },

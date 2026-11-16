@@ -6,4 +6,5 @@
 - 复现 mock 图：`cd panel && npm install && npm run dev`，另开终端 `npm run screenshot -- ../docs/validation/2026-11-16-panel-v2/panel.png`。
 - 真实 Trae 图：VSIX 安装后命令面板执行 `AI Test: 打开测试面板`。
 - 已验证：面板在真实 Trae 中加载、项目页与向导第一步渲染、环境状态正常。
-- 未验证：真实 Trae 中走完四步向导、运行、结果页与设置页；这些路径目前由 Vitest 与 mock 截图覆盖。
+- 已验证：真实 Trae 中走完四步向导、生成计划、开始测试、2/2 用例通过、结果页与 Markdown 导出（`trae-result.png`）。
+- 未验证：真实 Trae 中的设置页保存与问题处置操作。

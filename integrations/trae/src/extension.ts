@@ -5,8 +5,10 @@
  * - 扩展读取 `aitest.pythonPath` / `aitest.workspacePath`，经 `runtime.ts` 发现解释器；
  * - 所有业务数据由 `bridge.ts` 调 `python -m aitest.cli` 取回并原样转给面板。
  */
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import * as vscode from "vscode";
 
@@ -15,6 +17,19 @@ import { findPython, type RuntimeCheck } from "./runtime";
 
 const VIEW_ID = "aitest.sidebar";
 const PANEL_TITLE = "AI 辅助测试";
+const EXT_LOG = join(tmpdir(), "aitest-extension.log");
+
+function logExt(event: Record<string, unknown>): void {
+  try {
+    appendFileSync(
+      EXT_LOG,
+      JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n",
+      "utf8",
+    );
+  } catch {
+    // 诊断日志不能影响业务调用。
+  }
+}
 
 /** 面板可调用的命令白名单；新增命令先在这里显式放行。 */
 const PANEL_COMMANDS: ReadonlySet<string> = new Set([
@@ -482,17 +497,33 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   const payload = isRecord(message["payload"]) ? message["payload"] : {};
   const options = isRecord(message["options"]) ? message["options"] : {};
   const confirm = options["confirm"] === true || message["confirm"] === true;
+  logExt({ phase: "call", id, command, keys: Object.keys(payload), confirm });
   let result: BridgeResult;
   try {
     result = await execute(command, payload, confirm);
   } catch (error) {
+    logExt({
+      phase: "throw",
+      command,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : "",
+    });
     result = localError(
       "HOST_CALL_FAILED",
       error instanceof Error ? error.message : "扩展调用失败",
       "重新打开面板后再试；若仍失败请查看扩展日志",
     );
   }
-  await webview.postMessage({ type: "result", id, ...result });
+  logExt({ phase: "result", command, ok: result.ok, code: result.ok ? "" : (result.error?.code ?? "") });
+  try {
+    await webview.postMessage({ type: "result", id, ...result });
+  } catch (error) {
+    logExt({
+      phase: "post-failed",
+      command,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function execute(
