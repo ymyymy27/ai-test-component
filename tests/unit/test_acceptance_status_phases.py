@@ -25,22 +25,26 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _PHASES = ((2, "P2", 9), (3, "P3", 8))
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
-_BLOCKER_KINDS = frozenset({
-    "package_port",
-    "real_storage",
-    "execution_facts",
-    "user_entry",
-    "decision",
-    "environment",
-    "protocol",
-    "platform_contract",
-})
-_REQUIRED_UPDATE_RULES = frozenset({
-    "owner_field",
-    "scenario_expected",
-    "verified_rule",
-    "no_inference",
-})
+_BLOCKER_KINDS = frozenset(
+    {
+        "package_port",
+        "real_storage",
+        "execution_facts",
+        "user_entry",
+        "decision",
+        "environment",
+        "protocol",
+        "platform_contract",
+    }
+)
+_REQUIRED_UPDATE_RULES = frozenset(
+    {
+        "owner_field",
+        "scenario_expected",
+        "verified_rule",
+        "no_inference",
+    }
+)
 # 各期需求文档的权威路径（相对仓库根）；二期、三期均已迁移到按期次分目录的新结构。
 _PHASE_REQUIREMENTS = {
     2: ("docs", "项目文档", "二期", "02-需求", "01-需求规格.md"),
@@ -160,8 +164,7 @@ def test_verified_requires_evidence_and_real_environment(
             continue
         assert row["evidence"]["path"], f"{row['id']} 标为 verified 却没有证据位置"
         assert row["real_environment_verified"] is True, (
-            f"{row['id']} 标为 verified 却不是真实环境验证；"
-            "平台合同未定时不得用桩件结果代填"
+            f"{row['id']} 标为 verified 却不是真实环境验证；平台合同未定时不得用桩件结果代填"
         )
 
 

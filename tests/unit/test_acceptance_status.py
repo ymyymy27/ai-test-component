@@ -18,16 +18,18 @@ _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
 _AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 27))
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
-_BLOCKER_KINDS = frozenset({
-    "program_port",
-    "real_storage",
-    "execution_facts",
-    "user_entry",
-    "decision",
-    "environment",
-    "protocol",
-    "platform_contract",
-})
+_BLOCKER_KINDS = frozenset(
+    {
+        "program_port",
+        "real_storage",
+        "execution_facts",
+        "user_entry",
+        "decision",
+        "environment",
+        "protocol",
+        "platform_contract",
+    }
+)
 _REQUIRED_UPDATE_RULES = frozenset({"scenario_expected", "verified_rule", "no_inference"})
 
 
@@ -129,4 +131,4 @@ def test_mirrored_cases_match_results() -> None:
 
 def test_update_rules_state_the_boundaries() -> None:
     rules = _load_status()["update_rules"]
-    assert _REQUIRED_UPDATE_RULES <= set(rules)
+    assert set(rules) >= _REQUIRED_UPDATE_RULES
