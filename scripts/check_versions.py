@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def version() -> str:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     expected: str = project["project"]["version"]
-    for directory in ("src/aitest/resources/panel", "integrations/trae"):
+    for directory in ("panel", "integrations/trae"):
         for filename in ("package.json", "package-lock.json"):
             package = json.loads((ROOT / directory / filename).read_text(encoding="utf-8"))
             if package["version"] != expected:

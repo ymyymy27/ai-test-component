@@ -181,10 +181,32 @@ def test_analyze_failure_returns_validated_sections() -> None:
     assert analysis == {
         "observed": "接口返回 500",
         "evidence_refs": ["evidence/log.txt"],
-        "candidate_causes": ["下游超时"],
+        "candidate_causes": [{"cause": "下游超时", "confidence": "unknown"}],
         "unverified": ["下游是否真的超时"],
         "next_steps": ["查看下游日志"],
     }
+
+
+def test_analyze_failure_keeps_cause_objects_with_confidence() -> None:
+    content = json.dumps(
+        {
+            "observed": "接口返回 500",
+            "evidence_refs": ["evidence/log.txt"],
+            "candidate_causes": [
+                {"cause": "下游超时", "confidence": "medium"},
+                {"cause": "连接池耗尽"},
+            ],
+            "unverified": ["下游是否真的超时"],
+            "next_steps": ["查看下游日志"],
+        },
+        ensure_ascii=False,
+    )
+    with _serve(content) as base_url:
+        analysis = _client(base_url).analyze_failure({"run_id": "R1"}, ["log"])
+    assert analysis["candidate_causes"] == [
+        {"cause": "下游超时", "confidence": "medium"},
+        {"cause": "连接池耗尽", "confidence": "unknown"},
+    ]
 
 
 @pytest.mark.parametrize(

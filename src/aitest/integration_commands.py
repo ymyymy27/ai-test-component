@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from aitest.adapters.github import read_github
@@ -10,7 +12,7 @@ from aitest.commands import MUTATING, REGISTRY, Payload, _project, _require, _te
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import load_project_config
 from aitest.runners.assertions import evaluate
-from aitest.storage.files import write_json
+from aitest.storage.files import read_json, write_json
 from aitest.storage.workspace import Workspace, iso_now
 
 
@@ -25,6 +27,31 @@ def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     return {"change": result, "path": str(target.relative_to(ws.root)).replace("\\", "/")}
 
 
+def _run_started_at(run_path: Path) -> datetime | None:
+    if not run_path.is_file():
+        return None
+    text = read_json(run_path).get("started_at")
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.astimezone()
+    return parsed
+
+
+def _window_seconds(config: dict[str, Any]) -> int:
+    value = config.get("window_seconds", 300)
+    if isinstance(value, bool):
+        return 300
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 300
+
+
 def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -36,6 +63,9 @@ def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     log_paths = config.get("log_paths") or []
     if not isinstance(log_paths, list):
         raise invalid_request("link.log_paths 必须是数组")
+    run_dir = ws.project_dir(project.project_id) / "runs" / run_id
+    if not run_dir.is_dir():
+        raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
     result = import_link(
         run_id,
         request_id,
@@ -43,10 +73,9 @@ def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         log_format=str(config.get("log_format", "jsonl")),
         log_fields=config.get("log_fields") if isinstance(config.get("log_fields"), dict) else None,
         db_query=str(config.get("db_query") or "") or None,
+        window_seconds=_window_seconds(config),
+        started_at=_run_started_at(run_dir / "run.json"),
     )
-    run_dir = ws.project_dir(project.project_id) / "runs" / run_id
-    if not run_dir.is_dir():
-        raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
     target = run_dir / "link.json"
     write_json(target, {"imported_at": iso_now(), **result})
     return result

@@ -21,8 +21,8 @@ main(argv)
  → 解析 command、workspace、input
  → 读取并校验信封（command、request_id、payload）
  → 路由到 handler
- → 成功：{"ok": true, ...}
- → 业务拒绝：{"ok": false, "error": {...}}，退出 1
+ → 成功：{"ok": true, "request_id": "...", "data": {...}}
+ → 业务拒绝：{"ok": false, "request_id": "...", "error": {...}}，退出 1
  → 参数/环境错误：退出 2
 ```
 

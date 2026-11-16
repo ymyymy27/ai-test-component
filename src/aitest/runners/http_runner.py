@@ -41,8 +41,18 @@ def _send(
         return error.code, body
 
 
-def run_http_sequence(requests: list[dict[str, Any]], timeout_seconds: float = 30) -> RunnerResult:
-    """Run requests in order, evaluating optional JSON-path assertions after each."""
+def run_http_sequence(
+    requests: list[dict[str, Any]],
+    timeout_seconds: float = 30,
+    request_id_header: str | None = None,
+    request_id: str | None = None,
+) -> RunnerResult:
+    """Run requests in order, evaluating optional JSON-path assertions after each.
+
+    When both ``request_id_header`` and ``request_id`` are given, every request
+    carries the correlation header (unless the spec sets it explicitly) so the
+    link importer can match logs and database rows to this run.
+    """
     assertions: list[dict[str, Any]] = []
     last_body = b""
     for index, spec in enumerate(requests):
@@ -61,6 +71,8 @@ def run_http_sequence(requests: list[dict[str, Any]], timeout_seconds: float = 3
             if not isinstance(raw_headers, Mapping):
                 return RunnerResult(status="error", error=f"{label} headers must be an object")
             headers = {str(key): str(value) for key, value in raw_headers.items()}
+        if request_id_header and request_id:
+            headers.setdefault(request_id_header, request_id)
 
         body: bytes | None = None
         if "form" in spec:

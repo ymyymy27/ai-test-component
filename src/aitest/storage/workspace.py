@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import threading
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,19 @@ import portalocker
 from aitest.errors import AiTestError
 from aitest.models import Project, WorkspaceMeta, new_id
 from aitest.storage.files import read_model, write_model
+
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
+
+
+def _thread_lock(root: Path) -> threading.Lock:
+    key = os.path.normcase(str(root))
+    with _THREAD_LOCKS_GUARD:
+        lock = _THREAD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _THREAD_LOCKS[key] = lock
+        return lock
 
 
 def iso_now() -> str:
@@ -39,21 +53,38 @@ class Workspace:
 
     @contextlib.contextmanager
     def lock(self, timeout: float = 10.0) -> Iterator[None]:
-        lock_path = self.root / ".workspace.lock"
-        handle = lock_path.open("a+", encoding="utf-8")
-        try:
-            portalocker.lock(handle, portalocker.LOCK_EX, timeout=timeout)  # type: ignore[call-arg]
-        except portalocker.exceptions.LockException as exc:
-            handle.close()
+        """Hold an in-process thread lock and an OS file lock for the workspace.
+
+        The thread lock serialises callers in the same process (POSIX file locks
+        are per-process), while the file lock covers other processes. Both use
+        the same timeout and raise ``WORKSPACE_LOCKED`` on contention.
+        """
+        thread_lock = _thread_lock(self.root)
+        if not thread_lock.acquire(timeout=timeout):
             raise AiTestError(
                 "WORKSPACE_LOCKED", "工作空间被另一个进程占用", "等待或关闭另一实例"
-            ) from exc
+            )
         try:
-            yield
+            lock_path = self.root / ".workspace.lock"
+            lock = portalocker.Lock(
+                lock_path,
+                mode="a",
+                timeout=timeout,
+                flags=portalocker.LOCK_EX | portalocker.LOCK_NB,
+            )
+            try:
+                lock.acquire()
+            except portalocker.exceptions.LockException as exc:
+                raise AiTestError(
+                    "WORKSPACE_LOCKED", "工作空间被另一个进程占用", "等待或关闭另一实例"
+                ) from exc
+            try:
+                yield
+            finally:
+                with contextlib.suppress(Exception):
+                    lock.release()
         finally:
-            with contextlib.suppress(Exception):
-                portalocker.unlock(handle)
-            handle.close()
+            thread_lock.release()
 
     # -- project layout -------------------------------------------------
     @property

@@ -22,6 +22,16 @@ export interface HostBridge {
   ): Promise<HostCallResult<unknown>>;
   getState(): unknown;
   setState(state: unknown): void;
+  getContext?(): unknown;
+  openPath?(path: string): Promise<HostCallResult<boolean>>;
+}
+
+export interface HostContext {
+  projectId?: string;
+  projectRoot?: string;
+  pythonPath?: string;
+  workspacePath?: string;
+  workspaceFolderCount?: number;
 }
 
 declare global {
@@ -78,6 +88,36 @@ export function writeHostState(state: unknown): void {
   }
 }
 
+/** 读取宿主缓存的编辑器上下文；宿主不支持时返回 null。 */
+export function readHostContext(): HostContext | null {
+  try {
+    const value = hostBridge()?.getContext?.();
+    return value && typeof value === "object" ? (value as HostContext) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 让宿主用系统程序打开一个已保存的证据文件。 */
+export async function openHostPath(path: string): Promise<boolean> {
+  const host = hostBridge();
+  if (host === null) {
+    throw new HostMissingError();
+  }
+  if (typeof host.openPath !== "function") {
+    throw new HostError({
+      code: "HOST_CALL_FAILED",
+      message: "当前宿主不支持打开文件",
+      next_step: "复制证据引用后在资源管理器中打开",
+    });
+  }
+  const result = await host.openPath(path);
+  if (!result.ok) {
+    throw new HostError(result.error);
+  }
+  return Boolean(result.data);
+}
+
 let sequence = 0;
 
 export function callHost<T>(
@@ -124,6 +164,10 @@ export function callHost<T>(
         }
         settled = true;
         clearTimeout(timer);
+        if (error instanceof HostError) {
+          reject(error);
+          return;
+        }
         reject(
           new HostError({
             code: "HOST_CALL_FAILED",

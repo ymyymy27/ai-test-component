@@ -19,6 +19,8 @@ import { join } from "node:path";
 
 export const state = {
   settings: { pythonPath: "", workspacePath: "" },
+  workspaceFolders: [],
+  projects: [],
   runtime: { ok: true, pythonPath: "fake-python", pythonArgs: [], version: "3.12.1",
     packageVersion: "0.1.0", candidates: [], missing: [], installHint: "fixture hint" },
   runtimeChecks: [],
@@ -30,6 +32,7 @@ export const state = {
   bridgeConfigs: [],
   responses: [],
   revealed: 0,
+  opened: [],
 };
 
 function makePanel() {
@@ -57,6 +60,7 @@ function makePanel() {
 
 export const workspace = {
   isTrusted: true,
+  get workspaceFolders() { return state.workspaceFolders; },
   getConfiguration: () => ({
     get: (key, fallback) => state.settings[key] ?? fallback,
   }),
@@ -94,6 +98,14 @@ export const Uri = {
     const fsPath = join(...parts.map((part) => (typeof part === "string" ? part : part.fsPath)));
     return { fsPath, toString: () => fsPath };
   },
+  file: (fsPath) => ({ fsPath, toString: () => fsPath }),
+};
+
+export const env = {
+  openExternal: async (uri) => {
+    state.opened.push(uri.fsPath);
+    return true;
+  },
 };
 
 export function createBridge(config) {
@@ -101,6 +113,9 @@ export function createBridge(config) {
   return {
     async call(command, payload, options) {
       state.bridgeCalls.push({ command, payload, options, config });
+      if (command === "project.list") {
+        return { ok: true, request_id: "fixture", data: { projects: state.projects } };
+      }
       return state.responses.shift() ?? { ok: true, request_id: "fixture", data: {} };
     },
   };
@@ -176,6 +191,7 @@ test("openPanel loads the shared panel build with CSP, nonce and injected bridge
   assert.equal(webview.html.includes("Content-Security-Policy"), true);
   assert.equal(webview.html.includes("window.aitestHost"), true);
   assert.equal(webview.html.includes("acquireVsCodeApi"), true);
+  assert.equal(webview.html.includes("getContext"), true);
   assert.equal(webview.html.includes(" crossorigin"), false);
   assert.match(webview.html, /webview:.*media.*panel.*assets.*\.js/);
   assert.match(webview.html, /webview:.*media.*panel.*assets.*\.css/);
@@ -306,4 +322,75 @@ test("configuration change republishes the context", async () => {
   await tick();
   const context = state.sent.find((message) => message.type === "context");
   assert.equal(context.workspacePath, "D:/other-ws");
+});
+
+async function postContextFor(folders, projects) {
+  state.workspaceFolders = folders.map((fsPath) => ({ uri: { fsPath } }));
+  state.projects = projects;
+  state.settings.workspacePath = "C:/data/ws";
+  state.runtime = { ...state.runtime, ok: true, pythonPath: "fake-python", pythonArgs: [] };
+  state.sent.length = 0;
+  state.commands.get("aitest.openPanel")();
+  state.receive({ type: "ready" });
+  await until(
+    () => state.sent.some((message) => message.type === "context"),
+    "workspace context",
+  );
+  return state.sent.filter((message) => message.type === "context").at(-1);
+}
+
+test("single workspace folder matching a project root binds projectId", async () => {
+  const context = await postContextFor(
+    ["C:/work/order-service"],
+    [{ project_id: "proj_1", root: "C:\\work\\order-service" }],
+  );
+  assert.equal(context.projectId, "proj_1");
+  assert.equal(context.workspaceFolderCount, 1);
+  assert.equal(context.projectRoot, "C:/work/order-service");
+  state.workspaceFolders = [];
+  state.projects = [];
+  await tick();
+});
+
+test("single workspace folder without a match only prefills the path", async () => {
+  const context = await postContextFor(["C:/work/new-service"], []);
+  assert.equal(context.projectId, "");
+  assert.equal(context.projectRoot, "C:/work/new-service");
+  state.workspaceFolders = [];
+  await tick();
+});
+
+test("multiple workspace folders are never guessed", async () => {
+  const context = await postContextFor(
+    ["C:/work/order-service", "C:/work/other"],
+    [{ project_id: "proj_1", root: "C:/work/order-service" }],
+  );
+  assert.equal(context.projectId, "");
+  assert.equal(context.projectRoot, "");
+  assert.equal(context.workspaceFolderCount, 2);
+  state.workspaceFolders = [];
+  state.projects = [];
+  await tick();
+});
+
+test("a parent workspace folder does not bind a nested project", async () => {
+  const context = await postContextFor(
+    ["C:/work"],
+    [{ project_id: "proj_1", root: "C:/work/order-service" }],
+  );
+  assert.equal(context.projectId, "");
+  assert.equal(context.projectRoot, "C:/work");
+  state.workspaceFolders = [];
+  state.projects = [];
+  await tick();
+});
+
+test("openPath asks the editor to open the evidence file", async () => {
+  state.opened.length = 0;
+  state.sent.length = 0;
+  state.receive({ type: "openPath", id: "open-1", path: "C:/data/ws/evidence/run/error.log" });
+  await until(() => state.sent.some((message) => message.id === "open-1"), "open result");
+  assert.deepEqual(state.opened, ["C:/data/ws/evidence/run/error.log"]);
+  const result = state.sent.at(-1);
+  assert.equal(result.ok, true);
 });

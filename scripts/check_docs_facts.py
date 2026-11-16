@@ -58,7 +58,7 @@ RULES = (
     ),
     Rule(
         "mypy 检查文件数",
-        re.compile(r"\|\s*`mypy`[^|\n]*\|\s*(\d+)\s*文件"),
+        re.compile(r"\|\s*`mypy`[^|\n]*\|\s*(\d+)\s*(?:个源)?文件"),
         "mypy_files",
         needs_full=True,
     ),
@@ -148,6 +148,7 @@ def dispatchable_action_count() -> int | None:
 
     script = """
 import json
+import aitest.integration_commands  # noqa: F401
 import aitest.runtime_commands  # noqa: F401
 from aitest.commands import REGISTRY
 

@@ -14,10 +14,12 @@ export type Route = unknown | ((payload: Record<string, unknown>) => unknown | P
 export interface Harness {
   calls: HostRecord[];
   bridge: HostBridge;
+  opened: string[];
 }
 
 export function installHost(routes: Record<string, Route>): Harness {
   const calls: HostRecord[] = [];
+  const opened: string[] = [];
   const bridge: HostBridge = {
     async call(
       command: string,
@@ -48,9 +50,13 @@ export function installHost(routes: Record<string, Route>): Harness {
     },
     getState: () => ({}),
     setState: () => undefined,
+    async openPath(path: string) {
+      opened.push(path);
+      return { ok: true, data: true };
+    },
   };
   window.aitestHost = bridge;
-  return { calls, bridge };
+  return { calls, bridge, opened };
 }
 
 export function resetSession(): void {
@@ -74,6 +80,8 @@ export function resetSession(): void {
   session.issues = [];
   session.loading = {};
   session.notice = "";
+  session.hostContext = null;
+  session.prefillRoot = "";
 }
 
 export const PROJECT: Project = {

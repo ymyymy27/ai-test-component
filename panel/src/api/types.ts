@@ -189,6 +189,19 @@ export interface IssueSummary {
   occurrences: number;
 }
 
+export interface EvidenceItem {
+  ref: string;
+  name?: string;
+  path?: string;
+  bytes: number;
+  exists: boolean;
+  missing_reason?: string;
+}
+
+export type ConfigSection = "model" | "services" | "link" | "runners" | "evidence" | "l1" | "data";
+
+export type ProjectConfig = Partial<Record<ConfigSection, Record<string, unknown>>>;
+
 export interface DoctorFacts {
   workspace: { ok: boolean; path: string; workspace_id?: string };
   python: { ok: boolean; version: string };

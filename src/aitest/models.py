@@ -57,6 +57,7 @@ class AcceptanceItem(Model):
     observable: bool = True
     status: Literal["active", "pending"] = "active"
     source: str = ""
+    module_id: str | None = None
 
 
 class Task(Model):
@@ -114,6 +115,8 @@ class Case(Model):
     steps: list[str] = Field(default_factory=list)
     expected: str
     expectation_source: str = ""
+    expectation_verified: bool = False
+    warnings: list[str] = Field(default_factory=list)
     verify_method: str = ""
     mock_allowed: bool = True
     importance: Literal["high", "medium", "low"] = "medium"
@@ -137,6 +140,7 @@ class Plan(Model):
     applicable_count: int = 0
     rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
     revision: int = 1
 
@@ -176,6 +180,9 @@ class Run(Model):
     scope: Scope
     confirmed_by: str = ""
     confirmed_at: str = ""
+    confirmation_id: str = ""
+    confirmation_fingerprint: str = ""
+    confirmation_reused: bool = False
     status: RunStatus = "running"
     pid: int | None = None
     started_at: str = ""
@@ -184,6 +191,40 @@ class Run(Model):
     evidence_refs: list[str] = Field(default_factory=list)
     analysis: list[Analysis] = Field(default_factory=list)
     mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
+    service_started: bool = False
+    l1: dict[str, Any] | None = None
+    media_bytes: int = 0
+    data_prefix: str = ""
+    request_ids: list[str] = Field(default_factory=list)
+
+
+class Confirmation(Model):
+    schema_version: int = 1
+    confirmation_id: str
+    project_id: str
+    plan_id: str
+    acceptance_item_ids: list[str] = Field(default_factory=list)
+    environment: dict[str, Any] = Field(default_factory=dict)
+    credentials: dict[str, str] = Field(default_factory=dict)
+    fingerprint: str
+    confirmed_by: str
+    confirmed_at: str
+    run_id: str = ""
+
+
+class ManualStep(Model):
+    step: str
+    result: Literal["passed", "failed", "blocked"]
+    note: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    recorded_at: str = ""
+
+
+class ManualLog(Model):
+    schema_version: int = 1
+    run_id: str
+    case_id: str
+    steps: list[ManualStep] = Field(default_factory=list)
 
 
 class IssueOccurrence(Model):
@@ -224,9 +265,20 @@ class Report(Model):
     unmapped_files: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
+    real_chain: bool = False
     summary: str | None = None
     summary_source: Literal["ai", "fallback", "none"] = "none"
     opinion: Opinion | None = None
+    issues: list[dict[str, Any]] = Field(default_factory=list)
+    analysis: list[dict[str, Any]] = Field(default_factory=list)
+    layers: dict[str, int] = Field(default_factory=dict)
+    rules_version_id: str | None = None
+    source_commit: str | None = None
+    environment: dict[str, Any] = Field(default_factory=dict)
+    github: dict[str, Any] | None = None
+    uncovered_items: list[str] = Field(default_factory=list)
+    case_details: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_index: list[dict[str, Any]] = Field(default_factory=list)
     revision: int = 1
 
 

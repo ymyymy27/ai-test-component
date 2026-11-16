@@ -320,6 +320,14 @@ function refreshResult(): void {
         </div>
 
         <div class="action-row">
+          <AppButton variant="secondary" @click="go('evidence')">
+            <Icon name="file" :size="14" />
+            证据（{{ run.evidence_refs.length }}）
+          </AppButton>
+          <AppButton variant="secondary" @click="go('issues')">
+            <Icon name="alert" :size="14" />
+            问题处置（{{ session.issues.length }}）
+          </AppButton>
           <AppButton variant="secondary" @click="prefillExport">
             <Icon name="export" :size="14" />
             导出报告

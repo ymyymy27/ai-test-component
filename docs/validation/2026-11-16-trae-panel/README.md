@@ -53,4 +53,4 @@
 - 中断接管、取消、磁盘不足；
 - 失败分析与问题自动生成的真实样本；
 - 验收意见填写与导出；
-- 其他 AC 仍为 `untested`。
+- 其余 19 条 AC 由同日的 [CLI 场景验证记录](../2026-11-16-cli-acceptance/README.md)覆盖；本记录只证明上表 7 条，26/26 `verified` 的依据见 `tests/acceptance/p1/status.json`。

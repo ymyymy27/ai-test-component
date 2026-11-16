@@ -5,7 +5,9 @@ import { isHostReady } from "@/api/host";
 import AppHeader from "@/components/AppHeader.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import SkeletonBlock from "@/components/SkeletonBlock.vue";
+import EvidenceView from "@/views/EvidenceView.vue";
 import HistoryView from "@/views/HistoryView.vue";
+import IssuesView from "@/views/IssuesView.vue";
 import ProjectView from "@/views/ProjectView.vue";
 import ResultView from "@/views/ResultView.vue";
 import RunView from "@/views/RunView.vue";
@@ -74,6 +76,8 @@ function switchProject(projectId: string): void {
       <WizardView v-else-if="session.view === 'wizard'" />
       <RunView v-else-if="session.view === 'run'" />
       <ResultView v-else-if="session.view === 'result'" />
+      <EvidenceView v-else-if="session.view === 'evidence'" />
+      <IssuesView v-else-if="session.view === 'issues'" />
       <HistoryView v-else-if="session.view === 'history'" />
       <SettingsView v-else-if="session.view === 'settings'" />
     </template>

@@ -273,3 +273,92 @@ def test_summarize_report_returns_none_on_model_error() -> None:
 def test_summarize_report_returns_none_without_text() -> None:
     assert summarize_report({"runs": 1}, client=FakeClient({"other": "x"})) is None
     assert summarize_report({"runs": 1}, client=FakeClient({"summary": "  "})) is None
+
+
+def test_judge_mock_caches_by_revision_and_file_digest(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    workspace = tmp_path / "ws"
+    _write(root, "src/app.py", "import requests\n")
+    response = {
+        "dependencies": [
+            {
+                "name": "requests",
+                "kind": "real",
+                "reason": "直接调用真实网络",
+                "evidence_refs": ["src/app.py"],
+            }
+        ]
+    }
+    client = FakeClient(response)
+    first = judge_mock(
+        root,
+        ["requests"],
+        [],
+        client=client,
+        workspace=workspace,
+        project_revision=1,
+    )
+    cache_files = list((workspace / ".cache" / "mock").glob("*.json"))
+    assert len(cache_files) == 1
+    assert json.loads(cache_files[0].read_text(encoding="utf-8")) == first
+
+    second = judge_mock(
+        root,
+        ["requests"],
+        [],
+        client=client,
+        workspace=workspace,
+        project_revision=1,
+    )
+    assert second == first
+    assert len(client.calls) == 1
+
+    judge_mock(
+        root,
+        ["requests"],
+        [],
+        client=client,
+        workspace=workspace,
+        project_revision=2,
+    )
+    assert len(client.calls) == 2
+    assert len(list((workspace / ".cache" / "mock").glob("*.json"))) == 2
+
+
+def test_judge_mock_reports_read_budget_and_keeps_unknown(tmp_path: Path) -> None:
+    for index in range(5):
+        _write(tmp_path, f"module_{index}.py", f"VALUE = {index}\n")
+    response = {
+        "dependencies": [
+            {
+                "name": "requests",
+                "kind": "unknown",
+                "reason": "没有足够信号",
+                "evidence_refs": [],
+            }
+        ]
+    }
+    result, client = _judged(tmp_path, ["requests"], response, max_files=2)
+
+    assert result[0]["kind"] == "unknown"
+    assert result[0]["reason"] == "没有足够信号"
+    assert result[0]["limit_reached"] is True
+    assert len(result[0]["read_files"]) == 2
+    assert len(_user_payload(client)["files"]) == 2
+
+
+def test_judge_mock_without_budget_does_not_flag_limit(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", "import requests\n")
+    response = {
+        "dependencies": [
+            {
+                "name": "requests",
+                "kind": "real",
+                "reason": "真实调用",
+                "evidence_refs": ["src/app.py"],
+            }
+        ]
+    }
+    result, _ = _judged(tmp_path, ["requests"], response, max_files=40)
+    assert result[0]["limit_reached"] is False
+    assert result[0]["read_files"] == ["src/app.py"]

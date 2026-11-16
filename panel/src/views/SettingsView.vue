@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 
+import { api } from "@/api/commands";
+import { describeError, type FriendlyError } from "@/api/errors";
+import type { ConfigSection, ProjectConfig } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
 import Badge from "@/components/Badge.vue";
 import ErrorNotice from "@/components/ErrorNotice.vue";
 import Icon from "@/components/Icon.vue";
 import StatusDot from "@/components/StatusDot.vue";
 import {
+  flash,
   go,
   refreshDoctor,
   repairEnvironment,
@@ -81,6 +85,164 @@ function riskTone(risk: string): "passed" | "incomplete" | "failed" {
   if (risk === "medium") return "incomplete";
   return "failed";
 }
+
+interface ConfigGroup {
+  key: Exclude<ConfigSection, "model">;
+  title: string;
+  hint: string;
+}
+
+const CONFIG_GROUPS: ConfigGroup[] = [
+  {
+    key: "services",
+    title: "服务",
+    hint: "服务名 → { start, health, stop, timeout_seconds }。面板只保存这些非敏感字段。",
+  },
+  {
+    key: "link",
+    title: "链路",
+    hint: "日志路径、格式、字段映射与只读查询；缺请求标识时会记录缺口，不补造。",
+  },
+  {
+    key: "runners",
+    title: "运行器",
+    hint: "命令、接口或脚本运行器的默认参数；不会覆盖单条用例的验证方式。",
+  },
+  {
+    key: "evidence",
+    title: "证据预算",
+    hint: "媒体总预算、单文件上限与视频开关；超限时按策略压缩或截断。",
+  },
+  {
+    key: "l1",
+    title: "源码可运行（L1）",
+    hint: "项目级 build 命令、入口模块与超时；在用例执行前运行。",
+  },
+  {
+    key: "data",
+    title: "数据清理",
+    hint: "dry-run 与清理命令；真实清理仍需要显式确认。",
+  },
+];
+
+const config = ref<ProjectConfig | null>(null);
+const drafts = reactive<Record<Exclude<ConfigSection, "model">, string>>({
+  services: "{}",
+  link: "{}",
+  runners: "{}",
+  evidence: "{}",
+  l1: "{}",
+  data: "{}",
+});
+const configLoading = ref(false);
+const saving = ref(false);
+const configLoadError = ref<FriendlyError | null>(null);
+const validationError = ref("");
+const saveError = ref<FriendlyError | null>(null);
+const savedNote = ref("");
+
+const modelSection = computed(() => config.value?.model ?? {});
+const modelRows = computed(() => {
+  const model = modelSection.value;
+  const text = (value: unknown): string =>
+    typeof value === "string" || typeof value === "number" ? String(value) : "";
+  return [
+    { label: "服务地址", value: text(model["base_url"]) || "未设置（使用用户配置）" },
+    { label: "模型名称", value: text(model["name"]) || "未设置（使用默认模型）" },
+    {
+      label: "超时",
+      value: model["timeout_seconds"] === undefined ? "未设置" : `${text(model["timeout_seconds"])} 秒`,
+    },
+  ];
+});
+const modelKeyState = computed(() => {
+  const facts = doctor.value?.model;
+  if (!facts) {
+    return { ok: false, text: "还没有自检结果，密钥状态未知" };
+  }
+  return facts.ok
+    ? { ok: true, text: `已配置（来源：${facts.source}）` }
+    : { ok: false, text: "未配置；AI 能力不可用，本地测试仍可用" };
+});
+
+function sectionText(value: Record<string, unknown> | undefined): string {
+  return JSON.stringify(value ?? {}, null, 2);
+}
+
+function fillDrafts(source: ProjectConfig): void {
+  for (const group of CONFIG_GROUPS) {
+    drafts[group.key] = sectionText(source[group.key]);
+  }
+}
+
+async function loadConfig(): Promise<void> {
+  if (!session.project) {
+    config.value = null;
+    return;
+  }
+  configLoading.value = true;
+  configLoadError.value = null;
+  try {
+    const data = await api.getProjectConfig(session.project.project_id);
+    config.value = data.config ?? {};
+    fillDrafts(config.value);
+  } catch (error) {
+    configLoadError.value = describeError(error);
+  } finally {
+    configLoading.value = false;
+  }
+}
+
+function parseSection(group: ConfigGroup): Record<string, unknown> | null {
+  const text = drafts[group.key].trim();
+  if (!text) {
+    return {};
+  }
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("必须是 JSON 对象");
+    }
+    return value as Record<string, unknown>;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    validationError.value = `“${group.title}”的 JSON 无法解析：${detail}。下一步：检查逗号、引号和括号后重新保存。`;
+    return null;
+  }
+}
+
+async function saveConfig(): Promise<void> {
+  if (!session.project) {
+    return;
+  }
+  validationError.value = "";
+  saveError.value = null;
+  savedNote.value = "";
+  const patch: ProjectConfig = {};
+  for (const group of CONFIG_GROUPS) {
+    const parsed = parseSection(group);
+    if (parsed === null) {
+      return;
+    }
+    patch[group.key] = parsed;
+  }
+  saving.value = true;
+  try {
+    const data = await api.saveProjectConfig(session.project.project_id, patch);
+    config.value = data.config ?? {};
+    fillDrafts(config.value);
+    savedNote.value = "项目配置已保存。";
+    flash("项目配置已保存");
+  } catch (error) {
+    saveError.value = describeError(error);
+  } finally {
+    saving.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadConfig();
+});
 </script>
 
 <template>
@@ -169,6 +331,76 @@ function riskTone(risk: string): "passed" | "incomplete" | "failed" {
       <p class="note">
         模型密钥通过用户配置或环境变量提供，不写进项目配置，也不在面板显示。模型不可用时，目标候选、验收标准提取、计划生成与失败分析会明确标为“未生成”；已有的本地测试、证据与报告仍然可用。
       </p>
+    </section>
+
+    <section class="card" data-testid="project-config">
+      <div class="section-title">
+        <h2>项目配置</h2>
+        <span class="section-note">读取 project.config.json；保存只合并下列分组</span>
+      </div>
+
+      <p v-if="!session.project" class="hint">
+        还没有选择项目。回到项目页选择项目后，这里会显示可编辑的服务、链路与运行器配置。
+      </p>
+
+      <template v-else>
+        <div v-if="configLoading" class="hint">正在读取项目配置…</div>
+        <ErrorNotice
+          v-if="configLoadError"
+          :error="configLoadError"
+          retry-label="重新读取"
+          :busy="configLoading"
+          @retry="loadConfig"
+        />
+
+        <div class="config-group">
+          <h3>模型（只读）</h3>
+          <p class="hint key-state">
+            模型密钥：
+            <Badge :tone="modelKeyState.ok ? 'passed' : 'incomplete'">{{ modelKeyState.text }}</Badge>
+          </p>
+          <p class="hint">
+            密钥只从用户配置或环境变量读取；项目配置不保存密钥，这里也不提供编辑入口。
+          </p>
+          <dl class="kv">
+            <div v-for="row in modelRows" :key="row.label" class="kv-row">
+              <dt>{{ row.label }}</dt>
+              <dd class="mono">{{ row.value }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div v-for="group in CONFIG_GROUPS" :key="group.key" class="config-group">
+          <h3>{{ group.title }}</h3>
+          <p class="hint">{{ group.hint }}</p>
+          <label class="field">
+            <span class="sr-only">{{ group.title }} JSON</span>
+            <textarea
+              :id="`config-${group.key}`"
+              v-model="drafts[group.key]"
+              class="input textarea mono"
+              rows="6"
+              spellcheck="false"
+            ></textarea>
+          </label>
+        </div>
+
+        <ErrorNotice
+          v-if="saveError"
+          :error="saveError"
+          :show-retry="false"
+          @retry="() => {}"
+        />
+        <p v-if="validationError" class="action-error" role="alert">{{ validationError }}</p>
+        <p v-if="savedNote" class="saved-note" role="status">{{ savedNote }}</p>
+
+        <div class="row">
+          <AppButton variant="primary" :loading="saving" @click="saveConfig">
+            保存项目配置
+          </AppButton>
+          <span class="hint">保存失败时会指出哪个分组有问题以及下一步怎么做；密钥字段会被拒绝。</span>
+        </div>
+      </template>
     </section>
 
     <section class="card">
@@ -359,6 +591,98 @@ function riskTone(risk: string): "passed" | "incomplete" | "failed" {
   font-size: var(--fs-12);
   color: var(--text-3);
   line-height: 1.6;
+}
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.config-group h3 {
+  font-size: var(--fs-13);
+}
+
+.key-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+}
+
+.kv-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--space-3);
+  font-size: var(--fs-12);
+}
+
+.kv-row dt {
+  color: var(--text-3);
+}
+
+.kv-row dd {
+  margin: 0;
+  color: var(--text-2);
+  word-break: break-all;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.input:focus {
+  border-color: var(--accent-line);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(130, 175, 205, 0.16);
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.action-error {
+  padding: 8px 10px;
+  border: 1px solid rgba(207, 122, 122, 0.35);
+  background: var(--failed-fill);
+  border-radius: var(--r-control);
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+}
+
+.saved-note {
+  padding: 8px 10px;
+  border: 1px solid rgba(134, 179, 148, 0.3);
+  background: var(--passed-fill);
+  border-radius: var(--r-control);
+  font-size: var(--fs-12);
 }
 
 @media (max-width: 520px) {

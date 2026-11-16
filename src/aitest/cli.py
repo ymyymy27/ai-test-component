@@ -61,6 +61,7 @@ def _read_payload(input_file: str | None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    request_id = ""
     try:
         command, workspace_root, input_file, confirm = _parse(args)
         payload = _read_payload(input_file)
@@ -90,12 +91,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(response, ensure_ascii=False))
         return 0
     except AiTestError as exc:
-        response = {"ok": False, "error": exc.info.to_dict()}
+        response = {"ok": False, "request_id": request_id, "error": exc.info.to_dict()}
         print(json.dumps(response, ensure_ascii=False))
         return 1
     except (OSError, ValueError) as exc:
         response = {
             "ok": False,
+            "request_id": request_id,
             "error": {
                 "code": "INVALID_REQUEST",
                 "message": str(exc),

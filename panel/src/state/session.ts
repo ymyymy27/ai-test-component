@@ -7,7 +7,7 @@ import { reactive } from "vue";
 
 import { api } from "@/api/commands";
 import { describeError, type FriendlyError } from "@/api/errors";
-import { readHostState, writeHostState } from "@/api/host";
+import { readHostContext, readHostState, writeHostState, type HostContext } from "@/api/host";
 import type {
   DoctorFacts,
   IssueSummary,
@@ -21,7 +21,15 @@ import type {
   Verdict,
 } from "@/api/types";
 
-export type View = "project" | "wizard" | "run" | "result" | "history" | "settings";
+export type View =
+  | "project"
+  | "wizard"
+  | "run"
+  | "result"
+  | "history"
+  | "evidence"
+  | "issues"
+  | "settings";
 
 export interface LastRun {
   status: RunStatus;
@@ -59,6 +67,8 @@ interface SessionState {
   issues: IssueSummary[];
   loading: Record<string, boolean>;
   notice: string;
+  hostContext: HostContext | null;
+  prefillRoot: string;
 }
 
 export const session = reactive<SessionState>({
@@ -82,7 +92,62 @@ export const session = reactive<SessionState>({
   issues: [],
   loading: {},
   notice: "",
+  hostContext: null,
+  prefillRoot: "",
 });
+
+let contextWaiters: ((context: HostContext | null) => void)[] = [];
+
+/** 编辑器在面板打开后推送上下文；这里只缓存，不推导项目结论。 */
+export function applyHostContext(raw: unknown): void {
+  if (!raw || typeof raw !== "object") {
+    return;
+  }
+  const data = raw as HostContext;
+  const context: HostContext = {
+    projectId: typeof data.projectId === "string" ? data.projectId : "",
+    projectRoot: typeof data.projectRoot === "string" ? data.projectRoot : "",
+    pythonPath: typeof data.pythonPath === "string" ? data.pythonPath : "",
+    workspacePath: typeof data.workspacePath === "string" ? data.workspacePath : "",
+    workspaceFolderCount:
+      typeof data.workspaceFolderCount === "number" ? data.workspaceFolderCount : 0,
+  };
+  session.hostContext = context;
+  session.prefillRoot = context.projectId ? "" : (context.projectRoot ?? "");
+  const waiters = contextWaiters;
+  contextWaiters = [];
+  for (const resolve of waiters) {
+    resolve(context);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { type?: unknown } | null;
+    if (data && typeof data === "object" && data.type === "context") {
+      applyHostContext(data);
+    }
+  });
+}
+
+async function waitHostContext(): Promise<HostContext | null> {
+  if (session.hostContext) {
+    return session.hostContext;
+  }
+  const cached = readHostContext();
+  if (cached) {
+    applyHostContext(cached);
+    return session.hostContext;
+  }
+  return await Promise.race([
+    new Promise<HostContext | null>((resolve) => {
+      contextWaiters.push(resolve);
+    }),
+    new Promise<HostContext | null>((resolve) => {
+      setTimeout(() => resolve(null), 1500);
+    }),
+  ]);
+}
 
 function persist(): void {
   const state: PersistedState = {
@@ -254,7 +319,9 @@ export async function bootstrap(): Promise<void> {
     session.doctor = facts;
     session.env = computeEnv(facts);
 
+    const hostContext = await waitHostContext();
     const target =
+      session.projects.find((item) => item.project_id === hostContext?.projectId) ??
       session.projects.find((item) => item.project_id === saved?.projectId) ??
       session.projects[0];
     if (target) {
@@ -262,6 +329,12 @@ export async function bootstrap(): Promise<void> {
       if (saved?.view === "result" && saved.runId) {
         await openResult(saved.runId, { keepView: true });
         session.view = "result";
+      } else if (
+        (saved?.view === "evidence" || saved?.view === "issues") &&
+        saved.runId
+      ) {
+        await openResult(saved.runId, { keepView: true });
+        session.view = saved.view;
       } else if (saved?.view === "run" && saved.runId) {
         session.activeRunId = saved.runId;
         session.view = "run";

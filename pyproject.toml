@@ -34,9 +34,7 @@ packages = ["src/aitest"]
 include = [
   "src/aitest/**/*.py",
   "src/aitest/resources/templates/**/*.json",
-  "src/aitest/resources/panel/dist/*.js",
 ]
-artifacts = ["src/aitest/resources/panel/dist/*.js"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

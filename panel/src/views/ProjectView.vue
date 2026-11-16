@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import {
   RUN_STATUS_BADGE,
@@ -38,9 +38,28 @@ const pathError = computed(() =>
 
 const lastRun = computed(() => session.lastRun);
 
+onMounted(() => {
+  // 编辑器只有一个工作区目录时会带入路径，用户仍然可以修改。
+  if (!pathValue.value && session.prefillRoot) {
+    pathValue.value = session.prefillRoot;
+  }
+});
+
+watch(
+  () => session.prefillRoot,
+  (value) => {
+    if (!pathValue.value && value) {
+      pathValue.value = value;
+    }
+  },
+);
+
 function openPicker(): void {
   picking.value = true;
   touched.value = false;
+  if (!pathValue.value && session.prefillRoot) {
+    pathValue.value = session.prefillRoot;
+  }
   void nextTick(() => pathInput.value?.focus());
 }
 

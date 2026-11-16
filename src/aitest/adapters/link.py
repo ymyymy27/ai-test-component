@@ -13,7 +13,7 @@ import os
 import re
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -276,6 +276,7 @@ def _collect_logs(
     log_format: str,
     fields: Mapping[str, str],
     max_lines: int,
+    window: tuple[datetime, datetime] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[dict[str, str]]]:
     if not log_paths:
         return [], [_gap("log", "未配置日志路径")], []
@@ -307,8 +308,29 @@ def _collect_logs(
         )
     )
 
-    limit = max(0, max_lines)
     gaps: list[dict[str, str]] = []
+    if window is not None:
+        low, high = window
+        kept: list[tuple[datetime | None, dict[str, Any], dict[str, object]]] = []
+        undated = 0
+        outside = 0
+        for item in candidates:
+            timestamp = item[0]
+            if timestamp is None:
+                undated += 1
+            elif low <= timestamp <= high:
+                kept.append(item)
+            else:
+                outside += 1
+        candidates = kept
+        if undated:
+            gaps.append(
+                _gap("log", f"{undated} 行日志缺少时间戳，无法确认在运行时间窗内，已跳过")
+            )
+        if outside:
+            gaps.append(_gap("log", f"运行时间窗之外的 {outside} 行日志已排除"))
+
+    limit = max(0, max_lines)
     if len(candidates) > limit:
         dropped = len(candidates) - limit
         candidates = candidates[:limit]
@@ -426,16 +448,26 @@ def import_link(
     runner: Runner = subprocess.run,
     max_lines: int = 5000,
     window_seconds: int = 300,
+    started_at: datetime | str | None = None,
 ) -> dict[str, Any]:
     """Import link nodes from existing logs and one configured read-only query.
 
     ``run_id`` is the caller's correlation label; this adapter keeps no
-    workspace state. ``window_seconds`` is accepted for the caller's run-time
-    window contract, but no run start/end fact is available here, so records
-    are ordered by their own timestamps without being clipped.
+    workspace state. When ``started_at`` is given, only log records inside
+    ``started_at`` plus/minus ``window_seconds`` are kept; records without a
+    timestamp cannot be proven to belong to the window and are skipped.
     """
 
-    del run_id, window_seconds
+    del run_id
+    center: datetime | None = None
+    if isinstance(started_at, datetime):
+        center = started_at
+    elif isinstance(started_at, str):
+        center = _parse_timestamp(started_at)
+    window: tuple[datetime, datetime] | None = None
+    if center is not None:
+        span = timedelta(seconds=max(0, window_seconds))
+        window = (center - span, center + span)
     if log_format not in {"jsonl", "regex"}:
         raise AiTestError(
             "LINK_CONFIG_MISSING",
@@ -466,6 +498,7 @@ def import_link(
         log_format,
         fields,
         max_lines,
+        window,
     )
     db_nodes, db_gaps = _collect_db(request_id, db_query, runner, fields)
 

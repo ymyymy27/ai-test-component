@@ -20,6 +20,7 @@ const PANEL_TITLE = "AI 辅助测试";
 const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "doctor",
   "project.add",
+  "project.config",
   "project.list",
   "project.show",
   "task.add",
@@ -33,7 +34,10 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "run.list",
   "run.cancel",
   "analysis.run",
+  "evidence.list",
   "issue.list",
+  "issue.update",
+  "issue.close",
   "report.generate",
   "report.export",
   "report.opinion",
@@ -50,8 +54,15 @@ const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "analysis.run": 120_000,
   "report.generate": 120_000,
   "report.export": 60_000,
+  "project.config": 30_000,
   doctor: 30_000,
 };
+
+interface WorkspaceBinding {
+  readonly projectId: string;
+  readonly projectRoot: string;
+  readonly workspaceFolderCount: number;
+}
 
 interface Settings {
   readonly pythonPath: string;
@@ -67,6 +78,12 @@ let panel: PanelHandle | null = null;
 let panelReady = false;
 let queued: unknown[] = [];
 let runtimeCache: { key: string; value: Promise<RuntimeCheck> } | null = null;
+let workspaceBinding: WorkspaceBinding = {
+  projectId: "",
+  projectRoot: "",
+  workspaceFolderCount: 0,
+};
+let bindingInFlight: Promise<WorkspaceBinding> | null = null;
 
 export function readSettings(): Settings {
   const configuration = vscode.workspace.getConfiguration("aitest");
@@ -90,7 +107,105 @@ function runtimeFor(settings: Settings): Promise<RuntimeCheck> {
   return runtimeCache.value;
 }
 
+function workspaceRoots(): string[] {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!Array.isArray(folders)) {
+    return [];
+  }
+  const roots: string[] = [];
+  for (const folder of folders) {
+    const fsPath = folder?.uri?.fsPath;
+    if (typeof fsPath === "string" && fsPath.trim()) {
+      roots.push(fsPath);
+    }
+  }
+  return roots;
+}
+
+function normalizeRoot(value: string): string {
+  const unified = value.replace(/\\/g, "/").replace(/\/+$/, "");
+  return process.platform === "win32" ? unified.toLowerCase() : unified;
+}
+
+function sameRoot(left: string, right: string): boolean {
+  return normalizeRoot(left) === normalizeRoot(right);
+}
+
+/** 只读取 project.list 的根目录；缺少工作空间或解释器时安静返回空。 */
+async function listProjectRoots(): Promise<{ project_id: string; root: string }[]> {
+  const settings = readSettings();
+  if (!settings.workspacePath) {
+    return [];
+  }
+  try {
+    const runtime = await runtimeFor(settings);
+    if (!runtime.ok || runtime.pythonPath === null) {
+      return [];
+    }
+    const bridge = createBridge({
+      pythonPath: runtime.pythonPath,
+      pythonArgs: runtime.pythonArgs,
+      workspacePath: settings.workspacePath,
+      timeoutMs: COMMAND_TIMEOUT_MS["project.list"],
+    });
+    const result = await bridge.call("project.list", {}, {});
+    if (!result.ok || !isRecord(result.data)) {
+      return [];
+    }
+    const projects = result.data["projects"];
+    if (!Array.isArray(projects)) {
+      return [];
+    }
+    const roots: { project_id: string; root: string }[] = [];
+    for (const item of projects) {
+      if (!isRecord(item)) {
+        continue;
+      }
+      const projectId = typeof item["project_id"] === "string" ? item["project_id"] : "";
+      const root = typeof item["root"] === "string" ? item["root"] : "";
+      if (projectId && root) {
+        roots.push({ project_id: projectId, root });
+      }
+    }
+    return roots;
+  } catch {
+    return [];
+  }
+}
+
+/** 单个工作区目录才自动绑定；多目录或父目录一律留给用户选择。 */
+async function resolveWorkspaceBinding(): Promise<WorkspaceBinding> {
+  const roots = workspaceRoots();
+  if (roots.length !== 1) {
+    return { projectId: "", projectRoot: "", workspaceFolderCount: roots.length };
+  }
+  const only = roots[0];
+  const projects = await listProjectRoots();
+  const match = projects.find((project) => sameRoot(project.root, only));
+  return {
+    projectId: match?.project_id ?? "",
+    projectRoot: only,
+    workspaceFolderCount: roots.length,
+  };
+}
+
+function refreshWorkspaceBinding(): Promise<WorkspaceBinding> {
+  if (bindingInFlight === null) {
+    bindingInFlight = resolveWorkspaceBinding()
+      .then((binding) => {
+        workspaceBinding = binding;
+        return binding;
+      })
+      .catch(() => workspaceBinding)
+      .finally(() => {
+        bindingInFlight = null;
+      });
+  }
+  return bindingInFlight;
+}
+
 export function activate(context: vscode.ExtensionContext): void {
+  void refreshWorkspaceBinding();
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view: vscode.WebviewView): void {
       if (!vscode.workspace.isTrusted) {
@@ -125,7 +240,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("aitest")) {
         clearRuntimeCache();
-        postContext();
+        void postContext();
       }
     }),
   );
@@ -136,6 +251,7 @@ function openPanel(context: vscode.ExtensionContext): void {
     void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。");
     return;
   }
+  void refreshWorkspaceBinding();
   if (panel !== null) {
     panel.reveal();
     return;
@@ -192,12 +308,16 @@ function sendToPanel(message: unknown): void {
   void panel.webview.postMessage(message);
 }
 
-function postContext(): void {
+async function postContext(): Promise<void> {
   const settings = readSettings();
+  const binding = await refreshWorkspaceBinding();
   sendToPanel({
     type: "context",
     pythonPath: settings.pythonPath,
     workspacePath: settings.workspacePath,
+    projectId: binding.projectId,
+    projectRoot: binding.projectRoot,
+    workspaceFolderCount: binding.workspaceFolderCount,
   });
 }
 
@@ -253,9 +373,15 @@ const BRIDGE_SCRIPT = `(function () {
   var api = acquireVsCodeApi();
   var pending = new Map();
   var seq = 0;
+  var context = null;
   window.addEventListener("message", function (event) {
     var message = event.data;
-    if (!message || message.type !== "result" || !message.id) return;
+    if (!message) return;
+    if (message.type === "context") {
+      context = message;
+      return;
+    }
+    if (message.type !== "result" || !message.id) return;
     var entry = pending.get(message.id);
     if (!entry) return;
     pending.delete(message.id);
@@ -282,8 +408,16 @@ const BRIDGE_SCRIPT = `(function () {
         });
       });
     },
+    openPath: function (path) {
+      var id = "open-" + (++seq);
+      return new Promise(function (resolve) {
+        pending.set(id, { resolve: resolve });
+        api.postMessage({ type: "openPath", id: id, path: path });
+      });
+    },
     getState: function () { return api.getState(); },
-    setState: function (state) { api.setState(state); }
+    setState: function (state) { api.setState(state); },
+    getContext: function () { return context; }
   };
   api.postMessage({ type: "ready" });
 })();`;
@@ -305,11 +439,39 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   }
   if (message["type"] === "ready") {
     panelReady = true;
-    postContext();
+    await postContext();
     for (const item of queued) {
       await webview.postMessage(item);
     }
     queued = [];
+    return;
+  }
+  if (message["type"] === "openPath") {
+    const id = typeof message["id"] === "string" ? message["id"] : "";
+    const path = typeof message["path"] === "string" ? message["path"].trim() : "";
+    if (!id) {
+      return;
+    }
+    if (!path) {
+      await webview.postMessage({
+        type: "result",
+        id,
+        ok: false,
+        error: { code: "INVALID_PATH", message: "没有提供要打开的文件路径", next_step: "刷新证据列表后重试" },
+      });
+      return;
+    }
+    try {
+      await vscode.env.openExternal(vscode.Uri.file(path));
+      await webview.postMessage({ type: "result", id, ok: true, data: true });
+    } catch {
+      await webview.postMessage({
+        type: "result",
+        id,
+        ok: false,
+        error: { code: "HOST_CALL_FAILED", message: "无法用系统程序打开该文件", next_step: "复制引用后在资源管理器中打开" },
+      });
+    }
     return;
   }
   if (message["type"] !== "call") {
@@ -320,7 +482,16 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   const payload = isRecord(message["payload"]) ? message["payload"] : {};
   const options = isRecord(message["options"]) ? message["options"] : {};
   const confirm = options["confirm"] === true || message["confirm"] === true;
-  const result = await execute(command, payload, confirm);
+  let result: BridgeResult;
+  try {
+    result = await execute(command, payload, confirm);
+  } catch (error) {
+    result = localError(
+      "HOST_CALL_FAILED",
+      error instanceof Error ? error.message : "扩展调用失败",
+      "重新打开面板后再试；若仍失败请查看扩展日志",
+    );
+  }
   await webview.postMessage({ type: "result", id, ...result });
 }
 

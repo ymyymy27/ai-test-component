@@ -65,6 +65,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
 | `SCHEMA_UNSUPPORTED` | 旧数据格式 | 备份后转换或重建 |
 | `BACKUP_INVALID` | 备份损坏或校验失败 | 换备份 |
+| `CLEANUP_FAILED` | 清理命令未配置、无法执行或退出码非零 | 检查项目配置与项目根目录 |
 | `DISK_FULL` | 磁盘不足 | 清理磁盘后重试 |
 | `INTERNAL` | 未预期错误 | 附 request_id 反馈 |
 
@@ -117,6 +118,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 #### `project.update`
 
 入参 `{"project_id", "patch": {...}, "expected_revision": 3}`；返回新修订号。版本冲突返回 `RUN_STATE_CONFLICT`。
+
+#### `project.config`
+
+入参 `{"project_id": "proj_...", "action": "get|update", "patch": {"services": {...}}}`。`action` 省略时为 `get`，只返回白名单段；`update` 按段合并写回并返回合并结果，`patch` 中某段为 `null` 时删除该段。允许的段为 `model / services / link / runners / evidence / l1 / data`；未知段、非对象段或含密钥字段返回 `INVALID_REQUEST`。读取时也会剔除凭据样式的键，密钥不写入该文件（见第 6 节）。
 
 #### `module.add` / `module.update` / `module.list`
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -57,10 +58,24 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp, path)
+        _replace_with_retry(tmp, path)
     except OSError as exc:
         tmp.unlink(missing_ok=True)
         raise AiTestError("DISK_FULL", f"写入失败：{path}（{exc}）", "检查磁盘空间与权限") from exc
+
+
+def _replace_with_retry(tmp: Path, path: Path, attempts: int = 20) -> None:
+    """Replace ``path`` atomically, retrying brief Windows sharing violations."""
+    last_error: PermissionError | None = None
+    for _ in range(attempts):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.05)
+    assert last_error is not None
+    raise last_error
 
 
 def write_model(path: Path, model: BaseModel) -> None:

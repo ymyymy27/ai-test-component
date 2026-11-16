@@ -115,6 +115,124 @@ def test_rules_bind_records_project_version(tmp_path: Path, capsys: Capsys) -> N
     assert bound["data"]["rules_version_id"] == rule["rules_version_id"]
 
 
+def test_project_config_get_returns_whitelist_without_credentials(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
+    path = tmp_path / "ws" / "projects" / project["project_id"] / "project.config.json"
+    write_json(
+        path,
+        {
+            "model": {"base_url": "https://example", "api_key": "sk-secret", "max_tokens": 200},
+            "services": {"api": {"start": "uvicorn app:main", "password": "db-pass"}},
+            "link": {"log_paths": ["logs/app.log"]},
+            "runners": {"http": {"timeout_seconds": 30}},
+            "evidence": {"media_budget_mb": 100},
+            "l1": {"entry": ["app.main"]},
+            "data": {"cleanup": "rm -rf data-{run_id}"},
+            "custom": {"api_key": "sk-other"},
+        },
+    )
+    result = call(
+        tmp_path,
+        "project.config",
+        {"project_id": project["project_id"], "action": "get"},
+        capsys,
+    )
+    assert result["ok"] is True
+    config = result["data"]["config"]
+    assert set(config) == {"model", "services", "link", "runners", "evidence", "l1", "data"}
+    assert config["model"] == {"base_url": "https://example", "max_tokens": 200}
+    assert config["services"] == {"api": {"start": "uvicorn app:main"}}
+    assert "api_key" not in json.dumps(config)
+    assert "db-pass" not in json.dumps(config)
+
+
+def test_project_config_update_merges_and_persists(tmp_path: Path, capsys: Capsys) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
+    path = tmp_path / "ws" / "projects" / project["project_id"] / "project.config.json"
+    write_json(
+        path,
+        {
+            "services": {"api": {"start": "uvicorn app:main", "health": "http://localhost/health"}},
+            "link": {"log_paths": ["logs/app.log"], "log_format": "jsonl"},
+        },
+    )
+    result = call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": project["project_id"],
+            "action": "update",
+            "patch": {
+                "services": {"web": {"start": "npm run dev"}},
+                "link": {"log_format": "regex"},
+                "evidence": {"media_budget_mb": 100, "video": False},
+            },
+        },
+        capsys,
+    )
+    assert result["ok"] is True
+    config = result["data"]["config"]
+    assert config["services"]["api"]["start"] == "uvicorn app:main"
+    assert config["services"]["web"]["start"] == "npm run dev"
+    assert config["link"] == {"log_paths": ["logs/app.log"], "log_format": "regex"}
+    assert config["evidence"] == {"media_budget_mb": 100, "video": False}
+    assert read_json(path)["services"]["web"]["start"] == "npm run dev"
+
+    reread = call(
+        tmp_path,
+        "project.config",
+        {"project_id": project["project_id"], "action": "get"},
+        capsys,
+    )
+    assert reread["data"]["config"]["evidence"] == {"media_budget_mb": 100, "video": False}
+
+
+def test_project_config_update_rejects_secret_and_unknown_fields(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
+    path = tmp_path / "ws" / "projects" / project["project_id"] / "project.config.json"
+    write_json(path, {"services": {"api": {"start": "uvicorn app:main"}}})
+
+    for patch in (
+        {"model": {"api_key": "sk-secret"}},
+        {"services": {"db": {"password": "db-pass"}}},
+        {"model": {"token": "t"}},
+    ):
+        rejected = call(
+            tmp_path,
+            "project.config",
+            {"project_id": project["project_id"], "action": "update", "patch": patch},
+            capsys,
+        )
+        assert rejected["ok"] is False
+        assert rejected["error"]["code"] == "INVALID_REQUEST"
+        assert "密钥" in rejected["error"]["message"]
+        assert read_json(path) == {"services": {"api": {"start": "uvicorn app:main"}}}
+
+    unknown = call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": project["project_id"],
+            "action": "update",
+            "patch": {"unknown": {"value": 1}},
+        },
+        capsys,
+    )
+    assert unknown["ok"] is False
+    assert unknown["error"]["code"] == "INVALID_REQUEST"
+    assert "unknown" in unknown["error"]["message"]
+
+
 def test_read_model_rejects_unknown_schema(tmp_path: Path) -> None:
     path = tmp_path / "project.json"
     write_json(path, {"schema_version": 99, "project_id": "p"})

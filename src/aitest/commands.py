@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import secrets
 import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from aitest import __version__
 from aitest.config import model_key_source
@@ -185,6 +186,130 @@ def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     return {"project_id": project.project_id, "revision": project.revision}
 
 
+# -- project config ---------------------------------------------------------
+
+CONFIG_SECTIONS: tuple[str, ...] = (
+    "model",
+    "services",
+    "link",
+    "runners",
+    "evidence",
+    "l1",
+    "data",
+)
+
+_SECRET_FIELD = re.compile(
+    r"(?i)(^|[._-])("
+    r"api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|secret|"
+    r"token|password|passwd|credential|credentials|private[_-]?key|"
+    r"authorization|cookie"
+    r")$"
+)
+
+
+def _config_path(ws: Workspace, project_id: str) -> Path:
+    return ws.project_dir(project_id) / "project.config.json"
+
+
+def _read_project_config(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    return read_json(path)
+
+
+def _find_secret_field(value: Any, prefix: str = "") -> str | None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            name = str(key)
+            path = f"{prefix}{name}"
+            if _SECRET_FIELD.search(name):
+                return path
+            found = _find_secret_field(item, f"{path}.")
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found = _find_secret_field(item, f"{prefix}{index}.")
+            if found is not None:
+                return found
+    return None
+
+
+def _strip_secret_fields(value: Any) -> Any:
+    """Drop credential-looking keys from a config tree before reading or writing."""
+    if isinstance(value, dict):
+        return {
+            key: _strip_secret_fields(item)
+            for key, item in value.items()
+            if not _SECRET_FIELD.search(str(key))
+        }
+    if isinstance(value, list):
+        return [_strip_secret_fields(item) for item in value]
+    return value
+
+
+def _merge_config(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in patch.items():
+        current = merged.get(key)
+        if isinstance(value, dict) and isinstance(current, dict):
+            merged[key] = _merge_config(current, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _whitelisted_config(data: dict[str, Any]) -> dict[str, Any]:
+    return {section: data[section] for section in CONFIG_SECTIONS if section in data}
+
+
+def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Read or merge project.config.json without ever returning credential bodies."""
+    del confirm
+    project = _project(ws, payload)
+    action = _text(payload, "action", "get")
+    path = _config_path(ws, project.project_id)
+    existing = _strip_secret_fields(_read_project_config(path))
+    if action == "get":
+        return {"config": _whitelisted_config(existing)}
+    if action != "update":
+        raise invalid_request(
+            f"不支持的动作：{action}", "动作只能是 get 或 update"
+        )
+    patch = payload.get("patch")
+    if not isinstance(patch, dict):
+        raise invalid_request("patch 必须是对象", "把要修改的配置项放进 patch")
+    unknown = [str(key) for key in patch if key not in CONFIG_SECTIONS]
+    if unknown:
+        raise invalid_request(
+            "项目配置不支持这些字段：" + "、".join(unknown),
+            "只允许 " + "、".join(CONFIG_SECTIONS),
+        )
+    secret = _find_secret_field(patch)
+    if secret is not None:
+        raise AiTestError(
+            "INVALID_REQUEST",
+            f"项目配置不允许包含密钥字段：{secret}",
+            "把密钥放到用户配置或环境变量中；项目配置只保存非敏感设置",
+        )
+    for section, value in patch.items():
+        if value is not None and not isinstance(value, dict):
+            raise invalid_request(
+                f"{section} 必须是对象", f"把 {section} 写成 JSON 对象后重试"
+            )
+    merged = dict(existing)
+    for section, value in patch.items():
+        if value is None:
+            merged.pop(section, None)
+            continue
+        current = merged.get(section)
+        merged[section] = _merge_config(
+            current if isinstance(current, dict) else {}, value
+        )
+    write_json(path, merged)
+    return {"config": _whitelisted_config(merged)}
+
+
 # -- module -----------------------------------------------------------------
 
 
@@ -256,6 +381,52 @@ def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     }
 
 
+def _parse_acceptance_items(
+    raw_items: list[Any], module_ids: set[str] | None = None
+) -> list[AcceptanceItem]:
+    items: list[AcceptanceItem] = []
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            raise invalid_request("验收项必须是对象")
+        text = str(raw.get("text", "")).strip()
+        if not text:
+            continue
+        observable = bool(raw.get("observable", True))
+        status = raw.get("status")
+        if status == "active":
+            normalized_status: Literal["active", "pending"] = "active"
+        elif status == "pending":
+            normalized_status = "pending"
+        else:
+            normalized_status = "active" if observable else "pending"
+        item_id = raw.get("item_id")
+        raw_module = raw.get("module_id")
+        if raw_module in (None, ""):
+            module_id: str | None = None
+        elif not isinstance(raw_module, str):
+            raise invalid_request("module_id 必须是字符串")
+        else:
+            if module_ids is not None and raw_module not in module_ids:
+                raise invalid_request(
+                    f"验收项引用的模块未登记：{raw_module}",
+                    "先登记模块，或移除该验收项的 module_id",
+                )
+            module_id = raw_module
+        items.append(
+            AcceptanceItem(
+                item_id=item_id
+                if isinstance(item_id, str) and item_id.strip()
+                else new_id("ai"),
+                text=text,
+                observable=observable,
+                status=normalized_status,
+                source=str(raw.get("source", "")),
+                module_id=module_id,
+            )
+        )
+    return items
+
+
 def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -270,22 +441,9 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
                 raw_items = client.extract_acceptance_items(requirement)
             except AiTestError:
                 raw_items = []
-    items: list[AcceptanceItem] = []
-    for raw in raw_items:
-        if not isinstance(raw, dict):
-            raise invalid_request("验收项必须是对象")
-        text = str(raw.get("text", "")).strip()
-        if not text:
-            continue
-        observable = bool(raw.get("observable", True))
-        items.append(
-            AcceptanceItem(
-                text=text,
-                observable=observable,
-                status="active" if observable else "pending",
-                source=str(raw.get("source", "")),
-            )
-        )
+    items = _parse_acceptance_items(
+        raw_items, {module.module_id for module in project.modules}
+    )
     task = Task(
         task_id=new_id("task"),
         project_id=project.project_id,
@@ -304,7 +462,12 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
         "task_id": task.task_id,
         "revision": task.revision,
         "acceptance_items": [
-            {"item_id": i.item_id, "status": i.status, "text": i.text}
+            {
+                "item_id": i.item_id,
+                "status": i.status,
+                "text": i.text,
+                "module_id": i.module_id,
+            }
             for i in task.acceptance_items
         ],
     }
@@ -334,6 +497,65 @@ def cmd_task_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
 def cmd_task_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     return {"task": _task(ws, payload).model_dump(mode="json")}
+
+
+def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    task = _task(ws, payload)
+    expected = payload.get("expected_revision")
+    if expected is not None and expected != task.revision:
+        raise AiTestError("RUN_STATE_CONFLICT", "任务修订号不匹配", "刷新后重试")
+    patch = payload.get("patch")
+    if not isinstance(patch, dict):
+        raise invalid_request("patch 必须是对象")
+    revision_path = (
+        ws.project_dir(project.project_id) / "tasks" / "revisions" / task.task_id
+    ) / f"{task.revision}.json"
+    write_model(revision_path, task)
+    data = task.model_dump(mode="json")
+    for key in ("title", "goal", "scope", "inputs", "outputs", "executor", "reviewer"):
+        if key not in patch:
+            continue
+        value = patch[key]
+        if not isinstance(value, str):
+            raise invalid_request(f"字段必须是字符串：{key}")
+        if key == "title" and not value.strip():
+            raise invalid_request("标题不能为空")
+        data[key] = value
+    if "preconditions" in patch:
+        raw_preconditions = patch["preconditions"]
+        if not isinstance(raw_preconditions, list):
+            raise invalid_request("preconditions 必须是数组")
+        data["preconditions"] = [str(item) for item in raw_preconditions]
+    if "acceptance_items" in patch:
+        raw_items = patch["acceptance_items"]
+        if not isinstance(raw_items, list):
+            raise invalid_request("acceptance_items 必须是数组")
+        data["acceptance_items"] = [
+            item.model_dump(mode="json")
+            for item in _parse_acceptance_items(
+                raw_items, {module.module_id for module in project.modules}
+            )
+        ]
+    updated = Task.model_validate(data)
+    updated.revision += 1
+    write_model(_task_path(ws, project.project_id, updated.task_id), updated)
+    return {
+        "task_id": updated.task_id,
+        "revision": updated.revision,
+        "previous_revision": task.revision,
+        "acceptance_items": [
+            {
+                "item_id": item.item_id,
+                "status": item.status,
+                "text": item.text,
+                "module_id": item.module_id,
+            }
+            for item in updated.acceptance_items
+        ],
+    }
+
 
 
 # -- delivery ---------------------------------------------------------------
@@ -473,11 +695,13 @@ REGISTRY: dict[str, Handler] = {
     "project.list": cmd_project_list,
     "project.show": cmd_project_show,
     "project.update": cmd_project_update,
+    "project.config": cmd_project_config,
     "module.add": cmd_module_add,
     "module.update": cmd_module_update,
     "module.list": cmd_module_list,
     "task.suggest": cmd_task_suggest,
     "task.add": cmd_task_add,
+    "task.update": cmd_task_update,
     "task.list": cmd_task_list,
     "task.show": cmd_task_show,
     "delivery.save": cmd_delivery_save,
@@ -493,9 +717,11 @@ REGISTRY: dict[str, Handler] = {
 MUTATING = {
     "project.add",
     "project.update",
+    "project.config",
     "module.add",
     "module.update",
     "task.add",
+    "task.update",
     "delivery.save",
     "rules.save",
     "rules.bind",

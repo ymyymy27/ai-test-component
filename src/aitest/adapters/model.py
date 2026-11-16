@@ -55,8 +55,8 @@ _SYSTEM_ENV = (
 _SYSTEM_FAILURE = (
     "你是失败分析助手。只输出一个 JSON 对象，格式为 "
     '{"observed": "观察到的事实", "evidence_refs": ["证据引用"], '
-    '"candidate_causes": ["候选原因"], "unverified": ["尚未验证的假设"], '
-    '"next_steps": ["下一步"]}。'
+    '"candidate_causes": [{"cause": "候选原因", "confidence": "high|medium|low|unknown"}], '
+    '"unverified": ["尚未验证的假设"], "next_steps": ["下一步"]}。'
     "unverified 必须存在且至少包含一条内容；不要输出 JSON 之外的任何文本。"
 )
 
@@ -99,6 +99,27 @@ def _require_text_list(mapping: dict[str, Any], key: str, *, allow_empty: bool) 
     if not allow_empty and not items:
         raise _invalid(f"字段 {key} 不能为空")
     return items
+
+
+def _candidate_causes(mapping: dict[str, Any]) -> list[dict[str, str]]:
+    value = mapping.get("candidate_causes")
+    if not isinstance(value, list):
+        raise _invalid("字段 candidate_causes 必须是数组")
+    causes: list[dict[str, str]] = []
+    for entry in value:
+        if isinstance(entry, str) and entry.strip():
+            causes.append({"cause": entry.strip(), "confidence": "unknown"})
+            continue
+        if not isinstance(entry, dict):
+            raise _invalid("candidate_causes 的条目必须是字符串或对象")
+        cause = entry.get("cause")
+        if not isinstance(cause, str) or not cause.strip():
+            raise _invalid("candidate_causes 的对象必须包含非空 cause")
+        confidence = entry.get("confidence")
+        if not isinstance(confidence, str) or not confidence.strip():
+            confidence = "unknown"
+        causes.append({"cause": cause.strip(), "confidence": confidence.strip()})
+    return causes
 
 
 def _acceptance_ids(selected_items: list[dict[str, Any]]) -> set[str]:
@@ -305,7 +326,7 @@ class ModelClient:
         return {
             "observed": _require_text(data, "observed"),
             "evidence_refs": _require_text_list(data, "evidence_refs", allow_empty=True),
-            "candidate_causes": _require_text_list(data, "candidate_causes", allow_empty=True),
+            "candidate_causes": _candidate_causes(data),
             "unverified": _require_text_list(data, "unverified", allow_empty=False),
             "next_steps": _require_text_list(data, "next_steps", allow_empty=True),
         }

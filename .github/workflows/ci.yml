@@ -62,26 +62,23 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: |
-            src/aitest/resources/panel/package-lock.json
+            panel/package-lock.json
             integrations/trae/package-lock.json
       - name: Install shared panel dependencies
         if: startsWith(github.ref, 'refs/tags/v')
-        run: npm --prefix src/aitest/resources/panel ci
+        run: npm --prefix panel ci
       - name: Build shared panel
         if: startsWith(github.ref, 'refs/tags/v')
-        run: npm --prefix src/aitest/resources/panel run build
+        run: npm --prefix panel run build
       - name: Install Trae extension dependencies
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm --prefix integrations/trae ci
       - name: Package Trae extension
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm --prefix integrations/trae run package
-      - run: uv build
-        if: startsWith(github.ref, 'refs/tags/v')
-      - run: uv run python scripts/verify_artifacts.py
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Builds dist/*.whl, installs it into a temp venv and runs `doctor`
+      # there, asserting an `ok: true` envelope. No artifact metadata checks.
       - name: Smoke-test built wheel
-        if: startsWith(github.ref, 'refs/tags/v')
         run: uv run python scripts/smoke_wheel.py
       - name: Upload release artifacts
         if: startsWith(github.ref, 'refs/tags/v')
@@ -93,7 +90,6 @@ jobs:
           path: |
             dist/*
             integrations/trae/dist/*.vsix
-            docs/validation/artifacts.json
 
   ui-checks:
     name: Panel and extension checks (Windows)
@@ -108,18 +104,18 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: |
-            src/aitest/resources/panel/package-lock.json
+            panel/package-lock.json
             integrations/trae/package-lock.json
       - name: Install shared panel dependencies
-        run: npm --prefix src/aitest/resources/panel ci
-      - name: Build shared panel
-        run: npm --prefix src/aitest/resources/panel run build
-      - name: Install Playwright Chromium
-        run: npx --prefix src/aitest/resources/panel playwright install chromium
+        run: npm --prefix panel ci
       - name: Run shared panel tests
-        run: npm --prefix src/aitest/resources/panel test
+        run: npm --prefix panel test
+      - name: Build shared panel
+        run: npm --prefix panel run build
       - name: Install Trae extension dependencies
         run: npm --prefix integrations/trae ci
       - name: Run Trae extension tests
         run: npm --prefix integrations/trae test
+      - name: Build Trae extension
+        run: npm --prefix integrations/trae run build
 

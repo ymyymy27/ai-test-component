@@ -437,7 +437,7 @@ async function ensurePlan(force = false): Promise<void> {
   draft.planError = null;
   draft.startError = null;
   try {
-    const generated = await api.generatePlan({
+    const payload = {
       projectId: projectId.value,
       taskId: draft.taskId,
       preset: draft.preset,
@@ -446,7 +446,18 @@ async function ensurePlan(force = false): Promise<void> {
         draft.preset === "selected"
           ? draft.selected
           : applicableItems.value.map((item) => item.id),
-    });
+    };
+    let generated;
+    try {
+      generated = await api.generatePlan(payload);
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code !== "HOST_CALL_FAILED" && code !== "PANEL_TIMEOUT") {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      generated = await api.generatePlan(payload);
+    }
     draft.plan = generated;
     const detail = await api.showPlan(projectId.value, generated.plan_id);
     draft.planDetail = detail.plan;

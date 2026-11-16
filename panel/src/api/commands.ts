@@ -3,11 +3,13 @@ import { callHost } from "./host";
 import type {
   AddTaskResult,
   DoctorFacts,
+  EvidenceItem,
   GeneratedPlan,
   IssueSummary,
   Opinion,
   Plan,
   Project,
+  ProjectConfig,
   ProjectSummary,
   ReportSummary,
   RunDetail,
@@ -31,6 +33,21 @@ export const api = {
 
   showProject(projectId: string): Promise<{ project: Project }> {
     return callHost("project.show", { project_id: projectId });
+  },
+
+  getProjectConfig(projectId: string): Promise<{ config: ProjectConfig }> {
+    return callHost("project.config", { project_id: projectId, action: "get" });
+  },
+
+  saveProjectConfig(
+    projectId: string,
+    patch: ProjectConfig,
+  ): Promise<{ config: ProjectConfig }> {
+    return callHost("project.config", {
+      project_id: projectId,
+      action: "update",
+      patch,
+    });
   },
 
   suggestTargets(projectId: string): Promise<SuggestResult> {
@@ -152,6 +169,30 @@ export const api = {
 
   listIssues(projectId: string): Promise<{ issues: IssueSummary[] }> {
     return callHost("issue.list", { project_id: projectId });
+  },
+
+  updateIssue(
+    projectId: string,
+    issueId: string,
+    patch: { status?: string; severity?: string; disposition?: string | null; fix_version?: string | null },
+  ): Promise<{ issue_id: string; status: string; revision: number }> {
+    return callHost("issue.update", { project_id: projectId, issue_id: issueId, ...patch });
+  },
+
+  closeIssue(
+    projectId: string,
+    issueId: string,
+    runId: string,
+  ): Promise<{ issue_id: string; status: string }> {
+    return callHost("issue.close", {
+      project_id: projectId,
+      issue_id: issueId,
+      run_id: runId,
+    });
+  },
+
+  listEvidence(projectId: string, runId: string): Promise<{ evidence: EvidenceItem[]; run_id?: string }> {
+    return callHost("evidence.list", { project_id: projectId, run_id: runId });
   },
 };
 

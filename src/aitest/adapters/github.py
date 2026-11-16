@@ -134,6 +134,15 @@ def _check_rows(payload: object) -> list[object]:
     return rows
 
 
+def _file_names(payload: object) -> list[str]:
+    names: list[str] = []
+    for item in _items(_mapping(payload).get("files")):
+        name = _string(_mapping(item).get("filename"))
+        if name:
+            names.append(name)
+    return names
+
+
 def _probe(runner: Runner, args: list[str]) -> subprocess.CompletedProcess[str] | None:
     return _run(runner, args, quiet=True)
 
@@ -201,6 +210,7 @@ def read_github(repo: str, ref: str, *, runner: Runner = subprocess.run) -> dict
         "repo": _string(repo_payload.get("full_name")) or repo,
         "branch": ref,
         "commit": sha,
+        "files": _file_names(commit_payload),
         "prs": prs,
         "checks": checks,
         "deployment": deployment,
@@ -208,3 +218,16 @@ def read_github(repo: str, ref: str, *, runner: Runner = subprocess.run) -> dict
         "host": _host(runner),
         "fetched_at": _now(),
     }
+
+
+def read_commit_files(repo: str, sha: str, *, runner: Runner = subprocess.run) -> list[str]:
+    """Best-effort commit file list; failures never block report generation."""
+    if not repo or not sha:
+        return []
+    repo_path = quote(repo, safe="/")
+    sha_path = quote(sha, safe="")
+    try:
+        payload = _api_json(runner, f"repos/{repo_path}/commits/{sha_path}")
+    except AiTestError:
+        return []
+    return _file_names(payload)
