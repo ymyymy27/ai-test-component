@@ -32,6 +32,9 @@ const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "inspect_case_reuse",
   "plan_confirmation_state",
   "export_rules_markdown",
+  "aggregate_project_runs",
+  "discover_tests",
+  "suggest_regression",
 ]);
 
 type ActionGuide = { title: string; when: string; caution: string };
@@ -70,7 +73,7 @@ const ACTION_GUIDE: Record<string, ActionGuide> = {
   select_case_reuse: {
     title: "选择用例复用",
     when: "检查通过后，登记本轮采用的复用引用。",
-    caution: "人工动作，需原生确认；选择不改写源运行或目标运行的历史事实。",
+    caution: "人工动作，需面板确认；选择不改写源运行或目标运行的历史事实。",
   },
   record_local_review: {
     title: "记录本地复核",
@@ -80,7 +83,7 @@ const ACTION_GUIDE: Record<string, ActionGuide> = {
   submit_delivery: {
     title: "正式提测",
     when: "交付草稿、源码和核验报告已保存后，提交正式提测。",
-    caution: "需要准确的交付、源码快照和报告引用；人工动作，核心原生确认。",
+    caution: "需要准确的交付、源码快照和报告引用；人工动作，核心面板确认。",
   },
   save_rules: {
     title: "保存规则草稿",
@@ -119,7 +122,7 @@ const ACTION_GUIDE: Record<string, ActionGuide> = {
   },
   prepare_approval: {
     title: "准备人工授权",
-    when: "需要为某个受控动作准备原生确认材料。",
+    when: "需要为某个受控动作准备面板确认材料。",
     caution: "准备不等于授权；确认仍由核心窗口完成。",
   },
   revoke_approval: {
@@ -133,7 +136,7 @@ function guideFor(action: string): ActionGuide {
   return ACTION_GUIDE[action] ?? {
     title: action,
     when: "核心动作；仅在明确知道参数来源时使用。",
-    caution: "参数必须是准确保存的标识；写动作仍受核心守卫和原生确认约束。",
+    caution: "参数必须是准确保存的标识；写动作仍受核心守卫和面板确认约束。",
   };
 }
 
@@ -392,7 +395,7 @@ function advancedCard(ctx: AppContext): HTMLElement {
     "",
     cardHead(
       "高级动作",
-      READ_ONLY_ACTIONS.has(advanced.action) ? "只读动作直接派发。" : "写动作会按核心合同选择普通写入或原生确认。",
+      READ_ONLY_ACTIONS.has(advanced.action) ? "只读动作直接派发。" : "写动作会按核心合同选择普通写入或面板确认。",
       chip(READ_ONLY_ACTIONS.has(advanced.action) ? "只读" : "写入", READ_ONLY_ACTIONS.has(advanced.action) ? "info" : "warning"),
     ),
     content,

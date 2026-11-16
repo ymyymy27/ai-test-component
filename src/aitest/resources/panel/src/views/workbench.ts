@@ -429,7 +429,7 @@ function batchAuthorizationCard(ctx: AppContext, run: Record<string, unknown>): 
   });
   return card(
     "",
-    cardHead("逐项授权", "先解析动作，再在面板内逐项确认；不打开原生窗口。"),
+    cardHead("逐项授权", "先解析动作，再在面板内逐项确认；只在面板内逐项确认。"),
     candidates.length
       ? list
       : p("当前没有未执行且未开始记录的步骤可批量授权。", "muted subtle"),

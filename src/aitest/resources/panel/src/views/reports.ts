@@ -812,7 +812,7 @@ function issueActions(ctx: AppContext, record: Record<string, unknown>): HTMLEle
 
   return card(
     "",
-    cardHead("处理问题", "写操作按核心合同选择普通写入或原生确认；关闭问题不会由界面代判。"),
+    cardHead("处理问题", "写操作按核心合同选择普通写入或面板确认；关闭问题不会由界面代判。"),
     details(
       "展开处理表单",
       p("确认、开始、修复、回归、关闭和处置分别记录；旧尝试与旧证据保留为历史。", "muted subtle"),

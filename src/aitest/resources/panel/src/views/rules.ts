@@ -154,7 +154,7 @@ function draftEditor(ctx: AppContext, view: Record<string, unknown>): HTMLElemen
   const evidence = textArea(asStrings(record["evidence_requirements"]).join("\n"), () => {}, { rows: 3 });
   const unknown = textArea(asStrings(record["unknown_extension_fields"]).join("\n"), () => {}, { rows: 2 });
   const note = p("", "field-help");
-  // 草稿的确认/启用状态不落盘：保存恒为未确认、未启用；发布才由核心原生确认。
+  // 草稿的确认/启用状态不落盘：保存恒为未确认、未启用；发布才由核心面板确认。
   const draftPayload = (): Record<string, unknown> => ({
     rule_id: ruleId,
     revision: Number(revision.value),

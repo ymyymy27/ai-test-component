@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess as subprocess
-import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -103,7 +102,7 @@ _CONNECTION_FACT_SCHEMA = "aitest.core-connection/1.0"
 
 def _fsync_directory(path: Path) -> None:
     """尽力 fsync 目录；不支持的平台静默（持久化尽力点，非业务正确性）。"""
-    if not sys.platform.startswith("win"):
+    if os.name != "posix":
         return
     descriptor: int | None = None
     try:

@@ -186,15 +186,11 @@ function runCli(
   workspaceRoot: string,
   payload: unknown,
   timeoutMs: number,
-  nativeConfirmation = false,
-  panel = false,
 ): Promise<SpawnResult> {
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       python,
-      ["-m", "aitest.interfaces.tools.cli",
-        panel ? "dispatch-panel" : "dispatch",
-        ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
+      ["-m", "aitest.interfaces.tools.cli", "dispatch", "--workspace", workspaceRoot],
       { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: coreEnvironment() },
     );
     let stdout = "";
@@ -459,7 +455,7 @@ export async function dispatchReadOnly(
   timeoutMs = 30_000,
 ): Promise<DispatchOutcome> {
   requireReadOnly(request);
-  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false);
+  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs);
 }
 
 function panelOutcome(
@@ -560,7 +556,11 @@ export async function dispatchControlled(
     throw new BridgeRefused("受控写入需要项目、稳定业务意图和准确的预期修订");
   }
   if (!panelConfirm) {
-    return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, true);
+    return {
+      status: "unavailable",
+      code: "CAPABILITY_UNAVAILABLE",
+      message: "人工动作必须从面板确认，CLI 不提供确认入口",
+    };
   }
   if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
@@ -651,14 +651,14 @@ export async function dispatchWrite(
       || (request.expectedRevision ?? -1) < 0) {
     throw new BridgeRefused("普通写入需要项目、稳定业务意图和准确的预期修订");
   }
-  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false, 180_000);
+  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, 180_000);
 }
 
 async function dispatchCommand(
   python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
-  timeoutMs: number, nativeConfirmation: boolean, maxTimeoutMs?: number,
+  timeoutMs: number, maxTimeoutMs?: number,
 ): Promise<DispatchOutcome> {
-  const budget = maxTimeoutMs ?? (nativeConfirmation ? 270_000 : 60_000);
+  const budget = maxTimeoutMs ?? 60_000;
   if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0
       || timeoutMs > budget) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
@@ -673,7 +673,7 @@ async function dispatchCommand(
   const command = buildCommand(request, requestId);
   let result: SpawnResult;
   try {
-    result = await runCli(python, workspaceRoot, command, timeoutMs, nativeConfirmation);
+    result = await runCli(python, workspaceRoot, command, timeoutMs);
   } catch (error) {
     return {
       status: "unavailable",

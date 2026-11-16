@@ -14,6 +14,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:aitest.openPanel",
+    "onCommand:aitest.openWorkbench",
+    "onCommand:aitest.openReport",
     "onCommand:aitest.configureEntry",
     "onView:aitest.sidebar"
   ],
@@ -33,6 +35,14 @@
       {
         "command": "aitest.openPanel",
         "title": "AI Test: 打开测试面板"
+      },
+      {
+        "command": "aitest.openWorkbench",
+        "title": "AI Test: 打开测试工作台"
+      },
+      {
+        "command": "aitest.openReport",
+        "title": "AI Test: 打开报告"
       },
       {
         "command": "aitest.configureEntry",

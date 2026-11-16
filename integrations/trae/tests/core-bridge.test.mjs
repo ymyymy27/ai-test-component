@@ -162,16 +162,16 @@ test("controlled refusal stays refusal and writes stay forbidden", async () => {
   await assert.rejects(dispatchReadOnly(python, "ok", { action: "select_case_reuse" }, "r", 2000));
 });
 
-test("controlled bridge preserves exact identities and refuses mismatched receipts", async () => {
+test("controlled bridge requires a panel gesture and preserves exact identities", async () => {
   const request={action:"save_binding",projectId:"p",intentId:"stable-intent",expectedRevision:0,
     target:"binding",bindingRevision:1,parameters:{binding:{binding_id:"binding"}}};
   const command=buildCommand(request,"request");
   assert.equal(command.intent_id,"stable-intent"); assert.equal(command.expected_revision,0);
   assert.equal(command.target,"binding"); assert.equal(command.binding_revision,1);
-  assert.equal((await dispatchControlled(python,"ok",request,"request",2000)).status,"ok");
-  for(const mode of ["intent","binding","project"]){
-    assert.equal((await dispatchControlled(python,mode,request,"request",2000)).code,"CORE_RESULT_UNVERIFIED");
-  }
+  assert.equal(
+    (await dispatchControlled(python,"ok",request,"request",2000)).code,
+    "CAPABILITY_UNAVAILABLE",
+  );
   for(const change of [{intentId:null},{intentId:"request"},{expectedRevision:-1},{expectedRevision:true}]){
     await assert.rejects(dispatchControlled(python,"ok",{...request,...change},"request",2000));
   }
