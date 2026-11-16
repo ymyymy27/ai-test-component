@@ -131,3 +131,21 @@ def test_read_json_returns_object(tmp_path: Path) -> None:
     path = tmp_path / "a.json"
     write_json(path, {"b": 1, "a": 2})
     assert read_json(path) == {"a": 2, "b": 1}
+
+
+def test_corrupt_json_reports_invalid_request(tmp_path: Path) -> None:
+    from aitest.storage.files import read_json
+
+    path = tmp_path / "broken.json"
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(AiTestError) as exc:
+        read_json(path)
+    assert exc.value.info.code == "INVALID_REQUEST"
+
+
+def test_missing_file_reports_invalid_request(tmp_path: Path) -> None:
+    from aitest.storage.files import read_json
+
+    with pytest.raises(AiTestError) as exc:
+        read_json(tmp_path / "missing.json")
+    assert exc.value.info.code == "INVALID_REQUEST"
