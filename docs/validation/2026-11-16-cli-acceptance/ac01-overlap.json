@@ -1,8 +1,0 @@
-{
-  "ok": false,
-  "error": {
-    "code": "INVALID_REQUEST",
-    "message": "根目录与已登记项目重叠：proj_9ebc3757cea1",
-    "next_step": "明确选择要登记的项目根目录"
-  }
-}

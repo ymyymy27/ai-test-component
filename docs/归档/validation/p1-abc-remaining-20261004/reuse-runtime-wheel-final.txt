@@ -1,3 +1,0 @@
-..................                                                       [100%]
-18 passed in 0.27s
-Installed frozen plan reader with exact source-byte parity; synthetic records, no real Trae AC.

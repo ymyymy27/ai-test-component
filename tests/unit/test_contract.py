@@ -34,6 +34,7 @@ from aitest.models import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "docs/项目文档/一期/03-设计/03-CLI与数据契约.md"
+PLAN = ROOT / "docs/修改日志/ymy/2026-11-16-轻量Trae插件重构计划.md"
 SRC = ROOT / "src/aitest"
 
 Capsys = pytest.CaptureFixture[str]
@@ -128,6 +129,33 @@ def test_registry_matches_documented_commands() -> None:
     )
 
 
+def _plan_commands() -> set[str]:
+    text = PLAN.read_text(encoding="utf-8")
+    start = text.index("### 7.3 命令清单")
+    end = text.index("### 7.4 执行模型")
+    commands: set[str] = set()
+    for line in text[start:end].splitlines():
+        if not line.startswith("| `"):
+            continue
+        first_cell = line.split("|")[1].strip().strip("`")
+        names = first_cell.split("/")
+        base = names[0]
+        prefix = base.rsplit(".", 1)[0] if "." in base else ""
+        commands.add(base)
+        for name in names[1:]:
+            commands.add(f"{prefix}.{name}" if prefix else name)
+    return commands
+
+
+def test_plan_command_list_matches_registry() -> None:
+    planned = _plan_commands()
+    assert planned, "no commands parsed from the plan"
+    assert set(REGISTRY) == planned, (
+        f"only in REGISTRY: {sorted(set(REGISTRY) - planned)}\n"
+        f"only in plan: {sorted(planned - set(REGISTRY))}"
+    )
+
+
 def test_every_registry_handler_accepts_the_three_argument_form() -> None:
     wrong = {}
     for command, handler in REGISTRY.items():
@@ -183,8 +211,8 @@ def test_envelope_mismatch_is_rejected(tmp_path: Path, capsys: Capsys) -> None:
         ["doctor"],
         {"command": "project.list", "request_id": "req-3", "payload": {}},
     )
-    assert code == 1
-    assert response["error"]["code"] == "INVALID_REQUEST"
+    assert code == 2
+    assert response["error"]["code"] == "USAGE"
 
 
 def test_documented_run_status_enum_matches_the_model() -> None:

@@ -1,3 +1,0 @@
-BASELINE fix/260e604: bootstrap has neither revise_pending_steps nor narrow_driver registered.
-BASELINE domain RuntimeRevisionRequest rejects empty cases even with requested_driver.
-OBSERVED: a runtime revision must change at least one case

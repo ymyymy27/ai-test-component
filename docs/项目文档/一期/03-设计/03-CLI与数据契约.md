@@ -47,6 +47,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | code | 含义 | next_step |
 | --- | --- | --- |
 | `INVALID_REQUEST` | 信封或字段不合法 | 按字段提示修正 |
+| `USAGE` | 参数、输入文件或信封格式错误（退出码 2） | 修正参数后重试 |
 | `INVALID_PATH` | 目录不存在或不可写 | 换目录或修权限 |
 | `WORKSPACE_LOCKED` | 业务文件被另一进程持有 | 等待或关闭另一实例 |
 | `PROJECT_NOT_FOUND` | 项目不存在 | 先建项目或检查 ID |
@@ -58,12 +59,15 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `RUN_ACTIVE` | 同一项目已有运行 | 等待、取消或查询现有运行 |
 | `RUN_NOT_FOUND` | 运行不存在 | 检查运行 ID |
 | `RUN_STATE_CONFLICT` | 当前状态不允许该操作 | 先查询状态 |
+| `RUN_START_FAILED` | worker 子进程启动失败 | 检查解释器与目录权限后重试 |
 | `MODEL_UNAVAILABLE` | 模型未配置或不可达 | 配置密钥或检查网络 |
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
 | `GITHUB_UNAVAILABLE` | `gh` 缺失、未登录或读取失败 | 安装/登录后重试 |
 | `LINK_CONFIG_MISSING` | 缺日志或查询配置 | 补项目配置 |
 | `DEPENDENCY_MISSING` | 缺运行依赖 | 在确认页授权安装或手动安装 |
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
+| `EVIDENCE_BUDGET` | 证据预算已用完或视频未启用 | 调整 evidence 配置或只提交关键证据 |
+| `EVIDENCE_WRITE_FAILED` | 证据写入失败 | 检查目录权限与磁盘 |
 | `SCHEMA_UNSUPPORTED` | 旧数据格式 | 备份后转换或重建 |
 | `BACKUP_INVALID` | 备份损坏或校验失败 | 换备份 |
 | `CLEANUP_FAILED` | 清理命令未配置、无法执行或退出码非零 | 检查项目配置与项目根目录 |
@@ -223,7 +227,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"draft": {"done": ["下单接口"], "not_done": [], "changed_modules": ["order"], "interface_changes": [], "run_commands": [], "test_data": [], "dependencies": [], "mocks": [], "self_test_evidence": []}, "sources": {"readme": "README.md", "manifest": "pyproject.toml", "commit_stat": true}}
 ```
 
-九个字段都是字符串数组；模型没给或格式不合法时为空数组，不编造运行命令。模型不可用返回 `MODEL_UNAVAILABLE`。草稿由用户修改后再调用 `delivery.save`，CLI 不自动保存。
+九个字段都是字符串数组；模型没给或格式不合法时为空数组，不编造运行命令。模型不可用返回 `MODEL_UNAVAILABLE`。草稿由用户修改后再调用 `delivery.save`，CLI 不自动保存。`mocks` 只是开发自述，不参与运行后的 Mock 真实性判定，也不提供结果修改入口。
 
 ### 4.4 规则
 
@@ -286,17 +290,17 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"plan_id": "plan_...", "acceptance_item_ids": ["ai_1"]}
 ```
 
-`acceptance_item_ids` 可省略；省略时使用计划范围。返回：
+`acceptance_item_ids` 可省略；省略时使用计划范围。给出时必须为计划范围 `S` 的子集，超出返回 `INVALID_REQUEST`；`run.start` 只能收窄，不能扩大。返回：
 
 ```json
-{"run_id": "run_...", "status": "running", "scope": {"selected": 2, "applicable": 8}, "warnings": []}
+{"run_id": "run_...", "status": "running", "scope": {"selected": 2, "applicable": 8}, "confirmation": {"confirmation_id": "conf_...", "confirmed_by": "cli", "confirmed_at": "...", "plan_revision": 3, "side_effects": []}, "warnings": []}
 ```
 
-规则：必须有确认记录或 `--confirm`；同一项目已有运行返回 `RUN_ACTIVE`；范围为空返回 `SCOPE_EMPTY`。启动前重新计算计划来源签名：非空签名与当前项目/交付提交/规则/服务配置不一致时返回 `PLAN_STALE`；旧计划签名为空时放行，并在 `warnings` 标注未校验来源。
+规则：必须有确认记录或 `--confirm`；payload 里的 `confirmed_by` 不能代替 `--confirm`。同一项目已有运行返回 `RUN_ACTIVE`；范围为空返回 `SCOPE_EMPTY`（冒烟目标且无适用验收项时除外）。启动前重新计算计划来源签名：签名为空，或与当前项目/交付提交/规则/服务配置不一致时返回 `PLAN_STALE`，要求重新生成计划；不执行来源未核实的计划。确认复用绑定 `plan_id + revision + 范围 + 环境 + 凭据`，任一变化都要重新确认。
 
 #### `run.status` / `run.list`
 
-- `status` 入参 `{"run_id"}`，返回运行、用例状态、证据引用、结论（若已结束）；若运行目录已有 `link.json`，附带 `link` 字段（首错节点、上下游与位置，见 4.10）；没有链路数据时为 `null`；
+- `status` 入参 `{"run_id"}`，返回运行、用例状态、证据引用、结论（若已结束）；另返回 `counts`（`selected/applicable/covered/passed/failed/incomplete`）、`item_outcomes`（每个所选验收项的最差结果与用例 ID）、`pending_items`、`manual_cases`、`l1`（项目级检查）；若运行目录已有 `link.json`，附带 `link` 字段（首错节点、上下游与位置，见 4.10）；没有链路数据时为 `null`；
 - `list` 入参 `{"project_id", "limit": 20}`，按时间倒序。
 
 #### `run.cancel`
@@ -313,7 +317,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `data.cleanup`
 
-入参 `{"run_id": "run_...", "dry_run": true}`；`dry_run=false` 时需 `--confirm`。返回 `{"rows": 12, "conditions": "...", "executed": false}`。
+入参 `{"run_id": "run_...", "dry_run": true}`；`dry_run=false` 时需 `--confirm`，且配置的清理命令必须包含 `{run_id}` 或 `{data_prefix}` 占位符，只按本次运行标记清理。返回 `{"dry_run": true, "executed": false, "run_id": "...", "command": "...", "exit_code": 0, "stdout": "...", "stderr": "...", "log_path": "actions/..."}`。
 
 #### `evidence.add`
 
@@ -332,18 +336,18 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 #### `issue.add` / `issue.list` / `issue.update` / `issue.close`
 
 ```json
-{"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "title": "下单生成两条订单", "severity": "P1"}
+{"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "title": "下单生成两条订单", "severity": "P1", "error_type": "assertionerror", "stack_key": "assert 1 == 2", "evidence_refs": ["evidence/run_1/case_1-0.log"]}
 ```
 
-- 同一失败签名返回现有 `issue_id` 并追加发生记录；
-- `update` 入参 `{"issue_id", "status"|"disposition", "note"}`；
-- `close` 需 `{"issue_id", "run_id", "evidence_ref"}`，无新运行证据返回 `RUN_STATE_CONFLICT`。
+- 失败签名 = 用例 ID + 错误类型 + 关键堆栈/断言标识摘要；同一签名返回现有 `issue_id` 并追加带证据的发生记录；
+- `update` 入参 `{"issue_id", "status"|"disposition", "severity", "fix_version", "reason"}`；状态只能待确认→处理中→待复测→已关闭（重开为处理中需写原因），`update` 不能直接把状态改为 `closed`；非缺陷/重复/延期必须写理由；
+- `close` 入参 `{"issue_id", "run_id"}`：问题必须处于 `retest`，运行必须已完成、包含该用例、结果为 `passed` 且有证据，且不能复用问题发生时的运行；否则返回 `RUN_STATE_CONFLICT`。
 
 ### 4.8 报告
 
 #### `report.generate`
 
-入参 `{"run_id"}`；返回 `report_id`、`outcome`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。
+入参 `{"run_id"}`；返回 `report_id`、`outcome`、`conclusion`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`uncovered_items`、`item_details`（验收项主表）、`l1`（项目级检查）、`issue_count`、`failure_occurrences`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。
 
 #### `report.export`
 
@@ -406,10 +410,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 入参 `{}`；返回：
 
 ```json
-{"python": {"ok": true, "version": "3.13.1"}, "package": {"ok": true, "version": "0.1.0"}, "model": {"ok": false, "source": "none"}, "github": {"ok": true, "account": "zhangsan"}, "workspace": {"ok": true, "path": "..."}, "proxy": {"ok": true}, "repairs": []}
+{"python": {"ok": true, "version": "3.13.1", "executable": "..."}, "package": {"ok": true, "version": "0.5.0"}, "model": {"ok": false, "source": "none", "error": "未配置模型密钥"}, "github": {"ok": true, "account": "zhangsan", "host": "github.com"}, "workspace": {"ok": true, "path": "...", "workspace_id": "ws_..."}, "proxy": {"ok": true, "configured": {}}, "project_config": {"ok": true, "problems": []}, "repairs": [], "repairs_done": []}
 ```
 
-`repairs` 为 AI 建议的修复项，含 `risk` 与 `command`；低风险项可带 `auto: true`。
+`model.ok` 由真实连通性探测决定，不是“有密钥就算通过”；`github.ok` 要求 `gh auth status` 成功，配置 `repo` 时还要求可读该仓库；`proxy` 报告已配置项并校验 URL。`repairs` 按 `risk`（low/medium/high）与 `command` 给出建议，低风险项可带 `auto: true`；`repair=true` 只自动执行低风险项，并写入 `actions/doctor.jsonl`。
 
 ### 4.12 模板
 
@@ -475,13 +479,13 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `run.json`：
 
 ```json
-{"schema_version": 1, "run_id": "run_...", "plan_id": "plan_...", "project_id": "proj_...", "scope": {"preset": "selected", "acceptance_item_ids": [], "frozen_at": "..."}, "confirmed_by": "", "confirmed_at": "...", "status": "running", "pid": 1234, "started_at": "...", "heartbeat_at": "...", "cases": [], "evidence_refs": [], "analysis": []}
+{"schema_version": 1, "run_id": "run_...", "plan_id": "plan_...", "project_id": "proj_...", "scope": {"preset": "selected", "acceptance_item_ids": [], "frozen_at": "..."}, "confirmed_by": "", "confirmed_at": "...", "status": "running", "pid": 1234, "started_at": "...", "heartbeat_at": "...", "attempts": [], "cases": [], "evidence_refs": [], "analysis": []}
 ```
 
 `issue.json`：
 
 ```json
-{"schema_version": 1, "issue_id": "issue_...", "project_id": "proj_...", "signature": "...", "title": "", "severity": "P1", "status": "pending", "disposition": null, "occurrences": [], "fix_version": null, "revision": 1}
+{"schema_version": 1, "issue_id": "issue_...", "project_id": "proj_...", "signature": "...", "title": "", "severity": "P1", "status": "pending", "disposition": null, "occurrences": [], "fix_version": null, "evidence_refs": [], "revision": 1}
 ```
 
 `report.json`：
@@ -501,8 +505,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   "services": {"start": "", "stop": "", "health": "", "timeout_seconds": 120, "keep_on_failure": false},
   "link": {"request_id_header": "X-Request-Id", "log_paths": [], "log_format": "jsonl", "log_fields": {}, "db_query": ""},
   "runners": {"pytest": {"parallel": false, "args": ""}, "playwright": {"parallel": false}},
-  "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false},
-  "ai": {"max_files": 40, "max_depth": 3}
+  "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false, "mock": {"max_files": 40, "max_depth": 3}}
 }
 ```
 

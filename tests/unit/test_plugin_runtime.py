@@ -69,6 +69,7 @@ def _plan_payload(setup: dict[str, Any], command: str) -> dict[str, Any]:
                 "layer": "L2",
                 "expected": "命令成功",
                 "expectation_source": "下单后列表出现订单",
+                "preconditions": ["被测项目目录可访问"],
                 "verify_method": command,
             }
         ],
@@ -269,16 +270,17 @@ def test_generated_script_runs_and_dangerous_script_is_rejected(
     dangerous = _plan_payload(setup, "script:bad.py")
     dangerous["cases"][0]["script_name"] = "bad.py"
     dangerous["cases"][0]["script_content"] = "rm -rf /\n"
-    plan = call(tmp_path, "plan.generate", dangerous, capsys)["data"]
-    rejected = call(
-        tmp_path,
-        "run.start",
-        {"project_id": setup["project"]["project_id"], "plan_id": plan["plan_id"]},
-        capsys,
-        confirm=True,
-    )
+    rejected = call(tmp_path, "plan.generate", dangerous, capsys)
     assert rejected["ok"] is False
-    assert rejected["error"]["code"] == "SCRIPT_REJECTED"
+    assert rejected["error"]["code"] == "INVALID_REQUEST"
+    assert "危险操作" in rejected["error"]["message"]
+
+    traversing = _plan_payload(setup, "script:bad.py")
+    traversing["cases"][0]["script_name"] = "../../bad.py"
+    traversing["cases"][0]["script_content"] = "print('ok')\n"
+    escaped = call(tmp_path, "plan.generate", traversing, capsys)
+    assert escaped["ok"] is False
+    assert escaped["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_run_env_drops_inherited_pythonhome(

@@ -49,7 +49,11 @@ integrations/trae/
     extension.ts   # 激活、命令、配置
     bridge.ts      # 调用 CLI、解析 JSON、超时
     runtime.ts     # Python 发现、环境准备、版本校验
-    panel/         # Webview 面板
+    process.ts     # 子进程封装
+  media/panel/     # 共享面板构建产物
+panel/
+  src/             # Vue 3 共享面板源码
+  tests/
 ```
 
 ### 2.2 命令
@@ -78,7 +82,7 @@ integrations/trae/
 3. `py -3`；
 4. PATH 中的 `python`。
 
-校验：版本 ≥3.11、`import aitest` 成功、`aitest --version` 可执行。
+校验：版本 ≥3.11，且 `import aitest` 成功或 `aitest --version` 可执行。
 
 ### 3.2 自动准备
 
@@ -116,7 +120,7 @@ CLI → JSON → bridge → 面板渲染
 - 面板展示范围、用例数、环境、凭据边界、副作用、将安装依赖、预计耗时；
 - 用户点击确认后，`run.start` 带确认记录；
 - CLI 直调必须 `--confirm`；
-- 确认记录写 `confirmed_by`、`confirmed_at`。
+- 确认记录写 `confirmed_by`、`confirmed_at` 与范围摘要（`scope.frozen_at`）。
 
 ### 4.4 展示边界
 

@@ -4,7 +4,7 @@ Current documents must not describe ``常驻核心``, ``命名管道``, ``提交
 ``证据等级 A``, ``计划许可``, ``逐动作授权`` or ``MCP`` as capabilities. A hit is
 tolerated when the same line makes the negation explicit (不做/禁止/已废止/
 归档/移除/没有), which is how the requirements and architecture docs phrase the
-out-of-scope list. Historical records under ``docs/归档/`` are not scanned.
+out-of-scope list. 历史材料已删除，只扫描现行项目文档与仓库入口。
 """
 
 from __future__ import annotations
@@ -13,15 +13,45 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-TERMS = ("常驻核心", "命名管道", "提交根", "证据等级 A", "计划许可", "逐动作授权", "MCP")
-ALLOWED_MARKERS = ("不", "禁止", "废止", "归档", "移除", "没有")
+TERMS = (
+    "常驻核心",
+    "命名管道",
+    "提交根",
+    "证据等级",
+    "A 级",
+    "A—D",
+    "计划许可",
+    "许可账本",
+    "逐动作授权",
+    "MCP",
+    "Grant",
+    "QuerySpec",
+    "不可变提交",
+    "覆盖契约",
+)
+ALLOWED_MARKERS = (
+    "不做",
+    "禁止",
+    "废止",
+    "归档",
+    "移除",
+    "没有",
+    "不再",
+    "不进入",
+    "不实现",
+    "不支持",
+    "不属于",
+    "不计入",
+    "不计算",
+    "不自动",
+    "已删除",
+)
 
 DOCS = (
-    ROOT / "docs/README.md",
     ROOT / "AGENTS.md",
-    ROOT / "docs/现状.md",
+    ROOT / "README.md",
 )
-DOCS += tuple(sorted((ROOT / "docs/项目文档/一期").rglob("*.md")))
+DOCS += tuple(sorted((ROOT / "docs/项目文档").rglob("*.md")))
 
 
 def scan_lines() -> list[str]:
@@ -51,5 +81,11 @@ def test_scanner_tolerates_explicit_negations_and_archives() -> None:
 
 def test_scanner_flags_a_plain_capability_claim() -> None:
     line = "| CLI/MCP | 同一套 dispatch |"
+    assert any(term in line for term in TERMS)
+    assert not any(marker in line for marker in ALLOWED_MARKERS)
+
+
+def test_scanner_flags_an_old_grade_sentence_without_negation() -> None:
+    line = "只有 full 计算证据等级；A 级不等于业务通过。"
     assert any(term in line for term in TERMS)
     assert not any(marker in line for marker in ALLOWED_MARKERS)

@@ -1,6 +1,6 @@
 """Report current-status docs whose numeric claims disagree with the code.
 
-**只扫现行状态文档**（现状页、`AGENTS.md`、README）：这些文档描述"现在是什么样"，
+**只扫现行入口文档**（`AGENTS.md`、README）：这些文档描述"现在是什么样"，
 一旦与代码矛盾就会误导后续工作（本项目把文档当合同）。**不碰历史留痕**——修改日志、归档交接、
 `docs/归档/validation/` 里的记录都是当时的真实结果，改它们等于篡改历史。
 
@@ -29,7 +29,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: 现行状态文档。注意**不要**把修改日志/归档/验证记录加进来。
 DOCS = (
-    "docs/现状.md",
     "AGENTS.md",
     "README.md",
 )
@@ -46,6 +45,26 @@ class Rule:
 
 
 RULES = (
+    Rule(
+        "README 模块数",
+        re.compile(r"\*\*([\d,]+)\*\*\s*个 Python 模块"),
+        "modules",
+    ),
+    Rule(
+        "README 总行数",
+        re.compile(r"约\s*\*\*([\d,]+)\*\*\s*行"),
+        "lines",
+    ),
+    Rule(
+        "README 测试节点数",
+        re.compile(r"\*\*([\d,]+)\*\*\s*个 pytest 节点"),
+        "nodes",
+    ),
+    Rule(
+        "一期 AC 数",
+        re.compile(r"18 FR\s*/\s*(\d+)\s*AC"),
+        "acs",
+    ),
     Rule(
         "src 模块数",
         re.compile(r"\|\s*`src/aitest`\s*\|\s*\*\*([\d,]+)\*\*\s*个模块"),
@@ -70,6 +89,12 @@ RULES = (
     Rule(
         "默认可派发动作数",
         re.compile(r"默认可派发[^\n]{0,40}?\*\*(\d+)\*\*"),
+        "actions",
+        needs_full=True,
+    ),
+    Rule(
+        "CLI 命令数",
+        re.compile(r"当前注册\s*\*\*(\d+)\*\*\s*个命令"),
         "actions",
         needs_full=True,
     ),
@@ -176,10 +201,17 @@ def _environment() -> dict[str, str]:
     return dict(os.environ)
 
 
+def acceptance_count() -> int:
+    status = ROOT / "tests/acceptance/p1/status.json"
+    data = json.loads(status.read_text(encoding="utf-8"))
+    return len(data["results"])
+
+
 def facts(*, full: bool) -> dict[str, int]:
     values = {
         "modules": module_count(),
         "lines": line_count(),
+        "acs": acceptance_count(),
     }
     nodes = node_count()
     if nodes is not None:

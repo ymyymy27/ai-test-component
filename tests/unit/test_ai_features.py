@@ -226,9 +226,12 @@ def test_judge_mock_respects_max_files(tmp_path: Path) -> None:
             }
         ]
     }
-    _, client = _judged(tmp_path, ["requests"], response, max_files=3)
-    payload = _user_payload(client)
-    assert len(payload["files"]) == 3
+    result, client = _judged(tmp_path, ["requests"], response, max_files=3)
+    # Exceeding the read budget stops before the model and never guesses.
+    assert client.calls == []
+    assert result[0]["kind"] == "unknown"
+    assert "达到读取上限" in result[0]["reason"]
+    assert len(result[0]["read_files"]) == 3
 
 
 def test_judge_mock_respects_max_depth(tmp_path: Path) -> None:
@@ -341,10 +344,10 @@ def test_judge_mock_reports_read_budget_and_keeps_unknown(tmp_path: Path) -> Non
     result, client = _judged(tmp_path, ["requests"], response, max_files=2)
 
     assert result[0]["kind"] == "unknown"
-    assert result[0]["reason"] == "没有足够信号"
+    assert "达到读取上限" in result[0]["reason"]
     assert result[0]["limit_reached"] is True
     assert len(result[0]["read_files"]) == 2
-    assert len(_user_payload(client)["files"]) == 2
+    assert client.calls == []
 
 
 def test_judge_mock_without_budget_does_not_flag_limit(tmp_path: Path) -> None:

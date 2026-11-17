@@ -1,8 +1,0 @@
-{
-  "ok": false,
-  "error": {
-    "code": "GITHUB_UNAVAILABLE",
-    "message": "无法执行 gh，请检查安装",
-    "next_step": "安装 gh 并完成登录后重试"
-  }
-}

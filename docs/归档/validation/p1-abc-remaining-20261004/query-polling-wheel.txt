@@ -1,3 +1,0 @@
-.........................................                                [100%]
-41 passed in 19.12s
-Installed policy/capture/saved-safe-history use exact source bytes; synthetic authority/clock, no real remote AC.

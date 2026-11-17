@@ -132,6 +132,7 @@ def _case(
         "layer": layer,
         "expected": "用例成功",
         "expectation_source": "下单后列表出现订单",
+        "preconditions": ["被测项目目录可访问"],
         "verify_method": method,
     }
     if depends_on is not None:
@@ -484,13 +485,18 @@ def test_data_cleanup_dry_run_then_confirm(tmp_path: Path, capsys: Capsys) -> No
     log_files = list((ws.root / "actions").glob("*.jsonl"))
     assert len(log_files) == 1
     entries = [json.loads(line) for line in log_files[0].read_text().splitlines()]
-    assert len(entries) == 2
-    assert entries[0]["dry_run"] is True
-    assert entries[0]["run_id"] == ""
-    assert entries[1]["run_id"] == "run_abc"
-    assert entries[1]["exit_code"] == 0
+    assert [entry["phase"] for entry in entries] == [
+        "started",
+        "finished",
+        "started",
+        "finished",
+    ]
+    assert entries[1]["dry_run"] is True
+    assert entries[1]["run_id"] == ""
+    assert entries[3]["run_id"] == "run_abc"
+    assert entries[3]["exit_code"] == 0
     for entry in entries:
-        assert {"at", "command", "exit_code", "run_id", "dry_run"} <= set(entry)
+        assert {"at", "command", "exit_code", "run_id", "dry_run", "phase"} <= set(entry)
 
 
 # -- C3/C4 evidence budget and data marker -----------------------------------
@@ -812,12 +818,17 @@ def test_task_module_scope_filters_acceptance_items_and_cases(
         {
             "project_id": project_id,
             "task_id": task["task_id"],
-            "scope": {"preset": "all_applicable", "module_ids": [orders]},
+            "scope": {
+                "preset": "selected",
+                "module_ids": [orders],
+                "acceptance_item_ids": [item_orders],
+            },
             "cases": cases,
         },
         capsys,
     )["data"]
-    assert filtered["coverage"] == {"selected": 1, "applicable": 1}
+    # The module filter helps pick items; it must not shrink the frozen M.
+    assert filtered["coverage"] == {"selected": 1, "applicable": 2}
     assert filtered["scope"]["acceptance_item_ids"] == [item_orders]
     ws = _workspace(tmp_path)
     stored = read_json(
@@ -1130,14 +1141,17 @@ def test_service_config_accepts_single_and_mapping_shapes() -> None:
     from aitest.worker import _services
 
     single = {"start": "run", "health": "http://127.0.0.1/health", "stop": "stop"}
-    assert _services({"services": single}) == (single, "")
+    assert _services({"services": single}) == [("", single)]
     mapped = {"web": {"start": "web"}, "db": {"start": "db"}}
-    assert _services({"services": mapped}) == ({"start": "web"}, "web")
-    assert _services({"services": {}}) == ({}, "")
-    assert _services({"services": {"web": {"start": "web"}, "port": 8000}}) == ({}, "")
+    assert _services({"services": mapped}) == [
+        ("web", {"start": "web"}),
+        ("db", {"start": "db"}),
+    ]
+    assert _services({"services": {}}) == []
+    assert _services({"services": {"web": {"start": "web"}, "port": 8000}}) == []
 
 
-def test_worker_uses_first_mapped_service_and_records_its_name(
+def test_worker_starts_all_mapped_services_and_records_names(
     tmp_path: Path, capsys: Capsys, http_server: _RecordingServer
 ) -> None:
     setup = _setup(tmp_path, capsys)
@@ -1169,10 +1183,10 @@ def test_worker_uses_first_mapped_service_and_records_its_name(
     plan = _plan(tmp_path, capsys, setup, [_case(item_id, "command: echo ok")])
     _, run = _run_plan(tmp_path, capsys, setup, plan)
 
-    assert run["service_name"] == "web"
-    assert run["service_started"] is False
+    assert run["service_name"] == "web、worker"
+    assert run["service_started"] is True
     assert not web_marker.exists()
-    assert not worker_marker.exists()
+    assert worker_marker.exists()
     assert run["cases"][0]["result"] == "passed"
 
 

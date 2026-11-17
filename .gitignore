@@ -43,4 +43,3 @@ node_modules/
 .zcode/
 test-results/
 playwright-report/
-/docs/validation/artifacts.json

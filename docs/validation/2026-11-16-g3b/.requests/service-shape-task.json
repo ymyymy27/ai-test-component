@@ -1,1 +1,0 @@
-{"command": "task.add", "request_id": "g3b-service-shape-task-0ee5321b", "payload": {"project_id": "proj_2a625b759265", "title": "service-shape", "acceptance_items": [{"text": "服务配置形状可识别", "observable": true}]}}

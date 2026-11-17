@@ -92,6 +92,9 @@ def _plan(
     )["data"]
 
 
+_DEFAULT_PRECONDITIONS = ["被测项目目录可访问"]
+
+
 def _case(
     setup: dict[str, Any],
     *,
@@ -99,7 +102,7 @@ def _case(
     expected: str = "命令成功",
     source: str = "下单后列表出现订单",
     method: str = "command: echo ok",
-    preconditions: list[str] | None = None,
+    preconditions: list[str] | None = _DEFAULT_PRECONDITIONS,
 ) -> dict[str, Any]:
     return {
         "acceptance_item_id": setup["task"]["acceptance_items"][0]["item_id"],
@@ -107,7 +110,7 @@ def _case(
         "expected": expected,
         "expectation_source": source,
         "verify_method": method,
-        "preconditions": preconditions or [],
+        "preconditions": list(preconditions) if preconditions is not None else [],
     }
 
 
@@ -535,7 +538,7 @@ def test_worker_generates_report_and_issue_draft_after_failure(
     assert added["data"]["issue_id"] == issue["issue_id"]
 
 
-def test_plan_marks_unverified_expectation_and_warns_missing_preconditions(
+def test_plan_marks_unverified_expectation_and_blocks_missing_preconditions(
     tmp_path: Path, capsys: Capsys
 ) -> None:
     setup = _setup(tmp_path, capsys)
@@ -555,7 +558,6 @@ def test_plan_marks_unverified_expectation_and_warns_missing_preconditions(
         ],
     )
     assert any("预期未证实" in warning for warning in plan["warnings"])
-    assert any("缺少前置条件" in warning for warning in plan["warnings"])
     assert len(plan["unverified_cases"]) == 1
 
     shown = call(
@@ -565,19 +567,26 @@ def test_plan_marks_unverified_expectation_and_warns_missing_preconditions(
     assert any("预期未证实" in warning for warning in shown["cases"][0]["warnings"])
     assert not any("缺少前置条件" in warning for warning in shown["cases"][1]["warnings"])
 
+    blocked = call(
+        tmp_path,
+        "plan.update",
+        {
+            "project_id": project_id,
+            "plan_id": plan["plan_id"],
+            "patch": {"cases": [ _case(setup, preconditions=[]) ]},
+        },
+        capsys,
+    )
+    assert blocked["ok"] is False
+    assert blocked["error"]["code"] == "INVALID_REQUEST"
+
     updated = call(
         tmp_path,
         "plan.update",
         {
             "project_id": project_id,
             "plan_id": plan["plan_id"],
-            "patch": {
-                "cases": [
-                    {
-                        **_case(setup, source="与验收项无关的猜测"),
-                    }
-                ]
-            },
+            "patch": {"cases": [ _case(setup, source="与验收项无关的猜测") ]},
         },
         capsys,
     )
@@ -614,9 +623,10 @@ def test_report_lists_applicable_items_outside_selected_scope(
                 {
                     "acceptance_item_id": item_ids[0],
                     "layer": "L2",
-                    "expected": "命令成功",
-                    "expectation_source": "下单成功",
-                    "verify_method": "command: echo ok",
+                        "expected": "命令成功",
+                        "expectation_source": "下单成功",
+                        "preconditions": ["被测项目目录可访问"],
+                        "verify_method": "command: echo ok",
                 }
             ],
         },
@@ -670,6 +680,7 @@ class _GeneratedCaseClient:
                 "layer": "L2",
                 "expected": "命令成功",
                 "expectation_source": source,
+                "preconditions": ["被测项目目录可访问"],
                 "verify_method": "command: echo ok",
                 "depends_on": [],
             }
@@ -677,7 +688,7 @@ class _GeneratedCaseClient:
         ]
 
 
-def test_generated_cases_align_expectation_source_with_item_text(
+def test_generated_cases_keep_model_source_and_mark_unverified(
     tmp_path: Path, capsys: Capsys, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setup = _setup(
@@ -704,7 +715,8 @@ def test_generated_cases_align_expectation_source_with_item_text(
     )["data"]
 
     assert plan["status"] == "published"
-    assert plan["unverified_cases"] == []
+    # A model-written source is never silently replaced with the item text.
+    assert len(plan["unverified_cases"]) == 2
     shown = call(
         tmp_path,
         "plan.show",
@@ -712,7 +724,7 @@ def test_generated_cases_align_expectation_source_with_item_text(
         capsys,
     )["data"]["plan"]
     assert [case["expectation_source"] for case in shown["cases"]] == [
-        "下单后列表出现订单",
-        "库存扣减一次",
+        "app/services.py:42",
+        "",
     ]
-    assert all(case["expectation_verified"] for case in shown["cases"])
+    assert not any(case["expectation_verified"] for case in shown["cases"])

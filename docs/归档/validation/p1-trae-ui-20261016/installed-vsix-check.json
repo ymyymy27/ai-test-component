@@ -1,5 +1,0 @@
-{
-  "package.json": false,
-  "dist/extension.js": true,
-  "dist/panel.js": true
-}

@@ -1,6 +1,6 @@
 {
   "version": "0.2",
-  "updated_at": "2026-11-16",
+  "updated_at": "2026-11-17",
   "phase": 1,
   "scope": "product_acceptance_not_scaffold_tests",
   "baseline": "2026-11-16 轻量插件重构基线",
@@ -23,7 +23,7 @@
       "artifact_versions": [],
       "actual": "按当前 CLI 重跑：先登记仓库根，再登记其子目录，第二次返回 INVALID_REQUEST（根目录与已登记项目重叠）。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -31,8 +31,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -48,7 +48,7 @@
       "artifact_versions": [],
       "actual": "真实 Trae CN 1.107.1 面板（2026-11-16 新版共享面板）在无历史数据时显示通用目标“验证项目能否启动并跑通主流程”，目标输入框可直接改写。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-panel-v2/trae-wizard.png",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-wizard.png",
         "description": "2026-11-16 新版共享面板/验收记录",
         "method": "real_trae_panel"
       },
@@ -56,8 +56,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-panel-v2/trae-wizard.png",
-        "docs/validation/2026-11-16-panel-v2/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-wizard.png",
+        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/README.md"
       ]
     },
     {
@@ -73,7 +73,7 @@
       "artifact_versions": [],
       "actual": "真实模型从任务描述提取 4 条验收项；“系统要稳定”为 pending 并被排除，其余 3 条 active。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -81,8 +81,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -98,7 +98,7 @@
       "artifact_versions": [],
       "actual": "真实 CLI 重跑：delivery.save 缺运行命令与提交时返回 complete=false；随后 run.start 执行两个用例，depends_on=build 的用例 blocked（message“交付信息不完整：缺运行方式或版本”），无依赖用例 passed，运行结论 incomplete。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3b/ac04-run-status.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-run-status.json",
         "description": "2026-11-16 G3b 按当前代码重跑：交付不完整时构建依赖用例阻塞、独立用例继续",
         "method": "real_cli"
       },
@@ -106,9 +106,9 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3b/ac04-delivery.json",
-        "docs/validation/2026-11-16-g3b/ac04-run-status.json",
-        "docs/validation/2026-11-16-g3b/summary.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-delivery.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
       ]
     },
     {
@@ -124,7 +124,7 @@
       "artifact_versions": [],
       "actual": "同一项目保存两个规则版本；旧计划保留 v1，新计划使用 v2，项目绑定保持 v1。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -132,8 +132,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -149,7 +149,7 @@
       "artifact_versions": [],
       "actual": "真实 CLI 重跑：自选 1/3 个适用验收项生成计划并运行，报告 selected=1、applicable=3，uncovered_items 返回未勾选的 2 项（“ai_…：库存扣减一次”“ai_…：订单可以取消”），run.status 返回同一清单；结论为 passed 且只描述所选范围。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3b/ac06-report.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-report.json",
         "description": "2026-11-16 G3b 按当前代码重跑：报告与运行状态返回未选中的适用验收项",
         "method": "real_cli"
       },
@@ -157,9 +157,9 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3b/ac06-report.json",
-        "docs/validation/2026-11-16-g3b/ac06-run-status.json",
-        "docs/validation/2026-11-16-g3b/summary.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-report.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
       ]
     },
     {
@@ -175,7 +175,7 @@
       "artifact_versions": [],
       "actual": "真实模型（deepseek-chat）重跑：为 2 个验收项生成 2 条用例并自动发布；plan.show 中两条 expectation_source 均等于对应验收项原文、expectation_verified=true，unverified_cases 为空（模型给出不一致或空引用时由 plan.generate 对齐，该分支由单元测试覆盖）。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3b/ac07-plan-show.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan-show.json",
         "description": "2026-11-16 G3b 按当前代码重跑：模型计划预期引用验收项原文并通过校验",
         "method": "real_cli"
       },
@@ -183,9 +183,9 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3b/ac07-plan.json",
-        "docs/validation/2026-11-16-g3b/ac07-plan-show.json",
-        "docs/validation/2026-11-16-g3b/summary.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan-show.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
       ]
     },
     {
@@ -201,7 +201,7 @@
       "artifact_versions": [],
       "actual": "未确认启动返回 CONFIRMATION_REQUIRED；带 confirmed_by 启动后运行记录 confirmed_by=g3-runner 与 confirmed_at。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -209,8 +209,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac08-run-record.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-run-record.json"
       ]
     },
     {
@@ -226,7 +226,7 @@
       "artifact_versions": [],
       "actual": "L1 build 退出码 1；仅 depends_on=build 的用例 blocked，两个独立用例继续并 passed。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -234,8 +234,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -251,7 +251,7 @@
       "artifact_versions": [],
       "actual": "pytest 断言失败用例记录 stdout 日志与 JUnit XML，用例结果 failed。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -259,8 +259,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -276,7 +276,7 @@
       "artifact_versions": [],
       "actual": "接口返回 200 但数据库无对应记录；脚本断言失败，用例与报告均为 failed，未显示业务通过。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -284,8 +284,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac11-report-recheck.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-report-recheck.json"
       ]
     },
     {
@@ -301,7 +301,7 @@
       "artifact_versions": [],
       "actual": "真实 Chromium + 真实 Playwright 重跑：临时 HTTP 静态页由手写 L3 脚本打开并截图，脚本落盘到运行目录 generated/shot.py；test-results/home.png 与显式 page.screenshot(path=ui/detail.png) 两张截图复制到 evidence 并进入用例 evidence_refs，用例 passed。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3b/ac12-run-status.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-run-status.json",
         "description": "2026-11-16 G3b 按当前代码重跑：Playwright 截图进入运行证据",
         "method": "real_cli"
       },
@@ -309,10 +309,10 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3b/ac12-run-status.json",
-        "docs/validation/2026-11-16-g3b/ac12-0-home.png",
-        "docs/validation/2026-11-16-g3b/ac12-1-detail.png",
-        "docs/validation/2026-11-16-g3b/summary.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-0-home.png",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-1-detail.png",
+        "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
       ]
     },
     {
@@ -328,7 +328,7 @@
       "artifact_versions": [],
       "actual": "接口序列完成注册→登录→发帖→首页可见，并查询 SQLite 确认帖子记录存在；用例 passed。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -336,8 +336,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -353,7 +353,7 @@
       "artifact_versions": [],
       "actual": "真实模型将本地支付包判为 mock 并给出依据，将无证据的外部依赖与不存在的依赖判为 unknown。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -361,8 +361,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -378,7 +378,7 @@
       "artifact_versions": [],
       "actual": "真实模型对失败运行生成四段分析（观察、证据引用、候选原因、未验证+下一步，未验证 4 条）；故障注入缺少“未验证”时 status=invalid、analysis=null。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -386,8 +386,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac15-invalid-analysis-recheck.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-invalid-analysis-recheck.json"
       ]
     },
     {
@@ -403,7 +403,7 @@
       "artifact_versions": [],
       "actual": "同一失败签名第二次登记返回同一 issue_id、existing=true、revision=2；问题列表仅 1 条并含 2 次发生记录。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -411,8 +411,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -428,7 +428,7 @@
       "artifact_versions": [],
       "actual": "按单个验收项新建运行，范围只含该验收项；旧运行完整保留，运行数增至 4。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -436,8 +436,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -453,7 +453,7 @@
       "artifact_versions": [],
       "actual": "单次运行同时含 failed、blocked、passed、not_run；报告计数通过 1、失败 1、阻塞或未完成 2，结论 failed；未执行用例在用例明细中为 not_run，不计入通过，覆盖不全不称全部通过。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -461,9 +461,9 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac18-mixed-run-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac18-mixed-report.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-run-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report.md"
       ]
     },
     {
@@ -479,7 +479,7 @@
       "artifact_versions": [],
       "actual": "未填写时导出显示“未填写验收意见”；填写后记录 by=g3-runner、时间与正文，不影响结论。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -487,9 +487,9 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac19-report-before-opinion.md",
-        "docs/validation/2026-11-16-g3-rerun/ac19-report-after-opinion.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-report-before-opinion.md",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-report-after-opinion.md"
       ]
     },
     {
@@ -505,7 +505,7 @@
       "artifact_versions": [],
       "actual": "PATH 中无 gh 时 github.read 返回 GITHUB_UNAVAILABLE；同一工作空间运行查询仍可用。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -513,8 +513,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -530,7 +530,7 @@
       "artifact_versions": [],
       "actual": "缺少请求 ID 时 link.import 返回 request_id、log、db 三个缺口，nodes 为空，不拼接为同一次调用。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -538,8 +538,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -555,7 +555,7 @@
       "artifact_versions": [],
       "actual": "同项目第二次启动返回 RUN_ACTIVE 并保留现有运行；不同项目的两个运行同时启动并各自完成。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -563,8 +563,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac22-parallel-projects-recheck.json"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-parallel-projects-recheck.json"
       ]
     },
     {
@@ -580,7 +580,7 @@
       "artifact_versions": [],
       "actual": "worker 进程被杀后心跳超时且 PID 不在，运行转为 interrupted；已完成的第一个用例结果与证据保留。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -588,8 +588,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -605,7 +605,7 @@
       "artifact_versions": [],
       "actual": "备份 18 个文件（默认不含证据），恢复到新目录并通过 manifest/sha256 校验；缺证据引用标注“证据未包含”。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -613,8 +613,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -630,7 +630,7 @@
       "artifact_versions": [],
       "actual": "doctor 逐项报告 GitHub 缺失；repair=true 自动重建目录并写探针；高风险项只给 winget 命令；AI 给出解释与命令。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -638,8 +638,8 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/README.md"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
       ]
     },
     {
@@ -655,7 +655,7 @@
       "artifact_versions": [],
       "actual": "空 APPDATA 且无密钥时 plan.generate 返回 MODEL_UNAVAILABLE；显式用例仍可运行、出证据、出报告；真实面板显示“分析未生成：模型当前不可用”。",
       "evidence": {
-        "path": "docs/validation/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
+        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
         "method": "real_cli"
       },
@@ -663,10 +663,32 @@
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "docs/validation/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
-        "docs/validation/2026-11-16-g3-rerun/ac26-no-model-report.md",
-        "docs/validation/2026-11-16-panel-v2/trae-result.png"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-no-model-report.md",
+        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-result.png"
       ]
+    },
+    {
+      "id": "P1-AC27",
+      "owner": null,
+      "result": "untested",
+      "scenario": "导入一次包含请求、日志与数据库结果的完整链路",
+      "expected": "节点按顺序排列并标出缺口，断言显示首个异常与上下游，定位到已观测代码位置或未知范围",
+      "related_frs": [
+        "FR15",
+        "FR16"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [],
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "完整链路夹具与节点断言定位尚未在真实输入上验证；当前只有 link.import 缺口路径证据。",
+      "blockers": null,
+      "real_environment_verified": false
     }
   ],
   "cases": [
@@ -773,6 +795,10 @@
     {
       "id": "P1-AC26",
       "result": "verified"
+    },
+    {
+      "id": "P1-AC27",
+      "result": "untested"
     }
   ]
 }

@@ -141,6 +141,7 @@ def _case(item_id: str) -> dict[str, Any]:
         "layer": "L2",
         "expected": "返回成功",
         "expectation_source": "需求规格",
+        "preconditions": ["服务已启动"],
         "verify_method": "接口调用",
         "depends_on": ["fixture"],
     }

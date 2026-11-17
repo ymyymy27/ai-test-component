@@ -1,4 +1,0 @@
-........................................................................ [ 62%]
-............................................                             [100%]
-116 passed in 3.76s
-Installed inspection and domain comparison have exact source-byte parity. Synthetic guard inputs; no qualification grant or real Trae AC.

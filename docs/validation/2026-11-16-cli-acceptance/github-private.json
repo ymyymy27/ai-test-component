@@ -1,8 +1,0 @@
-{
-  "ok": false,
-  "error": {
-    "code": "GITHUB_UNAVAILABLE",
-    "message": "gh 读取失败，请检查登录状态与仓库权限",
-    "next_step": "安装 gh 并完成登录后重试"
-  }
-}

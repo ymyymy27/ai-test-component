@@ -1,1 +1,0 @@
-{"command": "task.add", "request_id": "g3b-ac12-task-3dddb348", "payload": {"project_id": "proj_2a625b759265", "title": "ac12", "acceptance_items": [{"text": "静态订单页显示两条订单", "observable": true}]}}

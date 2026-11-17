@@ -46,7 +46,7 @@ def _github_runner(
 
 
 def _github_responses() -> dict[str, str]:
-    return {
+    responses = {
         "repos/o/r": json.dumps(
             {"full_name": "o/r", "default_branch": "main", "private": True}
         ),
@@ -104,6 +104,8 @@ def _github_responses() -> dict[str, str]:
         "user": json.dumps({"login": "zhangsan", "email": "secret@example.com"}),
         "status": "github.com\n  Logged in to github.com account zhangsan (keyring)\n",
     }
+    responses["repos/o/r/commits/abc123/pulls"] = responses["repos/o/r/pulls?state=all"]
+    return responses
 
 
 def test_read_github_returns_whitelisted_change_record() -> None:

@@ -169,5 +169,7 @@ def test_delivery_draft_without_model_key_is_unavailable(
         },
         capsys,
     )
-    assert result["ok"] is False
-    assert result["error"]["code"] == "MODEL_UNAVAILABLE"
+    assert result["ok"] is True
+    assert result["data"]["draft"] is None
+    assert result["data"]["status"] == "not_generated"
+    assert result["data"]["reason"] == "model_missing"

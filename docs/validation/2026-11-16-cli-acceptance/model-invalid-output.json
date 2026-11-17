@@ -1,8 +1,0 @@
-{
-  "ok": false,
-  "error": {
-    "code": "MODEL_OUTPUT_INVALID",
-    "message": "模型输出不是合法 JSON",
-    "next_step": "检查模型输出结构后重试"
-  }
-}

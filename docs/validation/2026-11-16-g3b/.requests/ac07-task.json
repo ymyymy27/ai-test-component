@@ -1,1 +1,0 @@
-{"command": "task.add", "request_id": "g3b-ac07-task-29d5157d", "payload": {"project_id": "proj_2a625b759265", "title": "ac07", "acceptance_items": [{"text": "登录成功后跳转到首页", "observable": true}, {"text": "错误密码提示用户名或密码错误", "observable": true}]}}

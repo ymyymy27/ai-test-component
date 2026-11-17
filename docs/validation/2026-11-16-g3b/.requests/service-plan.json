@@ -1,1 +1,0 @@
-{"command": "plan.generate", "request_id": "g3b-service-plan-838f4edb", "payload": {"project_id": "proj_2a625b759265", "task_id": "task_f78d09238333", "scope": {"preset": "all_applicable"}, "cases": [{"acceptance_item_id": "ai_7e6be0ceac49", "layer": "L2", "expected": "命令成功", "expectation_source": "服务配置形状可识别", "verify_method": "command: echo service-ok"}]}}

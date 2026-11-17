@@ -1,1 +1,0 @@
-{"clean": {"ok": true, "errors": []}, "unregistered_nested_manifest": {"ok": false, "errors": ["exports/nested/backup.json"]}}

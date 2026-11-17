@@ -15,7 +15,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "02-需求" / "02-需求规格.md"
 _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
 
-_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 27))
+_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 28))
+_FR_IDS = tuple(f"FR{index:02d}" for index in range(1, 19))
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
 _BLOCKER_KINDS = frozenset(
@@ -91,6 +92,29 @@ def test_verified_requires_evidence_and_real_environment() -> None:
             f"{row['id']} 标为 verified 却不是真实环境验证；"
             "文档一致或单元、合同、夹具通过不得写成真实环境验收"
         )
+
+
+def test_verified_evidence_files_exist_and_are_readable() -> None:
+    for row in _results():
+        if row["result"] != "verified":
+            continue
+        evidence = row["evidence"]["path"]
+        path = _REPO_ROOT / evidence
+        assert path.is_file(), f"{row['id']} 的证据文件不存在：{evidence}"
+        assert path.stat().st_size > 0, f"{row['id']} 的证据文件为空：{evidence}"
+        if path.suffix.lower() == ".json":
+            json.loads(path.read_text(encoding="utf-8"))
+        for source in row.get("source_evidence") or []:
+            source_path = _REPO_ROOT / source
+            assert source_path.is_file(), f"{row['id']} 的来源证据不存在：{source}"
+
+
+def test_every_fr_has_at_least_one_acceptance_case() -> None:
+    covered: set[str] = set()
+    for row in _results():
+        covered.update(row["related_frs"])
+    missing = sorted(set(_FR_IDS) - covered)
+    assert missing == [], "以下功能没有对应验收场景：" + "、".join(missing)
 
 
 def test_untested_rows_carry_no_actual_result() -> None:

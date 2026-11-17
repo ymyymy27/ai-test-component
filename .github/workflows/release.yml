@@ -55,4 +55,4 @@ jobs:
           sha256sum dist/* integrations/trae/dist/*.vsix > SHA256SUMS
           gh release create "$TAG" --verify-tag --draft --title "$TAG" \
             --notes 'Engineering skeleton build. CI success does not certify phase-one business acceptance or real Trae compatibility. Review compatibility and test evidence before publishing.' \
-            dist/* integrations/trae/dist/*.vsix docs/validation/artifacts.json SHA256SUMS
+            dist/* integrations/trae/dist/*.vsix SHA256SUMS

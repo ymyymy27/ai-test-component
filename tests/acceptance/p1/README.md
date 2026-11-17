@@ -5,13 +5,13 @@
 ## 当前状态
 
 - 26 条 AC：26 条 `verified`、0 条 `not_verified`、0 条 `untested`；
-- 2026-11-16 先按当前代码重跑 26 条场景（[G3 批次](../../../docs/validation/2026-11-16-g3-rerun/README.md)），随后补齐 P1-AC04/06/07/12 的行为并用真实 CLI/模型/Playwright 重跑（[G3b 批次](../../../docs/validation/2026-11-16-g3b/README.md)）；
+- 2026-11-16 先按当前代码重跑 26 条场景（[G3 批次](evidence/2026-11-16-g3-rerun/README.md)），随后补齐 P1-AC04/06/07/12 的行为并用真实 CLI/模型/Playwright 重跑（[G3b 批次](evidence/2026-11-16-g3b/README.md)）；
 - 单元、合同、集成测试通过不等于验收通过。
 
 ## 使用方式
 
 1. 先读需求规格第 4 节与[测试计划](../../../docs/项目文档/一期/05-测试验收/01-测试计划.md)；
-2. 按批次执行，把真实输入、版本、步骤、实际结果与证据路径写入 `docs/validation/`；
+2. 按批次执行，把真实输入、版本、步骤、实际结果与证据路径写入 `tests/acceptance/p1/evidence/`；
 3. 更新 `status.json` 时只改结果字段，不改 `scenario` / `expected` / `related_frs`；
 4. 运行 `python -m pytest tests/unit/test_acceptance_status.py -q` 对账。
 

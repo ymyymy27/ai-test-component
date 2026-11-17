@@ -1,8 +1,0 @@
-{
-  "ok": false,
-  "error": {
-    "code": "MODEL_UNAVAILABLE",
-    "message": "模型服务不可用",
-    "next_step": "检查模型服务和网络后重试"
-  }
-}
