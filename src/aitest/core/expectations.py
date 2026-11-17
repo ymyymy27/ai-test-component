@@ -32,9 +32,7 @@ def expectation_matches(source: str, item: AcceptanceItem) -> bool:
     return item.item_id in source
 
 
-def align_generated_sources(
-    raw_cases: list[dict[str, Any]], items: list[AcceptanceItem]
-) -> None:
+def align_generated_sources(raw_cases: list[dict[str, Any]], items: list[AcceptanceItem]) -> None:
     """Replace a model-written source with the acceptance-item text when needed.
 
     Only generated cases are aligned. A source that is empty or not a substring
@@ -64,7 +62,8 @@ def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
         item = by_id.get(case.acceptance_item_id or "")
         if item is None:
             case.expectation_verified = False
-            case.warnings.append("未绑定当前任务的验收项，预期未证实")
+            if case.acceptance_item_id is not None:
+                case.warnings.append("未绑定当前任务的验收项，预期未证实")
         else:
             case.expectation_verified = expectation_matches(case.expectation_source, item)
             if not case.expectation_verified:

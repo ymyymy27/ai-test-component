@@ -573,7 +573,7 @@ onMounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   color: var(--text-2);
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .done-list {

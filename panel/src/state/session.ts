@@ -1151,8 +1151,14 @@ export async function cancelActiveRun(): Promise<void> {
   setLoading("cancel", true);
   try {
     await api.cancelRun(session.project.project_id, session.activeRunId);
-    flash("已请求取消，当前用例结束后停止");
     await refreshRun();
+    if (session.result?.run.status === "cancelled") {
+      flash("本次运行已取消，已完成用例与证据已保留。");
+    } else if (session.phase === "result") {
+      flash("运行已结束，已显示最新结果。");
+    } else {
+      flash("已请求取消，当前用例结束后停止");
+    }
   } catch (error) {
     const friendly = describeError(error);
     flash(`${friendly.title}。${friendly.next}`);

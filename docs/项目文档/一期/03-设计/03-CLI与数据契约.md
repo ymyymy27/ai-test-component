@@ -122,7 +122,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `project.config`
 
-入参 `{"project_id": "proj_...", "action": "get|update", "patch": {"services": {...}}}`。`action` 省略时为 `get`，只返回白名单段；`update` 按段合并写回并返回合并结果，`patch` 中某段为 `null` 时删除该段。允许的段为 `model / services / link / runners / evidence / l1 / data`；未知段、非对象段或含密钥字段返回 `INVALID_REQUEST`。读取时也会剔除凭据样式的键，密钥不写入该文件（见第 6 节）。
+入参 `{"project_id": "proj_...", "action": "get|update", "patch": {"services": {...}}}`。`action` 省略时为 `get`，只返回白名单段；`update` 按段合并写回并返回合并结果，`patch` 中某段为 `null` 时删除该段。允许的段为 `model / services / link / runners / evidence / l1 / data`；未知段、非对象段或含密钥字段返回 `INVALID_REQUEST`。读取时也会剔除凭据样式的键，密钥不写入该文件（见第 6 节）。`l1` 段支持 `build`、`entry` 与 `smoke_command`；`smoke_command` 配置后优先用于冒烟计划。
 
 #### `module.add` / `module.update` / `module.list`
 
@@ -266,9 +266,9 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 规则：每个选中验收项至少一条用例；预期必须带 `expectation_source`；生成后自动发布为 `published`。`verify_method` 必须合法：`command:` 后非空；`script:` 需要 `script_name` 与 `script_content`；`http:` 必须是非空 JSON 数组且每项有 `method/url`；`playwright:` 路径非空；`sql:`/`junit:`/`pytest:` 参数非空；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
 
-`task.intent=smoke` 时只生成 L1 用例：优先使用项目已有测试命令（`project.config` 的 `runners`/`l1`、`pyproject` 的 pytest 配置、`package.json` 的 `test` 脚本），没有命令时使用 `l1.build` 或可识别的入口导入；不允许 `http:`、`playwright:` 或外部 URL。`task.intent=business` 时保留原有分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
+`task.intent=smoke` 时只生成 L1 用例，默认不跑全量测试：按项目事实生成“构建/入口检查（`l1.build` 或可识别入口模块导入）”“pytest 测试发现（`python -m pytest --collect-only -q`）”“最小测试模块（`tests` 下最小的非空 `test_*.py`）”；项目可用 `l1.smoke_command` 覆盖为单条命令。非 pytest 项目回退到 `runners`/`package.json` 声明的测试命令；没有可用检查时返回 `INVALID_REQUEST`。不允许 `http:`、`playwright:` 或外部 URL。`task.intent=business` 时保留原有分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
 
-`source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、`rules_version_id`、`services` 配置摘要与项目根目录计算。
+`source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、`rules_version_id`、`services`/`l1`/`runners` 配置摘要与项目根目录计算。
 
 #### `plan.update`
 

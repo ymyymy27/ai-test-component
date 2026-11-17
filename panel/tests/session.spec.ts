@@ -178,6 +178,37 @@ describe("单页测试单：五个状态", () => {
     expect(wrapper.find('[data-testid="test-order"]').attributes("data-phase")).toBe("result");
     wrapper.unmount();
   });
+
+  it("取消完成后提示已取消，并保留本次失败结论", async () => {
+    let cancelled = false;
+    const { wrapper } = await mountProposal({
+      "run.cancel": () => {
+        cancelled = true;
+        return { cancel_requested: true };
+      },
+      "run.status": () =>
+        cancelled
+          ? {
+              ...RUN_DETAIL,
+              run: { ...RUN_DETAIL.run, status: "cancelled" as const },
+            }
+          : RUNNING_DETAIL,
+    });
+
+    await wrapper.find('[data-testid="start-test"]').trigger("click");
+    await settle(6);
+    await wrapper.find(".cancel-zone button").trigger("click");
+    await wrapper
+      .findAll(".cancel-zone button")
+      .find((button) => button.text() === "确认取消")
+      ?.trigger("click");
+    await settle(8);
+
+    expect(session.phase).toBe("result");
+    expect(session.notice).toContain("本次运行已取消");
+    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("失败");
+    wrapper.unmount();
+  });
 });
 
 describe("结果相位的操作", () => {

@@ -200,8 +200,8 @@ test("openPanel loads the shared panel build with CSP, nonce and injected bridge
   assert.equal(webview.html.includes("acquireVsCodeApi"), true);
   assert.equal(webview.html.includes("getContext"), true);
   assert.equal(webview.html.includes(" crossorigin"), false);
-  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.js/);
-  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.css/);
+  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.js\?v=[a-f0-9]{12}/);
+  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.css\?v=[a-f0-9]{12}/);
   assert.equal(webview.html.includes("panel.html"), false);
   assert.equal(webview.html.includes("pipe"), false);
 });

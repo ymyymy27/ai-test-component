@@ -91,6 +91,9 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     if python is not None:
         env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
         env["VIRTUAL_ENV"] = str(python.parent.parent)
+        # A parent interpreter's PYTHONHOME poisons the project interpreter and
+        # makes its stdlib mix with a different Python version.
+        env.pop("PYTHONHOME", None)
     env["AITEST_RUN_ID"] = run_id
     env["AITEST_DATA_PREFIX"] = data_prefix(run_id)
     return env
@@ -448,9 +451,7 @@ def _screenshot_artifacts(
     """New screenshots produced by a script or Playwright run, as evidence pairs."""
     candidates = _screenshot_files(workdir, run_dir) - before
     candidates.update(
-        path
-        for path in _script_screenshot_paths(case.script_content, workdir)
-        if path.is_file()
+        path for path in _script_screenshot_paths(case.script_content, workdir) if path.is_file()
     )
     artifacts: list[tuple[str, bytes]] = []
     for index, path in enumerate(sorted(candidates)):

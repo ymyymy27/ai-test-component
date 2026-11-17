@@ -10,8 +10,10 @@ const props = withDefaults(
     analysis?: Analysis;
     loading?: boolean;
     canGenerate?: boolean;
+    /** No failed or stalled cases, so there is nothing to analyze. */
+    notNeeded?: boolean;
   }>(),
-  { analysis: undefined, loading: false, canGenerate: false },
+  { analysis: undefined, loading: false, canGenerate: false, notNeeded: false },
 );
 
 defineEmits<{ generate: [] }>();
@@ -37,6 +39,9 @@ const canRetry = computed(
 
 const state = computed(() => {
   if (!props.analysis) {
+    if (props.notNeeded) {
+      return "not_needed";
+    }
     return props.canGenerate ? "missing" : "unavailable";
   }
   if (props.analysis.status === "not_generated") {
@@ -79,6 +84,10 @@ const invalidText = computed(() =>
       >
         生成失败分析
       </AppButton>
+    </div>
+
+    <div v-else-if="state === 'not_needed'" class="state">
+      <p class="state-text">本次没有失败，不需要生成分析。</p>
     </div>
 
     <div v-else-if="state === 'unavailable'" class="state">

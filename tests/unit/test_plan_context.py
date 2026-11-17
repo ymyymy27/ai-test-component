@@ -65,8 +65,7 @@ def _setup(
         "project_id": project["project_id"],
         "title": "下单验证",
         "goal": goal,
-        "acceptance_items": items
-        or [{"text": "下单后列表出现订单", "observable": True}],
+        "acceptance_items": items or [{"text": "下单后列表出现订单", "observable": True}],
     }
     if intent is not None:
         payload["intent"] = intent
@@ -220,9 +219,7 @@ def test_project_context_reports_commands_frameworks_and_capabilities(
     assert "npm test" in context["existing_commands"]
 
 
-def test_task_intent_inference_and_suggest_fallback(
-    tmp_path: Path, capsys: Capsys
-) -> None:
+def test_task_intent_inference_and_suggest_fallback(tmp_path: Path, capsys: Capsys) -> None:
     root = tmp_path / "repo"
     root.mkdir()
     project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
@@ -264,9 +261,9 @@ def test_task_intent_inference_and_suggest_fallback(
     )["data"]
     assert explicit["intent"] == "smoke"
 
-    suggested = call(
-        tmp_path, "task.suggest", {"project_id": project["project_id"]}, capsys
-    )["data"]
+    suggested = call(tmp_path, "task.suggest", {"project_id": project["project_id"]}, capsys)[
+        "data"
+    ]
     assert suggested["intent"] == "smoke"
     assert suggested["fallback_intent"] == "smoke"
 
@@ -321,9 +318,7 @@ def test_smoke_plan_rejects_http_and_uses_l1_import_when_no_command(
         goal="验证项目能否启动并跑通主流程",
         intent="smoke",
     )
-    rejected = call(
-        tmp_path, "plan.generate", _plan_payload(setup, "http:[]"), capsys
-    )
+    rejected = call(tmp_path, "plan.generate", _plan_payload(setup, "http:[]"), capsys)
     assert rejected["ok"] is False
     assert rejected["error"]["code"] == "INVALID_REQUEST"
     assert "验证方式" in rejected["error"]["message"]
@@ -355,6 +350,206 @@ def test_smoke_plan_rejects_http_and_uses_l1_import_when_no_command(
     assert "import app" in shown["cases"][0]["verify_method"]
 
 
+def test_smoke_plan_uses_discovery_and_smallest_test_module(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        goal="验证项目能否启动并跑通主流程",
+        intent="smoke",
+    )
+    root = setup["root"]
+    (root / "tests").mkdir()
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\naddopts = "-q"\n', encoding="utf-8"
+    )
+    (root / "tests" / "test_big.py").write_text(
+        "def test_big():\n    assert True\n" * 20, encoding="utf-8"
+    )
+    (root / "tests" / "test_small.py").write_text(
+        "def test_small():\n    assert True\n", encoding="utf-8"
+    )
+    item = setup["task"]["acceptance_items"][0]["item_id"]
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item]},
+        },
+        capsys,
+    )
+    assert plan["ok"] is True, plan
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {
+            "project_id": setup["project"]["project_id"],
+            "plan_id": plan["data"]["plan_id"],
+        },
+        capsys,
+    )["data"]["plan"]
+    methods = [case["verify_method"] for case in shown["cases"]]
+    assert len(methods) == 2
+    assert "command: python -m pytest --collect-only -q" in methods
+    smallest = next(item for item in methods if "test_small.py" in item)
+    assert "test_big.py" not in smallest
+
+
+def test_smoke_command_override_wins_over_inferred_checks(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        goal="验证项目能否启动并跑通主流程",
+        intent="smoke",
+    )
+    item = setup["task"]["acceptance_items"][0]["item_id"]
+    call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": setup["project"]["project_id"],
+            "action": "update",
+            "patch": {"l1": {"smoke_command": "python -m pytest tests/test_small.py -q"}},
+        },
+        capsys,
+    )
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item]},
+        },
+        capsys,
+    )
+    assert plan["ok"] is True, plan
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {
+            "project_id": setup["project"]["project_id"],
+            "plan_id": plan["data"]["plan_id"],
+        },
+        capsys,
+    )["data"]["plan"]
+    assert len(shown["cases"]) == 1
+    assert shown["cases"][0]["verify_method"] == "command: python -m pytest tests/test_small.py -q"
+
+
+def test_smoke_l1_build_is_not_run_twice(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        goal="验证项目能否启动并跑通主流程",
+        intent="smoke",
+    )
+    project_id = setup["project"]["project_id"]
+    call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": project_id,
+            "action": "update",
+            "patch": {"l1": {"build": "python -m compileall -q src"}},
+        },
+        capsys,
+    )
+    item = setup["task"]["acceptance_items"][0]["item_id"]
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": project_id,
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item]},
+        },
+        capsys,
+    )
+    assert plan["ok"] is True, plan
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {"project_id": project_id, "plan_id": plan["data"]["plan_id"]},
+        capsys,
+    )["data"]["plan"]
+    assert len(shown["cases"]) == 1
+    assert shown["cases"][0]["verify_method"] == "command: python -m compileall -q src"
+
+
+def test_smoke_plan_without_any_check_is_rejected(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        goal="验证项目能否启动并跑通主流程",
+        intent="smoke",
+    )
+    item = setup["task"]["acceptance_items"][0]["item_id"]
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item]},
+        },
+        capsys,
+    )
+    assert plan["ok"] is False
+    assert plan["error"]["code"] == "INVALID_REQUEST"
+    assert "缺少可执行检查" in plan["error"]["message"]
+
+
+def test_plan_signature_detects_smoke_command_change(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        goal="验证项目能否启动并跑通主流程",
+        intent="smoke",
+    )
+    project_id = setup["project"]["project_id"]
+    call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": project_id,
+            "action": "update",
+            "patch": {"l1": {"smoke_command": "python -m pytest -q"}},
+        },
+        capsys,
+    )
+    item = setup["task"]["acceptance_items"][0]["item_id"]
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": project_id,
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item]},
+        },
+        capsys,
+    )["data"]
+    call(
+        tmp_path,
+        "project.config",
+        {
+            "project_id": project_id,
+            "action": "update",
+            "patch": {"l1": {"smoke_command": "python -m pytest tests/test_small.py"}},
+        },
+        capsys,
+    )
+    stale = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+    )
+    assert stale["ok"] is False
+    assert stale["error"]["code"] == "PLAN_STALE"
+
+
 def test_business_http_rejects_external_example_and_allows_service_host(
     tmp_path: Path, capsys: Capsys
 ) -> None:
@@ -372,8 +567,7 @@ def test_business_http_rejects_external_example_and_allows_service_host(
     )
     external = _plan_payload(
         setup,
-        "http:"
-        + json.dumps([{"method": "GET", "url": "https://api.example.com/orders"}]),
+        "http:" + json.dumps([{"method": "GET", "url": "https://api.example.com/orders"}]),
         case_id="case_external",
     )
     rejected = call(tmp_path, "plan.generate", external, capsys)
@@ -403,7 +597,7 @@ def test_business_http_rejects_external_example_and_allows_service_host(
         ("script:probe.py", {"script_name": "probe.py"}),
         ("http:not-json", {}),
         ("http:{}", {}),
-        ("http:[{\"method\": \"GET\"}]", {}),
+        ('http:[{"method": "GET"}]', {}),
         ("playwright:   ", {}),
         ("sql:   ", {}),
         ("junit:   ", {}),
@@ -427,9 +621,7 @@ def test_plan_update_and_publish_reject_invalid_verify_methods(
 ) -> None:
     setup = _setup(tmp_path, capsys)
     project_id = setup["project"]["project_id"]
-    plan = call(
-        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
-    )["data"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
     bad_case = _plan_payload(setup, "command:   ")["cases"][0]
     bad_case["case_id"] = "case_update"
     updated = call(
@@ -460,9 +652,7 @@ def test_plan_update_and_publish_reject_invalid_verify_methods(
     assert "case_publish" in published["error"]["message"]
 
 
-def test_plan_signature_detects_delivery_commit_change(
-    tmp_path: Path, capsys: Capsys
-) -> None:
+def test_plan_signature_detects_delivery_commit_change(tmp_path: Path, capsys: Capsys) -> None:
     setup = _setup(tmp_path, capsys)
     project_id = setup["project"]["project_id"]
     call(
@@ -476,9 +666,7 @@ def test_plan_signature_detects_delivery_commit_change(
         },
         capsys,
     )
-    plan = call(
-        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
-    )["data"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
     assert plan["source_signature"]
     started = call(
         tmp_path,
@@ -516,9 +704,7 @@ def test_plan_signature_detects_services_change_and_accepts_legacy_empty_signatu
 ) -> None:
     setup = _setup(tmp_path, capsys)
     project_id = setup["project"]["project_id"]
-    plan = call(
-        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
-    )["data"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
     started = call(
         tmp_path,
         "run.start",
@@ -558,9 +744,7 @@ def test_plan_signature_detects_services_change_and_accepts_legacy_empty_signatu
     _wait_completed(tmp_path, capsys, project_id, legacy["data"]["run_id"])
 
 
-def test_plan_update_recomputes_source_signature(
-    tmp_path: Path, capsys: Capsys
-) -> None:
+def test_plan_update_recomputes_source_signature(tmp_path: Path, capsys: Capsys) -> None:
     setup = _setup(tmp_path, capsys)
     project_id = setup["project"]["project_id"]
     call(
@@ -574,9 +758,7 @@ def test_plan_update_recomputes_source_signature(
         },
         capsys,
     )
-    plan = call(
-        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
-    )["data"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
     call(
         tmp_path,
         "delivery.save",
@@ -671,9 +853,7 @@ def test_generic_ai_acceptance_items_become_pending_and_no_fallback_item(
     assert empty["acceptance_items"] == []
 
 
-def _write_run(
-    ws: Workspace, project_id: str, run_id: str, results: list[str]
-) -> Path:
+def _write_run(ws: Workspace, project_id: str, run_id: str, results: list[str]) -> Path:
     run_dir = ws.project_dir(project_id) / "runs" / run_id
     run_dir.mkdir(parents=True)
     run = Run(
@@ -694,9 +874,7 @@ class _AnalyzeClient:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
 
-    def analyze_failure(
-        self, run: dict[str, Any], evidence: list[str]
-    ) -> dict[str, Any]:
+    def analyze_failure(self, run: dict[str, Any], evidence: list[str]) -> dict[str, Any]:
         del run, evidence
         if self.error is not None:
             raise self.error
@@ -729,9 +907,7 @@ def test_analyze_run_sets_reason_for_each_missing_case(
     invalid = _write_run(ws, project_id, "run_invalid", ["failed"])
     monkeypatch.setattr(
         "aitest.core.analysis.build_client",
-        lambda *a, **k: _AnalyzeClient(
-            AiTestError("MODEL_OUTPUT_INVALID", "bad output", "retry")
-        ),
+        lambda *a, **k: _AnalyzeClient(AiTestError("MODEL_OUTPUT_INVALID", "bad output", "retry")),
     )
     result = analyze_run(ws, project_id, invalid)
     assert result["reason"] == "model_invalid"
@@ -747,9 +923,7 @@ def test_analyze_run_sets_reason_for_each_missing_case(
     assert read_model(error / "run.json", Run).analysis[0].reason == "model_error"
 
     generated = _write_run(ws, project_id, "run_generated", ["failed"])
-    monkeypatch.setattr(
-        "aitest.core.analysis.build_client", lambda *a, **k: _AnalyzeClient()
-    )
+    monkeypatch.setattr("aitest.core.analysis.build_client", lambda *a, **k: _AnalyzeClient())
     result = analyze_run(ws, project_id, generated)
     assert result["status"] == "generated"
     assert result["analysis"]["reason"] == ""

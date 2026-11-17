@@ -132,6 +132,19 @@ const deliverySummary = computed(() => [
 const hasDelivery = computed(() =>
   DELIVERY_FIELDS.some((field) => deliveryText[field.key].trim().length > 0),
 );
+const deliveryState = computed(() =>
+  delivery.saved ? "已保存" : hasDelivery.value ? "未保存" : "未填写",
+);
+const templateState = computed(() =>
+  appliedTemplates.value.length ? `已应用 ${appliedTemplates.value.length} 个` : "未应用",
+);
+const moduleState = computed(() =>
+  moduleSuggest.items.length
+    ? `${moduleSuggest.items.length} 个待确认`
+    : moduleSuggest.shown
+      ? "没有建议"
+      : "未生成",
+);
 
 function splitLines(key: DeliveryTextKey): string[] {
   return deliveryText[key]
@@ -522,205 +535,222 @@ watch(
               {{ module.name }}
             </button>
           </div>
-          <p class="hint">模块随计划保存，用来说明改动范围；后端不按模块过滤验收项。</p>
+          <p class="hint">模块只用于说明改动范围，不缩小本次验收项。</p>
         </div>
       </section>
 
-      <section class="block">
-        <div class="section-title">
-          <h3>交付说明</h3>
-          <AppButton
-            size="sm"
-            variant="secondary"
-            :loading="delivery.loading"
-            :disabled="!hasTask"
-            data-testid="delivery-draft-button"
-            @click="draftDelivery"
-          >
-            AI 起草
-          </AppButton>
-        </div>
-
-        <div v-if="hasDelivery" class="summary">
-          <div v-for="group in deliverySummary" :key="group.key" class="summary-group">
-            <span class="summary-key">{{ group.label }}</span>
-            <span v-if="group.items.length" class="chips">
-              <span v-for="item in group.items" :key="item" class="chip">{{ item }}</span>
-            </span>
-            <span v-else class="quiet tiny">未记录</span>
-          </div>
-        </div>
-        <p v-else class="hint">
-          AI 读取 README、项目清单与 git 改动，起草变更模块、运行方式、Mock 与已知问题；字段都可以改。
-        </p>
-
-        <details class="delivery-fields">
-          <summary>编辑交付字段（9 项）</summary>
-          <label class="field">
-            <span class="label">提交（可选）</span>
-            <input
-              v-model="deliveryCommit"
-              class="input mono"
-              type="text"
-              placeholder="例如 abc123"
-              spellcheck="false"
-            />
-          </label>
-          <label v-for="field in DELIVERY_FIELDS" :key="field.key" class="field">
-            <span class="label">{{ field.label }}</span>
-            <textarea
-              v-model="deliveryText[field.key]"
-              class="input textarea"
-              :rows="field.rows"
-              :aria-label="field.label"
-            ></textarea>
-            <span class="hint">{{ field.hint }}</span>
-          </label>
-          <div class="row">
+      <details class="block fold" data-testid="delivery-fold">
+        <summary class="fold-head">
+          <span class="fold-title">交付说明</span>
+          <span class="fold-state">{{ deliveryState }}</span>
+          <Icon class="fold-chev" name="chevron-right" :size="13" />
+        </summary>
+        <div class="fold-body">
+          <div class="fold-tools">
+            <span class="hint">README、项目清单与 git 改动可自动起草，字段都能改。</span>
             <AppButton
               size="sm"
-              variant="primary"
-              :loading="delivery.saving"
+              variant="secondary"
+              :loading="delivery.loading"
               :disabled="!hasTask"
-              data-testid="delivery-save-button"
-              @click="saveDelivery"
+              data-testid="delivery-draft-button"
+              @click="draftDelivery"
             >
-              保存交付说明
+              AI 起草
             </AppButton>
-            <span class="hint">保存只写入工作空间。</span>
+          </div>
+
+          <div v-if="hasDelivery" class="summary">
+            <div v-for="group in deliverySummary" :key="group.key" class="summary-group">
+              <span class="summary-key">{{ group.label }}</span>
+              <span v-if="group.items.length" class="chips">
+                <span v-for="item in group.items" :key="item" class="chip">{{ item }}</span>
+              </span>
+              <span v-else class="quiet tiny">未记录</span>
+            </div>
+          </div>
+          <p v-else class="hint">
+            AI 读取 README、项目清单与 git 改动，起草变更模块、运行方式、Mock 与已知问题；字段都可以改。
+          </p>
+
+          <details class="delivery-fields">
+            <summary>编辑交付字段（9 项）</summary>
+            <label class="field">
+              <span class="label">提交（可选）</span>
+              <input
+                v-model="deliveryCommit"
+                class="input mono"
+                type="text"
+                placeholder="例如 abc123"
+                spellcheck="false"
+              />
+            </label>
+            <label v-for="field in DELIVERY_FIELDS" :key="field.key" class="field">
+              <span class="label">{{ field.label }}</span>
+              <textarea
+                v-model="deliveryText[field.key]"
+                class="input textarea"
+                :rows="field.rows"
+                :aria-label="field.label"
+              ></textarea>
+              <span class="hint">{{ field.hint }}</span>
+            </label>
+            <div class="row">
+              <AppButton
+                size="sm"
+                variant="primary"
+                :loading="delivery.saving"
+                :disabled="!hasTask"
+                data-testid="delivery-save-button"
+                @click="saveDelivery"
+              >
+                保存交付说明
+              </AppButton>
+              <span class="hint">保存只写入工作空间。</span>
+            </div>
+            <ErrorNotice
+              v-if="delivery.error"
+              :error="delivery.error"
+              :show-retry="false"
+              @retry="() => {}"
+            />
+            <p v-if="delivery.saved" class="hint">{{ delivery.saved }}</p>
+          </details>
+          <p v-if="!hasTask" class="hint">先生成一条验收标准，才能起草交付说明。</p>
+        </div>
+      </details>
+
+      <details class="block fold" data-testid="template-fold">
+        <summary class="fold-head">
+          <span class="fold-title">模板检查项</span>
+          <span class="fold-state">{{ templateState }}</span>
+          <Icon class="fold-chev" name="chevron-right" :size="13" />
+        </summary>
+        <div class="fold-body">
+          <p class="hint">只读提示，不进入必测分母。</p>
+
+          <div v-if="appliedTemplates.length" class="template-summary">
+            <span
+              v-for="chip in dispositionChips"
+              :key="chip.key"
+              class="disposition"
+              :class="`disposition-${chip.key}`"
+            >
+              {{ chip.label }}
+              <span class="numeric">{{ chip.count }}</span>
+            </span>
+            <span class="quiet">{{ appliedTemplates.map((template) => template.name).join("、") }}</span>
+          </div>
+          <p v-else class="hint">还没有应用模板。应用后只读展示每项的处置与理由。</p>
+
+          <div class="template-controls">
+            <select
+              v-model="templatePanel.choice"
+              class="input"
+              aria-label="选择模板"
+              :disabled="templatePanel.loading || templatePanel.options.length === 0"
+            >
+              <option v-if="templatePanel.options.length === 0" value="">没有可用模板</option>
+              <option
+                v-for="template in templatePanel.options"
+                :key="template.template_id"
+                :value="template.template_id"
+              >
+                {{ template.name }}（{{ template.item_count }} 项）
+              </option>
+            </select>
+            <AppButton
+              size="sm"
+              :loading="templatePanel.applying"
+              :disabled="!templatePanel.choice || templatePanel.options.length === 0 || !hasTask"
+              data-testid="apply-template"
+              @click="applyTemplate"
+            >
+              应用模板
+            </AppButton>
           </div>
           <ErrorNotice
-            v-if="delivery.error"
-            :error="delivery.error"
+            v-if="templatePanel.error"
+            :error="templatePanel.error"
             :show-retry="false"
             @retry="() => {}"
           />
-          <p v-if="delivery.saved" class="hint">{{ delivery.saved }}</p>
-        </details>
-        <p v-if="!hasTask" class="hint">先生成一条验收标准，才能起草交付说明。</p>
-      </section>
 
-      <section class="block">
-        <div class="section-title">
-          <h3>模板检查项</h3>
-          <span class="section-note">只读提示，不进入必测分母</span>
-        </div>
-
-        <div v-if="appliedTemplates.length" class="template-summary">
-          <span
-            v-for="chip in dispositionChips"
-            :key="chip.key"
-            class="disposition"
-            :class="`disposition-${chip.key}`"
-          >
-            {{ chip.label }}
-            <span class="numeric">{{ chip.count }}</span>
-          </span>
-          <span class="quiet">{{ appliedTemplates.map((template) => template.name).join("、") }}</span>
-        </div>
-        <p v-else class="hint">还没有应用模板。应用后只读展示每项的处置与理由。</p>
-
-        <div class="template-controls">
-          <select
-            v-model="templatePanel.choice"
-            class="input"
-            aria-label="选择模板"
-            :disabled="templatePanel.loading || templatePanel.options.length === 0"
-          >
-            <option v-if="templatePanel.options.length === 0" value="">没有可用模板</option>
-            <option
-              v-for="template in templatePanel.options"
-              :key="template.template_id"
-              :value="template.template_id"
-            >
-              {{ template.name }}（{{ template.item_count }} 项）
-            </option>
-          </select>
-          <AppButton
-            size="sm"
-            :loading="templatePanel.applying"
-            :disabled="!templatePanel.choice || templatePanel.options.length === 0 || !hasTask"
-            data-testid="apply-template"
-            @click="applyTemplate"
-          >
-            应用模板
-          </AppButton>
-        </div>
-        <ErrorNotice
-          v-if="templatePanel.error"
-          :error="templatePanel.error"
-          :show-retry="false"
-          @retry="() => {}"
-        />
-
-        <div v-for="template in appliedTemplates" :key="template.template_id" class="template">
-          <div class="template-head">
-            <h4>{{ template.name }}</h4>
-            <span class="quiet tiny">{{ template.version }} · {{ template.applied_at }}</span>
+          <div v-for="template in appliedTemplates" :key="template.template_id" class="template">
+            <div class="template-head">
+              <h4>{{ template.name }}</h4>
+              <span class="quiet tiny">{{ template.version }} · {{ template.applied_at }}</span>
+            </div>
+            <ul class="template-items">
+              <li v-for="item in template.items" :key="item.item_id">
+                <span class="disposition" :class="`disposition-${item.disposition}`">
+                  {{ DISPOSITION_LABEL[item.disposition] }}
+                </span>
+                <span>{{ item.objective || item.item_id }}</span>
+                <span class="template-reason">{{ item.reason || "未提供理由" }}</span>
+              </li>
+            </ul>
           </div>
-          <ul class="template-items">
-            <li v-for="item in template.items" :key="item.item_id">
-              <span class="disposition" :class="`disposition-${item.disposition}`">
-                {{ DISPOSITION_LABEL[item.disposition] }}
-              </span>
-              <span>{{ item.objective || item.item_id }}</span>
-              <span class="template-reason">{{ item.reason || "未提供理由" }}</span>
+        </div>
+      </details>
+
+      <details class="block fold" data-testid="module-fold">
+        <summary class="fold-head">
+          <span class="fold-title">模块建议</span>
+          <span class="fold-state">{{ moduleState }}</span>
+          <Icon class="fold-chev" name="chevron-right" :size="13" />
+        </summary>
+        <div class="fold-body">
+          <div class="fold-tools">
+            <span class="hint">建议不写库；确认后再逐条登记。</span>
+            <AppButton
+              size="sm"
+              :loading="moduleSuggest.loading"
+              data-testid="module-suggest-button"
+              @click="suggestModules"
+            >
+              AI 建议模块
+            </AppButton>
+          </div>
+          <ul v-if="moduleSuggest.items.length" class="suggestions" data-testid="module-suggestions">
+            <li v-for="item in moduleSuggest.items" :key="item.name">
+              <div class="suggestion-head">
+                <strong>{{ item.name }}</strong>
+                <span v-if="item.owner" class="quiet tiny">负责人：{{ item.owner }}</span>
+              </div>
+              <p v-if="item.responsibility" class="suggestion-note">{{ item.responsibility }}</p>
+              <p v-if="item.deps.length" class="suggestion-note">
+                依赖：{{ item.deps.map((dep) => `${dep.to}（${dep.type}）`).join("、") }}
+              </p>
             </li>
           </ul>
+          <p v-else-if="moduleSuggest.shown" class="hint">模型没有给出模块建议。</p>
+          <div v-if="moduleSuggest.items.length" class="row">
+            <AppButton
+              size="sm"
+              variant="primary"
+              :loading="moduleSuggest.saving"
+              data-testid="module-confirm-button"
+              @click="confirmSuggestions"
+            >
+              确认写入 {{ moduleSuggest.items.length }} 个模块
+            </AppButton>
+            <AppButton
+              size="sm"
+              variant="ghost"
+              @click="moduleSuggest.items = []; moduleSuggest.shown = false"
+            >
+              取消
+            </AppButton>
+          </div>
+          <ErrorNotice
+            v-if="moduleSuggest.error"
+            :error="moduleSuggest.error"
+            :show-retry="false"
+            @retry="() => {}"
+          />
         </div>
-      </section>
-
-      <section class="block">
-        <div class="section-title">
-          <h3>模块建议</h3>
-          <AppButton
-            size="sm"
-            :loading="moduleSuggest.loading"
-            data-testid="module-suggest-button"
-            @click="suggestModules"
-          >
-            AI 建议模块
-          </AppButton>
-        </div>
-        <p class="hint">建议不写库；确认后再逐条登记。</p>
-        <ul v-if="moduleSuggest.items.length" class="suggestions" data-testid="module-suggestions">
-          <li v-for="item in moduleSuggest.items" :key="item.name">
-            <div class="suggestion-head">
-              <strong>{{ item.name }}</strong>
-              <span v-if="item.owner" class="quiet tiny">负责人：{{ item.owner }}</span>
-            </div>
-            <p v-if="item.responsibility" class="suggestion-note">{{ item.responsibility }}</p>
-            <p v-if="item.deps.length" class="suggestion-note">
-              依赖：{{ item.deps.map((dep) => `${dep.to}（${dep.type}）`).join("、") }}
-            </p>
-          </li>
-        </ul>
-        <p v-else-if="moduleSuggest.shown" class="hint">模型没有给出模块建议。</p>
-        <div v-if="moduleSuggest.items.length" class="row">
-          <AppButton
-            size="sm"
-            variant="primary"
-            :loading="moduleSuggest.saving"
-            data-testid="module-confirm-button"
-            @click="confirmSuggestions"
-          >
-            确认写入 {{ moduleSuggest.items.length }} 个模块
-          </AppButton>
-          <AppButton
-            size="sm"
-            variant="ghost"
-            @click="moduleSuggest.items = []; moduleSuggest.shown = false"
-          >
-            取消
-          </AppButton>
-        </div>
-        <ErrorNotice
-          v-if="moduleSuggest.error"
-          :error="moduleSuggest.error"
-          :show-retry="false"
-          @retry="() => {}"
-        />
-      </section>
+      </details>
 
       <ErrorNotice
         v-if="saveError"
@@ -764,6 +794,60 @@ watch(
 .block .section-title {
   margin-bottom: 0;
   align-items: center;
+}
+
+.fold {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+  gap: 0;
+}
+
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold-head::-webkit-details-marker {
+  display: none;
+}
+
+.fold-title {
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+
+.fold-state {
+  margin-left: auto;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.fold-chev {
+  flex: none;
+  color: var(--text-3);
+  transition: transform 160ms ease;
+}
+
+.fold[open] .fold-chev {
+  transform: rotate(90deg);
+}
+
+.fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.fold-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .item-list {

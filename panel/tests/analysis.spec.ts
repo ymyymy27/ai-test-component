@@ -4,13 +4,20 @@ import { describe, expect, it } from "vitest";
 import AnalysisPanel from "@/components/AnalysisPanel.vue";
 import type { Analysis } from "@/api/types";
 
-function render(analysis?: Analysis, canGenerate = true) {
+function render(analysis?: Analysis, canGenerate = true, notNeeded = false) {
   return mount(AnalysisPanel, {
-    props: { analysis, canGenerate },
+    props: { analysis, canGenerate, notNeeded },
   });
 }
 
 describe("AI 失败分析：未生成原因", () => {
+  it("没有失败且未生成分析对象时也说明不需要生成", () => {
+    const wrapper = render(undefined, false, true);
+
+    expect(wrapper.text()).toContain("本次没有失败，不需要生成分析。");
+    expect(wrapper.findAll("button")).toHaveLength(0);
+  });
+
   it("没有失败时说明不需要生成，且不提供生成按钮", () => {
     const wrapper = render({ status: "not_generated", reason: "no_failures" });
 

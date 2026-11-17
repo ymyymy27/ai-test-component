@@ -116,6 +116,10 @@ const joined = computed<JoinedCase[]>(() =>
 );
 
 const failed = computed(() => joined.value.filter((item) => item.runCase.result === "failed"));
+const totalCases = computed(() => joined.value.length);
+const passedCases = computed(
+  () => joined.value.filter((item) => item.runCase.result === "passed").length,
+);
 const stalled = computed(() =>
   joined.value.filter(
     (item) =>
@@ -409,6 +413,8 @@ watch(runId, () => {
       :verdict="outcome"
       :selected="selected"
       :applicable="applicable"
+      :case-total="totalCases"
+      :case-passed="passedCases"
       :uncovered-items="uncoveredItems"
       :status-label="RUN_STATUS_LABEL[run.status]"
       :status-tone="RUN_STATUS_BADGE[run.status]"
@@ -429,7 +435,7 @@ watch(runId, () => {
           data-testid="failed-case"
         >
           <header class="fail-head">
-            <span class="fail-dot" aria-hidden="true"></span>
+            <span class="fail-index numeric">{{ String(row.index + 1).padStart(2, "0") }}</span>
             <h3>{{ row.planCase?.title || row.planCase?.expected || "失败用例" }}</h3>
             <Badge tone="failed">失败</Badge>
           </header>
@@ -458,6 +464,9 @@ watch(runId, () => {
                 </span>
               </span>
               <Badge v-if="tile.known && !tile.exists" tone="failed">缺失</Badge>
+              <span v-else class="tile-open" aria-hidden="true">
+                <Icon name="chevron-right" :size="13" />
+              </span>
             </button>
           </div>
           <p v-else class="hint">这条用例没有登记证据。</p>
@@ -497,6 +506,7 @@ watch(runId, () => {
       :analysis="analysis"
       :loading="isBusy('analysis')"
       :can-generate="canAnalyze"
+      :not-needed="!canAnalyze"
       @generate="generateAnalysis"
     />
 
@@ -692,11 +702,16 @@ watch(runId, () => {
 }
 
 .result-actions {
+  position: sticky;
+  top: 48px;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding: 6px 0;
+  background: var(--surface);
 }
 
 .block {
@@ -741,12 +756,16 @@ watch(runId, () => {
   overflow-wrap: anywhere;
 }
 
-.fail-dot {
-  width: 6px;
-  height: 6px;
+.fail-index {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   flex: none;
+  border: 1px solid var(--line-strong);
   border-radius: 50%;
-  background: var(--failed);
+  font-size: var(--fs-12);
+  color: var(--failed);
 }
 
 .fail-item,
@@ -803,6 +822,16 @@ watch(runId, () => {
   flex-direction: column;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.tile-open {
+  flex: none;
+  color: var(--text-3);
+  transition: color 140ms ease;
+}
+
+.tile:hover .tile-open {
+  color: var(--accent);
 }
 
 .tile-name {
@@ -1083,6 +1112,10 @@ watch(runId, () => {
 
   .result-actions :deep(.btn) {
     flex: 1 1 auto;
+  }
+
+  .result-actions .hint {
+    display: none;
   }
 }
 </style>

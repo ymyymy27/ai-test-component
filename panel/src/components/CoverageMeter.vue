@@ -8,13 +8,20 @@ const props = withDefaults(
     selected: number;
     applicable: number;
     size?: "md" | "sm";
+    /** Project-level checks (for example a smoke run) have no acceptance items. */
+    caseTotal?: number;
+    casePassed?: number;
     /** "id：text" rows from the backend; empty means the whole applicable set was selected. */
     uncoveredItems?: string[];
   }>(),
-  { size: "md", uncoveredItems: () => [] },
+  { size: "md", caseTotal: 0, casePassed: 0, uncoveredItems: () => [] },
 );
 
+const projectMode = computed(() => props.applicable <= 0 && props.caseTotal > 0);
 const ratio = computed(() => {
+  if (projectMode.value) {
+    return Math.min(1, Math.max(0, props.casePassed / props.caseTotal));
+  }
   if (props.applicable <= 0) {
     return 0;
   }
@@ -28,23 +35,33 @@ const uncovered = computed(() => Math.max(0, props.applicable - props.selected))
 <template>
   <div class="coverage" :class="`coverage-${size}`" data-testid="coverage">
     <div class="coverage-head">
-      <span class="coverage-label">范围覆盖</span>
-      <span class="coverage-value numeric">
+      <span class="coverage-label">{{ projectMode ? "项目检查" : "范围覆盖" }}</span>
+      <span v-if="projectMode" class="coverage-value numeric">
+        <strong>{{ casePassed }}</strong><span class="slash">/</span>{{ caseTotal }} 通过
+      </span>
+      <span v-else class="coverage-value numeric">
         <strong>{{ selected }}</strong><span class="slash">/</span>{{ applicable }}
       </span>
     </div>
     <div
       class="track"
       role="progressbar"
-      :aria-valuenow="selected"
+      :aria-valuenow="projectMode ? casePassed : selected"
       :aria-valuemin="0"
-      :aria-valuemax="applicable"
-      :aria-label="`范围覆盖 ${selected} / ${applicable}`"
+      :aria-valuemax="projectMode ? caseTotal : applicable"
+      :aria-label="
+        projectMode
+          ? `项目检查 ${casePassed} / ${caseTotal} 通过`
+          : `范围覆盖 ${selected} / ${applicable}`
+      "
     >
       <span class="fill" :style="{ width: `${percent}%` }"></span>
     </div>
     <p class="coverage-note">
-      <template v-if="applicable === 0">没有适用的验收项。</template>
+      <template v-if="projectMode">
+        项目级检查不绑定验收项，结果只说明这些检查是否通过。
+      </template>
+      <template v-else-if="applicable === 0">没有适用的验收项。</template>
       <template v-else-if="uncovered > 0">
         还有 {{ uncovered }} 条验收项未纳入本次范围，结论只对所选范围成立。
       </template>

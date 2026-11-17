@@ -392,6 +392,7 @@ export function installMockHost(scenario = "proposal"): void {
   };
   let state: unknown = initial;
   let startedRun = false;
+  let cancelled = false;
   let taskRevision = 2;
   let taskItems: {
     item_id: string;
@@ -410,6 +411,7 @@ export function installMockHost(scenario = "proposal"): void {
     setState: (next: unknown) => {
       state = next;
     },
+    openPath: async () => ({ ok: true, data: true }),
     async call(command: string, payload: object): Promise<ReturnType<typeof ok> | ReturnType<typeof fail>> {
       const body = (payload ?? {}) as Record<string, unknown>;
       switch (command) {
@@ -417,12 +419,25 @@ export function installMockHost(scenario = "proposal"): void {
           return ok(doctor);
         case "project.list":
           return ok({
-            projects: [
-              { project_id: project.project_id, name: project.name, root: project.root },
-              { project_id: "proj_other", name: "会员中心", root: "E:\\work\\member-center" },
-            ],
+            projects:
+              scenario === "no-project"
+                ? []
+                : [
+                    { project_id: project.project_id, name: project.name, root: project.root },
+                    { project_id: "proj_other", name: "会员中心", root: "E:\\work\\member-center" },
+                  ],
           });
         case "project.show":
+          if (body["project_id"] === "proj_other") {
+            return ok({
+              project: {
+                ...project,
+                project_id: "proj_other",
+                name: "会员中心",
+                root: "E:\\work\\member-center",
+              },
+            });
+          }
           return ok({ project });
         case "project.add":
           return ok({ project_id: project.project_id, revision: 1, existing: true });
@@ -535,9 +550,23 @@ export function installMockHost(scenario = "proposal"): void {
           return ok({ plan: { ...plan, templates: planTemplates } });
         case "run.start":
           startedRun = true;
+          cancelled = false;
           return ok({ run_id: RUN_ID, status: "running", scope: { selected: 3, applicable: 8 } });
         case "run.status":
           if (body["run_id"] === RUN_ID) {
+            if (scenario === "passed") {
+              return ok({
+                run: {
+                  ...run,
+                  analysis: [],
+                  cases: run.cases.map((item) => ({ ...item, result: "passed" })),
+                },
+                outcome: "passed",
+              });
+            }
+            if (cancelled) {
+              return ok({ run: { ...run, status: "cancelled" }, outcome: "failed" });
+            }
             if (scenario === "running" || startedRun) {
               return ok({
                 run: {
@@ -554,10 +583,10 @@ export function installMockHost(scenario = "proposal"): void {
           }
           return ok({
             run: { ...run, run_id: String(body["run_id"] ?? ""), status: "cancelled" },
-            outcome: "incomplete",
+            outcome: "failed",
           });
         case "run.list": {
-          if (scenario === "proposal") {
+          if (scenario === "proposal" || scenario === "no-project") {
             return ok({ runs: [] });
           }
           return ok({
@@ -584,6 +613,7 @@ export function installMockHost(scenario = "proposal"): void {
           });
         }
         case "run.cancel":
+          cancelled = true;
           return ok({ cancel_requested: true });
         case "analysis.run":
           return ok({ status: "generated", analysis: run.analysis[0] });

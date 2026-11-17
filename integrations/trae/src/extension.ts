@@ -6,7 +6,7 @@
  * - 所有业务数据由 `bridge.ts` 调 `python -m aitest.cli` 取回并原样转给面板。
  */
 import { appendFileSync, readFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -385,6 +385,7 @@ function renderPanelHtml(
     const panelRoot = vscode.Uri.joinPath(context.extensionUri, "media", "panel");
     const template = readFileSync(vscode.Uri.joinPath(panelRoot, "index.html").fsPath, "utf8");
     const base = webview.asWebviewUri(panelRoot).toString().replace(/\/+$/, "");
+    const assetVersion = createHash("sha1").update(template).digest("hex").slice(0, 12);
     const csp = [
       "default-src 'none'",
       `script-src 'nonce-${nonce}' ${webview.cspSource}`,
@@ -395,6 +396,7 @@ function renderPanelHtml(
     ].join("; ");
     const html = template
       .replace(/(?:\.\/|\/)assets\//g, `${base}/assets/`)
+      .replace(/(\/assets\/[^"'?#]+\.(?:js|css))/g, `$1?v=${assetVersion}`)
       .replace(/<script /g, `<script nonce="${nonce}" `)
       .replace(/ crossorigin/g, "");
     return html.replace(

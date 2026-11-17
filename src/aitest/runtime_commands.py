@@ -143,6 +143,8 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "runners": config.get("runners", {}),
         "l1": config.get("l1", {}),
         "test_commands": derived["test_commands"],
+        "smoke_command": derived["smoke_command"],
+        "smallest_test": derived["smallest_test"],
         "test_dirs": derived["test_dirs"],
         "framework": derived["framework"],
         "has_frontend": derived["has_frontend"],
@@ -325,6 +327,9 @@ def _validate_plan_cases(
     cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
 ) -> None:
     allowed_commands = _string_list(context.get("test_commands"))
+    smoke_command = str(context.get("smoke_command") or "").strip()
+    if smoke_command:
+        allowed_commands.append(smoke_command)
     l1 = context.get("l1")
     if isinstance(l1, dict):
         build = l1.get("build")
@@ -373,58 +378,114 @@ def _detect_entry_modules(root: Path) -> list[str]:
     return modules[:3]
 
 
-def _smoke_command(context: dict[str, Any]) -> str:
-    commands = _string_list(context.get("test_commands"))
-    if commands:
-        return commands[0]
+def _smoke_checks(context: dict[str, Any]) -> list[dict[str, str]]:
+    """Infer fast, meaningful L1 checks; never run the whole suite by default."""
+    custom = str(context.get("smoke_command") or "").strip()
+    if custom:
+        return [
+            {
+                "expected": "自定义冒烟命令通过",
+                "source": "project.config l1.smoke_command",
+                "command": custom,
+            }
+        ]
+    checks: list[dict[str, str]] = []
     l1 = context.get("l1")
+    entries = _string_list(l1.get("entry")) if isinstance(l1, dict) else []
+    build = ""
     if isinstance(l1, dict):
-        build = l1.get("build")
-        if isinstance(build, str) and build.strip():
-            return build.strip()
-        entries = _string_list(l1.get("entry"))
-        if entries:
-            return f'python -c "import {entries[0]}"'
-    root = Path(str(context.get("root") or "."))
-    modules = _detect_entry_modules(root)
-    if modules:
-        return f'python -c "import {modules[0]}"'
-    raise AiTestError(
-        "INVALID_REQUEST",
-        "冒烟目标缺少可执行测试命令",
-        "在 project.config 配置 runners 或 l1，或提供 pytest/npm test",
-    )
+        value = l1.get("build")
+        if isinstance(value, str) and value.strip():
+            build = value.strip()
+    if build:
+        checks.append(
+            {
+                "expected": "项目构建命令通过",
+                "source": "project.config l1.build",
+                "command": build,
+            }
+        )
+    else:
+        modules = entries or _detect_entry_modules(Path(str(context.get("root") or ".")))
+        if modules:
+            checks.append(
+                {
+                    "expected": f"入口模块 {modules[0]} 可导入",
+                    "source": "项目入口模块",
+                    "command": f'python -c "import {modules[0]}"',
+                }
+            )
+    commands = _string_list(context.get("test_commands"))
+    pytest_command = next((item for item in commands if "pytest" in item), "")
+    if pytest_command:
+        checks.append(
+            {
+                "expected": "pytest 能发现测试用例",
+                "source": "pytest 用例收集",
+                "command": f"{pytest_command} --collect-only -q",
+            }
+        )
+        smallest = str(context.get("smallest_test") or "").strip()
+        if smallest:
+            checks.append(
+                {
+                    "expected": f"最小测试模块 {smallest} 通过",
+                    "source": f"最小测试文件 {smallest}",
+                    "command": f'{pytest_command} "{smallest}" -q --maxfail=1',
+                }
+            )
+    elif commands:
+        fallback = next((item for item in commands if item != build), "")
+        if fallback:
+            checks.append(
+                {
+                    "expected": "项目测试命令通过",
+                    "source": "项目声明的测试命令",
+                    "command": fallback,
+                }
+            )
+    if not checks:
+        raise AiTestError(
+            "INVALID_REQUEST",
+            "冒烟目标缺少可执行检查",
+            "在 project.config 的 l1 配置 build、entry 或 smoke_command，或提供 pytest/npm test",
+        )
+    return checks
+
+
+def _smoke_case(command: str, item_id: str | None, expected: str, source: str) -> dict[str, Any]:
+    method = command if command.startswith(("command:", "pytest:")) else f"command: {command}"
+    return {
+        "acceptance_item_id": item_id,
+        "layer": "L1",
+        "expected": expected,
+        "expectation_source": source,
+        "verify_method": method,
+        "depends_on": None,
+    }
 
 
 def _smoke_cases(task: Task, selected: list[str], context: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build deterministic L1 cases from existing test commands, never guessing."""
-    command = _smoke_command(context)
-    method = command if command.startswith(("command:", "pytest:")) else f"command: {command}"
+    """Build deterministic L1 checks from declared project facts, never guessing."""
+    checks = _smoke_checks(context)
+    item_ids = [item.item_id for item in task.acceptance_items if item.item_id in selected]
     raw: list[dict[str, Any]] = []
-    for item in task.acceptance_items:
-        if item.item_id not in selected:
-            continue
-        raw.append(
-            {
-                "acceptance_item_id": item.item_id,
-                "layer": "L1",
-                "expected": "L1 检查通过",
-                "expectation_source": item.text,
-                "verify_method": method,
-                "depends_on": None,
-            }
-        )
-    if not raw:
-        raw.append(
-            {
-                "acceptance_item_id": None,
-                "layer": "L1",
-                "expected": "项目构建/入口检查通过",
-                "expectation_source": "冒烟目标",
-                "verify_method": method,
-                "depends_on": None,
-            }
-        )
+    if item_ids:
+        primary = checks[-1]
+        for item_id in item_ids:
+            raw.append(
+                _smoke_case(
+                    primary["command"],
+                    item_id,
+                    primary["expected"],
+                    primary["source"],
+                )
+            )
+        remaining = checks[:-1]
+    else:
+        remaining = checks
+    for check in remaining:
+        raw.append(_smoke_case(check["command"], None, check["expected"], check["source"]))
     return raw
 
 
@@ -467,11 +528,15 @@ def _plan_signature(
 ) -> str:
     config = load_project_config(ws, project.project_id)
     services = config.get("services")
+    l1 = config.get("l1")
+    runners = config.get("runners")
     payload = {
         "project_revision": project.revision,
         "delivery_commit": _delivery_commit(ws, project, task_id),
         "rules_version_id": rules_version_id or "",
         "services": services if isinstance(services, dict) else {},
+        "l1": l1 if isinstance(l1, dict) else {},
+        "runners": runners if isinstance(runners, dict) else {},
         "root": project.root,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")

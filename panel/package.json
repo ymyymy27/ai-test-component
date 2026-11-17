@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "screenshot": "node scripts/screenshot.mjs"
+    "screenshot": "node scripts/screenshot.mjs",
+    "test:e2e": "node scripts/e2e-frontend.mjs"
   },
   "dependencies": {
     "vue": "^3.5.13"

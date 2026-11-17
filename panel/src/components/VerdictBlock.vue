@@ -17,6 +17,8 @@ const props = defineProps<{
   statusLabel?: string;
   statusTone?: "passed" | "failed" | "incomplete" | "neutral" | "accent" | "running";
   timeLabel?: string;
+  caseTotal?: number;
+  casePassed?: number;
   uncoveredItems?: string[];
 }>();
 
@@ -47,6 +49,8 @@ const sentence = computed(() =>
     <CoverageMeter
       :selected="selected"
       :applicable="applicable"
+      :case-total="caseTotal ?? 0"
+      :case-passed="casePassed ?? 0"
       :uncovered-items="uncoveredItems ?? []"
     />
   </section>

@@ -1,6 +1,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
+import CoverageMeter from "@/components/CoverageMeter.vue";
 import ResultPanel from "@/components/ResultPanel.vue";
 import { session } from "@/state/session";
 
@@ -49,6 +50,25 @@ describe("结果相位：结论与失败用例", () => {
     expect(wrapper.find('[data-testid="coverage"]').text().replace(/\s+/g, "")).toContain("2/3");
     expect(wrapper.text()).toContain("还有 1 条验收项未纳入本次范围");
     expect(wrapper.text()).toContain("已完成");
+  });
+
+  it("全部通过的运行不再显示“分析未生成”", async () => {
+    const passed = {
+      outcome: "passed" as const,
+      run: {
+        ...RUN_DETAIL.run,
+        status: "completed" as const,
+        analysis: [],
+        cases: RUN_DETAIL.run.cases.map((item) => ({ ...item, result: "passed" as const })),
+      },
+      uncovered_items: [],
+    };
+    prepare(passed);
+    const wrapper = mount(ResultPanel);
+    await settle();
+
+    expect(wrapper.text()).toContain("本次没有失败，不需要生成分析。");
+    expect(wrapper.text()).not.toContain("分析未生成。");
   });
 
   it("失败用例内联证据缩略卡与执行输出，AI 分析紧随其后", async () => {
@@ -246,5 +266,25 @@ describe("结果相位：报告与意见", () => {
     const opinion = harness.calls.find((call) => call.command === "report.opinion");
     expect(opinion?.payload).toMatchObject({ by: "李四", text: "复测通过" });
     expect(wrapper.text()).toContain("已记录");
+  });
+});
+
+describe("项目级冒烟检查", () => {
+  it("没有验收项时展示检查通过数而不是 0/0 覆盖", () => {
+    const wrapper = mount(CoverageMeter, {
+      props: { selected: 0, applicable: 0, caseTotal: 3, casePassed: 3 },
+    });
+    expect(wrapper.text()).toContain("项目检查");
+    expect(wrapper.text().replace(/\s+/g, "")).toContain("3/3通过");
+    expect(wrapper.text()).toContain("项目级检查不绑定验收项");
+    expect(wrapper.text()).not.toContain("没有适用的验收项");
+  });
+
+  it("有失败检查时按通过数展示进度", () => {
+    const wrapper = mount(CoverageMeter, {
+      props: { selected: 0, applicable: 0, caseTotal: 3, casePassed: 2 },
+    });
+    expect(wrapper.text().replace(/\s+/g, "")).toContain("2/3通过");
+    expect(wrapper.find('[role="progressbar"]').attributes("aria-valuenow")).toBe("2");
   });
 });

@@ -153,7 +153,7 @@ function retryExtract(): void {
         </div>
         <div class="fact">
           <dt>预计耗时</dt>
-          <dd>后端未提供估算；按用例数量与项目启动时间而定。</dd>
+          <dd>未提供估算；按用例数量与项目启动时间而定。</dd>
         </div>
       </dl>
 

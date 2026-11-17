@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from aitest.cli import main
+from aitest.worker import _run_env
 
 Capsys = pytest.CaptureFixture[str]
 
@@ -278,3 +279,17 @@ def test_generated_script_runs_and_dangerous_script_is_rejected(
     )
     assert rejected["ok"] is False
     assert rejected["error"]["code"] == "SCRIPT_REJECTED"
+
+
+def test_run_env_drops_inherited_pythonhome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PYTHONHOME", "C:/other/python")
+    python = tmp_path / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    env = _run_env(tmp_path, python, "run_envcheck")
+    assert "PYTHONHOME" not in env
+    assert env["VIRTUAL_ENV"] == str(tmp_path / ".venv")
+    assert env["PATH"].startswith(str(python.parent))
+    assert env["AITEST_RUN_ID"] == "run_envcheck"

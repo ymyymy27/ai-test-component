@@ -295,6 +295,40 @@ def _test_commands(
     return _unique(commands)
 
 
+def _configured_smoke_command(config: dict[str, Any]) -> str:
+    l1 = config.get("l1")
+    if not isinstance(l1, dict):
+        return ""
+    value = l1.get("smoke_command")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
+def _smallest_test_file(root: Path, test_dirs: list[str]) -> str:
+    """Pick the smallest non-empty test module for a fast smoke run."""
+    candidates: list[tuple[int, str]] = []
+    for directory in test_dirs:
+        base = root / directory.rstrip("/")
+        if not base.is_dir():
+            continue
+        for pattern in ("test_*.py", "*_test.py"):
+            for path in base.rglob(pattern):
+                if not path.is_file() or path.name == "conftest.py":
+                    continue
+                try:
+                    size = path.stat().st_size
+                except OSError:
+                    continue
+                if size <= 0:
+                    continue
+                candidates.append((size, path.relative_to(root).as_posix()))
+    if not candidates:
+        return ""
+    candidates.sort()
+    return candidates[0][1]
+
+
 def _readme_commands(text: str) -> list[str]:
     commands: list[str] = []
     for raw_line in text.splitlines():
@@ -451,9 +485,9 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     frameworks = _frameworks(root, dependencies, pyproject)
     services = _services_with_health(config.get("services"))
     return {
-        "test_commands": _test_commands(
-            config, pyproject, package, frameworks, test_dirs
-        ),
+        "test_commands": _test_commands(config, pyproject, package, frameworks, test_dirs),
+        "smoke_command": _configured_smoke_command(config),
+        "smallest_test": (_smallest_test_file(root, test_dirs) if "pytest" in frameworks else ""),
         "services": services,
         "health_hosts": sorted(_health_hosts(services)),
         "test_dirs": test_dirs,
