@@ -221,6 +221,21 @@ export const DOCTOR: DoctorFacts = {
 
 export const RUN_DETAIL: RunDetail = {
   outcome: "failed",
+  counts: {
+    selected: 2,
+    applicable: 3,
+    covered: 2,
+    passed: 1,
+    failed: 1,
+    incomplete: 0,
+  },
+  item_outcomes: [
+    { item_id: "ai_1", result: "failed", case_ids: ["case_1"] },
+    { item_id: "ai_2", result: "passed", case_ids: ["case_2"] },
+  ],
+  pending_items: 0,
+  manual_cases: 0,
+  uncovered_items: ["ai_3：系统要稳定"],
   run: {
     run_id: "run_1",
     plan_id: "plan_1",

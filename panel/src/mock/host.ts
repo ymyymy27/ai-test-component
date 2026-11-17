@@ -463,6 +463,15 @@ export function installMockHost(scenario = "proposal"): void {
             plan_revision: 2,
           });
         case "task.suggest":
+          if (scenario === "smoke") {
+            return ok({
+              candidates: [],
+              fallback: "验证项目能否启动并跑通主流程",
+              intent: "smoke",
+              fallback_intent: "smoke",
+              ai_generated: false,
+            });
+          }
           return ok({
             candidates: [
               {
@@ -487,15 +496,25 @@ export function installMockHost(scenario = "proposal"): void {
           return ok({
             task_id: TASK_ID,
             revision: taskRevision,
-            intent: "business",
-            acceptance_items: taskItems.map((item) => ({
-              item_id: item.item_id,
-              status: item.status,
-              text: item.text,
-            })),
+            intent: scenario === "smoke" ? "smoke" : "business",
+            acceptance_items:
+              scenario === "smoke"
+                ? []
+                : taskItems.map((item) => ({
+                    item_id: item.item_id,
+                    status: item.status,
+                    text: item.text,
+                  })),
           });
         case "task.show":
-          return ok({ task: { ...task, acceptance_items: taskItems, revision: taskRevision } });
+          return ok({
+            task: {
+              ...task,
+              intent: scenario === "smoke" ? "smoke" : task.intent,
+              acceptance_items: scenario === "smoke" ? [] : taskItems,
+              revision: taskRevision,
+            },
+          });
         case "task.update": {
           const patch = (body["patch"] ?? {}) as {
             acceptance_items?: {
@@ -586,7 +605,7 @@ export function installMockHost(scenario = "proposal"): void {
             outcome: "failed",
           });
         case "run.list": {
-          if (scenario === "proposal" || scenario === "no-project") {
+          if (scenario === "proposal" || scenario === "no-project" || scenario === "smoke") {
             return ok({ runs: [] });
           }
           return ok({

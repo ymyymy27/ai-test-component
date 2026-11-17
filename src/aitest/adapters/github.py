@@ -189,10 +189,14 @@ def read_github(repo: str, ref: str, *, runner: Runner = subprocess.run) -> dict
 
     repo_payload = _mapping(_api_json(runner, f"repos/{repo_path}"))
     commit_payload = _mapping(_api_json(runner, f"repos/{repo_path}/commits/{ref_path}"))
-    pulls_payload = _items(_api_json(runner, f"repos/{repo_path}/pulls?state=all"))
     sha = _string(commit_payload.get("sha"))
     if not sha:
         raise _unavailable("gh 返回的提交信息缺少 sha")
+    pulls_payload = _items(
+        _api_json(runner, f"repos/{repo_path}/commits/{quote(sha, safe='')}/pulls")
+    )
+    if not pulls_payload:
+        pulls_payload = _items(_api_json(runner, f"repos/{repo_path}/pulls?state=all"))
     checks_payload = _api_json(
         runner,
         f"repos/{repo_path}/commits/{quote(sha, safe='')}/check-runs",
@@ -204,7 +208,15 @@ def read_github(repo: str, ref: str, *, runner: Runner = subprocess.run) -> dict
 
     prs = [_pull(item) for item in pulls_payload if isinstance(item, dict)]
     checks = [_check(item) for item in _check_rows(checks_payload) if isinstance(item, dict)]
-    deployment = _deployment(deployments_payload[0]) if deployments_payload else None
+    deployment: dict[str, Any] | None = None
+    for item in deployments_payload:
+        candidate = _deployment(item)
+        if candidate.get("sha") == sha:
+            deployment = candidate
+            break
+    if deployment is None and deployments_payload:
+        # A deployment exists for the ref but does not point at this commit.
+        deployment = {"sha": "", "unconfirmed": True, "environment": "", "ref": ref}
 
     return {
         "repo": _string(repo_payload.get("full_name")) or repo,

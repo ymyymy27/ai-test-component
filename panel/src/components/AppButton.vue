@@ -49,17 +49,15 @@ withDefaults(
 }
 
 .btn-md {
-  min-height: 30px;
-  padding: 6px 13px;
-  font-size: var(--fs-12);
-  letter-spacing: 0.02em;
+  min-height: 34px;
+  padding: 7px 14px;
+  font-size: var(--fs-13);
 }
 
 .btn-sm {
-  min-height: 26px;
-  padding: 3px 9px;
-  font-size: var(--fs-11);
-  letter-spacing: 0.02em;
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: var(--fs-12);
 }
 
 .btn.block {

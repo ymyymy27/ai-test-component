@@ -7,7 +7,7 @@
  */
 import { appendFileSync, readFileSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 
 import * as vscode from "vscode";
@@ -115,13 +115,20 @@ let workspaceBinding: WorkspaceBinding = {
 };
 let bindingInFlight: Promise<WorkspaceBinding> | null = null;
 
+function defaultWorkspacePath(): string {
+  const appData = (process.env.APPDATA ?? "").trim();
+  const base = appData || join(homedir(), ".local", "share");
+  return join(base, "aitest", "workspaces", "default");
+}
+
 export function readSettings(): Settings {
   const configuration = vscode.workspace.getConfiguration("aitest");
   const python = configuration.get<unknown>("pythonPath", "");
   const workspace = configuration.get<unknown>("workspacePath", "");
+  const configured = typeof workspace === "string" ? workspace.trim() : "";
   return {
     pythonPath: typeof python === "string" ? python.trim() : "",
-    workspacePath: typeof workspace === "string" ? workspace.trim() : "",
+    workspacePath: configured || defaultWorkspacePath(),
   };
 }
 
@@ -139,6 +146,17 @@ function runtimeFor(settings: Settings): Promise<PreparedRuntime> {
         // 便携运行时用 VSIX 自带的 wheel 离线安装；不联网取包。
         ...(extensionRoot ? { wheelDir: join(extensionRoot, "media", "runtime") } : {}),
         log: logExt,
+        onStage: (stage) => {
+          vscode.window.setStatusBarMessage(
+            `AI 测试运行时：${stage.stage}${stage.ok ? " 完成" : " 失败"}`,
+            5000,
+          );
+          if (!stage.ok) {
+            void vscode.window.showErrorMessage(
+              `AI 测试运行时准备失败：${stage.detail ?? stage.code ?? stage.stage}`,
+            );
+          }
+        },
       }),
     };
   }

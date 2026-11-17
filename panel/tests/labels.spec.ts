@@ -35,9 +35,9 @@ describe("错误与文案", () => {
 
   it("状态、结论与方法都翻译成中文", () => {
     expect(RUN_STATUS_LABEL.interrupted).toBe("已中断");
-    expect(VERDICT_LABEL.incomplete).toBe("未完成");
-    expect(CASE_RESULT_LABEL.manual_pending).toBe("待人工记录");
-    expect(LAYER_LABEL.L3).toBe("用户场景");
+    expect(VERDICT_LABEL.incomplete).toBe("没测完");
+    expect(CASE_RESULT_LABEL.manual_pending).toBe("等你确认");
+    expect(LAYER_LABEL.L3).toBe("整条流程");
     expect(methodLabel("command:pytest tests")).toBe("命令执行");
     expect(methodLabel("manual:现场核对")).toBe("人工核对");
     expect(sourceLabel("git")).toBe("近期提交");

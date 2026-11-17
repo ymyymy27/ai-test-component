@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
+
+from aitest.security import secret_values_in
 
 MODEL_KEY_ENV = "AITEST_MODEL_KEY"
 GITHUB_KEY_ENV = "AITEST_GITHUB_TOKEN"
@@ -62,3 +65,27 @@ def github_token() -> tuple[str, KeySource]:
     if value:
         return value, "user_config"
     return "", "none"
+
+
+def known_secret_values(extra: Iterable[Any] = ()) -> list[str]:
+    """Collect credential bodies that must never reach a persisted file.
+
+    Sources: the resolved model key, the optional GitHub token, the user
+    configuration, and any extra config trees the caller passes in. The result
+    is de-duplicated and never logged.
+    """
+    values: list[str] = []
+    for value, _source in (model_key(), github_token()):
+        if value:
+            values.append(value)
+    values.extend(secret_values_in(load_user_config()))
+    for item in extra:
+        values.extend(secret_values_in(item))
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+

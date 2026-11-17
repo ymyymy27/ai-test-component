@@ -184,6 +184,8 @@ export interface PlanCase {
   mock_allowed?: boolean;
   importance?: "high" | "medium" | "low";
   depends_on?: "build" | "service" | null;
+  script_name?: string | null;
+  script_content?: string | null;
 }
 
 export interface Scope {
@@ -273,9 +275,22 @@ export interface RunSummary {
   heartbeat_at?: string;
 }
 
+export interface ItemOutcome {
+  item_id: string;
+  result: CaseResult;
+  case_ids: string[];
+}
+
 export interface RunDetail {
   run: Run;
   outcome: Verdict | null;
+  /** Core-derived counts; the panel must not recompute them. */
+  counts?: Record<string, number>;
+  /** Core-derived worst result per selected acceptance item. */
+  item_outcomes?: ItemOutcome[];
+  pending_items?: number;
+  manual_cases?: number;
+  l1?: Record<string, unknown> | null;
   /** "id：text" rows for applicable acceptance items this run did not select. */
   uncovered_items?: string[];
   /** Imported link localisation, or null when no link.json exists. */

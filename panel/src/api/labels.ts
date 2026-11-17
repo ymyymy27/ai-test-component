@@ -9,11 +9,11 @@ import type {
 } from "@/api/types";
 
 export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
-  running: "运行中",
+  running: "正在运行",
   completed: "已完成",
   cancelled: "已取消",
   interrupted: "已中断",
-  execution_error: "执行异常",
+  execution_error: "出错了",
 };
 
 export const RUN_STATUS_BADGE: Record<
@@ -29,9 +29,9 @@ export const RUN_STATUS_BADGE: Record<
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   passed: "通过",
-  failed: "失败",
-  incomplete: "未完成",
-  not_applicable: "不适用",
+  failed: "没通过",
+  incomplete: "没测完",
+  not_applicable: "这次不用测",
 };
 
 export const VERDICT_TONE: Record<Verdict, "passed" | "failed" | "incomplete" | "neutral"> = {
@@ -41,20 +41,17 @@ export const VERDICT_TONE: Record<Verdict, "passed" | "failed" | "incomplete" | 
   not_applicable: "neutral",
 };
 
-export const VERDICT_SENTENCE: Record<Verdict, string> = {
-  passed: "所选范围内全部适用用例有效通过。",
-  failed: "所选范围内存在有效失败，先看失败用例与证据。",
-  incomplete: "没有有效失败，但仍有阻塞、未执行或待人工记录的用例。",
-  not_applicable: "所选范围没有适用的检查。",
-};
+export function cleanItemText(text: string | undefined): string {
+  return (text ?? "").replace(/^(修改后的)?验收标准\s*[:：]\s*/, "");
+}
 
 export const CASE_RESULT_LABEL: Record<CaseResult, string> = {
   passed: "通过",
-  failed: "失败",
-  blocked: "阻塞",
-  error: "执行异常",
-  not_run: "未执行",
-  manual_pending: "待人工记录",
+  failed: "没通过",
+  blocked: "卡住了",
+  error: "出错了",
+  not_run: "还没跑",
+  manual_pending: "等你确认",
 };
 
 export const CASE_RESULT_TONE: Record<
@@ -70,9 +67,9 @@ export const CASE_RESULT_TONE: Record<
 };
 
 export const LAYER_LABEL: Record<Layer, string> = {
-  L1: "源码可运行",
-  L2: "函数与接口",
-  L3: "用户场景",
+  L1: "能不能启动",
+  L2: "单个功能",
+  L3: "整条流程",
 };
 
 export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {

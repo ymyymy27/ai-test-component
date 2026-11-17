@@ -1,7 +1,7 @@
 /** 用开发服务器的静态 mock 宿主截取单页测试单的相位与抽屉。
  *
  * 用法：先 `npm run dev`，再 `npm run screenshot -- <输出目录> [baseUrl] [width]`。
- * 默认输出到 docs/validation/2026-11-16-panel-v4，640×900。
+ * 默认输出到 tests/acceptance/p1/evidence/frontend，640×900。
  * 使用本机 Chrome（channel: chrome），不下载浏览器。
  */
 import { mkdir } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { chromium } from "playwright";
 
-const outDir = resolve(process.argv[2] ?? "../docs/validation/2026-11-16-panel-v4");
+const outDir = resolve(process.argv[2] ?? "../tests/acceptance/p1/evidence/frontend");
 const base = (process.argv[3] ?? "http://localhost:5173").replace(/\/$/, "");
 const widthArg = Number(process.argv[4] ?? 640);
 const width = Number.isFinite(widthArg) && widthArg > 0 ? widthArg : 640;

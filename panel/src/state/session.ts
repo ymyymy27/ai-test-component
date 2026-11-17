@@ -9,7 +9,6 @@ import { reactive } from "vue";
 import { api } from "@/api/commands";
 import { describeError, type FriendlyError } from "@/api/errors";
 import { readHostContext, readHostState, writeHostState, type HostContext } from "@/api/host";
-import { sourceLabel } from "@/api/labels";
 import type {
   DoctorFacts,
   IssueSummary,
@@ -136,6 +135,7 @@ interface SessionState {
   adjustOpen: boolean;
   projectOpen: boolean;
   evidenceOpen: boolean;
+  addProjectOpen: boolean;
 }
 
 export const session = reactive<SessionState>({
@@ -167,6 +167,7 @@ export const session = reactive<SessionState>({
   adjustOpen: false,
   projectOpen: false,
   evidenceOpen: false,
+  addProjectOpen: false,
 });
 
 let contextWaiters: ((context: HostContext | null) => void)[] = [];
@@ -261,7 +262,7 @@ export function computeEnv(facts: DoctorFacts | null): "ok" | "warn" | "error" |
   if (required.some((ok) => !ok)) {
     return "error";
   }
-  if (!facts.model.ok || !facts.github.ok) {
+  if (!facts.model.ok || !facts.github.ok || (facts.repairs?.length ?? 0) > 0) {
     return "warn";
   }
   return "ok";
@@ -366,7 +367,7 @@ export async function openProject(projectId: string): Promise<void> {
   }
 }
 
-/** 相位判断：最近一次运行直接回放，否则准备建议测试单。 */
+/** 新用户先看到建议测试单；上次结果只作为提示，不自动回放。 */
 async function routeAfterProject(): Promise<void> {
   session.screen = "session";
   session.historyOpen = false;
@@ -376,13 +377,6 @@ async function routeAfterProject(): Promise<void> {
   if (!session.project) {
     session.phase = "no-project";
     return;
-  }
-  const latest = session.history[0];
-  if (latest) {
-    const opened = await openResult(latest.run_id);
-    if (opened) {
-      return;
-    }
   }
   await loadProposal();
 }
@@ -431,13 +425,36 @@ export async function bootstrap(): Promise<void> {
     session.env = computeEnv(facts);
 
     const hostContext = await waitHostContext();
-    const target =
+    let target: ProjectSummary | undefined =
       session.projects.find((item) => item.project_id === hostContext?.projectId) ??
       session.projects.find((item) => item.project_id === saved?.projectId) ??
       session.projects[0];
+
+    // 工作空间还没有项目时，默认绑定 Trae 当前打开的项目目录。
+    // 数据工作空间（hostContext.workspacePath）只存插件数据，绝不能当作被测项目。
+    const currentRoot = hostContext?.projectRoot || "";
+    if (!target && session.projects.length === 0 && currentRoot) {
+      try {
+        const created = await api.addProject(currentRoot);
+        await loadProjects();
+        target = session.projects.find((item) => item.project_id === created.project_id);
+        if (target) {
+          flash("已绑定当前文件夹");
+        }
+      } catch {
+        // 目录不可用或与已有项目重叠时保留选择页，由人明确选择。
+      }
+    }
+
     if (target) {
       await openProject(target.project_id);
-      await routeAfterProject();
+      const restored =
+        saved?.runId && saved.projectId === target.project_id
+          ? await openResult(saved.runId)
+          : false;
+      if (!restored) {
+        await routeAfterProject();
+      }
       if (saved?.screen === "settings") {
         session.screen = "settings";
       }
@@ -555,9 +572,7 @@ async function selectTarget(
   const proposal = session.proposal;
   proposal.index = index;
   proposal.goal = target.title.trim();
-  proposal.basis = [target.reason?.trim(), sourceLabel(target.source)]
-    .filter(Boolean)
-    .join(" · ");
+  proposal.basis = target.reason?.trim() ?? "";
   proposal.itemsLoading = true;
   proposal.itemsError = null;
   proposal.startError = null;
@@ -936,9 +951,10 @@ async function beginRun(planId: string, options: BeginRunOptions = {}): Promise<
 }
 
 /** 开始测试：一次点击完成保存、生成计划与确认执行。 */
-export async function startTest(): Promise<void> {
+export async function prepareTest(): Promise<void> {
   const proposal = session.proposal;
-  if (!session.project || proposal.starting || applicableItems().length === 0) {
+  const smoke = session.task?.intent === "smoke";
+  if (!session.project || proposal.starting || (applicableItems().length === 0 && !smoke)) {
     return;
   }
   proposal.starting = true;
@@ -951,17 +967,41 @@ export async function startTest(): Promise<void> {
     let planId = "";
     if (proposal.previewPlan && proposal.previewSignature === scopeSignature()) {
       planId = proposal.previewPlan.plan_id;
-      session.plan = proposal.previewPlan;
     } else {
       planId = await generatePlan();
-      try {
-        const detail = await api.showPlan(session.project.project_id, planId);
-        session.plan = detail.plan;
-      } catch {
-        // 计划读取失败不阻塞执行；运行结果会再按计划号读取一次。
-        session.plan = null;
-      }
     }
+    const detail = await api.showPlan(session.project.project_id, planId);
+    proposal.previewPlan = detail.plan;
+    proposal.previewSignature = scopeSignature();
+    session.plan = detail.plan;
+  } catch (error) {
+    proposal.startError = describeError(error);
+  } finally {
+    proposal.starting = false;
+  }
+}
+
+export async function startTest(): Promise<void> {
+  const proposal = session.proposal;
+  const smoke = session.task?.intent === "smoke";
+  if (!session.project || proposal.starting || (applicableItems().length === 0 && !smoke)) {
+    return;
+  }
+  // Scope changed or no preview yet: regenerate the plan and show the
+  // confirmation page again; never start without a human-confirmed preview.
+  if (!proposal.previewPlan || proposal.previewSignature !== scopeSignature()) {
+    await prepareTest();
+    return;
+  }
+  proposal.starting = true;
+  proposal.startError = null;
+  session.notice = "";
+  try {
+    if (!(await saveItems())) {
+      return;
+    }
+    const planId = proposal.previewPlan.plan_id;
+    session.plan = proposal.previewPlan;
     const regenerate = proposal.taskId
       ? () =>
           generatePlanFor(proposal.taskId, {
@@ -1154,12 +1194,10 @@ export async function cancelActiveRun(): Promise<void> {
   try {
     await api.cancelRun(session.project.project_id, session.activeRunId);
     await refreshRun();
-    if (session.result?.run.status === "cancelled") {
-      flash("本次运行已取消，已完成用例与证据已保留。");
-    } else if (session.phase === "result") {
-      flash("运行已结束，已显示最新结果。");
+    if (session.phase === "result") {
+      session.notice = "";
     } else {
-      flash("已请求取消，当前用例结束后停止");
+      flash("已请求停止，当前这一项结束后停止");
     }
   } catch (error) {
     const friendly = describeError(error);
@@ -1202,11 +1240,21 @@ export async function recordManual(
 
 // -- 抽屉与屏幕 -------------------------------------------------------------
 
+export function openAddProject(): void {
+  session.addProjectOpen = true;
+  closeDrawers();
+}
+
+export function closeAddProject(): void {
+  session.addProjectOpen = false;
+}
+
 export function openHistoryDrawer(): void {
   session.historyOpen = true;
   session.adjustOpen = false;
   session.projectOpen = false;
   session.evidenceOpen = false;
+  session.addProjectOpen = false;
   void refreshHistory();
 }
 
@@ -1215,6 +1263,7 @@ export function openAdjustDrawer(): void {
   session.historyOpen = false;
   session.projectOpen = false;
   session.evidenceOpen = false;
+  session.addProjectOpen = false;
 }
 
 export function openProjectDrawer(): void {
@@ -1222,6 +1271,7 @@ export function openProjectDrawer(): void {
   session.historyOpen = false;
   session.adjustOpen = false;
   session.evidenceOpen = false;
+  session.addProjectOpen = false;
 }
 
 export function openEvidenceDrawer(): void {
@@ -1229,6 +1279,7 @@ export function openEvidenceDrawer(): void {
   session.historyOpen = false;
   session.adjustOpen = false;
   session.projectOpen = false;
+  session.addProjectOpen = false;
 }
 
 export function closeDrawers(): void {
@@ -1240,6 +1291,7 @@ export function closeDrawers(): void {
 
 export function openSettings(): void {
   closeDrawers();
+  session.addProjectOpen = false;
   session.screen = "settings";
   persist();
 }

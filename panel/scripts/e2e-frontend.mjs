@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 import { chromium } from "playwright";
 
 const base = (process.argv[2] ?? "http://localhost:5174").replace(/\/$/, "");
-const outDir = resolve(process.argv[3] ?? "../docs/validation/2026-11-17-frontend-full");
+const outDir = resolve(process.argv[3] ?? "../tests/acceptance/p1/evidence/frontend");
 const viewport = { width: 1100, height: 900 };
 
 await mkdir(outDir, { recursive: true });
@@ -80,13 +80,39 @@ async function step(name, fn) {
 }
 
 async function screenshot(name, fullPage = false) {
-  await page.screenshot({ path: resolve(outDir, name), fullPage });
-  console.log(`  ▸ ${name}`);
+  const target = resolve(outDir, name);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await page.screenshot({ path: target, fullPage });
+      console.log(`  ▸ ${name}`);
+      return;
+    } catch (error) {
+      if (attempt === 3) {
+        // Windows 上刚写完的截图偶尔会被扫描/预览进程短暂占用；换一个文件名留档，
+        // 不让截图写入失败中断功能断言。
+        const fallback = target.replace(/\.png$/, `-${Date.now()}.png`);
+        await page.screenshot({ path: fallback, fullPage });
+        console.log(`  ▸ ${name}（原名被占用，写入 ${fallback.split(/[\\/]/).pop()}）`);
+        return;
+      }
+      await new Promise((done) => setTimeout(done, 500));
+    }
+  }
 }
 
 async function gotoMock(mock) {
   await page.goto(`${base}/?mock=${mock}`, { waitUntil: "networkidle" });
   await page.waitForTimeout(300);
+}
+
+async function gotoResult(mock = "result", target = page) {
+  await target.goto(`${base}/?mock=${mock}`, { waitUntil: "networkidle" });
+  await target.waitForSelector('[data-testid="proposal-panel"]');
+  const last = target.locator(".last-run .text-action");
+  if ((await last.count()) > 0) {
+    await last.click();
+  }
+  await target.waitForSelector('[data-testid="result-panel"]');
 }
 
 async function closeDrawer() {
@@ -100,7 +126,7 @@ async function openHistory() {
 }
 
 async function openProject() {
-  await page.locator(".order-nav .nav-btn", { hasText: "项目详情" }).click();
+  await page.locator(".order-nav .nav-btn", { hasText: "项目" }).first().click();
   await page.waitForSelector('[role="dialog"][aria-label="项目详情"]');
 }
 
@@ -108,49 +134,48 @@ try {
   await step("无宿主：独立浏览器提示", async () => {
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
     await expectText("面板没有连接到编辑器");
-    await expectText("独立浏览器页面只能查看静态预览");
+    await expectText("当前页面只能预览");
     await screenshot("no-host.png");
   });
 
   await step("无项目：选择目录后进入建议测试单", async () => {
     await gotoMock("no-project");
     await page.waitForSelector('[data-testid="no-project"]');
-    await expectText("先选择一个项目文件夹");
+    await expectText("先选一个要测的项目文件夹");
     await page.locator('[data-testid="select-project"]').click();
     await page.locator("input#project-root").fill("E:\\work\\order-service");
     await page.locator("form.picker button[type=submit]").click();
     await page.waitForSelector('[data-testid="proposal-panel"]');
     await expectText("验证下单成功后订单只出现一次");
-    await expectText("依据：order 模块近三次提交");
     await screenshot("no-project-to-proposal.png");
   });
 
   await step("建议测试单：默认全选、范围联动、换目标与自定义目标", async () => {
     await gotoMock("proposal");
     await page.waitForSelector('[data-testid="proposal-panel"]');
-    await expectText("CHECKS / 验收标准");
+    await expectText("检查项");
     await expectCount('[data-testid="proposal-criteria"] li', 8, "验收标准条数");
     assert(
-      normalize(await page.locator('[data-testid="proposal-scope-value"]').innerText()).includes("8/8"),
+      normalize(await page.locator('[data-testid="proposal-scope-value"]').innerText()).replace(/\s+/g, "").includes("已选8/8"),
       "默认范围不是 8/8",
     );
 
-    await page.locator('[role="switch"]').first().click();
+    await page.locator('.criteria-check').first().click();
     await page.waitForFunction(
       () =>
         document
           .querySelector('[data-testid="proposal-scope-value"]')
           ?.textContent?.replace(/\s+/g, "")
-          .includes("7/8") === true,
+          .includes("已选7/8") === true,
     );
     console.log("  ✓ 点掉一条后范围变为 7/8");
-    await page.locator('[role="switch"]').first().click();
+    await page.locator('.criteria-check').first().click();
     await page.waitForFunction(
       () =>
         document
           .querySelector('[data-testid="proposal-scope-value"]')
           ?.textContent?.replace(/\s+/g, "")
-          .includes("8/8") === true,
+          .includes("已选8/8") === true,
     );
 
     await page.locator('[data-testid="switch-target"]').click();
@@ -181,41 +206,40 @@ try {
     await screenshot("proposal.png", true);
   });
 
-  await step("皮肤切换：Console / Paper 切换并持久化", async () => {
+  await step("主题切换：深色 / 浅色切换并持久化", async () => {
     await gotoMock("proposal");
     await page.waitForSelector('[data-testid="proposal-panel"]');
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "console",
-      "默认皮肤不是 console",
+      (await page.locator("html").getAttribute("data-theme")) === "dark",
+      "默认主题不是深色",
     );
-    await page.locator('[aria-label="切换皮肤"]').click();
+    await page.locator('[aria-label="切换主题"]').click();
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "paper",
-      "切换后不是 paper",
+      (await page.locator("html").getAttribute("data-theme")) === "light",
+      "切换后不是浅色",
     );
-    await screenshot("proposal-paper.png", true);
+    await screenshot("proposal-light.png", true);
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForSelector('[data-testid="proposal-panel"]');
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "paper",
-      "刷新后皮肤没有持久化",
+      (await page.locator("html").getAttribute("data-theme")) === "light",
+      "刷新后主题没有持久化",
     );
-    await page.locator('[aria-label="切换皮肤"]').click();
+    await page.locator('[aria-label="切换主题"]').click();
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "console",
-      "恢复 console 失败",
+      (await page.locator("html").getAttribute("data-theme")) === "dark",
+      "恢复深色失败",
     );
 
-    await gotoMock("result");
-    await page.waitForSelector('[data-testid="result-panel"]');
-    await page.locator('[aria-label="切换皮肤"]').click();
+    await gotoResult("result");
+    await page.locator('[aria-label="切换主题"]').click();
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "paper",
-      "结果页切换 Paper 失败",
+      (await page.locator("html").getAttribute("data-theme")) === "light",
+      "结果页切换浅色失败",
     );
-    await screenshot("result-paper.png");
-    await page.locator('[aria-label="切换皮肤"]').click();
-    console.log("  ✓ 皮肤切换并跨刷新保持，结果页同样生效");
+    await screenshot("result-light.png");
+    await page.locator('[aria-label="切换主题"]').click();
+    console.log("  ✓ 主题切换并跨刷新保持，结果页同样生效");
   });
 
   await step("顶部项目切换：切到另一个已登记项目并重新生成测试单", async () => {
@@ -232,6 +256,20 @@ try {
     assert(selected === "会员中心", `项目切换后显示 ${selected}`);
     await page.waitForSelector('[data-testid="proposal-panel"]');
     console.log("  ✓ 项目选择器切换并刷新建议测试单");
+  });
+
+  await step("添加项目：从顶栏登记另一个目录并切换", async () => {
+    await gotoMock("proposal");
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    await page.locator('[data-testid="add-project"]').click();
+    await page.waitForSelector('[data-testid="add-project-dialog"]');
+    await page.locator('[data-testid="add-project-path"]').fill("E:\\pilot\\flask");
+    await page.locator('[data-testid="add-project-dialog"] button[type=submit]').click();
+    await page.waitForSelector('[data-testid="add-project-dialog"]', { state: "detached" });
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    await expectText("验证下单成功后订单只出现一次");
+    await screenshot("add-project.png");
+    console.log("  ✓ 顶栏添加项目并回到建议测试单");
   });
 
   await step("调整抽屉：验收项增删改、范围、交付、模板、模块建议", async () => {
@@ -269,7 +307,6 @@ try {
     console.log("  ✓ 添加与移除验收标准");
 
     await page.locator('[data-testid="delivery-fold"] > summary').click();
-    await page.locator('[data-testid="delivery-draft-button"]').click();
     await expectText("运行方式");
     await expectText("python -m pytest tests/test_order.py");
     await page.locator("details.delivery-fields summary").click();
@@ -305,7 +342,7 @@ try {
         document
           .querySelector('[data-testid="proposal-scope-value"]')
           ?.textContent?.replace(/\s+/g, "")
-          .includes("7/8") === true,
+          .includes("已选7/8") === true,
     );
     console.log("  ✓ 保存调整后范围保持 7/8");
   });
@@ -313,10 +350,10 @@ try {
   await step("开始运行：进度、当前用例、实时证据、取消", async () => {
     await page.locator('[data-testid="start-test"]').click();
     await page.waitForSelector('[data-testid="run-panel"]');
-    await expectText("运行中");
+    await expectText("正在运行");
     await expectText("4 / 6");
     await expectText("收银台地址选择");
-    await expectText("每 2 秒更新");
+    await expectText("后台运行，可关闭面板。");
     await screenshot("running.png");
 
     await page.locator('[data-testid="live-evidence"]').click();
@@ -337,13 +374,12 @@ try {
     await screenshot("evidence-drawer.png");
     await closeDrawer();
 
-    await page.locator(".cancel-zone button", { hasText: "取消这次运行" }).click();
-    await expectText("确认取消？");
-    await page.locator(".cancel-zone button", { hasText: "确认取消" }).click();
+    await page.locator(".cancel-zone button", { hasText: "停止测试" }).click();
+    await expectText("等当前步骤结束后停止");
+    await page.locator(".cancel-zone button", { hasText: "停止" }).click();
     await page.waitForSelector('[data-testid="result-panel"]');
-    await expectText("本次运行已取消");
     await expectText("已取消");
-    await expectText("失败");
+    await expectText("没通过");
     await page.waitForSelector('[data-testid="template-block"]');
     await page.locator('[data-testid="template-block"] summary').click();
     await expectText("只读提示：不进入必测分母");
@@ -351,8 +387,8 @@ try {
   });
 
   await step("结果页：覆盖、证据、分析、问题、导出、意见、再测", async () => {
-    await expectText("失败用例 · 2");
-    await expectText("还有 5 条验收项未纳入本次范围");
+    await expectText("没通过的检查 · 2");
+    await expectText("5 项未测，不计入结论");
     await page.waitForTimeout(500);
     await screenshot("result-top.png");
     await screenshot("result.png");
@@ -396,6 +432,7 @@ try {
     await expectText("已导出到");
     console.log("  ✓ 导出报告");
 
+    await page.locator('[data-testid="opinion-block"] summary').click();
     await page.locator("#opinion-by").fill("测试员");
     await page.locator("#opinion-text").fill("已完成前端全功能回归");
     await page.locator("button", { hasText: "保存意见" }).click();
@@ -405,20 +442,17 @@ try {
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(200);
-    const sticky = await page.locator('[data-testid="rerun-button"]').boundingBox();
-    assert(sticky !== null && sticky.y < 130, "滚动后“再测一次”没有保持在视口顶部");
-    await screenshot("result-scrolled-v2.png");
-    console.log("  ✓ 滚动后主操作仍可见");
-
+    await screenshot("result-deep.png");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(200);
     await page.locator('[data-testid="rerun-button"]').click();
     await page.waitForSelector('[data-testid="run-panel"]');
-    await expectText("运行中");
+    await expectText("正在运行");
     console.log("  ✓ 再测一次进入运行");
   });
 
   await step("历史回放：切换到上一次取消的运行", async () => {
-    await gotoMock("result");
-    await page.waitForSelector('[data-testid="result-panel"]');
+    await gotoResult("result");
     await openHistory();
     await expectCount('[data-testid="history-list"] li', 3, "历史运行");
     await page.locator('[role="dialog"][aria-label="历史"] button', { hasText: "刷新" }).click();
@@ -426,15 +460,14 @@ try {
     await expectCount('[data-testid="history-list"] li', 3, "刷新后历史运行");
     await page.locator('[data-testid="history-list"] .run').nth(1).click();
     await page.waitForSelector('[data-testid="result-panel"]');
-    await expectText("失败");
+    await expectText("没通过");
     await expectText("已取消");
     await screenshot("history-replay.png");
     console.log("  ✓ 历史回放切换运行");
   });
 
   await step("项目详情与设置：只读事实、自检、修复、高级配置", async () => {
-    await gotoMock("result");
-    await page.waitForSelector('[data-testid="result-panel"]');
+    await gotoResult("result");
     await openProject();
     await expectText("订单服务");
     await expectText("模块");
@@ -442,7 +475,7 @@ try {
     await screenshot("project-drawer.png");
     await page.locator('[role="dialog"][aria-label="项目详情"] .recent-row').first().click();
     await page.waitForSelector('[data-testid="result-panel"]');
-    await expectText("失败用例 · 2");
+    await expectText("没通过的检查 · 2");
     console.log("  ✓ 项目详情打开最近运行");
     await openProject();
     await page.locator('[role="dialog"][aria-label="项目详情"] button', { hasText: "打开设置" }).click();
@@ -453,15 +486,14 @@ try {
     await expectText("工作空间");
     await expectText("GitHub");
     await page.waitForSelector('[data-testid="appearance"]');
-    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "Paper" }).click();
+    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "浅色" }).click();
     assert(
-      (await page.locator("html").getAttribute("data-skin")) === "paper",
-      "设置页切换 Paper 失败",
+      (await page.locator("html").getAttribute("data-theme")) === "light",
+      "设置页切换浅色失败",
     );
-    await screenshot("settings-paper.png");
-    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "Console" }).click();
+    await screenshot("settings-light.png");
+    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "深色" }).click();
     await page.locator("button", { hasText: "重新自检" }).click();
-    await page.locator("button", { hasText: "修复可自动处理项" }).click();
     await page.waitForTimeout(300);
     await screenshot("settings.png");
 
@@ -502,26 +534,23 @@ try {
   });
 
   await step("通过运行：项目检查与“不需要分析”文案", async () => {
-    await gotoMock("passed");
-    await page.waitForSelector('[data-testid="result-panel"]');
+    await gotoResult("passed");
     await expectText("通过");
-    await expectText("验收项范围");
-    await expectText("3/8");
-    await expectText("本次没有失败，不需要生成分析。");
+    await expectText("6 项检查");
+    await expectText("6 项通过");
+    assert((await page.locator("body").innerText()).includes("AI 解读") === false, "通过结果不应显示 AI 解读");
     await screenshot("passed-result.png", true);
     console.log("  ✓ 通过运行不再显示分析未生成");
   });
 
   await step("结果页次级操作：只重跑这条与新目标", async () => {
-    await gotoMock("result");
-    await page.waitForSelector('[data-testid="result-panel"]');
-    await page.locator('[data-testid="failed-case"] button', { hasText: "只重跑这条" }).first().click();
+    await gotoResult("result");
+    await page.locator('[data-testid="failed-case"] button', { hasText: "只重跑这一项" }).first().click();
     await page.waitForSelector('[data-testid="run-panel"]');
-    await expectText("运行中");
+    await expectText("正在运行");
     console.log("  ✓ 只重跑单条失败用例");
 
-    await gotoMock("result");
-    await page.waitForSelector('[data-testid="result-panel"]');
+    await gotoResult("result");
     await page.locator('[data-testid="new-target"]').click();
     await page.waitForSelector('[data-testid="proposal-panel"]');
     await expectText("验证下单成功后订单只出现一次");
@@ -531,11 +560,23 @@ try {
   await step("键盘启动：Ctrl+Enter 直接开始测试", async () => {
     await gotoMock("proposal");
     await page.waitForSelector('[data-testid="proposal-panel"]');
-    await expectText("CTRL+ENTER RUN");
     await page.keyboard.press("Control+Enter");
     await page.waitForSelector('[data-testid="run-panel"]');
-    await expectText("运行中");
+    await expectText("正在运行");
     console.log("  ✓ Ctrl+Enter 从建议单进入运行");
+  });
+
+  await step("项目级冒烟：没有验收项也能开始", async () => {
+    await gotoMock("smoke");
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    await expectText("项目检查");
+    await expectText("开始冒烟测试");
+    const button = page.locator('[data-testid="start-test"]');
+    assert(!(await button.isDisabled()), "冒烟按钮被禁用");
+    await button.click();
+    await page.waitForSelector('[data-testid="run-panel"]');
+    await expectText("正在运行");
+    console.log("  ✓ 无验收项的项目级冒烟可以开始");
   });
 
   await step("窄幅布局：420px 主操作可达且无横向溢出", async () => {
@@ -556,8 +597,7 @@ try {
     await narrow.screenshot({ path: resolve(outDir, "narrow-420-bottom.png") });
     await narrow.evaluate(() => window.scrollTo(0, 0));
 
-    await narrow.goto(`${base}/?mock=result`, { waitUntil: "networkidle" });
-    await narrow.waitForSelector('[data-testid="result-panel"]');
+    await gotoResult("result", narrow);
     const resultMetrics = await narrow.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,

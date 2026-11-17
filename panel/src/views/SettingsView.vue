@@ -16,7 +16,7 @@ import {
   repairEnvironment,
   session,
 } from "@/state/session";
-import { SKINS, setSkin, skin } from "@/state/skin";
+import { THEMES, setThemeMode, themeMode } from "@/state/theme";
 
 const doctor = computed(() => session.doctor);
 
@@ -51,6 +51,7 @@ const rows = computed(() => {
 });
 
 const risks = computed(() => doctor.value?.repairs ?? []);
+const hasAutoRepairs = computed(() => risks.value.some((item) => item.auto === true));
 
 function riskLabel(risk: string): string {
   if (risk === "low") return "低风险";
@@ -146,7 +147,7 @@ const modelKeyState = computed(() => {
     return { ok: false, text: "还没有自检结果，密钥状态未知" };
   }
   return facts.ok
-    ? { ok: true, text: `已配置（来源：${facts.source}）` }
+    ? { ok: true, text: facts.source === "user-config" ? "已配置（在用户配置里）" : "已配置" }
     : { ok: false, text: "未配置；AI 能力不可用，本地测试仍可用" };
 });
 
@@ -245,7 +246,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="stack" data-testid="settings-view">
+  <div class="stack settings" data-testid="settings-view">
     <div class="head">
       <button type="button" class="back" @click="backToSession">
         <Icon name="arrow-left" :size="15" />
@@ -255,7 +256,6 @@ onMounted(() => {
 
     <header class="head-copy">
       <h1>设置</h1>
-      <p class="muted">这里只显示当前环境事实与可执行的修复动作。密钥不会显示或保存到项目文件。</p>
     </header>
 
     <ErrorNotice
@@ -275,6 +275,7 @@ onMounted(() => {
             重新自检
           </AppButton>
           <AppButton
+            v-if="hasAutoRepairs"
             size="sm"
             variant="secondary"
             :loading="session.doctorLoading"
@@ -285,16 +286,12 @@ onMounted(() => {
         </div>
       </div>
 
-      <p class="hint repair-note">
-        自动修复只创建缺失的数据目录并做一次写入探测，不安装软件、不改项目文件。
-      </p>
-
       <ul v-if="rows.length" class="facts">
         <li v-for="row in rows" :key="row.key" class="fact">
           <span class="fact-label">{{ row.label }}</span>
           <span class="fact-value" :class="{ bad: !row.ok }">{{ row.value }}</span>
           <span v-if="row.hint" class="fact-hint">{{ row.hint }}</span>
-          <StatusDot :tone="row.ok ? 'ok' : 'warn'" :label="row.ok ? '正常' : '缺项'" />
+          <StatusDot v-if="!row.ok" tone="warn" label="缺项" />
         </li>
       </ul>
       <p v-else class="hint">还没有自检结果。</p>
@@ -308,7 +305,6 @@ onMounted(() => {
             <span v-if="item.auto" class="hint">可随执行确认处理</span>
           </li>
         </ul>
-        <p class="hint">高风险项只给命令，不自动执行。</p>
       </div>
 
       <div v-if="session.doctor?.repairs_done?.length" class="sub-block">
@@ -322,7 +318,7 @@ onMounted(() => {
     <section class="card" data-testid="model-status">
       <div class="section-title">
         <h2>模型</h2>
-        <Badge :tone="modelKeyState.ok ? 'passed' : 'incomplete'">模型密钥：{{ modelKeyState.text }}</Badge>
+        <Badge v-if="!modelKeyState.ok" tone="incomplete">模型密钥：{{ modelKeyState.text }}</Badge>
       </div>
       <dl class="kv">
         <div v-for="row in modelRows" :key="row.label" class="kv-row">
@@ -330,55 +326,46 @@ onMounted(() => {
           <dd class="mono">{{ row.value }}</dd>
         </div>
       </dl>
-      <p class="hint">
-        密钥只从用户配置或环境变量读取，不写进项目配置，也不在面板显示。模型不可用时，目标候选、验收标准提取、计划生成与失败分析会明确标为“未生成”；本地测试、证据与报告仍然可用。
-      </p>
+      <p class="hint">密钥只从用户配置或环境变量读取，不写入项目。</p>
     </section>
 
     <section class="card" data-testid="workspace-status">
       <div class="section-title">
         <h2>工作空间</h2>
         <StatusDot
-          :tone="doctor?.workspace.ok ? 'ok' : 'warn'"
-          :label="doctor?.workspace.ok ? '可写' : '不可写'"
+          v-if="doctor && !doctor.workspace.ok"
+          tone="warn"
+          label="不可写"
         />
       </div>
       <p v-if="doctor" class="path mono">{{ doctor.workspace.path }}</p>
       <p v-else class="hint">还没有自检结果。</p>
-      <p class="hint">
-        用户数据工作空间保存项目记录、证据与报告，不是被测源码目录。要更换位置，在编辑器设置中修改“AI 辅助测试 → 工作空间路径”，然后重新打开面板。
-      </p>
+      <p class="hint">用于保存记录、证据与报告。可在编辑器设置中修改工作空间路径。</p>
     </section>
 
     <section class="card" data-testid="github-status">
       <div class="section-title">
         <h2>GitHub</h2>
-        <StatusDot
-          :tone="githubState.ok ? 'ok' : 'warn'"
-          :label="githubState.ok ? '可用' : '不可用'"
-        />
+        <StatusDot v-if="!githubState.ok" tone="warn" label="不可用" />
       </div>
       <p v-if="githubState.path" class="path mono">{{ githubState.path }}</p>
-      <p class="hint">
-        GitHub 只读读取一个仓库的提交、PR、检查与部署版本，复用 gh 的登录态；不可用时不影响本地测试。链路采集读取项目配置里的日志路径与只读查询命令，缺请求标识或日志时记录缺口，不补造。
-      </p>
+      <p class="hint">只读读取仓库的提交、PR、检查与部署；不可用不影响本地测试。</p>
     </section>
 
     <section class="card appearance" data-testid="appearance">
       <div class="section-title">
         <h2>外观</h2>
-        <span class="section-note">只影响本机面板，不改变结论</span>
       </div>
-      <div class="skin-options" role="radiogroup" aria-label="皮肤">
+      <div class="skin-options" role="radiogroup" aria-label="主题">
         <button
-          v-for="item in SKINS"
+          v-for="item in THEMES"
           :key="item.id"
           type="button"
           class="skin-option"
-          :class="{ on: skin === item.id }"
+          :class="{ on: themeMode === item.id }"
           role="radio"
-          :aria-checked="skin === item.id"
-          @click="setSkin(item.id)"
+          :aria-checked="themeMode === item.id"
+          @click="setThemeMode(item.id)"
         >
           <span class="skin-swatch" :class="`swatch-${item.id}`" aria-hidden="true">
             <i></i><i></i><i></i>
@@ -608,15 +595,28 @@ onMounted(() => {
   color: var(--text-2);
 }
 
+.settings {
+  max-width: var(--layout-max);
+  margin: 0 auto;
+}
+
+.settings .card {
+  padding: var(--space-4) 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
 .kv {
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin: 0 0 var(--space-2);
-  padding: 8px 10px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .kv-row {
@@ -638,10 +638,10 @@ onMounted(() => {
 
 .path {
   margin-bottom: var(--space-2);
-  padding: 7px 10px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
   color: var(--text-2);
   word-break: break-all;
 }
@@ -680,7 +680,6 @@ onMounted(() => {
 .advanced-title {
   font-size: var(--fs-14);
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 
 .advanced-title::before {
@@ -804,49 +803,21 @@ onMounted(() => {
   font-size: var(--fs-12);
 }
 
-.stack {
-  counter-reset: section;
-}
-
-.card {
-  counter-increment: section;
-  background: none;
-  border: 0;
-  border-top: 1px solid var(--line-strong);
-  border-radius: 0;
-  padding: var(--space-4) 0;
-}
-
-.card .section-title h2 {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-}
-
-.card .section-title h2::before {
-  content: "[" counter(section, decimal-leading-zero) "] ";
-  color: var(--accent);
-}
-
 .card.advanced {
   padding: 0;
 }
 
 .advanced-head {
-  padding: var(--space-4) 0;
-  border-radius: 0;
+  padding: var(--space-4);
+  border-radius: var(--r-card);
 }
 
 .advanced-body {
-  padding: 0 0 var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .fact-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-12);
 }
 
 .appearance .section-title {
@@ -866,7 +837,7 @@ onMounted(() => {
   padding: var(--space-3);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: var(--r-control);
   text-align: left;
   color: var(--text);
 }
@@ -913,14 +884,19 @@ onMounted(() => {
   opacity: 0.35;
 }
 
-.swatch-console {
-  background: #08090a;
-  color: #e0a56b;
+.swatch-system {
+  background: linear-gradient(90deg, #f6f7f9 50%, #111318 50%);
+  color: #2f6bed;
 }
 
-.swatch-paper {
-  background: #f3efe7;
-  color: #9a5a2e;
+.swatch-light {
+  background: #ffffff;
+  color: #2f6bed;
+}
+
+.swatch-dark {
+  background: #111318;
+  color: #7aa2ff;
 }
 
 .skin-copy {
@@ -931,13 +907,12 @@ onMounted(() => {
 }
 
 .skin-copy strong {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  font-size: var(--fs-13);
+  font-weight: 500;
 }
 
 .skin-copy small {
-  font-size: 10px;
+  font-size: var(--fs-11);
   color: var(--text-3);
 }
 

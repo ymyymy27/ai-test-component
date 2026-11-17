@@ -241,6 +241,19 @@ function submitAdd(): void {
   showAdd.value = false;
 }
 
+function onDeliveryToggle(event: Event): void {
+  const element = event.currentTarget as HTMLDetailsElement;
+  if (
+    element.open &&
+    hasTask.value &&
+    !hasDelivery.value &&
+    !delivery.loading &&
+    !delivery.generated
+  ) {
+    void draftDelivery();
+  }
+}
+
 async function draftDelivery(): Promise<void> {
   const projectId = session.project?.project_id;
   const taskId = session.proposal.taskId;
@@ -348,12 +361,17 @@ async function save(): Promise<void> {
   saving.value = true;
   saveError.value = null;
   const ok = await saveAdjustment();
+  if (ok && hasDelivery.value && !delivery.saved) {
+    // 交付说明和范围在同一个抽屉里编辑，一次“保存调整”应同时落盘，
+    // 不再要求人再找一次“保存交付说明”。
+    await saveDelivery();
+  }
   saving.value = false;
-  if (ok) {
+  if (ok && !delivery.error) {
     committed = true;
     closeDrawers();
   } else {
-    saveError.value = session.proposal.itemsError;
+    saveError.value = session.proposal.itemsError ?? delivery.error;
   }
 }
 
@@ -539,7 +557,7 @@ watch(
         </div>
       </section>
 
-      <details class="block fold" data-testid="delivery-fold">
+      <details class="block fold" data-testid="delivery-fold" @toggle="onDeliveryToggle">
         <summary class="fold-head">
           <span class="fold-title">交付说明</span>
           <span class="fold-state">{{ deliveryState }}</span>

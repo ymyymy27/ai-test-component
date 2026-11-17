@@ -29,6 +29,16 @@ def load_project_config(ws: Workspace, project_id: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _timeout(value: object) -> float:
+    if isinstance(value, bool):
+        return 120.0
+    try:
+        seconds = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 120.0
+    return seconds if seconds > 0 else 120.0
+
+
 def model_settings(ws: Workspace, project_id: str) -> dict[str, Any]:
     project = load_project_config(ws, project_id).get("model")
     user = load_user_config().get("model")
@@ -39,7 +49,7 @@ def model_settings(ws: Workspace, project_id: str) -> dict[str, Any]:
     return {
         "base_url": str(merged.get("base_url") or DEFAULT_BASE_URL),
         "name": str(merged.get("name") or DEFAULT_MODEL),
-        "timeout_seconds": float(merged.get("timeout_seconds", 120)),
+        "timeout_seconds": _timeout(merged.get("timeout_seconds", 120)),
     }
 
 
@@ -53,4 +63,19 @@ def build_client(ws: Workspace, project_id: str) -> ModelClient | None:
         model=str(settings["name"]),
         api_key=key,
         timeout_seconds=float(settings["timeout_seconds"]),
+    )
+
+
+def build_user_client() -> ModelClient | None:
+    """Build a client from user configuration before any project exists."""
+    key, _source = model_key()
+    if not key:
+        return None
+    value = load_user_config().get("model")
+    user = value if isinstance(value, dict) else {}
+    return ModelClient(
+        base_url=str(user.get("base_url") or DEFAULT_BASE_URL),
+        model=str(user.get("name") or DEFAULT_MODEL),
+        api_key=key,
+        timeout_seconds=_timeout(user.get("timeout_seconds", 120)),
     )

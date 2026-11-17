@@ -12,10 +12,8 @@ const props = withDefaults(
     canGenerate?: boolean;
     /** No failed or stalled cases, so there is nothing to analyze. */
     notNeeded?: boolean;
-    /** Section number shown beside the heading. */
-    step?: string;
   }>(),
-  { analysis: undefined, loading: false, canGenerate: false, notNeeded: false, step: "" },
+  { analysis: undefined, loading: false, canGenerate: false, notNeeded: false },
 );
 
 defineEmits<{ generate: [] }>();
@@ -63,10 +61,9 @@ const invalidText = computed(() =>
 </script>
 
 <template>
-  <section class="analysis" aria-label="AI 失败分析">
+  <section class="analysis" aria-label="失败分析">
     <div class="analysis-head">
-      <h2><span v-if="step" class="sec-no">{{ step }}</span> AI 失败分析</h2>
-      <span class="hint">只解释事实，不改变结论</span>
+      <h2>分析</h2>
     </div>
 
     <div v-if="state === 'missing'" class="state">
@@ -125,7 +122,7 @@ const invalidText = computed(() =>
         <p v-else class="hint">没有给出候选原因。</p>
       </div>
       <div class="segment">
-        <h3>未验证与下一步</h3>
+        <h3>未验证与建议</h3>
         <ul class="plain">
           <li v-for="item in analysis?.unverified ?? []" :key="item">
             <span class="tag">未验证</span>{{ item }}
@@ -156,18 +153,10 @@ const invalidText = computed(() =>
   margin-bottom: var(--space-3);
 }
 
-.sec-no {
-  margin-right: 8px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  font-weight: 400;
-  color: var(--text-disabled);
-}
-
 .analysis-head h2 {
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
-  color: var(--text-3);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
 }
 
 .state {

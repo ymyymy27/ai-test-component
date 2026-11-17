@@ -82,6 +82,7 @@ def _plan_payload(
         "layer": "L2",
         "expected": "命令成功",
         "expectation_source": "下单后列表出现订单",
+        "preconditions": ["被测项目目录可访问"],
         "verify_method": method,
     }
     if case_id is not None:
@@ -129,6 +130,7 @@ class _CapturingClient:
                 "layer": "L2",
                 "expected": "命令成功",
                 "expectation_source": item["text"],
+                "preconditions": ["被测项目目录可访问"],
                 "verify_method": "command: echo ok",
                 "depends_on": [],
             }
@@ -739,9 +741,8 @@ def test_plan_signature_detects_services_change_and_accepts_legacy_empty_signatu
         capsys,
         confirm=True,
     )
-    assert legacy["ok"] is True, legacy
-    assert legacy["data"]["warnings"]
-    _wait_completed(tmp_path, capsys, project_id, legacy["data"]["run_id"])
+    assert legacy["ok"] is False, legacy
+    assert legacy["error"]["code"] == "PLAN_STALE"
 
 
 def test_plan_update_recomputes_source_signature(tmp_path: Path, capsys: Capsys) -> None:

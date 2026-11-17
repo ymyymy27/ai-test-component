@@ -24,7 +24,7 @@ npm run build               # vue-tsc + vite build
 
 ## 浏览器全功能回归
 
-先启动开发服务器，再运行脚本（默认输出到 `../docs/validation/2026-11-17-frontend-full`）：
+先启动开发服务器，再运行脚本（默认输出到 `../tests/acceptance/p1/evidence/frontend`）：
 
 ```bash
 npm run dev -- --port 5174

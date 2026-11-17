@@ -1,4 +1,10 @@
-"""Verdict and coverage derivation. One place only; panels and adapters read these results."""
+"""Verdict and coverage derivation. One place only; panels and adapters read these results.
+
+A selected acceptance item without any executed case is not a pass: it stays
+``not_run`` and makes the verdict ``incomplete``. A case whose expectation could
+not be tied to the acceptance-item text may execute but can never count as
+``passed``; its item is reported as ``incomplete`` instead.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +12,7 @@ from aitest.models import CaseResult, Plan, Run, Verdict, new_id
 
 _FAILURE = "failed"
 _PENDING = {"blocked", "error", "not_run", "manual_pending"}
+_UNATTEMPTED = {"not_run", "manual_pending"}
 
 _RANK: dict[CaseResult, int] = {
     "failed": 4,
@@ -23,45 +30,85 @@ def worst_result(results: list[CaseResult]) -> CaseResult:
     return max(results, key=lambda item: _RANK[item])
 
 
-def item_outcomes(plan: Plan, run: Run) -> dict[str, CaseResult]:
-    by_case: dict[str, CaseResult] = {case.case_id: case.result for case in run.cases}
-    outcomes: dict[str, CaseResult] = {}
+def _case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
+    """Effective per-case results: an unverified expectation cannot pass."""
+    by_case = {case.case_id: case for case in plan.cases}
+    results: dict[str, CaseResult] = {}
+    for run_case in run.cases:
+        case = by_case.get(run_case.case_id)
+        result = run_case.result
+        if (
+            case is not None
+            and case.acceptance_item_id is not None
+            and not case.expectation_verified
+            and result == "passed"
+        ):
+            # The case ran, but its expectation was never tied to the item text.
+            result = "blocked"
+        results[run_case.case_id] = result
+    return results
+
+
+def _item_case_results(plan: Plan, run: Run) -> dict[str, list[CaseResult]]:
+    results = _case_results(plan, run)
+    by_item: dict[str, list[CaseResult]] = {
+        item_id: [] for item_id in plan.scope.acceptance_item_ids
+    }
     for case in plan.cases:
         if case.acceptance_item_id is None:
             continue
-        result = by_case.get(case.case_id, "not_run")
-        current = outcomes.get(case.acceptance_item_id)
-        if current is None or _RANK[result] > _RANK[current]:
-            outcomes[case.acceptance_item_id] = result
-    return outcomes
+        result = results.get(case.case_id, "not_run")
+        by_item.setdefault(case.acceptance_item_id, []).append(result)
+    return by_item
+
+
+def item_outcomes(plan: Plan, run: Run) -> dict[str, CaseResult]:
+    """Worst effective result per selected acceptance item.
+
+    Every selected item appears. Items without any plan case get ``not_run`` so
+    a scope gap can never disappear from the verdict.
+    """
+    return {
+        item_id: worst_result(results)
+        for item_id, results in _item_case_results(plan, run).items()
+    }
+
+
+def _project_results(plan: Plan, run: Run) -> list[CaseResult]:
+    """Results of project-level checks (L1 cases without an acceptance item)."""
+    results = _case_results(plan, run)
+    return [
+        results.get(case.case_id, "not_run")
+        for case in plan.cases
+        if case.acceptance_item_id is None
+    ]
 
 
 def verdict(plan: Plan, run: Run) -> Verdict:
     outcomes = item_outcomes(plan, run)
-    if not outcomes:
-        if not run.cases:
-            return "not_applicable"
-        results = [case.result for case in run.cases]
-        if any(result == "failed" for result in results):
-            return "failed"
-        if any(result in _PENDING for result in results):
-            return "incomplete"
-        return "passed" if all(result == "passed" for result in results) else "incomplete"
-    if any(result == _FAILURE for result in outcomes.values()):
+    project_results = _project_results(plan, run)
+    results = [*outcomes.values(), *project_results]
+    if not results:
+        return "incomplete" if plan.applicable_count > 0 else "not_applicable"
+    if any(result == _FAILURE for result in results):
         return "failed"
-    if any(result in _PENDING for result in outcomes.values()):
+    if any(result in _PENDING for result in results):
         return "incomplete"
     return "passed"
 
 
 def coverage(plan: Plan, run: Run) -> dict[str, int]:
+    by_item = _item_case_results(plan, run)
+    outcomes = {item_id: worst_result(results) for item_id, results in by_item.items()}
     selected = plan.scope.acceptance_item_ids
-    applicable = coverage_applicable(plan, selected)
-    outcomes = item_outcomes(plan, run)
     return {
         "selected": len(selected),
-        "applicable": applicable,
-        "covered": len(outcomes),
+        "applicable": coverage_applicable(plan, selected),
+        "covered": sum(
+            1
+            for item_id in selected
+            if any(result not in _UNATTEMPTED for result in by_item.get(item_id, []))
+        ),
         "passed": sum(1 for value in outcomes.values() if value == "passed"),
         "failed": sum(1 for value in outcomes.values() if value == "failed"),
         "incomplete": sum(1 for value in outcomes.values() if value in _PENDING),
@@ -69,6 +116,7 @@ def coverage(plan: Plan, run: Run) -> dict[str, int]:
 
 
 def coverage_applicable(plan: Plan, selected: list[str]) -> int:
+    """M is the frozen applicable set; it can never be smaller than S."""
     return max(len(selected), plan.applicable_count)
 
 

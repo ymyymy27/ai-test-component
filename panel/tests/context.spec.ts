@@ -92,7 +92,39 @@ describe("编辑器工作区上下文", () => {
     expect(session.proposal.goal).toBe("验证下单成功后订单只出现一次");
   });
 
-  it("最近一次运行存在时直接回放结果", async () => {
+  it("工作空间为空时自动绑定 Trae 当前目录", async () => {
+    let lists = 0;
+    installHost(
+      sessionRoutes({
+        "project.list": () => {
+          lists += 1;
+          return { projects: lists === 1 ? [] : [PROJECT] };
+        },
+        "project.add": {
+          project_id: PROJECT.project_id,
+          revision: 1,
+          existing: false,
+        },
+        "project.show": { project: PROJECT },
+        "run.list": { runs: [] },
+      }),
+    );
+    resetSession();
+    applyHostContext({
+      type: "context",
+      projectId: "",
+      projectRoot: PROJECT.root,
+      workspaceFolderCount: 1,
+    });
+
+    await bootstrap();
+    await settle();
+
+    expect(session.project?.project_id).toBe(PROJECT.project_id);
+    expect(session.phase).toBe("proposal");
+  });
+
+  it("有历史时仍先进入建议测试单，并把上次结果作为提示", async () => {
     installHost(sessionRoutes());
     resetSession();
     applyHostContext({
@@ -105,7 +137,8 @@ describe("编辑器工作区上下文", () => {
     await bootstrap();
     await settle();
 
-    expect(session.phase).toBe("result");
-    expect(session.result?.run.run_id).toBe("run_1");
+    expect(session.phase).toBe("proposal");
+    expect(session.result).toBeNull();
+    expect(session.lastRun?.outcome).toBe("failed");
   });
 });

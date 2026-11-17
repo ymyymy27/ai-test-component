@@ -191,6 +191,7 @@ class Run(Model):
     confirmation_reused: bool = False
     status: RunStatus = "running"
     pid: int | None = None
+    pid_created_at: float | None = None
     started_at: str = ""
     heartbeat_at: str = ""
     cases: list[RunCase] = Field(default_factory=list)
@@ -210,9 +211,11 @@ class Confirmation(Model):
     confirmation_id: str
     project_id: str
     plan_id: str
+    plan_revision: int = 0
     acceptance_item_ids: list[str] = Field(default_factory=list)
     environment: dict[str, Any] = Field(default_factory=dict)
     credentials: dict[str, str] = Field(default_factory=dict)
+    side_effects: list[str] = Field(default_factory=list)
     fingerprint: str
     confirmed_by: str
     confirmed_at: str
@@ -247,9 +250,16 @@ class Issue(Model):
     project_id: str
     signature: str
     title: str
+    steps: list[str] = Field(default_factory=list)
+    expected: str = ""
+    actual: str = ""
     severity: Literal["P0", "P1", "P2", "P3"] = "P2"
     status: IssueStatus = "pending"
     disposition: IssueDisposition | None = None
+    reason: str = ""
+    unstable: bool = False
+    last_result: str = ""
+    verification_run_id: str = ""
     occurrences: list[IssueOccurrence] = Field(default_factory=list)
     fix_version: str | None = None
     revision: int = 1
@@ -266,6 +276,7 @@ class Report(Model):
     report_id: str
     run_id: str
     outcome: Verdict
+    conclusion: str = ""
     counts: dict[str, int] = Field(default_factory=dict)
     coverage: dict[str, int] = Field(default_factory=dict)
     changed_modules: list[str] = Field(default_factory=list)
@@ -277,6 +288,8 @@ class Report(Model):
     summary_source: Literal["ai", "fallback", "none"] = "none"
     opinion: Opinion | None = None
     issues: list[dict[str, Any]] = Field(default_factory=list)
+    issue_count: int = 0
+    failure_occurrences: int = 0
     analysis: list[dict[str, Any]] = Field(default_factory=list)
     layers: dict[str, int] = Field(default_factory=dict)
     rules_version_id: str | None = None
@@ -285,8 +298,10 @@ class Report(Model):
     environment: dict[str, Any] = Field(default_factory=dict)
     github: dict[str, Any] | None = None
     uncovered_items: list[str] = Field(default_factory=list)
+    item_details: list[dict[str, Any]] = Field(default_factory=list)
     case_details: list[dict[str, Any]] = Field(default_factory=list)
     evidence_index: list[dict[str, Any]] = Field(default_factory=list)
+    l1: dict[str, Any] | None = None
     revision: int = 1
 
 

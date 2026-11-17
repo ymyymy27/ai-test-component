@@ -1,19 +1,20 @@
 """Expectation-source and precondition checks for published plans.
 
 A case whose ``expectation_source`` cannot be tied back to the selected
-acceptance item is marked ``expectation_verified = False`` instead of being
-silently accepted. Missing preconditions only add a warning; neither check
-blocks publishing, so a plan with unverified expectations stays usable.
+acceptance item is marked ``expectation_verified = False``. Such a case may be
+executed, but it can never count as passed (see ``core.verdict``). Missing
+expectation text or preconditions block publishing instead of becoming a quiet
+warning.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
+from aitest.errors import invalid_request
 from aitest.models import AcceptanceItem, Case
 
 _UNVERIFIED = "预期未证实：expectation_source 不是验收项原文的子串或等价引用"
 _MISSING_PRECONDITION = "缺少前置条件，执行前需人工确认"
+_MISSING_EXPECTED = "用例缺少预期"
 
 
 def _normalize(text: str) -> str:
@@ -30,27 +31,6 @@ def expectation_matches(source: str, item: AcceptanceItem) -> bool:
     if normalized_text and normalized_source in normalized_text:
         return True
     return item.item_id in source
-
-
-def align_generated_sources(raw_cases: list[dict[str, Any]], items: list[AcceptanceItem]) -> None:
-    """Replace a model-written source with the acceptance-item text when needed.
-
-    Only generated cases are aligned. A source that is empty or not a substring
-    of the bound item text is replaced with the item text verbatim; when the item
-    is unknown the case keeps its original source and stays unverified.
-    """
-    by_id = {item.item_id: item for item in items}
-    for raw in raw_cases:
-        if not isinstance(raw, dict):
-            continue
-        item = by_id.get(str(raw.get("acceptance_item_id") or ""))
-        if item is None or not _normalize(item.text):
-            continue
-        source = raw.get("expectation_source")
-        normalized_source = _normalize(source) if isinstance(source, str) else ""
-        if normalized_source and normalized_source in _normalize(item.text):
-            continue
-        raw["expectation_source"] = item.text
 
 
 def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
@@ -72,3 +52,23 @@ def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
             case.warnings.append(_MISSING_PRECONDITION)
         warnings.extend(f"{case.case_id}：{warning}" for warning in case.warnings)
     return warnings
+
+
+def publish_problems(cases: list[Case]) -> list[str]:
+    """Blocking defects that must be fixed before a plan can be published."""
+    problems: list[str] = []
+    for case in cases:
+        if not case.expected.strip():
+            problems.append(f"{case.case_id}：{_MISSING_EXPECTED}")
+        if not case.preconditions:
+            problems.append(f"{case.case_id}：{_MISSING_PRECONDITION}")
+    return problems
+
+
+def ensure_publishable(cases: list[Case]) -> None:
+    problems = publish_problems(cases)
+    if problems:
+        raise invalid_request(
+            "计划不能发布：存在未完成的用例",
+            "补齐预期与前置条件后重试：" + "；".join(problems),
+        )

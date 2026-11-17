@@ -186,10 +186,9 @@ async function submitCustom(): Promise<void> {
 }
 
 .menu-head h2 {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.12em;
-  color: var(--text-2);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
 }
 
 .close {

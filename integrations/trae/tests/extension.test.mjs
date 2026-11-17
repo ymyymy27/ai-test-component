@@ -214,7 +214,7 @@ test("ready publishes settings context and flushes queued panel commands", async
   state.receive({ type: "ready" });
   await tick();
   const context = state.sent.find((message) => message.type === "context");
-  assert.equal(context.workspacePath, "");
+  assert.match(context.workspacePath, /aitest[\\/]workspaces[\\/]default$/);
   assert.equal(context.pythonPath, "");
   assert.equal(state.sent.some((message) => message.type === "command" && message.command === "doctor"), true);
 });
@@ -304,14 +304,9 @@ test("commands outside the panel allowlist never reach the bridge", async () => 
   assert.equal(result.error.code, "COMMAND_NOT_ALLOWED");
 });
 
-test("missing workspace and missing Python are explicit local errors", async () => {
+test("missing Python is an explicit local error", async () => {
   state.settings.workspacePath = "";
   state.bridgeCalls.length = 0;
-  state.receive({ type: "call", id: "no-workspace", command: "doctor", payload: {} });
-  await until(() => state.sent.some((message) => message.type === "result" && message.id === "no-workspace"), "workspace error");
-  assert.equal(state.bridgeCalls.length, 0);
-  assert.equal(state.sent.at(-1).error.code, "WORKSPACE_NOT_CONFIGURED");
-
   state.settings.workspacePath = "C:/data/ws";
   state.settings.pythonPath = "C:/missing/python.exe";
   state.runtime = {

@@ -7,56 +7,80 @@ Missing data is stored as an empty list or ``None``; nothing is guessed.
 
 from __future__ import annotations
 
+import hashlib
+import mimetypes
 import platform
 from pathlib import Path
 from typing import Any, Literal
 
 from aitest.adapters.github import read_commit_files
 from aitest.adapters.model import ModelClient
-from aitest.ai_features import judge_mock, summarize_report
+from aitest.ai_features import collect_dependencies, judge_mock, summarize_report
+from aitest.config import known_secret_values
 from aitest.core.scope import uncovered_items as scope_uncovered
-from aitest.core.verdict import coverage, verdict
+from aitest.core.verdict import coverage, item_outcomes, verdict
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
 from aitest.models import Delivery, Issue, Module, Plan, Project, Report, Run, Task, new_id
+from aitest.security import redact_tree
 from aitest.storage.files import read_json, read_model, write_model
 from aitest.storage.workspace import Workspace
 
+_OUTCOME_LABEL = {
+    "passed": "本范围通过",
+    "failed": "本范围存在失败",
+    "incomplete": "本次运行未完成",
+    "not_applicable": "本次范围不适用",
+}
 
-def _issues_summary(ws: Workspace, project_id: str) -> list[dict[str, Any]]:
+
+def _issues_summary(
+    ws: Workspace, project_id: str, run: Run
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Return project issue summaries plus run-related counts."""
     directory = ws.project_dir(project_id) / "issues"
-    if not directory.is_dir():
-        return []
     summary: list[dict[str, Any]] = []
-    for path in sorted(directory.glob("*.json")):
-        try:
-            issue = read_model(path, Issue)
-        except AiTestError:
-            continue
-        summary.append(
-            {
-                "issue_id": issue.issue_id,
-                "title": issue.title,
-                "status": issue.status,
-                "severity": issue.severity,
-                "occurrences": len(issue.occurrences),
-            }
-        )
-    return summary
+    related: set[str] = set()
+    if directory.is_dir():
+        for path in sorted(directory.glob("*.json")):
+            try:
+                issue = read_model(path, Issue)
+            except AiTestError:
+                continue
+            if any(item.run_id == run.run_id for item in issue.occurrences):
+                related.add(issue.issue_id)
+            summary.append(
+                {
+                    "issue_id": issue.issue_id,
+                    "title": issue.title,
+                    "status": issue.status,
+                    "severity": issue.severity,
+                    "occurrences": len(issue.occurrences),
+                    "run_occurrences": sum(
+                        1 for item in issue.occurrences if item.run_id == run.run_id
+                    ),
+                    "steps": list(issue.steps),
+                    "expected": issue.expected,
+                    "actual": issue.actual,
+                    "unstable": issue.unstable,
+                    "disposition": issue.disposition,
+                    "reason": issue.reason,
+                }
+            )
+    failures = sum(1 for case in run.cases if case.result == "failed")
+    return summary, len(related), failures
 
 
 def _github_record(
     ws: Workspace, project_id: str, source_commit: str | None
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """Read the GitHub record for this run, never substituting a different commit."""
     directory = ws.project_dir(project_id) / "github"
-    if not directory.is_dir():
+    if not directory.is_dir() or not source_commit:
         return None, []
-    candidates = sorted(directory.glob("*.json"))
-    if not candidates:
+    path = directory / f"{source_commit}.json"
+    if not path.is_file():
         return None, []
-    path = directory / f"{source_commit}.json" if source_commit else None
-    if path is None or not path.is_file():
-        path = max(candidates, key=lambda item: item.stat().st_mtime)
     try:
         record = read_json(path)
     except AiTestError:
@@ -190,6 +214,68 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
     return details
 
 
+def _item_details(plan: Plan, run: Run, task: Task | None) -> list[dict[str, Any]]:
+    """Acceptance-item main table: worst result and the cases behind it."""
+    outcomes = item_outcomes(plan, run)
+    by_item: dict[str, list[str]] = {}
+    for case in plan.cases:
+        if case.acceptance_item_id is not None:
+            by_item.setdefault(case.acceptance_item_id, []).append(case.case_id)
+    items = {item.item_id: item for item in task.acceptance_items} if task else {}
+    details: list[dict[str, Any]] = []
+    for item_id in plan.scope.acceptance_item_ids:
+        item = items.get(item_id)
+        details.append(
+            {
+                "item_id": item_id,
+                "text": item.text if item is not None else "",
+                "module_id": item.module_id if item is not None else None,
+                "selected": True,
+                "result": outcomes.get(item_id, "not_run"),
+                "case_ids": by_item.get(item_id, []),
+            }
+        )
+    selected = set(plan.scope.acceptance_item_ids)
+    for item in items.values():
+        if item.item_id in selected or item.status != "active":
+            continue
+        details.append(
+            {
+                "item_id": item.item_id,
+                "text": item.text,
+                "module_id": item.module_id,
+                "selected": False,
+                "result": "not_selected",
+                "case_ids": [],
+            }
+        )
+    return details
+
+
+def _l1_details(plan: Plan, run: Run) -> dict[str, Any] | None:
+    """Project-level checks, kept out of the acceptance-item counts."""
+    cases = {
+        case["case_id"]: case
+        for case in _case_details(plan, run)
+        if case["acceptance_item_id"] is None
+    }
+    if run.l1 is None and not cases:
+        return None
+    blocking: list[str] = []
+    for detail in cases.values():
+        if detail["result"] in {"blocked", "error"}:
+            for attempt in detail["attempts"]:
+                message = str(attempt.get("message") or "")
+                if message:
+                    blocking.append(f"{detail['case_id']}：{message}")
+    return {
+        "build": (run.l1 or {}).get("build"),
+        "entries": (run.l1 or {}).get("entries", []),
+        "cases": list(cases.values()),
+        "blocking_reasons": _dedupe(blocking),
+    }
+
+
 def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
     refs = list(run.evidence_refs)
     for case in run.cases:
@@ -198,11 +284,20 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
     for ref in _dedupe(refs):
         path = run_dir / ref
         exists = path.is_file()
+        digest = ""
+        if exists:
+            try:
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError:
+                digest = ""
+        guessed, _encoding = mimetypes.guess_type(ref)
         index.append(
             {
                 "ref": ref,
                 "exists": exists,
                 "bytes": path.stat().st_size if exists else 0,
+                "sha256": digest,
+                "media_type": guessed or "application/octet-stream",
             }
         )
     return index
@@ -250,15 +345,28 @@ def _mock_judgement(
     dependencies: list[str] = []
     if delivery is not None:
         dependencies = [*delivery.dependencies, *delivery.mocks]
-    if not dependencies:
-        dependencies = [module.name for module in project.modules]
+    dependencies = [
+        *dependencies,
+        *collect_dependencies(Path(project.root)),
+        *(module.name for module in project.modules),
+    ]
+    dependencies = _dedupe([item.strip() for item in dependencies if item.strip()])
     if not dependencies:
         return judgement
+    config = load_project_config(workspace, project.project_id)
+    evidence_value = config.get("evidence")
+    evidence = evidence_value if isinstance(evidence_value, dict) else {}
+    mock_value = evidence.get("mock")
+    mock = mock_value if isinstance(mock_value, dict) else {}
+    max_files = mock.get("max_files", 40)
+    max_depth = mock.get("max_depth", 3)
     judgement = judge_mock(
         Path(project.root),
         dependencies,
         list(run.evidence_refs),
         client=client,
+        max_files=max_files if isinstance(max_files, int) else 40,
+        max_depth=max_depth if isinstance(max_depth, int) else 3,
         workspace=workspace.root,
         project_revision=project.revision,
     )
@@ -294,6 +402,15 @@ def _summary(
     )
 
 
+def _conclusion(outcome: str, counts: dict[str, int], uncovered: list[str]) -> str:
+    return (
+        f"{_OUTCOME_LABEL.get(outcome, outcome)}："
+        f"已选 {counts.get('selected', 0)}/{counts.get('applicable', 0)}，"
+        f"未覆盖 {len(uncovered)}，失败 {counts.get('failed', 0)}，"
+        f"阻塞或未完成 {counts.get('incomplete', 0)}。"
+    )
+
+
 def build_report(
     ws: Workspace,
     project: Project,
@@ -320,10 +437,12 @@ def build_report(
         item.get("kind") == "real" for item in mock_judgement
     )
     summary, summary_source = _summary(outcome, counts, uncovered, client)
+    issues, issue_count, failure_occurrences = _issues_summary(ws, project.project_id, run)
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
         outcome=outcome,
+        conclusion=_conclusion(outcome, counts, uncovered),
         counts=counts,
         coverage={"selected": counts["selected"], "applicable": counts["applicable"]},
         changed_modules=changed_modules,
@@ -333,7 +452,9 @@ def build_report(
         real_chain=real_chain,
         summary=summary,
         summary_source="ai" if summary_source == "ai" else "fallback",
-        issues=_issues_summary(ws, project.project_id),
+        issues=issues,
+        issue_count=issue_count,
+        failure_occurrences=failure_occurrences,
         analysis=[analysis.model_dump(mode="json") for analysis in run.analysis],
         layers=_layers(plan),
         rules_version_id=plan.rules_version_id or project.rules_version_id,
@@ -342,8 +463,12 @@ def build_report(
         environment=_environment(ws, project.project_id),
         github=github,
         uncovered_items=uncovered,
+        item_details=_item_details(plan, run, task),
         case_details=_case_details(plan, run),
         evidence_index=_evidence_index(run_dir, run),
+        l1=_l1_details(plan, run),
     )
-    write_model(ws.project_dir(project.project_id) / "reports" / f"{report.report_id}.json", report)
-    return report
+    secrets = known_secret_values([load_project_config(ws, project.project_id)])
+    safe = Report.model_validate(redact_tree(report.model_dump(mode="json"), secrets))
+    write_model(ws.project_dir(project.project_id) / "reports" / f"{safe.report_id}.json", safe)
+    return safe

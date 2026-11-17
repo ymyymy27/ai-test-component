@@ -40,21 +40,38 @@ function prepare(detail = RUN_DETAIL, overrides: Record<string, Route> = {}) {
 }
 
 describe("结果相位：结论与失败用例", () => {
-  it("用一句话结论、色块与 X/Y 覆盖展示结果", async () => {
+  it("结论与计数放在同一行，不再重复解释", async () => {
     prepare();
     const wrapper = mount(ResultPanel);
     await settle();
 
-    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("失败");
-    expect(wrapper.text()).toContain("所选范围内存在有效失败");
-    expect(wrapper.find('[data-testid="coverage"]').text().replace(/\s+/g, "")).toContain("2/3");
-    expect(wrapper.text()).toContain("还有 1 条验收项未纳入本次范围");
+    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("没通过");
+    expect(wrapper.text()).not.toContain("有检查结果和预期不一样");
+    const coverage = wrapper.find('[data-testid="coverage"]').text().replace(/\s+/g, "");
+    expect(coverage).toContain("2项检查");
+    expect(coverage).toContain("1项通过");
+    expect(coverage).toContain("1项失败");
+    expect(wrapper.text()).toContain("1 项未测，不计入结论");
     expect(wrapper.text()).toContain("已完成");
   });
 
   it("全部通过的运行不再显示“分析未生成”", async () => {
     const passed = {
       outcome: "passed" as const,
+      counts: {
+        selected: 2,
+        applicable: 2,
+        covered: 2,
+        passed: 2,
+        failed: 0,
+        incomplete: 0,
+      },
+      item_outcomes: [
+        { item_id: "ai_1", result: "passed" as const, case_ids: ["case_1"] },
+        { item_id: "ai_2", result: "passed" as const, case_ids: ["case_2"] },
+      ],
+      pending_items: 0,
+      manual_cases: 0,
       run: {
         ...RUN_DETAIL.run,
         status: "completed" as const,
@@ -67,7 +84,8 @@ describe("结果相位：结论与失败用例", () => {
     const wrapper = mount(ResultPanel);
     await settle();
 
-    expect(wrapper.text()).toContain("本次没有失败，不需要生成分析。");
+    expect(wrapper.find('[data-testid="coverage"]').text()).toContain("2 项通过");
+    expect(wrapper.text()).not.toContain("AI 解读");
     expect(wrapper.text()).not.toContain("分析未生成。");
   });
 
@@ -284,18 +302,13 @@ describe("项目级冒烟检查", () => {
     caseManual: 0,
     pendingItems: 0,
     assumptions: 0,
-    ticks: [
-      { tone: "passed" as const, label: "检查 1" },
-      { tone: "passed" as const, label: "检查 2" },
-      { tone: "passed" as const, label: "检查 3" },
-    ],
   };
 
   it("没有验收项时展示检查通过数而不是 0/0 覆盖", () => {
     const wrapper = mount(ResultSummary, { props: base });
     expect(wrapper.text()).toContain("项目检查");
     expect(wrapper.text().replace(/\s+/g, "")).toContain("3/3");
-    expect(wrapper.text()).toContain("项目检查 3 / 3 通过");
+    expect(wrapper.text()).toContain("3 / 3 项项目检查通过");
   });
 
   it("有失败检查时按通过数展示进度", () => {
@@ -306,14 +319,9 @@ describe("项目级冒烟检查", () => {
         projectPassed: 2,
         casePassed: 2,
         caseFailed: 1,
-        ticks: [
-          { tone: "passed", label: "检查 1" },
-          { tone: "passed", label: "检查 2" },
-          { tone: "failed", label: "检查 3" },
-        ],
       },
     });
     expect(wrapper.text().replace(/\s+/g, "")).toContain("2/3");
-    expect(wrapper.text()).toContain("项目检查 2 / 3 通过");
+    expect(wrapper.text()).toContain("2 / 3 项项目检查通过");
   });
 });

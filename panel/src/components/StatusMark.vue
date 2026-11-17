@@ -36,17 +36,16 @@ const glyph = computed(() => {
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  gap: 5px;
+  font-size: var(--fs-12);
   color: var(--text-2);
   white-space: nowrap;
 }
 
 .glyph {
-  width: 10px;
+  width: 9px;
   text-align: center;
+  font-size: var(--fs-11);
 }
 
 .tone-passed {

@@ -5,6 +5,7 @@ import {
   CASE_RESULT_LABEL,
   CASE_RESULT_TONE,
   LAYER_LABEL,
+  cleanItemText,
   dependencyLabel,
   methodLabel,
 } from "@/api/labels";
@@ -62,7 +63,7 @@ const evidence = computed(() => {
         <span class="case-title">{{ title }}</span>
         <span class="case-meta">
           <Badge v-if="planCase" tone="neutral">{{ LAYER_LABEL[planCase.layer] }}</Badge>
-          <span v-if="itemText" class="item-text">{{ itemText }}</span>
+          <span v-if="itemText" class="item-text">{{ cleanItemText(itemText) }}</span>
         </span>
       </span>
       <Badge :tone="CASE_RESULT_TONE[runCase.result]">

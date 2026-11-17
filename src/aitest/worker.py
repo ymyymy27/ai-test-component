@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -12,27 +13,30 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+from aitest.config import known_secret_values
 from aitest.core.analysis import analyze_run
 from aitest.core.evidence import (
     DEFAULT_FILE_CAP_BYTES,
-    DEFAULT_MEDIA_BUDGET_MB,
-    budget_bytes,
     data_prefix,
     evidence_bytes,
     save_evidence,
+    settings_from_config,
 )
 from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
 from aitest.core.reports import build_report
 from aitest.errors import AiTestError
 from aitest.models import Attempt, Case, Delivery, Plan, Project, Run
+from aitest.procutil import process_created_at
 from aitest.runners.base import RunnerResult
 from aitest.runners.command_runner import run_command
 from aitest.runners.http_runner import run_http_sequence
 from aitest.runners.junit import parse_junit
+from aitest.security import redact, redact_bytes
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -61,7 +65,12 @@ def _touch(run_path: Path) -> None:
 
 
 def _save_evidence(
-    run_dir: Path, name: str, data: bytes, result: str, settings: EvidenceSettings
+    run_dir: Path,
+    name: str,
+    data: bytes,
+    result: str,
+    settings: EvidenceSettings,
+    secrets: list[str],
 ) -> str | None:
     budget, file_cap, allow_video = settings
     return save_evidence(
@@ -72,6 +81,7 @@ def _save_evidence(
         budget_bytes=budget,
         allow_video=allow_video,
         file_cap_bytes=file_cap,
+        secrets=secrets,
     )
 
 
@@ -110,25 +120,26 @@ def _project_config(ws: Workspace, project_id: str) -> dict[str, object]:
     return data if isinstance(data, dict) else {}
 
 
-def _services(config: dict[str, object]) -> tuple[dict[str, object], str]:
-    """Return the service config used for this run and its optional name.
+def _services(config: dict[str, object]) -> list[tuple[str, dict[str, object]]]:
+    """Return every configured service as ``(name, config)``.
 
     Two shapes are accepted, matching what the panel stores:
-    * a single service ``{start, health, stop, ...}``;
-    * a mapping ``service name -> config``; the first entry is used.
+    * a single service ``{start, health, stop, ...}`` (name is empty);
+    * a mapping ``service name -> config``.
     Anything else is treated as "no service configured".
     """
     value = config.get("services")
     if not isinstance(value, dict):
-        return {}, ""
+        return []
     if _SINGLE_SERVICE_KEYS & set(value):
-        return value, ""
-    if value and all(isinstance(item, dict) for item in value.values()):
-        name = next(iter(value))
-        item = value[name]
-        assert isinstance(item, dict)
-        return cast(dict[str, object], item), str(name)
-    return {}, ""
+        return [("", value)]
+    if not value or not all(isinstance(item, dict) for item in value.values()):
+        return []
+    services: list[tuple[str, dict[str, object]]] = []
+    for name, item in value.items():
+        if isinstance(item, dict):
+            services.append((str(name), cast(dict[str, object], item)))
+    return services
 
 
 def _delivery_incomplete(ws: Workspace, project_id: str, task_id: str) -> bool:
@@ -152,12 +163,7 @@ def _as_float(value: object, default: float) -> float:
 
 
 def _evidence_settings(config: dict[str, object]) -> EvidenceSettings:
-    value = config.get("evidence")
-    evidence = value if isinstance(value, dict) else {}
-    budget_mb = _as_float(evidence.get("media_budget_mb"), DEFAULT_MEDIA_BUDGET_MB)
-    cap_mb = _as_float(evidence.get("file_cap_mb"), MAX_FILE_BYTES / (1024 * 1024))
-    allow_video = bool(evidence.get("video", False))
-    return budget_bytes(budget_mb), budget_bytes(cap_mb), allow_video
+    return settings_from_config(config)
 
 
 def _request_id_header(config: dict[str, object]) -> str:
@@ -167,46 +173,112 @@ def _request_id_header(config: dict[str, object]) -> str:
     return header if isinstance(header, str) else DEFAULT_REQUEST_ID_HEADER
 
 
-def _healthy(url: str) -> bool:
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _healthy(url: str) -> bool | None:
+    """Return True/False, or None when no health check is configured."""
     if not url:
-        return True
+        return None
     try:
         with urllib.request.urlopen(url, timeout=2) as response:
-            return int(response.status) < 500
+            status = int(response.status)
+            return status < 400 or status in {401, 403}
+    except urllib.error.HTTPError as exc:
+        return exc.code < 400 or exc.code in {401, 403}
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
 
-def _start_service(config: dict[str, object], cwd: Path, log: Path) -> tuple[bool, bool]:
+def _pump_output(stream: Any, path: Path, secrets: list[str]) -> None:
+    """Copy child output to a log file line by line, redacting known secrets."""
+    try:
+        with path.open("ab") as handle:
+            for line in iter(stream.readline, b""):
+                handle.write(redact_bytes(line, secrets))
+                handle.flush()
+    except OSError:
+        return
+    finally:
+        with contextlib.suppress(OSError):
+            stream.close()
+
+
+def _start_service(
+    config: dict[str, object],
+    cwd: Path,
+    log: Path,
+    secrets: list[str],
+    cancelled: Callable[[], bool] | None = None,
+) -> tuple[bool, bool]:
     health = str(config.get("health") or "").strip()
-    if health and _healthy(health):
+    initial = _healthy(health)
+    if initial is True:
         # The service is already running; use it without taking ownership.
         return False, True
     start = str(config.get("start") or "").strip()
     if not start:
-        return False, _healthy(health)
-    timeout = float(str(config.get("timeout_seconds", 120)))
+        return False, bool(health and initial)
+    timeout = _as_float(config.get("timeout_seconds"), 120.0)
+    log.parent.mkdir(parents=True, exist_ok=True)
     process = subprocess.Popen(
-        start, shell=True, cwd=cwd, stdout=log.open("ab"), stderr=subprocess.STDOUT
+        start,
+        shell=True,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
+    assert process.stdout is not None
+    threading.Thread(
+        target=_pump_output, args=(process.stdout, log, secrets), daemon=True
+    ).start()
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _healthy(health):
+        if cancelled is not None and cancelled():
+            with log.open("ab") as handle:
+                handle.write("取消请求已收到，停止等待服务健康\n".encode())
+            return True, False
+        if health and _healthy(health) is True:
             return True, True
-        if process.poll() is not None and not health:
-            return True, True
+        if process.poll() is not None:
+            if health:
+                return True, _healthy(health) is True
+            return True, process.returncode == 0
         time.sleep(0.5)
+    if not health:
+        with log.open("ab") as handle:
+            handle.write("未配置 health，超时内无法确认服务就绪\n".encode())
     return True, False
 
 
-def _stop_service(config: dict[str, object], cwd: Path, log: Path) -> None:
+def _stop_service(config: dict[str, object], cwd: Path, log: Path, secrets: list[str]) -> None:
     stop = str(config.get("stop") or "").strip()
     if not stop:
         return
-    with log.open("ab") as handle:
-        subprocess.run(
-            stop, shell=True, cwd=cwd, stdout=handle, stderr=subprocess.STDOUT, timeout=120
+    try:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        process = subprocess.Popen(
+            stop,
+            shell=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
+        assert process.stdout is not None
+        threading.Thread(
+            target=_pump_output, args=(process.stdout, log, secrets), daemon=True
+        ).start()
+        process.wait(timeout=120)
+    except subprocess.TimeoutExpired:
+        with log.open("ab") as handle:
+            handle.write("停止服务的命令超过 120 秒，未强制结束进程\n".encode())
+    except OSError:
+        return
 
 
 def _l1_output(result: RunnerResult) -> bytes:
@@ -237,6 +309,7 @@ class L1Entry(TypedDict):
 class L1Result(TypedDict):
     build: L1Build
     entries: list[L1Entry]
+    cancelled: bool
 
 
 def _run_l1(
@@ -246,6 +319,8 @@ def _run_l1(
     env: dict[str, str],
     python: Path,
     settings: EvidenceSettings,
+    secrets: list[str],
+    cancelled: Callable[[], bool] | None = None,
 ) -> L1Result | None:
     """Run the project-level build and entry imports before any case."""
     value = config.get("l1")
@@ -254,13 +329,21 @@ def _run_l1(
     timeout = _as_float(value.get("timeout_seconds"), 120.0)
     build_command = value.get("build")
     build: L1Build = {"ok": True, "exit_code": None, "evidence_ref": None}
+    entries: list[L1Entry] = []
     if isinstance(build_command, str) and build_command.strip():
+        if cancelled is not None and cancelled():
+            return {"build": build, "entries": entries, "cancelled": True}
         result = run_command(build_command, cwd=workdir, env=env, timeout_seconds=timeout)
         build = {
             "ok": result.status == "passed",
             "exit_code": result.exit_code,
             "evidence_ref": _save_evidence(
-                run_dir, "l1-build.log", _l1_output(result), result.status, settings
+                run_dir,
+                "l1-build.log",
+                _l1_output(result),
+                result.status,
+                settings,
+                secrets,
             ),
         }
     raw_entries = value.get("entry")
@@ -269,8 +352,9 @@ def _run_l1(
         if isinstance(raw_entries, list)
         else []
     )
-    entries: list[L1Entry] = []
     for index, module in enumerate(modules):
+        if cancelled is not None and cancelled():
+            return {"build": build, "entries": entries, "cancelled": True}
         command = _l1_entry_command(python, module)
         if command is None:
             data = f"入口模块名不合法：{module}\n".encode()
@@ -279,7 +363,12 @@ def _run_l1(
                     "module": module,
                     "ok": False,
                     "evidence_ref": _save_evidence(
-                        run_dir, f"l1-entry-{index}.log", data, "failed", settings
+                        run_dir,
+                        f"l1-entry-{index}.log",
+                        data,
+                        "failed",
+                        settings,
+                        secrets,
                     ),
                 }
             )
@@ -295,10 +384,11 @@ def _run_l1(
                     _l1_output(result),
                     result.status,
                     settings,
+                    secrets,
                 ),
             }
         )
-    return {"build": build, "entries": entries}
+    return {"build": build, "entries": entries, "cancelled": False}
 
 
 def _junit_verdict(results: list[dict[str, object]]) -> tuple[str, str]:
@@ -488,11 +578,19 @@ def _postprocess(ws: Workspace, project: Project, run_dir: Path, run: Run) -> No
         draft_failed_issues(ws, project.project_id, run_dir)
     except Exception as exc:  # noqa: BLE001 - issue drafting must not block reports
         _record_postprocess_error(run_dir, "issues", exc)
-    if run.status in {"completed", "execution_error"}:
+    if run.status in {"completed", "execution_error", "cancelled"}:
         try:
             build_report(ws, project, run_dir)
         except Exception as exc:  # noqa: BLE001 - a failed report never changes run state
             _record_postprocess_error(run_dir, "report", exc)
+
+
+def _mark_cancelled(run: Run) -> None:
+    """Stop at a case boundary: executed results stay, the rest are not_run."""
+    run.status = "cancelled"
+    for case in run.cases:
+        if case.result not in {"passed", "failed", "blocked", "error", "manual_pending"}:
+            case.result = "not_run"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -507,6 +605,10 @@ def main(argv: list[str] | None = None) -> int:
     run_path = run_dir / "run.json"
     plan = read_model(run_dir / "plan.json", Plan)
     run = read_model(run_path, Run)
+    # The worker owns this run directory: record its own pid so a parent race
+    # cannot leave run.json pointing at None.
+    run.pid = os.getpid()
+    run.pid_created_at = process_created_at(run.pid)
     project = read_model(ws.project_path(args.project), Project)
     workdir = Path(project.root)
     cases = {case.case_id: case for case in plan.cases}
@@ -514,166 +616,223 @@ def main(argv: list[str] | None = None) -> int:
     project_python = _venv_python(workdir)
     run_env = _run_env(workdir, project_python, run.run_id)
     config = _project_config(ws, args.project)
-    services_config, service_name = _services(config)
+    secret_list = known_secret_values([config])
+    service_configs = _services(config)
     delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
     evidence_settings = _evidence_settings(config)
     request_id_header = _request_id_header(config)
-    l1 = _run_l1(
-        config,
-        workdir,
-        run_dir,
-        run_env,
-        project_python or Path(sys.executable),
-        evidence_settings,
-    )
-    build_ok = True
-    if l1 is not None:
-        build_ok = l1["build"]["ok"] and all(entry["ok"] for entry in l1["entries"])
-        l1_refs = [
-            l1["build"]["evidence_ref"],
-            *(entry["evidence_ref"] for entry in l1["entries"]),
-        ]
-        for ref in l1_refs:
-            if ref is not None and ref not in run.evidence_refs:
-                run.evidence_refs.append(ref)
-    service_started = False
-    service_ok = True
-    if services_config:
-        service_started, service_ok = _start_service(
-            services_config, workdir, run_dir / "service.log"
-        )
-    run.service_started = service_started
-    run.service_name = service_name
-    run.l1 = cast(dict[str, Any], l1)
     if not run.data_prefix:
         run.data_prefix = data_prefix(run.run_id)
+    run.heartbeat_at = iso_now()
     _save(run_path, run)
+
+    def cancelled() -> bool:
+        return bool((run_dir / "cancel.requested").exists())
 
     stop = threading.Event()
     beat = threading.Thread(target=_heartbeat, args=(run_path, stop), daemon=True)
     beat.start()
+    service_states: list[dict[str, Any]] = []
     try:
-        for index, run_case in enumerate(run.cases):
-            if (run_dir / "cancel.requested").exists():
-                for rest in run.cases[index:]:
-                    if rest.result != "manual_pending":
-                        rest.result = "not_run"
-                run.status = "cancelled"
-                break
-            case = cases.get(run_case.case_id)
-            if case is None:
-                run_case.result = "error"
-                run_case.attempts.append(
-                    Attempt(attempt=1, result="error", message="计划中找不到该用例")
+        l1 = _run_l1(
+            config,
+            workdir,
+            run_dir,
+            run_env,
+            project_python or Path(sys.executable),
+            evidence_settings,
+            secret_list,
+            cancelled,
+        )
+        run.l1 = cast(dict[str, Any], l1)
+        build_ok = True
+        if l1 is not None:
+            build_ok = l1["build"]["ok"] and all(entry["ok"] for entry in l1["entries"])
+            l1_refs = [
+                l1["build"]["evidence_ref"],
+                *(entry["evidence_ref"] for entry in l1["entries"]),
+            ]
+            for ref in l1_refs:
+                if ref is not None and ref not in run.evidence_refs:
+                    run.evidence_refs.append(ref)
+        if l1 is not None and l1["cancelled"]:
+            _mark_cancelled(run)
+        else:
+            for name, service_config in service_configs:
+                log_name = f"service-{name}.log" if name else "service.log"
+                started, ok = _start_service(
+                    service_config,
+                    workdir,
+                    run_dir / log_name,
+                    secret_list,
+                    cancelled,
                 )
-                continue
-            if is_manual_case(case):
-                if run_case.result != "manual_pending":
-                    run_case.result = "manual_pending"
+                service_states.append(
+                    {
+                        "name": name,
+                        "config": service_config,
+                        "started": started,
+                        "ok": ok,
+                        "log": run_dir / log_name,
+                    }
+                )
+            service_ok = all(state["ok"] for state in service_states)
+            run.service_started = any(state["started"] for state in service_states)
+            run.service_name = "、".join(
+                state["name"] or "default" for state in service_states
+            )
+            _save(run_path, run)
+            if cancelled():
+                _mark_cancelled(run)
+            else:
+                for index, run_case in enumerate(run.cases):
+                    if cancelled():
+                        for rest in run.cases[index:]:
+                            if rest.result != "manual_pending":
+                                rest.result = "not_run"
+                        run.status = "cancelled"
+                        break
+                    case = cases.get(run_case.case_id)
+                    if case is None:
+                        run_case.result = "error"
+                        run_case.attempts.append(
+                            Attempt(attempt=1, result="error", message="计划中找不到该用例")
+                        )
+                        continue
+                    if is_manual_case(case):
+                        if run_case.result != "manual_pending":
+                            run_case.result = "manual_pending"
+                            run_case.attempts.append(
+                                Attempt(
+                                    attempt=len(run_case.attempts) + 1,
+                                    result="manual_pending",
+                                    started_at=iso_now(),
+                                    finished_at=iso_now(),
+                                    message="L3 不可自动化，等待人工记录",
+                                )
+                            )
+                            _save(run_path, run)
+                        continue
+                    if case.depends_on == "service" and not service_ok:
+                        run_case.result = "blocked"
+                        run_case.attempts.append(
+                            Attempt(attempt=1, result="blocked", message="服务未就绪")
+                        )
+                        continue
+                    if case.depends_on == "build" and delivery_incomplete:
+                        run_case.result = "blocked"
+                        run_case.attempts.append(
+                            Attempt(
+                                attempt=len(run_case.attempts) + 1,
+                                result="blocked",
+                                message=DELIVERY_INCOMPLETE_MESSAGE,
+                            )
+                        )
+                        continue
+                    if case.depends_on == "build" and not build_ok:
+                        run_case.result = "blocked"
+                        run_case.attempts.append(
+                            Attempt(attempt=1, result="blocked", message="L1 检查未通过")
+                        )
+                        continue
+                    is_http = case.verify_method.startswith("http:")
+                    request_id = f"{run.run_id}-{case.case_id}" if is_http else ""
+                    captures_screenshots = case.verify_method.startswith(
+                        ("script:", "playwright:")
+                    )
+                    screenshots_before = (
+                        _screenshot_files(workdir, run_dir) if captures_screenshots else set()
+                    )
+                    result, outputs, message, artifacts = _execute(
+                        case,
+                        workdir,
+                        run_dir / "generated",
+                        run_env,
+                        project_python or Path(sys.executable),
+                        request_id_header=request_id_header,
+                        request_id=request_id,
+                        run_dir=run_dir,
+                    )
+                    if captures_screenshots:
+                        artifacts = [
+                            *artifacts,
+                            *_screenshot_artifacts(case, workdir, run_dir, screenshots_before),
+                        ]
+                        if result == "passed":
+                            # Passing screenshots are evidence noise: keep only the last one.
+                            screenshots = [
+                                item
+                                for item in artifacts
+                                if item[0].startswith("screenshot-")
+                            ]
+                            artifacts = [
+                                *[
+                                    item
+                                    for item in artifacts
+                                    if not item[0].startswith("screenshot-")
+                                ],
+                                *screenshots[-1:],
+                            ]
+                    message = redact(message, secret_list)
+                    refs: list[str] = []
+                    for position, data in enumerate(outputs):
+                        ref = _save_evidence(
+                            run_dir,
+                            f"{case.case_id}-{position}.log",
+                            data,
+                            result,
+                            evidence_settings,
+                            secret_list,
+                        )
+                        if ref is not None:
+                            refs.append(ref)
+                    for name, data in artifacts:
+                        ref = _save_evidence(
+                            run_dir,
+                            f"{case.case_id}-{name}",
+                            data,
+                            result,
+                            evidence_settings,
+                            secret_list,
+                        )
+                        if ref is not None:
+                            refs.append(ref)
+                    if is_http and request_id not in run.request_ids:
+                        run.request_ids.append(request_id)
+                    run.media_bytes = evidence_bytes(run_dir)
                     run_case.attempts.append(
                         Attempt(
                             attempt=len(run_case.attempts) + 1,
-                            result="manual_pending",
+                            result=result,  # type: ignore[arg-type]
                             started_at=iso_now(),
                             finished_at=iso_now(),
-                            message="L3 不可自动化，等待人工记录",
+                            evidence_refs=refs,
+                            message=message,
                         )
                     )
+                    run_case.result = result  # type: ignore[assignment]
+                    if case.layer == "L1" and result != "passed":
+                        build_ok = False
+                    run_case.evidence_refs.extend(refs)
+                    run.evidence_refs.extend(refs)
+                    run.heartbeat_at = iso_now()
                     _save(run_path, run)
-                continue
-            if case.depends_on == "service" and not service_ok:
-                run_case.result = "blocked"
-                run_case.attempts.append(Attempt(attempt=1, result="blocked", message="服务未就绪"))
-                continue
-            if case.depends_on == "build" and delivery_incomplete:
-                run_case.result = "blocked"
-                run_case.attempts.append(
-                    Attempt(
-                        attempt=len(run_case.attempts) + 1,
-                        result="blocked",
-                        message=DELIVERY_INCOMPLETE_MESSAGE,
-                    )
-                )
-                continue
-            if case.depends_on == "build" and not build_ok:
-                run_case.result = "blocked"
-                run_case.attempts.append(
-                    Attempt(attempt=1, result="blocked", message="L1 检查未通过")
-                )
-                continue
-            is_http = case.verify_method.startswith("http:")
-            request_id = f"{run.run_id}-{case.case_id}" if is_http else ""
-            captures_screenshots = case.verify_method.startswith(("script:", "playwright:"))
-            screenshots_before = (
-                _screenshot_files(workdir, run_dir) if captures_screenshots else set()
-            )
-            result, outputs, message, artifacts = _execute(
-                case,
-                workdir,
-                run_dir / "generated",
-                run_env,
-                project_python or Path(sys.executable),
-                request_id_header=request_id_header,
-                request_id=request_id,
-                run_dir=run_dir,
-            )
-            if captures_screenshots:
-                artifacts = [
-                    *artifacts,
-                    *_screenshot_artifacts(case, workdir, run_dir, screenshots_before),
-                ]
-            refs: list[str] = []
-            for position, data in enumerate(outputs):
-                ref = _save_evidence(
-                    run_dir,
-                    f"{case.case_id}-{position}.log",
-                    data,
-                    result,
-                    evidence_settings,
-                )
-                if ref is not None:
-                    refs.append(ref)
-            for name, data in artifacts:
-                ref = _save_evidence(
-                    run_dir,
-                    f"{case.case_id}-{name}",
-                    data,
-                    result,
-                    evidence_settings,
-                )
-                if ref is not None:
-                    refs.append(ref)
-            if is_http and request_id not in run.request_ids:
-                run.request_ids.append(request_id)
-            run.media_bytes = evidence_bytes(run_dir)
-            run_case.attempts.append(
-                Attempt(
-                    attempt=len(run_case.attempts) + 1,
-                    result=result,  # type: ignore[arg-type]
-                    started_at=iso_now(),
-                    finished_at=iso_now(),
-                    evidence_refs=refs,
-                    message=message,
-                )
-            )
-            run_case.result = result  # type: ignore[assignment]
-            if case.layer == "L1" and result != "passed":
-                build_ok = False
-            run_case.evidence_refs.extend(refs)
-            run.evidence_refs.extend(refs)
-            run.heartbeat_at = iso_now()
-            _save(run_path, run)
-        else:
-            run.status = "completed"
+                else:
+                    run.status = "completed"
     except Exception as exc:  # noqa: BLE001 - record unexpected failure, do not crash silently
         run.status = "execution_error"
-        (run_dir / "worker-error.txt").write_text(str(exc), encoding="utf-8")
+        (run_dir / "worker-error.txt").write_text(
+            redact(str(exc), secret_list), encoding="utf-8"
+        )
     finally:
         stop.set()
-        failed = any(case.result == "failed" for case in run.cases)
-        keep = bool(services_config.get("keep_on_failure")) and failed
-        if service_started and not keep:
-            _stop_service(services_config, workdir, run_dir / "service.log")
+        failed_any = any(case.result in {"failed", "blocked", "error"} for case in run.cases)
+        for state in service_states:
+            keep = _truthy(state["config"].get("keep_on_failure")) and failed_any
+            if state["started"] and not keep:
+                _stop_service(
+                    state["config"], workdir, state["log"], secret_list
+                )
         run.heartbeat_at = iso_now()
         _save(run_path, run)
         _postprocess(ws, project, run_dir, run)

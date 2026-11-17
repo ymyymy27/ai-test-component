@@ -17,7 +17,6 @@ import {
   addProjectByPath,
   dismissBootError,
   isBusy,
-  openAdjustDrawer,
   openHistoryDrawer,
   openProjectDrawer,
   refreshRun,
@@ -35,45 +34,14 @@ let timer: number | undefined;
 
 const proposal = computed(() => session.proposal);
 
-const orderKind = computed(() => {
-  if (session.phase === "result") {
-    return "运行结果";
-  }
-  if (session.phase === "running") {
-    return "运行中";
-  }
-  return "测试单";
-});
-
-const orderCode = computed(() => {
-  if (session.phase === "result") {
-    return "REPORT";
-  }
-  if (session.phase === "running") {
-    return "RUN";
-  }
-  return "PLAN";
-});
-
 const orderTitle = computed(() => {
   if (session.phase === "proposal") {
     if (session.proposal.goal) {
       return session.proposal.goal;
     }
-    return session.proposal.suggestLoading ? "正在准备测试目标" : "这张测试单还没有目标";
+    return session.proposal.suggestLoading ? "正在准备测试目标" : "还没有测试目标";
   }
   return session.task?.title || session.proposal.goal || "测试结果";
-});
-
-const orderNote = computed(() => {
-  if (session.phase !== "proposal") {
-    return "";
-  }
-  return session.proposal.basis
-    ? `依据：${session.proposal.basis}`
-    : session.proposal.suggestLoading
-      ? "正在从近期改动、未关闭问题与历史任务里挑一个目标"
-      : "";
 });
 
 function openPicker(): void {
@@ -83,6 +51,12 @@ function openPicker(): void {
     pathValue.value = session.prefillRoot;
   }
   void nextTick(() => pathInput.value?.focus());
+}
+
+async function useCurrentFolder(): Promise<void> {
+  if (session.prefillRoot) {
+    await addProjectByPath(session.prefillRoot);
+  }
 }
 
 async function submitProject(): Promise<void> {
@@ -108,13 +82,17 @@ function stopPolling(): void {
 
 function schedulePolling(): void {
   stopPolling();
-  if (session.phase !== "running" || !session.ready) {
+  if (!session.ready) {
+    return;
+  }
+  const running = session.phase === "running";
+  if (!running && !session.activeRunId) {
     return;
   }
   timer = window.setTimeout(async () => {
     await refreshRun();
     schedulePolling();
-  }, 2000);
+  }, running ? 2000 : 10000);
 }
 
 watch(() => session.phase, schedulePolling, { immediate: true });
@@ -158,30 +136,40 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 <template>
   <div class="session">
     <section v-if="session.phase === 'no-project'" class="welcome" data-testid="no-project">
-      <EmptyState title="先选择一个项目文件夹" icon="folder">
+      <EmptyState title="先选一个要测的项目文件夹" icon="folder">
         <template #body>
-          面板只读取你选择的目录，用它登记项目、提取验收标准并保存测试记录；数据保存在本机用户数据工作空间，不写进被测源码。
+          选择项目根目录。测试只读取代码，记录保存在本机。
         </template>
         <template #actions>
           <AppButton
+            v-if="session.prefillRoot"
             variant="primary"
+            :disabled="isBusy('projectAdd')"
+            data-testid="use-current-folder"
+            @click="useCurrentFolder"
+          >
+            <Icon name="folder" :size="14" />
+            使用当前文件夹
+          </AppButton>
+          <AppButton
+            :variant="session.prefillRoot ? 'secondary' : 'primary'"
             :disabled="isBusy('projectAdd')"
             data-testid="select-project"
             @click="openPicker"
           >
-            <Icon name="folder" :size="14" />
-            选择项目文件夹
+            选择其他文件夹
           </AppButton>
+          <p v-if="session.prefillRoot" class="current-path mono">{{ session.prefillRoot }}</p>
         </template>
       </EmptyState>
 
       <form v-if="picking" class="card picker" @submit.prevent="submitProject">
         <div class="section-title">
-          <h2>登记项目</h2>
-          <span class="section-note">面板无法弹出系统目录选择，请粘贴绝对路径</span>
+          <h2>粘贴项目路径</h2>
+          <span class="section-note">在资源管理器的地址栏复制完整路径</span>
         </div>
         <label class="field">
-          <span class="label">项目根目录</span>
+          <span class="label">项目文件夹路径</span>
           <input
             id="project-root"
             ref="pathInput"
@@ -199,12 +187,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             请填写项目根目录的绝对路径
           </span>
           <span v-else id="project-root-hint" class="hint">
-            目录必须存在且可写；同一个目录重复登记会直接切换到已有项目。
+            路径要存在且可写；同一个目录再加一次会直接切到已有项目。
           </span>
         </label>
         <div class="row">
           <AppButton html-type="submit" variant="primary" :loading="isBusy('projectAdd')">
-            添加此目录
+            用这个目录
           </AppButton>
           <AppButton variant="ghost" @click="picking = false; pathValue = ''">取消</AppButton>
         </div>
@@ -238,18 +226,25 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
       <article class="order" :data-phase="session.phase" data-testid="test-order">
       <header class="order-head">
         <div class="order-head-main">
-          <p class="order-eyebrow">
-            <span class="eyebrow-code">{{ orderCode }}</span>
-            <span class="eyebrow-sep">/</span>
-            <span>{{ session.project?.name }} · {{ orderKind }}</span>
-          </p>
-          <h1>{{ orderTitle }}</h1>
-          <p v-if="orderNote" class="order-note">{{ orderNote }}</p>
+          <div class="title-row">
+            <h1>{{ orderTitle }}</h1>
+            <button
+              v-if="session.phase === 'proposal'"
+              type="button"
+              class="target-btn"
+              aria-label="换一个目标"
+              title="换一个目标"
+              data-testid="switch-target"
+              @click="targetsOpen = true"
+            >
+              <Icon name="chevron-down" :size="14" />
+            </button>
+          </div>
         </div>
         <div class="order-nav">
           <button type="button" class="nav-btn" @click="openProjectDrawer">
             <Icon name="layers" :size="14" />
-            项目详情
+            项目
           </button>
           <button type="button" class="nav-btn" @click="openHistoryDrawer">
             <Icon name="history" :size="14" />
@@ -258,16 +253,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         </div>
       </header>
 
-      <div v-if="session.phase === 'proposal'" class="order-tools">
-        <AppButton variant="secondary" size="sm" data-testid="switch-target" @click="targetsOpen = true">
-          换一个目标
-          <Icon name="chevron-down" :size="13" />
-        </AppButton>
-        <AppButton variant="ghost" size="sm" data-testid="open-adjust" @click="openAdjustDrawer">
-          调整
-        </AppButton>
-        <span v-if="proposal.itemsLoading" class="hint">正在更新验收标准…</span>
-      </div>
+      <p v-if="session.phase === 'proposal' && proposal.itemsLoading" class="hint">
+        正在更新验收项…
+      </p>
 
       <ProposalPanel v-if="session.phase === 'proposal'" />
       <RunPanel v-else-if="session.phase === 'running'" />
@@ -291,13 +279,21 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   width: 100%;
   max-width: var(--layout-max);
   margin: 0 auto;
-  padding: var(--space-5) var(--space-5) var(--space-7);
+  padding: var(--space-4) var(--space-4) var(--space-6);
 }
 
 @media (max-width: 520px) {
   .session {
-    padding: var(--space-4) var(--space-3) var(--space-6);
+    padding: var(--space-4) var(--space-3);
   }
+}
+
+.current-path {
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
 }
 
 .welcome {
@@ -376,11 +372,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 .order {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
 }
 
 .order-head {
@@ -389,7 +382,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   justify-content: space-between;
   gap: var(--space-3);
   padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
 }
 
 .order-head-main {
@@ -399,42 +392,37 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   min-width: 0;
 }
 
-.order-eyebrow {
+.title-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  min-width: 0;
+}
+
+.target-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
   color: var(--text-3);
 }
 
-.eyebrow-code {
-  color: var(--accent);
-}
-
-.eyebrow-sep {
-  color: var(--line-strong);
+.target-btn:hover {
+  background: var(--surface-raised);
+  border-color: var(--line);
+  color: var(--text);
 }
 
 .order-head h1 {
-  font-size: var(--fs-20);
-  line-height: 1.35;
+  font-size: var(--fs-16);
+  line-height: 1.4;
+  font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-.order-note {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  line-height: 1.55;
-  max-width: 62ch;
-}
-
-.order-tools {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .order-nav {
@@ -451,11 +439,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
   padding: 4px 8px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: var(--r-control);
   color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-12);
 }
 
 .nav-btn:hover {
@@ -466,7 +452,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 @media (max-width: 520px) {
   .order {
-    padding: 0;
+    padding: var(--space-4);
   }
 
   .order-head {

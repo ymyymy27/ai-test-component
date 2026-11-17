@@ -7,6 +7,7 @@ import {
   LAYER_LABEL,
   RUN_STATUS_BADGE,
   RUN_STATUS_LABEL,
+  cleanItemText,
   formatDateTime,
   methodLabel,
 } from "@/api/labels";
@@ -31,26 +32,10 @@ const total = computed(() => run.value?.cases.length ?? 0);
 const processed = computed(
   () => run.value?.cases.filter((item) => item.result !== "not_run").length ?? 0,
 );
-const planCases = computed(() => {
-  const map = new Map<string, string>();
-  for (const planCase of session.plan?.cases ?? []) {
-    if (planCase.acceptance_item_id) {
-      map.set(planCase.case_id, planCase.acceptance_item_id);
-    }
-  }
-  return map;
-});
-
-const resultsByItem = computed(() => {
-  const map = new Map<string, CaseResult[]>();
-  for (const runCase of run.value?.cases ?? []) {
-    const itemId = planCases.value.get(runCase.case_id);
-    if (!itemId) {
-      continue;
-    }
-    const list = map.get(itemId) ?? [];
-    list.push(runCase.result);
-    map.set(itemId, list);
+const outcomeByItem = computed(() => {
+  const map = new Map<string, CaseResult>();
+  for (const row of session.result?.item_outcomes ?? []) {
+    map.set(row.item_id, row.result);
   }
   return map;
 });
@@ -69,35 +54,9 @@ const currentCase = computed(() => {
   };
 });
 
-function segmentTone(result: CaseResult): string {
-  if (result === "passed") {
-    return "passed";
-  }
-  if (result === "failed") {
-    return "failed";
-  }
-  if (result === "not_run") {
-    return "pending";
-  }
-  return "incomplete";
-}
-
-function segmentTitle(caseId: string, result: CaseResult): string {
-  const planCase = session.plan?.cases.find((item) => item.case_id === caseId);
-  const title = planCase?.title || planCase?.expected || "项目检查";
-  return `${title}：${CASE_RESULT_LABEL[result]}`;
-}
-
-const segments = computed(() => {
-  const cases = run.value?.cases ?? [];
-  const currentIndex = cases.findIndex((item) => item.result === "not_run");
-  return cases.map((item, index) => ({
-    key: item.case_id,
-    tone: segmentTone(item.result),
-    current: item.result === "not_run" && index === currentIndex,
-    title: segmentTitle(item.case_id, item.result),
-  }));
-});
+const percent = computed(() =>
+  total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0,
+);
 
 const evidenceCount = computed(() => {
   const refs = new Set<string>(run.value?.evidence_refs ?? []);
@@ -117,15 +76,13 @@ const evidenceCount = computed(() => {
 const statusNote = computed(() => {
   switch (run.value?.status) {
     case "running":
-      return "运行在后台继续，关闭面板不会中断。";
+      return "后台运行，可关闭面板。";
     case "interrupted":
-      return "执行中断：心跳停止且进程已不在，已完成的用例与证据保留。";
+      return "已中断，已完成的结果保留。";
     case "cancelled":
-      return "已取消：在用例边界停止，未完成部分不计入通过。";
+      return "已停止，已完成的结果保留。";
     case "execution_error":
-      return "执行异常：查看失败用例与证据，必要时重新运行。";
-    case "completed":
-      return "运行正常结束。";
+      return "运行出错，先看失败检查的证据。";
     default:
       return "";
   }
@@ -137,26 +94,24 @@ interface ItemState {
 }
 
 function itemState(itemId: string): ItemState {
-  const results = resultsByItem.value.get(itemId) ?? [];
-  if (results.length === 0) {
-    return { label: "未生成用例", tone: "neutral" };
+  const result = outcomeByItem.value.get(itemId);
+  if (!result) {
+    return { label: "未在本次范围", tone: "neutral" };
   }
-  if (results.includes("failed")) {
-    return { label: CASE_RESULT_LABEL.failed, tone: "failed" };
+  switch (result) {
+    case "failed":
+      return { label: CASE_RESULT_LABEL.failed, tone: "failed" };
+    case "error":
+      return { label: CASE_RESULT_LABEL.error, tone: "incomplete" };
+    case "blocked":
+      return { label: CASE_RESULT_LABEL.blocked, tone: "incomplete" };
+    case "manual_pending":
+      return { label: CASE_RESULT_LABEL.manual_pending, tone: "incomplete" };
+    case "not_run":
+      return { label: run.value?.status === "running" ? "执行中" : "未执行", tone: "running" };
+    default:
+      return { label: CASE_RESULT_LABEL.passed, tone: "passed" };
   }
-  if (results.includes("error")) {
-    return { label: CASE_RESULT_LABEL.error, tone: "incomplete" };
-  }
-  if (results.includes("blocked")) {
-    return { label: CASE_RESULT_LABEL.blocked, tone: "incomplete" };
-  }
-  if (results.includes("manual_pending")) {
-    return { label: CASE_RESULT_LABEL.manual_pending, tone: "incomplete" };
-  }
-  if (results.includes("not_run")) {
-    return { label: "执行中", tone: "running" };
-  }
-  return { label: CASE_RESULT_LABEL.passed, tone: "passed" };
 }
 
 const liveItems = computed(() => {
@@ -187,36 +142,26 @@ async function cancelRun(): Promise<void> {
         </Badge>
         <span v-if="run" class="started">开始于 {{ formatDateTime(run.started_at) }}</span>
       </div>
-      <span v-if="run?.status === 'running'" class="live">
-        <span class="live-dot" aria-hidden="true"></span>
-        每 2 秒更新
-      </span>
     </div>
 
     <div class="progress-head">
-      <span class="progress-label">用例进度</span>
+      <span class="progress-label">进度</span>
       <span class="progress-value numeric">{{ processed }} / {{ total }}</span>
     </div>
     <div
-      class="segments"
+      class="track"
       role="progressbar"
       :aria-valuenow="processed"
       :aria-valuemin="0"
       :aria-valuemax="total"
       aria-label="用例进度"
     >
-      <span
-        v-for="segment in segments"
-        :key="segment.key"
-        class="segment"
-        :class="[`seg-${segment.tone}`, { current: segment.current }]"
-        :title="segment.title"
-      ></span>
+      <span class="track-fill" :style="{ width: `${percent}%` }"></span>
     </div>
-    <p class="hint">{{ statusNote }}</p>
+    <p v-if="statusNote" class="hint">{{ statusNote }}</p>
 
     <div v-if="currentCase" class="current">
-      <span class="current-label">第 {{ currentCase.position }} / {{ total }} 条</span>
+      <span class="current-label">第 {{ currentCase.position }} / {{ total }} 步</span>
       <span class="current-title">{{ currentCase.title }}</span>
       <Badge v-if="currentCase.layer" tone="neutral">
         {{ currentCase.layer ? LAYER_LABEL[currentCase.layer] : "" }}
@@ -224,13 +169,13 @@ async function cancelRun(): Promise<void> {
       <span v-if="currentCase.method" class="current-method">{{ currentCase.method }}</span>
     </div>
     <div v-else-if="run?.status === 'running'" class="current">
-      <span class="current-label">当前用例</span>
-      <span class="current-title">正在收尾，等待下一次状态更新</span>
+      <span class="current-label">收尾中</span>
+      <span class="current-title">等待最后一步结束</span>
     </div>
 
     <ul v-if="liveItems.length" class="live-list" aria-label="验收项实时状态">
       <li v-for="row in liveItems" :key="row.item.item_id" class="live-row">
-        <span class="live-text">{{ row.item.text }}</span>
+        <span class="live-text">{{ cleanItemText(row.item.text) }}</span>
         <StatusMark :tone="row.state.tone" :label="row.state.label" />
       </li>
     </ul>
@@ -251,12 +196,12 @@ async function cancelRun(): Promise<void> {
       <div v-if="run?.status === 'running'" class="cancel-zone">
         <template v-if="!confirmCancel">
           <AppButton variant="danger" size="sm" @click="confirmCancel = true">
-            取消这次运行
+            停止测试
           </AppButton>
-          <span class="hint">已完成的用例会保留。</span>
+          <span class="hint">已完成的检查保留。</span>
         </template>
         <div v-else class="confirm">
-          <p class="confirm-text">确认取消？运行会在当前用例结束后停止。</p>
+          <p class="confirm-text">等当前步骤结束后停止，已完成的结果保留。</p>
           <div class="row">
             <AppButton
               variant="danger"
@@ -264,10 +209,10 @@ async function cancelRun(): Promise<void> {
               :loading="isBusy('cancel')"
               @click="cancelRun"
             >
-              确认取消
+              停止
             </AppButton>
             <AppButton variant="ghost" size="sm" @click="confirmCancel = false">
-              继续运行
+              继续测试
             </AppButton>
           </div>
         </div>
@@ -303,28 +248,6 @@ async function cancelRun(): Promise<void> {
   color: var(--text-3);
 }
 
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--fs-12);
-  color: var(--text-3);
-}
-
-.live-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: breathe 1.6s ease-in-out infinite;
-}
-
-@keyframes breathe {
-  50% {
-    opacity: 0.35;
-  }
-}
-
 .progress-head {
   display: flex;
   align-items: baseline;
@@ -342,48 +265,18 @@ async function cancelRun(): Promise<void> {
   color: var(--text-2);
 }
 
-.segments {
-  display: flex;
-  gap: 2px;
-  height: 12px;
-}
-
-.segment {
-  flex: 1 1 0;
-  min-width: 2px;
-  border-radius: 1px;
+.track {
+  height: 3px;
   background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.seg-passed {
-  background: var(--passed);
-}
-
-.seg-failed {
-  background: var(--failed);
-}
-
-.seg-incomplete {
-  background: var(--incomplete);
-}
-
-.seg-pending {
-  background: var(--line-strong);
-}
-
-.segment.current {
-  background: var(--accent-line);
-  animation: live-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes live-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
+.track-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 220ms ease;
 }
 
 .current-method {

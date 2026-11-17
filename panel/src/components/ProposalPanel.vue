@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { VERDICT_LABEL, formatDateTime } from "@/api/labels";
 import AppButton from "@/components/AppButton.vue";
 import ErrorNotice from "@/components/ErrorNotice.vue";
 import Icon from "@/components/Icon.vue";
@@ -10,6 +11,9 @@ import {
   chooseCustomTarget,
   chooseTarget,
   loadProposal,
+  openAdjustDrawer,
+  openResult,
+  prepareTest,
   selectedCount,
   session,
   startTest,
@@ -17,31 +21,74 @@ import {
 } from "@/state/session";
 
 const proposal = computed(() => session.proposal);
-
-const scopeNote = computed(() => {
-  const total = applicableCount();
-  const chosen = selectedCount();
-  if (total === 0) {
-    return "没有可纳入的验收项。";
+const smoke = computed(() => session.task?.intent === "smoke");
+const smokeNoItems = computed(() => smoke.value && applicableCount() === 0);
+const prepared = computed(() => Boolean(proposal.value.previewPlan));
+const confirmation = computed(() => {
+  const plan = proposal.value.previewPlan;
+  if (!plan) {
+    return null;
   }
-  if (chosen === total) {
-    return `全部 ${total} 条适用验收项都会进入本次范围。`;
+  const cases = plan.cases ?? [];
+  const layers = { L1: 0, L2: 0, L3: 0 };
+  let scripts = 0;
+  let commands = 0;
+  let sideEffects = 0;
+  for (const item of cases) {
+    layers[item.layer] = (layers[item.layer] ?? 0) + 1;
+    const method = item.verify_method ?? "";
+    if (item.script_name || method.startsWith("script:")) {
+      scripts += 1;
+    }
+    if (method.startsWith("command:") || method.startsWith("pytest:") || method.startsWith("sql:")) {
+      commands += 1;
+    }
+    if (method.startsWith("http:")) {
+      try {
+        const requests = JSON.parse(method.slice(5));
+        if (Array.isArray(requests)) {
+          sideEffects += requests.filter(
+            (request) => String(request?.method ?? "GET").toUpperCase() !== "GET",
+          ).length;
+        }
+      } catch {
+        // 非法 http 方法由 CLI 拒绝，这里只统计能解析的请求。
+      }
+    }
   }
-  return `已排除 ${total - chosen} 条；这些不进入本次结论。`;
+  return {
+    cases: cases.length,
+    layers,
+    scripts,
+    commands,
+    sideEffects,
+    selected: plan.scope.acceptance_item_ids.length,
+    applicable: plan.applicable_count,
+    python: session.doctor?.python?.version ?? "未检测",
+    modelSource: session.doctor?.model?.source ?? "unknown",
+    github: session.doctor?.github?.ok ? "可用" : "不可用或未登录",
+  };
+});
+const lastRun = computed(() => session.lastRun);
+const lastHistory = computed(() => session.history[0]);
+const lastRunLabel = computed(() => {
+  const run = lastRun.value;
+  if (!run) {
+    return "";
+  }
+  if (run.status === "running") {
+    return "上次还在运行";
+  }
+  return run.outcome ? `上次 ${VERDICT_LABEL[run.outcome]}` : "上次已结束";
 });
 
-const envText = computed(() => {
-  switch (session.env) {
-    case "ok":
-      return "本机 · 环境正常";
-    case "warn":
-      return "本机 · 部分能力缺失，AI 可能不可用";
-    case "error":
-      return "本机 · 环境异常，点顶部状态条处理";
-    default:
-      return "本机 · 环境检查中";
+function openLastRun(): void {
+  if (lastHistory.value) {
+    void openResult(lastHistory.value.run_id);
   }
-});
+}
+
+const skipped = computed(() => applicableCount() - selectedCount());
 
 function retryExtract(): void {
   const index = session.proposal.index;
@@ -69,42 +116,36 @@ function retryExtract(): void {
         @retry="loadProposal"
       />
 
-      <section class="scope-block" data-testid="proposal-scope">
-        <div class="scope-head">
-          <span class="scope-label"><span class="code">RANGE</span> / 范围</span>
-          <span class="scope-value numeric" data-testid="proposal-scope-value">
-            {{ selectedCount() }}<span class="slash">/</span>{{ applicableCount() }}
-            <span class="quiet">条适用</span>
+      <section v-if="lastRun && lastHistory" class="last-run">
+        <span class="last-run-copy">
+          <strong>{{ lastRunLabel }}</strong>
+          <span>
+            {{ formatDateTime(lastRun.startedAt) }} ·
+            {{ lastRun.applicable > 0 ? `${lastRun.selected} / ${lastRun.applicable} 项` : "项目检查" }}
           </span>
-        </div>
-        <div
-          class="scope-ticks"
-          role="progressbar"
-          :aria-valuenow="selectedCount()"
-          :aria-valuemin="0"
-          :aria-valuemax="applicableCount()"
-          aria-label="本次范围覆盖"
-        >
-          <span
-            v-for="item in proposal.items"
-            :key="item.id"
-            class="scope-tick"
-            :class="{
-              on: item.enabled,
-              off: item.observable && !item.enabled,
-              unavailable: !item.observable,
-            }"
-          ></span>
-        </div>
-        <p class="hint scope-note">{{ scopeNote }}</p>
+        </span>
+        <button type="button" class="text-action" @click="openLastRun">查看</button>
       </section>
 
       <section class="criteria-block">
-        <div class="console-head">
-          <span class="console-label">CHECKS / 验收标准</span>
-          <span class="console-count numeric">{{ String(applicableCount()).padStart(2, "0") }}</span>
-          <span class="console-note">默认全选，点掉即排除</span>
+        <div class="section-title">
+          <h2>{{ smokeNoItems ? "项目检查" : "检查项" }}</h2>
+          <span class="section-note" data-testid="proposal-scope-value">
+            <template v-if="smokeNoItems">
+              {{ confirmation ? `${confirmation.cases} 项快速检查` : "项目检查" }}
+            </template>
+            <template v-else>
+              已选 {{ selectedCount() }} / {{ applicableCount() }}
+              <button type="button" class="text-action edit" data-testid="open-adjust" @click="openAdjustDrawer">
+                编辑
+              </button>
+            </template>
+          </span>
         </div>
+
+        <p v-if="skipped > 0 && !smokeNoItems" class="hint scope-note">
+          {{ skipped }} 项未选，不计入结论
+        </p>
 
         <ErrorNotice
           v-if="proposal.itemsError"
@@ -116,52 +157,60 @@ function retryExtract(): void {
 
         <ul v-if="proposal.items.length" class="criteria" data-testid="proposal-criteria">
           <li
-            v-for="(item, index) in proposal.items"
+            v-for="item in proposal.items"
             :key="item.id"
             class="criteria-row"
             :class="{ off: !item.observable, excluded: item.observable && !item.enabled }"
           >
-            <span class="criteria-index numeric">{{ String(index + 1).padStart(2, "0") }}</span>
-            <button
-              v-if="item.observable"
-              type="button"
-              class="check"
-              role="switch"
-              :aria-checked="item.enabled"
-              :aria-label="`纳入：${item.text}`"
-              @click="toggleProposalItem(item)"
-            >
-              <span class="check-box" :class="{ on: item.enabled }" aria-hidden="true">
-                <Icon v-if="item.enabled" name="check" :size="10" />
-              </span>
-            </button>
-            <span v-else class="switch-placeholder" aria-hidden="true">—</span>
-            <span class="criteria-text">{{ item.text }}</span>
-            <span class="criteria-note">
-              {{ item.observable ? item.source : "不可观察，暂不纳入" }}
-            </span>
+            <label v-if="item.observable" class="criteria-label">
+              <input
+                type="checkbox"
+                class="criteria-check"
+                :checked="item.enabled"
+                :aria-label="`纳入：${item.text}`"
+                @change="toggleProposalItem(item)"
+              />
+              <span class="criteria-text">{{ item.text }}</span>
+            </label>
+            <span v-else class="criteria-text off-text">{{ item.text }}</span>
+            <span v-if="!item.observable" class="criteria-note">暂时不能验证</span>
+            <span
+              v-else-if="item.source && item.source !== '任务描述'"
+              class="criteria-note"
+            >{{ item.source }}</span>
           </li>
         </ul>
 
-        <p v-else-if="!proposal.itemsLoading" class="hint empty-note">
-          没有提取出可观察的验收标准。打开“调整”补一条，或换一个目标。
+        <p v-else-if="!proposal.itemsLoading && !smokeNoItems" class="hint empty-note">
+          没有可检查的条目。可以编辑范围补一条，或换个目标。
         </p>
       </section>
 
-      <dl class="facts">
-        <div class="fact">
-          <dt><span class="code">ENV</span> 环境</dt>
-          <dd>{{ envText }}</dd>
-        </div>
-        <div class="fact">
-          <dt><span class="code">WRITES</span> 副作用</dt>
-          <dd>可能写入测试数据；默认不自动清理。</dd>
-        </div>
-        <div class="fact">
-          <dt><span class="code">EST</span> 预计耗时</dt>
-          <dd>未提供估算；按用例数量与项目启动时间而定。</dd>
-        </div>
-      </dl>
+      <section v-if="confirmation" class="confirm-card" data-testid="run-confirmation">
+        <h2>执行前确认</h2>
+        <ul>
+          <li>
+            范围：已选 {{ confirmation.selected }} / {{ confirmation.applicable }}，
+            未选 {{ Math.max(0, confirmation.applicable - confirmation.selected) }} 项不计入结论。
+          </li>
+          <li>
+            用例：{{ confirmation.cases }} 条（L1 {{ confirmation.layers.L1 }}，
+            L2 {{ confirmation.layers.L2 }}，L3 {{ confirmation.layers.L3 }}）。
+          </li>
+          <li>环境：Python {{ confirmation.python }}；GitHub {{ confirmation.github }}。</li>
+          <li>凭据：只从环境变量或用户配置读取，工作空间不保存密钥。</li>
+          <li>
+            副作用：{{ confirmation.sideEffects }} 个非 GET 请求，
+            {{ confirmation.scripts }} 个生成脚本，{{ confirmation.commands }} 个命令。
+          </li>
+          <li>依赖安装：未声明；预计耗时：未估算。缺依赖或环境不可用时标阻塞。</li>
+        </ul>
+      </section>
+
+      <p class="proposal-notes">
+        {{ smokeNoItems ? "会导入入口、发现测试并运行最小测试模块" : "会写入测试数据，不改源码" }}
+        <span aria-hidden="true">·</span> 关闭面板不中断
+      </p>
 
       <ErrorNotice
         v-if="proposal.startError"
@@ -172,18 +221,23 @@ function retryExtract(): void {
 
       <footer class="sheet-foot">
         <p class="hint foot-note">
-          点一下即确认本次范围并开始；运行在后台继续，关闭面板不会中断。
+          {{
+            smokeNoItems
+              ? "只读项目文件"
+              : selectedCount() === 0
+                ? "至少选择 1 项"
+                : `${selectedCount()} 项检查`
+          }}
         </p>
         <AppButton
           variant="primary"
-          :disabled="applicableCount() === 0"
+          :disabled="selectedCount() === 0 && !smokeNoItems"
           :loading="proposal.starting"
           data-testid="start-test"
-          @click="startTest"
+          @click="prepared ? startTest() : prepareTest()"
         >
           <Icon name="play" :size="13" />
-          开始测试
-          <span class="run-code">RUN</span>
+          {{ prepared ? "确认并开始" : smokeNoItems ? "检查并开始" : "开始测试" }}
         </AppButton>
       </footer>
     </template>
@@ -197,278 +251,168 @@ function retryExtract(): void {
   gap: var(--space-4);
 }
 
+.last-run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.last-run-copy {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.last-run-copy strong {
+  font-size: var(--fs-12);
+  font-weight: 500;
+}
+
+.last-run-copy span {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.text-action {
+  flex: none;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+
+.text-action:hover {
+  text-decoration: underline;
+}
+
+.text-action.edit {
+  margin-left: 8px;
+  color: var(--text-3);
+  font-size: var(--fs-11);
+}
+
+.text-action.edit:hover {
+  color: var(--accent);
+}
+
 .criteria-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.criteria-block .section-title {
+.section-title {
   margin-bottom: 0;
 }
 
-.criteria-block h2 {
-  font-size: var(--fs-14);
+.scope-note {
+  margin-top: -4px;
 }
 
 .criteria {
   list-style: none;
-  margin: 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   border-top: 1px solid var(--line);
 }
 
-.console-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--line-strong);
-}
-
-.console-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--text-3);
-}
-
-.console-count {
-  font-family: var(--font-mono);
-  font-size: var(--fs-16);
-  color: var(--accent);
-}
-
-.console-note {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--text-3);
-}
-
 .criteria-row {
-  display: grid;
-  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-2);
-  padding: 7px 0;
+  min-height: 34px;
+  padding: 6px 0;
   border-bottom: 1px solid var(--line);
 }
 
-.criteria-index {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-disabled);
+.criteria-row:hover {
+  background: var(--surface-raised);
 }
 
-.criteria-row:last-child {
-  border-bottom: 0;
+.criteria-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.criteria-check {
+  margin-top: 3px;
+  flex: none;
 }
 
 .criteria-text {
   font-size: var(--fs-13);
   line-height: 1.5;
-  word-break: break-word;
-  transition: color 140ms ease;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.criteria-row.excluded .criteria-text {
-  color: var(--text-3);
-}
-
-.criteria-row.off .criteria-text {
+.criteria-row.excluded .criteria-text,
+.off-text {
   color: var(--text-3);
 }
 
 .criteria-note {
+  flex: 0 0 auto;
+  padding-top: 2px;
   font-size: var(--fs-12);
   color: var(--text-3);
-  max-width: 18ch;
+  max-width: 14ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.check {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: none;
-  border: 0;
-}
-
-.check-box {
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 1px;
-  background: var(--surface-sunken);
-  color: var(--bg);
-}
-
-.check-box.on {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.check:hover .check-box {
-  border-color: var(--accent);
-}
-
-.check:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.switch-placeholder {
-  color: var(--text-disabled);
-  text-align: center;
-}
-
-.code {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
 }
 
 .empty-note {
   padding: var(--space-3) 0;
 }
 
-.scope-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.scope-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.scope-label {
+.proposal-notes {
   font-size: var(--fs-12);
   color: var(--text-3);
+  line-height: 1.5;
 }
 
-.scope-value {
-  font-size: var(--fs-14);
-  color: var(--text);
-}
-
-.slash {
-  margin: 0 2px;
-  color: var(--text-3);
-}
-
-.scope-ticks {
-  display: flex;
-  gap: 2px;
-  height: 8px;
-}
-
-.scope-tick {
-  flex: 1 1 0;
-  min-width: 2px;
-  border-radius: 1px;
-  background: var(--line);
-}
-
-.scope-tick.off {
-  background: var(--line-strong);
-}
-
-.scope-tick.unavailable {
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-}
-
-.scope-tick.on {
-  background: var(--accent-line);
-}
-
-.scope-note {
-  margin-top: 2px;
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin: 0;
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.fact {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.fact dt {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-}
-
-.fact dd {
-  margin: 0;
-  font-size: var(--fs-12);
-  color: var(--text-2);
-  line-height: 1.55;
+.proposal-notes span {
+  margin: 0 4px;
 }
 
 .sheet-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding-top: var(--space-3);
+  padding: var(--space-3) 0;
+  background: var(--bg);
   border-top: 1px solid var(--line);
-}
-
-.run-code {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  opacity: 0.65;
 }
 
 .foot-note {
   flex: 1 1 220px;
-  max-width: 44ch;
+  max-width: 42ch;
 }
 
 @media (max-width: 520px) {
-  .criteria-row {
-    grid-template-columns: 18px 20px minmax(0, 1fr);
-    row-gap: 2px;
+  .last-run {
+    align-items: flex-start;
   }
 
   .criteria-note {
-    grid-column: 3;
-    max-width: 100%;
-  }
-
-  .facts {
-    grid-template-columns: 1fr;
-    gap: var(--space-3);
-  }
-
-  .sheet-foot :deep(.btn) {
-    width: 100%;
+    display: none;
   }
 }
 </style>

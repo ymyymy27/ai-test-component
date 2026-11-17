@@ -105,7 +105,6 @@ onBeforeUnmount(() => {
     >
       <header class="drawer-head">
         <div class="drawer-copy">
-          <span class="drawer-kicker">INSPECTOR</span>
           <h2>{{ title }}</h2>
           <p v-if="note" class="hint">{{ note }}</p>
         </div>
@@ -159,13 +158,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
-}
-
-.drawer-kicker {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  color: var(--accent);
 }
 
 .drawer-copy h2 {

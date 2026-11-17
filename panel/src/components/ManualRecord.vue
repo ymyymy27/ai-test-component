@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-import { LAYER_LABEL, methodLabel } from "@/api/labels";
+import { LAYER_LABEL, cleanItemText, methodLabel } from "@/api/labels";
 import type { PlanCase, RunCase } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
 import { recordManual } from "@/state/session";
@@ -48,7 +48,9 @@ async function submit(): Promise<void> {
         记录结果
       </AppButton>
     </div>
-    <p v-if="itemText" class="manual-item">验收标准：{{ itemText }}</p>
+    <p v-if="itemText" class="manual-item">
+      <span class="manual-label">验收标准：</span>{{ cleanItemText(itemText) }}
+    </p>
 
     <form v-if="open" class="manual-form" @submit.prevent="submit">
       <label class="manual-field">
@@ -115,6 +117,12 @@ async function submit(): Promise<void> {
 
 .manual-item {
   font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.manual-label {
+  margin-right: 8px;
+  font-size: var(--fs-11);
   color: var(--text-3);
 }
 

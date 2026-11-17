@@ -25,6 +25,13 @@ async function settle(times = 4): Promise<void> {
   }
 }
 
+async function prepareAndConfirm(wrapper: VueWrapper): Promise<void> {
+  await wrapper.find('[data-testid="start-test"]').trigger("click");
+  await settle(4);
+  await wrapper.find('[data-testid="start-test"]').trigger("click");
+  await settle(6);
+}
+
 async function mountProposal(
   overrides: Record<string, Route> = {},
 ): Promise<{ wrapper: VueWrapper; harness: ReturnType<typeof installHost> }> {
@@ -61,7 +68,7 @@ describe("单页测试单：五个状态", () => {
     await settle();
 
     expect(wrapper.find('[data-testid="no-project"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("先选择一个项目文件夹");
+    expect(wrapper.text()).toContain("先选一个要测的项目文件夹");
     expect(wrapper.findAll("button")).toHaveLength(1);
     expect(wrapper.find("input").exists()).toBe(false);
 
@@ -102,17 +109,17 @@ describe("单页测试单：五个状态", () => {
     const { wrapper, harness } = await mountProposal();
 
     expect(wrapper.find(".order-head h1").text()).toBe("验证下单成功后订单只出现一次");
-    expect(wrapper.text()).toContain("依据：order 模块近三次提交");
-    expect(wrapper.text()).toContain("CHECKS / 验收标准");
-    expect(wrapper.find(".console-count").text()).toBe("02");
+    expect(wrapper.text()).not.toContain("为什么建议测这个");
+    expect(wrapper.text()).toContain("检查项");
     expect(wrapper.findAll('[data-testid="proposal-criteria"] li')).toHaveLength(3);
-    expect(wrapper.findAll('[role="switch"]')).toHaveLength(2);
-    for (const toggle of wrapper.findAll('[role="switch"]')) {
-      expect(toggle.attributes("aria-checked")).toBe("true");
+    const checks = wrapper.findAll(".criteria-check");
+    expect(checks).toHaveLength(2);
+    for (const check of checks) {
+      expect((check.element as HTMLInputElement).checked).toBe(true);
     }
     expect(
       wrapper.find('[data-testid="proposal-scope-value"]').text().replace(/\s+/g, ""),
-    ).toContain("2/2条适用");
+    ).toContain("已选2/2");
     expect(wrapper.findAll('input[type="text"]')).toHaveLength(0);
     expect(wrapper.findAll("textarea")).toHaveLength(0);
 
@@ -130,8 +137,7 @@ describe("单页测试单：五个状态", () => {
       "run.status": RUNNING_DETAIL,
     });
 
-    await wrapper.find('[data-testid="start-test"]').trigger("click");
-    await settle(6);
+    await prepareAndConfirm(wrapper);
 
     const generate = harness.calls.find((call) => call.command === "plan.generate");
     expect(generate?.payload["scope"]).toMatchObject({
@@ -156,18 +162,17 @@ describe("单页测试单：五个状态", () => {
       },
     });
 
-    await wrapper.find('[data-testid="start-test"]').trigger("click");
-    await settle(6);
+    await prepareAndConfirm(wrapper);
 
-    expect(wrapper.text()).toContain("运行中");
-    expect(wrapper.text()).toContain("每 2 秒更新");
+    expect(wrapper.text()).toContain("正在运行");
+    expect(wrapper.text()).toContain("后台运行，可关闭面板。");
     expect(wrapper.text()).toContain("1 / 2");
     expect(wrapper.text()).toContain("并发下单核对库存");
-    expect(wrapper.text()).toContain("取消这次运行");
+    expect(wrapper.text()).toContain("停止测试");
 
     await wrapper.find(".cancel-zone button").trigger("click");
-    expect(wrapper.text()).toContain("确认取消？");
-    await wrapper.findAll(".cancel-zone button").find((button) => button.text() === "继续运行")?.trigger("click");
+    expect(wrapper.text()).toContain("等当前步骤结束后停止");
+    await wrapper.findAll(".cancel-zone button").find((button) => button.text() === "继续测试")?.trigger("click");
 
     await refreshRun();
     await settle();
@@ -175,7 +180,7 @@ describe("单页测试单：五个状态", () => {
     expect(session.phase).toBe("result");
     expect(wrapper.find('[data-testid="run-panel"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="result-panel"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("失败");
+    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("没通过");
     expect(wrapper.find('[data-testid="test-order"]').attributes("data-phase")).toBe("result");
     wrapper.unmount();
   });
@@ -196,18 +201,17 @@ describe("单页测试单：五个状态", () => {
           : RUNNING_DETAIL,
     });
 
-    await wrapper.find('[data-testid="start-test"]').trigger("click");
-    await settle(6);
+    await prepareAndConfirm(wrapper);
     await wrapper.find(".cancel-zone button").trigger("click");
     await wrapper
       .findAll(".cancel-zone button")
-      .find((button) => button.text() === "确认取消")
+      .find((button) => button.text() === "停止")
       ?.trigger("click");
     await settle(8);
 
     expect(session.phase).toBe("result");
-    expect(session.notice).toContain("本次运行已取消");
-    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("失败");
+    expect(session.notice).toBe("");
+    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("没通过");
     wrapper.unmount();
   });
 });
@@ -445,7 +449,7 @@ describe("结果相位的操作", () => {
     expect(session.phase).toBe("result");
     expect(session.historyOpen).toBe(false);
     expect(wrapper.find('[data-testid="result-panel"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("未完成");
+    expect(wrapper.find('[data-testid="verdict-word"]').text()).toBe("没测完");
     wrapper.unmount();
   });
 

@@ -41,6 +41,9 @@ _CANONICAL_KEYS = (
     "duration",
     "timestamp",
     "node_id",
+    "parent_id",
+    "input_ref",
+    "output_ref",
     "expected",
     "actual",
 )
@@ -149,9 +152,12 @@ def _node(
         node_id = fallback_id
     return {
         "node_id": node_id,
+        "parent_id": _text(canonical.get("parent_id")) or _text(values.get("parent_id")),
         "type": kind,
         "status": _text(canonical.get("status")) or "unknown",
         "duration": _duration(canonical.get("duration")),
+        "input_ref": _text(canonical.get("input_ref")) or _text(values.get("input_ref")),
+        "output_ref": _text(canonical.get("output_ref")) or _text(values.get("output_ref")),
         "message": _text(canonical.get("message")),
         "evidence_ref": evidence_ref,
     }
@@ -428,9 +434,12 @@ def _collect_db(
         nodes.append(
             {
                 "node_id": "db:1",
+                "parent_id": "",
                 "type": "db",
                 "status": "unknown",
                 "duration": None,
+                "input_ref": "",
+                "output_ref": "",
                 "message": first_line,
                 "evidence_ref": f"db:{request_id}",
             }

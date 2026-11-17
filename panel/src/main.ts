@@ -1,7 +1,7 @@
 import { createApp } from "vue";
 
 import App from "./App.vue";
-import { initSkin } from "./state/skin";
+import { initTheme } from "./state/theme";
 import "./styles/tokens.css";
 import "./styles/base.css";
 
@@ -11,7 +11,7 @@ async function start(): Promise<void> {
     const { installMockHost } = await import("./mock/host");
     installMockHost(new URLSearchParams(window.location.search).get("mock") ?? "result");
   }
-  initSkin();
+  initTheme();
   createApp(App).mount("#app");
 }
 

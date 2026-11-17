@@ -40,10 +40,9 @@ describe("设置页主视图", () => {
     expect(text).toContain("环境自检");
     expect(text).toContain("3.13.1");
     expect(text).toContain("C:\\data\\ws");
-    expect(text).toContain("模型密钥");
+    expect(text).toContain("模型");
     expect(text).toContain("GitHub");
     expect(text).toContain("高级配置");
-    expect(text).toContain("不安装软件");
 
     expect(wrapper.find("textarea").exists()).toBe(false);
     expect(wrapper.findAll('input[type="text"]')).toHaveLength(0);

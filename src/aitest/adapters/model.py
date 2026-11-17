@@ -28,9 +28,12 @@ _SYSTEM_SUGGEST = (
 _SYSTEM_CASES = (
     "你是测试用例生成助手。只输出一个 JSON 对象，格式为 "
     '{"cases": [{"acceptance_item_id": "验收项 ID", "layer": "L1|L2|L3", '
-    '"expected": "预期结果", "expectation_source": "期望来源", '
+    '"title": "用例标题", "expected": "预期结果", "expectation_source": "期望来源", '
+    '"preconditions": ["执行前置条件"], "steps": ["操作步骤"], '
     '"verify_method": "必须以 command:/script:/http:/playwright: 开头", "depends_on": ["依赖项"], '
+    '"mock_allowed": true, "importance": "high|medium|low", '
     '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。'
+    "expectation_source 必须逐字引用对应验收项原文；preconditions 至少一条，不得留空。"
     "verify_method 只允许四种前缀：command:（shell 命令）、"
     "script:（配合 script_content）、http:（JSON 请求数组）、"
     "playwright:（脚本路径）。"
@@ -50,6 +53,13 @@ _SYSTEM_ITEMS = (
     "你是验收项提取助手。只输出一个 JSON 对象，格式为 "
     '{"items": [{"text": "可观察的验收结果", "observable": true, "source": "原句"}]}。'
     "每条必须可观察；不可观察的写 observable=false。不要输出 JSON 之外的任何文本。"
+)
+
+_SYSTEM_ISSUE = (
+    "你是缺陷记录助手。只输出一个 JSON 对象，格式为 "
+    '{"title": "问题标题", "steps": ["复现步骤"], "expected": "预期", "actual": "实际"}。'
+    "只根据给出的用例、失败信息和证据摘要记录事实，不要判断是否通过，不要编造未提供的步骤；"
+    "不要输出 JSON 之外的任何文本。"
 )
 
 _SYSTEM_ENV = (
@@ -242,6 +252,47 @@ class ModelClient:
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
 
+    def check_connection(self) -> dict[str, Any]:
+        """Probe the configured endpoint without sending user data.
+
+        Returns only a status and a sanitized base URL; the API key is never
+        included in the result.
+        """
+        request = urllib.request.Request(
+            f"{self._base_url}/models",
+            method="GET",
+            headers={"Authorization": f"Bearer {self._api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(
+                request, timeout=min(self._timeout_seconds, 10)
+            ) as response:
+                return {
+                    "ok": int(response.status) < 400,
+                    "status": int(response.status),
+                    "base_url": self._base_url,
+                }
+        except urllib.error.HTTPError as exc:
+            return {
+                "ok": False,
+                "status": exc.code,
+                "base_url": self._base_url,
+                "error": "认证失败" if exc.code in {401, 403} else f"HTTP {exc.code}",
+            }
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            OSError,
+            http.client.HTTPException,
+            ValueError,
+        ):
+            return {
+                "ok": False,
+                "status": None,
+                "base_url": self._base_url,
+                "error": "无法连接模型服务",
+            }
+
     def complete_json(self, system: str, user: str) -> dict[str, Any]:
         """Request one JSON object and return it after validation."""
         payload = {
@@ -323,8 +374,21 @@ class ModelClient:
             case = {
                 "acceptance_item_id": acceptance_item_id,
                 "layer": layer,
+                "title": str(item.get("title") or ""),
                 "expected": _require_text(item, "expected"),
                 "expectation_source": _require_text(item, "expectation_source"),
+                "preconditions": (
+                    []
+                    if item.get("preconditions") is None
+                    else _require_text_list(item, "preconditions", allow_empty=True)
+                ),
+                "steps": _text_list_or_empty(item.get("steps")),
+                "mock_allowed": bool(item.get("mock_allowed", True)),
+                "importance": (
+                    item.get("importance")
+                    if item.get("importance") in {"high", "medium", "low"}
+                    else "medium"
+                ),
                 "verify_method": _require_text(item, "verify_method"),
                 "depends_on": (
                     []
@@ -387,6 +451,24 @@ class ModelClient:
             "candidate_causes": _candidate_causes(data),
             "unverified": _require_text_list(data, "unverified", allow_empty=False),
             "next_steps": _require_text_list(data, "next_steps", allow_empty=True),
+        }
+
+    def draft_issue(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Draft a factual issue title, steps, expected and actual."""
+        data = self.complete_json(_SYSTEM_ISSUE, json.dumps(context, ensure_ascii=False))
+        nested = data.get("issue")
+        if isinstance(nested, dict):
+            data = _as_mapping(nested, "issue 必须是对象")
+        steps = data.get("steps")
+        return {
+            "title": _require_text(data, "title"),
+            "steps": (
+                [str(item) for item in steps if isinstance(item, str) and item.strip()]
+                if isinstance(steps, list)
+                else []
+            ),
+            "expected": str(data.get("expected") or ""),
+            "actual": str(data.get("actual") or ""),
         }
 
     def draft_delivery(self, context: dict[str, Any]) -> dict[str, Any]:

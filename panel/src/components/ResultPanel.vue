@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import { api } from "@/api/commands";
 import { describeError, type FriendlyError } from "@/api/errors";
 import { openHostPath } from "@/api/host";
 import {
-  CASE_RESULT_LABEL,
   LAYER_LABEL,
   RUN_STATUS_BADGE,
   RUN_STATUS_LABEL,
+  cleanItemText,
   formatDateTime,
   methodLabel,
 } from "@/api/labels";
 import type {
-  CaseResult,
   EvidenceItem,
   Opinion,
   PlanCase,
@@ -79,7 +78,9 @@ const run = computed(() => session.result?.run ?? null);
 const runId = computed(() => run.value?.run_id ?? "");
 const outcome = computed(() => session.result?.outcome ?? null);
 const selected = computed(() => run.value?.scope.acceptance_item_ids.length ?? 0);
-const applicable = computed(() => session.plan?.applicable_count ?? 0);
+const applicable = computed(
+  () => session.result?.counts?.applicable ?? session.plan?.applicable_count ?? 0,
+);
 const uncoveredItems = computed(() => session.result?.uncovered_items ?? []);
 const canCloseIssues = computed(() => Boolean(run.value && run.value.status !== "running"));
 
@@ -121,7 +122,6 @@ const joined = computed<JoinedCase[]>(() =>
 );
 
 const failed = computed(() => joined.value.filter((item) => item.runCase.result === "failed"));
-const totalCases = computed(() => joined.value.length);
 const stalled = computed(() =>
   joined.value.filter(
     (item) =>
@@ -132,121 +132,52 @@ const stalled = computed(() =>
   ),
 );
 
+function nodeStatus(status?: string): string {
+  if (!status || status === "unknown") {
+    return "状态未知";
+  }
+  if (status === "passed" || status === "ok") {
+    return "正常";
+  }
+  return "异常";
+}
+
 const analysis = computed(() => run.value?.analysis?.[0]);
 const canAnalyze = computed(() => failed.value.length > 0 || stalled.value.length > 0);
 
-type TickTone = "passed" | "failed" | "incomplete" | "selected" | "unselected";
-
-const taskItems = computed(() =>
-  (session.task?.acceptance_items ?? []).filter(
-    (item) => item.observable && item.status === "active",
-  ),
-);
-const projectMode = computed(
-  () => applicable.value === 0 && taskItems.value.length === 0,
-);
-const effectiveApplicable = computed(() =>
-  applicable.value > 0 ? applicable.value : taskItems.value.length,
-);
+const projectMode = computed(() => applicable.value === 0);
 
 const caseCounts = computed(() => {
-  const counts = { passed: 0, failed: 0, incomplete: 0, manual: 0 };
-  for (const row of joined.value) {
-    switch (row.runCase.result) {
-      case "passed":
-        counts.passed += 1;
-        break;
-      case "failed":
-        counts.failed += 1;
-        break;
-      case "manual_pending":
-        counts.manual += 1;
-        break;
-      case "blocked":
-      case "error":
-      case "not_run":
-        counts.incomplete += 1;
-        break;
-    }
-  }
-  return counts;
-});
-
-const itemOutcomes = computed(() => {
-  const rank: Record<CaseResult, number> = {
-    failed: 4,
-    blocked: 3,
-    error: 3,
-    not_run: 3,
-    manual_pending: 3,
-    passed: 2,
+  const counts = session.result?.counts ?? {};
+  return {
+    passed: counts.passed ?? 0,
+    failed: counts.failed ?? 0,
+    incomplete: counts.incomplete ?? 0,
+    manual: session.result?.manual_cases ?? 0,
   };
-  const outcomes = new Map<string, CaseResult>();
-  for (const row of joined.value) {
-    const itemId = row.planCase?.acceptance_item_id;
-    if (!itemId) {
-      continue;
-    }
-    const current = outcomes.get(itemId);
-    if (!current || rank[row.runCase.result] > rank[current]) {
-      outcomes.set(itemId, row.runCase.result);
-    }
-  }
-  return outcomes;
 });
 
-function resultTone(result: CaseResult): TickTone {
-  if (result === "failed") {
-    return "failed";
-  }
-  if (result === "passed") {
-    return "passed";
-  }
-  return "incomplete";
-}
 
-const selectedIds = computed(
-  () => new Set(run.value?.scope.acceptance_item_ids ?? []),
-);
+const pendingItems = computed(() => session.result?.pending_items ?? 0);
 
-const summaryTicks = computed(() => {
-  if (!projectMode.value) {
-    const items = taskItems.value;
-    if (items.length === 0) {
-      return [];
-    }
-    return items.map((item) => {
-      if (!selectedIds.value.has(item.item_id)) {
-        return { tone: "unselected" as TickTone, label: `${item.text}：未纳入本次范围` };
-      }
-      const result = itemOutcomes.value.get(item.item_id) ?? "not_run";
-      return {
-        tone: resultTone(result),
-        label: `${item.text}：${CASE_RESULT_LABEL[result]}`,
-      };
-    });
-  }
-  return joined.value.map((row) => ({
-    tone: resultTone(row.runCase.result),
-    label: `${row.planCase?.title || "项目检查"}：${CASE_RESULT_LABEL[row.runCase.result]}`,
-  }));
-});
+const caseTotal = computed(() => session.result?.counts?.selected ?? 0);
 
-const pendingItems = computed(() => {
-  if (projectMode.value) {
-    return 0;
+const projectChecks = computed(() => {
+  const l1 = session.result?.l1 as
+    | { build?: { ok?: boolean } | null; entries?: { ok?: boolean }[]; cases?: { result?: string }[] }
+    | null
+    | undefined;
+  if (!l1) {
+    return { passed: 0, total: 0 };
   }
-  let count = 0;
-  for (const item of taskItems.value) {
-    if (!selectedIds.value.has(item.item_id)) {
-      continue;
-    }
-    const result = itemOutcomes.value.get(item.item_id) ?? "not_run";
-    if (result !== "passed" && result !== "failed") {
-      count += 1;
-    }
-  }
-  return count;
+  const entries = l1.entries ?? [];
+  const cases = l1.cases ?? [];
+  const total = (l1.build ? 1 : 0) + entries.length + cases.length;
+  const passed =
+    (l1.build?.ok ? 1 : 0) +
+    entries.filter((entry) => entry.ok).length +
+    cases.filter((item) => item.result === "passed").length;
+  return { passed, total };
 });
 
 const summaryNote = computed(() => {
@@ -254,40 +185,49 @@ const summaryNote = computed(() => {
     return "";
   }
   if (caseCounts.value.failed > 0) {
-    return "运行在用例边界取消；已完成用例仍参与结论。";
+    return "中途停止，已完成的检查仍然有效。";
   }
-  return "运行已取消；已完成用例与证据保留。";
-});
-
-const confirmationLabel = computed(() => {
-  const value = run.value;
-  if (!value?.confirmed_by || !value.confirmed_at) {
-    return "";
-  }
-  return `范围已由 ${value.confirmed_by} 于 ${formatDateTime(value.confirmed_at)} 确认`;
+  return "已取消，已完成的检查仍然有效。";
 });
 
 const summaryCaseIncomplete = computed(() => caseCounts.value.incomplete);
 
-const sectionNo = computed(() => {
-  const numbers: Record<string, string> = {};
-  let index = 0;
-  const next = (): string => String(++index).padStart(2, "0");
+const nextKind = computed(() => {
   if (failed.value.length > 0) {
-    numbers.failed = next();
+    return "failed";
+  }
+  if (caseCounts.value.manual > 0) {
+    return "manual";
   }
   if (stalled.value.length > 0) {
-    numbers.stalled = next();
+    return "stalled";
   }
-  numbers.analysis = next();
-  if (session.issues.length > 0) {
-    numbers.issues = next();
-  }
-  numbers.report = next();
-  numbers.opinion = next();
-  numbers.cases = next();
-  return numbers;
+  return "passed";
 });
+
+function scrollTo(selector: string): void {
+  const target = document.querySelector(selector);
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function scrollToFirstFailure(): void {
+  scrollTo("#first-failure");
+}
+
+function scrollToManual(): void {
+  scrollTo(".manual-row");
+}
+
+function scrollToStalled(): void {
+  scrollTo("#stalled-checks");
+}
+
+async function openExport(): Promise<void> {
+  prefillExport();
+  await nextTick();
+  scrollTo("#export-path");
+}
+
 
 const link = computed(() => session.result?.link ?? null);
 const linkLocation = computed(() => {
@@ -449,9 +389,15 @@ async function onRerunItem(acceptanceItemId: string): Promise<void> {
 
 function prefillExport(): void {
   if (!exportPath.value) {
-    const root = session.project?.root?.replace(/[\\/]+$/, "") ?? "";
+    const root =
+      session.hostContext?.workspacePath?.replace(/[\\/]+$/, "") ??
+      session.project?.root?.replace(/[\\/]+$/, "") ??
+      "";
     const short = run.value?.run_id.slice(-6) ?? "run";
-    exportPath.value = root ? `${root}\\aitest-report-${short}.md` : `aitest-report-${short}.md`;
+    const sep = root.includes("\\") ? "\\" : "/";
+    exportPath.value = root
+      ? `${root}${sep}aitest-report-${short}.md`
+      : `aitest-report-${short}.md`;
   }
   showExport.value = true;
 }
@@ -560,40 +506,61 @@ watch(runId, () => {
       :status-tone="RUN_STATUS_BADGE[run.status]"
       :time-label="formatDateTime(run.started_at)"
       :selected="selected"
-      :applicable="effectiveApplicable"
+      :applicable="applicable"
       :project-mode="projectMode"
-      :project-passed="caseCounts.passed"
-      :project-total="totalCases"
-      :case-total="totalCases"
+      :project-passed="projectChecks.passed"
+      :project-total="projectChecks.total"
+      :case-total="caseTotal"
       :case-passed="caseCounts.passed"
       :case-failed="caseCounts.failed"
       :case-incomplete="summaryCaseIncomplete"
       :case-manual="caseCounts.manual"
       :pending-items="pendingItems"
       :assumptions="analysis?.unverified?.length ?? 0"
-      :ticks="summaryTicks"
       :uncovered-items="uncoveredItems"
       :note="summaryNote"
-      :confirmation="confirmationLabel"
     />
 
-    <div class="result-actions">
-      <div class="row-wrap">
-        <AppButton
-          variant="primary"
-          :loading="isBusy('rerun')"
-          data-testid="rerun-button"
-          @click="onRerun"
-        >
-          <Icon name="refresh" :size="14" />
-          再测一次
-        </AppButton>
-        <AppButton variant="secondary" data-testid="new-target" @click="newTarget">
-          新目标
-        </AppButton>
-      </div>
-      <span class="hint">再测一次复用最近计划与范围，旧运行完整保留。</span>
-    </div>
+    <section class="result-actions">
+      <AppButton
+        v-if="nextKind === 'failed'"
+        variant="primary"
+        data-testid="next-failure"
+        @click="scrollToFirstFailure"
+      >
+        看第一条失败
+      </AppButton>
+      <AppButton
+        v-else-if="nextKind === 'manual'"
+        variant="primary"
+        data-testid="next-manual"
+        @click="scrollToManual"
+      >
+        记录人工结果
+      </AppButton>
+      <AppButton
+        v-else-if="nextKind === 'stalled'"
+        variant="primary"
+        data-testid="next-stalled"
+        @click="scrollToStalled"
+      >
+        查看未完成项
+      </AppButton>
+      <AppButton v-else variant="primary" data-testid="next-export" @click="openExport">
+        导出报告
+      </AppButton>
+      <AppButton
+        variant="secondary"
+        :loading="isBusy('rerun')"
+        data-testid="rerun-button"
+        @click="onRerun"
+      >
+        {{ failed.length ? `重跑没通过（${failed.length}）` : "再测一次" }}
+      </AppButton>
+      <AppButton variant="ghost" data-testid="new-target" @click="newTarget">
+        换个目标
+      </AppButton>
+    </section>
 
     <ErrorNotice
       v-if="rerunError"
@@ -602,30 +569,30 @@ watch(runId, () => {
       @retry="() => {}"
     />
 
-
     <section v-if="failed.length" class="block">
-      <div class="section-label">
-        <span class="sec-no">{{ sectionNo.failed }}</span>
-        <span>失败用例 · {{ failed.length }}</span>
-        <span class="sec-note">先看证据，再看分析与问题</span>
+      <div class="section-title">
+        <h2>没通过的检查 · {{ failed.length }}</h2>
       </div>
 
       <div v-if="failed.length" class="fail-list">
         <details
           v-for="(row, failedIndex) in failed"
           :key="row.runCase.case_id"
+          :id="failedIndex === 0 ? 'first-failure' : undefined"
           class="fail-card"
           :open="failedIndex === 0"
           data-testid="failed-case"
         >
           <summary class="fail-head">
-            <span class="fail-index numeric">{{ String(failedIndex + 1).padStart(2, "0") }}</span>
-            <span class="fail-title">{{ row.planCase?.title || row.planCase?.expected || "失败用例" }}</span>
-            <Badge tone="failed">失败</Badge>
+            <span class="fail-index">{{ failedIndex + 1 }}</span>
+            <span class="fail-title">{{ row.planCase?.title || row.planCase?.expected || "没通过的检查" }}</span>
+            <Badge tone="failed">没通过</Badge>
             <span class="fail-chev" aria-hidden="true"><Icon name="chevron-right" :size="13" /></span>
           </summary>
           <div class="fail-body">
-          <p v-if="row.itemText" class="fail-item">验收标准：{{ row.itemText }}</p>
+          <p v-if="row.itemText" class="fail-item">
+            <span class="fail-label">验收标准：</span>{{ cleanItemText(row.itemText) }}
+          </p>
           <p v-if="row.planCase?.expected" class="fail-expected">
             预期：{{ row.planCase.expected }}
           </p>
@@ -634,7 +601,10 @@ watch(runId, () => {
             <template v-if="row.planCase?.layer && methodLabel(row.planCase?.verify_method)"> · </template>
             <template v-if="methodLabel(row.planCase?.verify_method)">{{ methodLabel(row.planCase?.verify_method) }}</template>
           </p>
-          <pre v-if="runMessages(row.runCase)" class="output">{{ runMessages(row.runCase) }}</pre>
+          <details v-if="runMessages(row.runCase)" class="tech-details">
+            <summary>技术细节</summary>
+            <pre class="output">{{ runMessages(row.runCase) }}</pre>
+          </details>
 
           <div v-if="caseEvidence(row.runCase).length" class="tiles" aria-label="这条用例的证据">
             <button
@@ -660,7 +630,7 @@ watch(runId, () => {
               </span>
             </button>
           </div>
-          <p v-else class="hint">这条用例没有登记证据。</p>
+          <p v-else class="hint">这条检查没留下截图或日志。可以只重跑这一项再看。</p>
 
           <footer v-if="row.planCase?.acceptance_item_id" class="fail-foot">
             <button
@@ -668,7 +638,7 @@ watch(runId, () => {
               class="text-action"
               @click="onRerunItem(row.planCase?.acceptance_item_id ?? '')"
             >
-              只重跑这条
+              只重跑这一项
             </button>
           </footer>
           </div>
@@ -676,11 +646,9 @@ watch(runId, () => {
       </div>
     </section>
 
-    <section v-if="stalled.length" class="block">
-      <div class="section-label">
-        <span class="sec-no">{{ sectionNo.stalled }}</span>
-        <span>阻塞与未完成 · {{ stalled.length }}</span>
-        <span class="sec-note">这些结果不计入通过</span>
+    <section v-if="stalled.length" id="stalled-checks" class="block">
+      <div class="section-title">
+        <h2>未完成 · {{ stalled.length }}</h2>
       </div>
       <div class="case-card">
         <template v-for="row in stalled" :key="row.runCase.case_id">
@@ -702,19 +670,17 @@ watch(runId, () => {
     </section>
 
     <AnalysisPanel
+      v-if="canAnalyze"
       :analysis="analysis"
       :loading="isBusy('analysis')"
       :can-generate="canAnalyze"
-      :not-needed="!canAnalyze"
-      :step="sectionNo.analysis"
       @generate="generateAnalysis"
     />
 
     <section v-if="session.issues.length" class="block">
-      <div class="section-label">
-        <span class="sec-no">{{ sectionNo.issues }}</span>
-        <span>遗留问题 · {{ session.issues.length }}</span>
-        <span class="sec-note">跨运行累积，不改变本次结论</span>
+      <div class="section-title">
+        <h2>历史问题 · {{ session.issues.length }}</h2>
+        <span class="section-note">不影响本次</span>
       </div>
       <IssueList
         :issues="session.issues"
@@ -763,9 +729,9 @@ watch(runId, () => {
         <div class="link-row">
           <span class="link-label">首错节点</span>
           <span v-if="link?.first_anomaly" class="link-value mono">
-            {{ link.first_anomaly.node_id }}（{{ link.first_anomaly.status || "unknown" }}）
+            {{ link.first_anomaly.node_id }}（{{ nodeStatus(link.first_anomaly.status) }}）
           </span>
-          <span v-else class="link-value">没有发现非 passed 节点</span>
+          <span v-else class="link-value">没有发现异常节点</span>
         </div>
         <div class="link-row">
           <span class="link-label">上游</span>
@@ -786,21 +752,20 @@ watch(runId, () => {
         <div class="link-row">
           <span class="link-label">位置</span>
           <span class="link-value mono" :class="{ unknown: !linkLocation.known }">
-            {{ linkLocation.known ? linkLocation.text : `未知范围：${linkLocation.text}` }}
+            {{ linkLocation.known ? linkLocation.text : `位置未知：${linkLocation.text}` }}
           </span>
         </div>
       </div>
     </details>
 
     <section class="block">
-      <div class="section-label">
-        <span class="sec-no">{{ sectionNo.report }}</span>
-        <span>证据与报告</span>
+      <div class="section-title">
+        <h2>证据和报告</h2>
       </div>
       <div class="action-row">
         <AppButton variant="secondary" @click="openEvidenceDrawer">
           <Icon name="file" :size="14" />
-          全部证据（{{ evidenceCount }}）
+          查看证据（{{ evidenceCount }}）
         </AppButton>
         <AppButton variant="secondary" @click="prefillExport">
           <Icon name="export" :size="14" />
@@ -839,12 +804,9 @@ watch(runId, () => {
       </div>
     </div>
 
-    <section class="opinion block">
-      <div class="section-label">
-        <span class="sec-no">{{ sectionNo.opinion }}</span>
-        <span>验收意见</span>
-        <span class="sec-note">自由文本，不改变结论</span>
-      </div>
+    <details class="fold opinion" data-testid="opinion-block">
+      <summary>验收意见</summary>
+      <div class="fold-body">
       <div v-if="savedOpinion" class="saved">
         <Badge tone="passed">已记录</Badge>
         <span class="hint">
@@ -852,7 +814,7 @@ watch(runId, () => {
         </span>
       </div>
       <div class="opinion-grid">
-        <Field label="署名" for-id="opinion-by" required>
+        <Field label="署名" for-id="opinion-by">
           <input
             id="opinion-by"
             v-model="opinionBy"
@@ -862,7 +824,7 @@ watch(runId, () => {
             placeholder="你的名字"
           />
         </Field>
-        <Field label="意见" for-id="opinion-text" required>
+        <Field label="意见" for-id="opinion-text">
           <textarea
             id="opinion-text"
             v-model="opinionText"
@@ -882,12 +844,12 @@ watch(runId, () => {
         <AppButton variant="primary" :loading="savingOpinion" @click="saveOpinion">
           保存意见
         </AppButton>
-        <span class="hint">不填写时，报告会显示“未填写验收意见”。</span>
       </div>
-    </section>
+      </div>
+    </details>
 
     <details class="all-cases">
-      <summary><span class="sec-no">{{ sectionNo.cases }}</span>全部用例（{{ joined.length }}）</summary>
+      <summary>全部检查（{{ joined.length }}）</summary>
       <div class="case-card">
         <CaseRow
           v-for="row in joined"
@@ -911,17 +873,10 @@ watch(runId, () => {
 }
 
 .result-actions {
-  position: sticky;
-  top: var(--header-h);
-  z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex-wrap: wrap;
-  padding: 8px 0;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line-strong);
 }
 
 .block {
@@ -984,19 +939,30 @@ watch(runId, () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 0 var(--space-3) 30px;
+  padding: 0 0 var(--space-3);
+}
+
+.tech-details {
+  margin-top: 2px;
+}
+
+.tech-details summary {
+  cursor: pointer;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  padding: 4px 0;
+}
+
+.tech-details .output {
+  margin-top: 6px;
 }
 
 .fail-index {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
   flex: none;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  min-width: 16px;
   font-size: var(--fs-12);
-  color: var(--failed);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .fail-item,
@@ -1005,6 +971,12 @@ watch(runId, () => {
   font-size: var(--fs-12);
   color: var(--text-2);
   line-height: 1.55;
+}
+
+.fail-label {
+  margin-right: 8px;
+  font-size: var(--fs-11);
+  color: var(--text-3);
 }
 
 .fail-meta {
@@ -1092,8 +1064,12 @@ watch(runId, () => {
   padding: 0;
   background: none;
   border: 0;
-  color: var(--accent);
+  color: var(--text-2);
   font-size: var(--fs-12);
+}
+
+.text-action:hover {
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
 }

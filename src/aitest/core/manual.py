@@ -18,8 +18,10 @@ def is_manual_case(case: Case) -> bool:
     return case.layer == "L3" and not is_automatable(case)
 
 
-def aggregate_manual(steps: list[ManualStep]) -> CaseResult:
-    """No record means pending; failures win over blocks; all passed means passed."""
+def aggregate_manual(
+    steps: list[ManualStep], required_steps: list[str] | None = None
+) -> CaseResult:
+    """No record means pending; unfinished steps stay incomplete; failures win."""
     if not steps:
         return "manual_pending"
     results = {step.result for step in steps}
@@ -27,4 +29,8 @@ def aggregate_manual(steps: list[ManualStep]) -> CaseResult:
         return "failed"
     if "blocked" in results:
         return "blocked"
+    if required_steps:
+        recorded = {step.step.strip() for step in steps}
+        if any(step.strip() not in recorded for step in required_steps if step.strip()):
+            return "manual_pending"
     return "passed"

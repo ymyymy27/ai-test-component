@@ -15,15 +15,14 @@ body {
   min-width: 320px;
   color: var(--text);
   font-family: var(--font-ui);
-  font-size: var(--fs-13);
-  line-height: 1.55;
+  font-size: var(--fs-14);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 #app {
   min-height: 100vh;
-  padding-bottom: 24px;
 }
 
 h1,
@@ -204,53 +203,17 @@ hr {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .section-title h2 {
-  font-size: var(--fs-14);
-  letter-spacing: 0.01em;
+  font-size: var(--fs-13);
+  font-weight: 600;
   color: var(--text);
 }
 
 .section-title .section-note {
   font-size: var(--fs-12);
-  color: var(--text-3);
-}
-
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--fs-11);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-}
-
-.sec-no {
-  margin-right: 6px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  font-weight: 400;
-  letter-spacing: normal;
-  color: var(--text-disabled);
-}
-
-.sec-no::before {
-  content: "[";
-}
-
-.sec-no::after {
-  content: "]";
-}
-
-.section-label .sec-note {
-  margin-left: auto;
-  font-size: var(--fs-11);
-  font-weight: 400;
-  letter-spacing: normal;
   color: var(--text-3);
 }
 

@@ -2,37 +2,43 @@
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import re
 import secrets
 import shutil
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import urlsplit
 
 from aitest import __version__
-from aitest.config import model_key_source
+from aitest.config import known_secret_values, model_key_source
 from aitest.core.delivery import build_context as build_delivery_context
 from aitest.core.modules import build_context as build_module_context
 from aitest.core.modules import invalid_dependencies
 from aitest.core.templates import apply_template, list_templates, load_template
 from aitest.errors import AiTestError, invalid_path, invalid_request
-from aitest.model_config import build_client
+from aitest.model_config import build_client, build_user_client, load_project_config
 from aitest.models import (
     AcceptanceItem,
     Delivery,
     Dependency,
+    Issue,
     Module,
     Plan,
     Project,
     RuleVersion,
+    Run,
     Task,
     new_id,
 )
+from aitest.security import is_secret_field, looks_like_secret_value, redact, redact_tree
 from aitest.storage.files import read_json, read_model, write_json, write_model
-from aitest.storage.workspace import Workspace
+from aitest.storage.workspace import Workspace, iso_now
 
 Payload = dict[str, Any]
 Handler = Callable[[Workspace, Payload, bool], dict[str, Any]]
@@ -52,8 +58,22 @@ def _text(payload: Payload, key: str, default: str = "") -> str:
     return value
 
 
+def _as_bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def _project(ws: Workspace, payload: Payload) -> Project:
     return ws.load_project(_text({"project_id": _require(payload, "project_id")}, "project_id"))
+
+
+def _project_secrets(ws: Workspace, project_id: str) -> list[str]:
+    return known_secret_values([load_project_config(ws, project_id)])
 
 
 def _task_path(ws: Workspace, project_id: str, task_id: str) -> Path:
@@ -149,24 +169,146 @@ def _is_generic_acceptance_text(text: str) -> bool:
 # -- doctor -----------------------------------------------------------------
 
 
+def _probe_writable(root: Path) -> tuple[bool, str]:
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / ".write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True, ""
+    except OSError as exc:
+        return False, str(exc)
+
+
+def _doctor_log(ws: Workspace, entry: dict[str, Any]) -> None:
+    path = ws.root / "actions" / "doctor.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _github_fact(gh_path: str | None, repo: str) -> dict[str, Any]:
+    if gh_path is None:
+        return {"ok": False, "path": None, "error": "未安装 gh"}
+    try:
+        completed = subprocess.run(
+            [gh_path, "auth", "status"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "path": gh_path, "error": str(exc)}
+    output = (completed.stdout or "") + (completed.stderr or "")
+    if completed.returncode != 0:
+        return {"ok": False, "path": gh_path, "error": "未登录 gh，需要人执行 gh auth login"}
+    account = ""
+    host = ""
+    match = re.search(r"Logged in to ([^\s]+) account ([^\s]+)", output, re.IGNORECASE)
+    if match:
+        host, account = match.group(1), match.group(2)
+    fact: dict[str, Any] = {"ok": True, "path": gh_path, "account": account, "host": host}
+    if repo:
+        try:
+            view = subprocess.run(
+                [gh_path, "repo", "view", repo, "--json", "nameWithOwner"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            fact.update({"ok": False, "repo": repo, "error": str(exc)})
+            return fact
+        if view.returncode != 0:
+            fact.update({"ok": False, "repo": repo, "error": "无法读取目标仓库"})
+        else:
+            fact["repo"] = repo
+    return fact
+
+
+def _proxy_fact() -> dict[str, Any]:
+    names = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
+    configured = {
+        name: os.environ[name] for name in names if os.environ.get(name, "").strip()
+    }
+    for name, value in configured.items():
+        if name.lower() == "no_proxy":
+            continue
+        parsed = urlsplit(value if "://" in value else f"http://{value}")
+        if not parsed.hostname:
+            return {"ok": False, "configured": configured, "error": f"{name} 不是合法地址"}
+    return {"ok": True, "configured": configured}
+
+
+def _config_problems(ws: Workspace) -> list[dict[str, str]]:
+    problems: list[dict[str, str]] = []
+    for project in ws.list_projects():
+        path = _config_path(ws, project.project_id)
+        if not path.is_file():
+            continue
+        try:
+            data = read_json(path)
+        except AiTestError as exc:
+            problems.append(
+                {
+                    "project_id": project.project_id,
+                    "kind": "invalid_json",
+                    "detail": exc.info.message,
+                }
+            )
+            continue
+        secret = _find_secret_field(data)
+        if secret is not None:
+            problems.append(
+                {
+                    "project_id": project.project_id,
+                    "kind": "secret_field",
+                    "detail": secret,
+                }
+            )
+    return problems
+
+
 def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     meta = ws.init()
-    writable = os.access(ws.root, os.W_OK)
+    writable, writable_error = _probe_writable(ws.root)
     python_ok = sys.version_info >= (3, 11)
     gh_path = shutil.which("gh")
+    repo = _text(payload, "repo")
+    key_source = model_key_source()
+    model_fact: dict[str, Any] = {"ok": False, "source": key_source}
+    projects = ws.list_projects()
+    client = (
+        build_client(ws, projects[0].project_id) if projects else build_user_client()
+    )
+    if key_source == "none":
+        model_fact["error"] = "未配置模型密钥"
+    elif client is None:
+        model_fact["error"] = "项目未建立，无法解析模型设置"
+    else:
+        connection = client.check_connection()
+        model_fact.update(connection)
+    github = _github_fact(gh_path, repo)
+    proxy = _proxy_fact()
+    config_problems = _config_problems(ws)
     repairs: list[dict[str, Any]] = []
     if not writable:
-        repairs.append({"risk": "high", "command": "修正工作空间权限", "auto": False})
-    if gh_path is None:
         repairs.append(
             {
                 "risk": "high",
-                "command": "winget install --id GitHub.cli",
+                "command": "修正工作空间目录权限",
                 "auto": False,
+                "reason": writable_error or "目录不可写",
             }
         )
-    if model_key_source() == "none":
+    if not python_ok:
+        repairs.append(
+            {"risk": "high", "command": "安装 Python 3.11 或更高版本", "auto": False}
+        )
+    if key_source == "none":
         repairs.append(
             {
                 "risk": "high",
@@ -174,38 +316,127 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
                 "auto": False,
             }
         )
+    elif not model_fact.get("ok"):
+        repairs.append(
+            {
+                "risk": "high",
+                "command": "检查 model.base_url、代理与网络后重试",
+                "auto": False,
+                "reason": model_fact.get("error", ""),
+            }
+        )
+    if gh_path is None:
+        repairs.append(
+            {"risk": "high", "command": "winget install --id GitHub.cli", "auto": False}
+        )
+    elif not github.get("ok"):
+        repairs.append(
+            {"risk": "high", "command": "gh auth login", "auto": False}
+        )
+    if config_problems:
+        repairs.append(
+            {
+                "risk": "low",
+                "command": "移除项目配置中的密钥字段",
+                "auto": True,
+            }
+        )
+    for project in projects:
+        root = Path(project.root)
+        if (root / "requirements.txt").is_file():
+            repairs.append(
+                {
+                    "risk": "medium",
+                    "command": "python -m pip install -r requirements.txt",
+                    "auto": False,
+                    "project_id": project.project_id,
+                }
+            )
+        if (root / "package-lock.json").is_file():
+            repairs.append(
+                {
+                    "risk": "medium",
+                    "command": "npm ci",
+                    "auto": False,
+                    "project_id": project.project_id,
+                }
+            )
     done: list[str] = []
-    if bool(payload.get("repair")):
-        for name in ("projects", "requests", "backups"):
+    if _as_bool(payload.get("repair")):
+        for name in ("projects", "requests", "backups", "actions"):
             directory = ws.root / name
             directory.mkdir(parents=True, exist_ok=True)
             done.append(f"ensure:{name}")
-        probe = ws.root / "requests" / ".write-probe"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        done.append("write-probe")
+            _doctor_log(ws, {"at": iso_now(), "action": f"ensure:{name}", "ok": True})
+        cache = ws.root / ".cache"
+        if cache.is_dir():
+            shutil.rmtree(cache, ignore_errors=True)
+            done.append("clear:cache")
+            _doctor_log(ws, {"at": iso_now(), "action": "clear:cache", "ok": True})
+        for problem in config_problems:
+            if problem["kind"] != "secret_field":
+                continue
+            path = _config_path(ws, problem["project_id"])
+            try:
+                data = _strip_secret_fields(read_json(path))
+                write_json(path, data)
+            except (AiTestError, OSError):
+                done.append("strip:secrets:failed")
+                _doctor_log(
+                    ws,
+                    {
+                        "at": iso_now(),
+                        "action": "strip:secrets",
+                        "project_id": problem["project_id"],
+                        "ok": False,
+                    },
+                )
+            else:
+                done.append("strip:secrets")
+                _doctor_log(
+                    ws,
+                    {
+                        "at": iso_now(),
+                        "action": "strip:secrets",
+                        "project_id": problem["project_id"],
+                        "ok": True,
+                    },
+                )
     facts: dict[str, Any] = {
-        "workspace": {"ok": writable, "path": str(ws.root), "workspace_id": meta.workspace_id},
-        "python": {"ok": python_ok, "version": platform.python_version()},
+        "workspace": {
+            "ok": writable,
+            "path": str(ws.root),
+            "workspace_id": meta.workspace_id,
+        },
+        "python": {
+            "ok": python_ok,
+            "version": platform.python_version(),
+            "executable": sys.executable,
+        },
         "package": {"ok": True, "version": __version__},
-        "model": {"ok": model_key_source() != "none", "source": model_key_source()},
-        "github": {"ok": gh_path is not None, "path": gh_path},
-        "proxy": {"ok": True},
+        "model": model_fact,
+        "github": github,
+        "proxy": proxy,
+        "project_config": {
+            "ok": not config_problems,
+            "problems": config_problems,
+        },
         "repairs": repairs,
         "repairs_done": done,
     }
-    if not all(
-        bool(facts[key]["ok"]) for key in ("workspace", "python", "package", "model", "github")
-    ) or bool(payload.get("explain")):
-        projects = ws.list_projects()
-        client = build_client(ws, projects[0].project_id) if projects else None
-        if client is not None:
-            try:
-                explanation = client.explain_environment(facts)
-            except AiTestError:
-                explanation = None
-            if explanation is not None:
-                facts["explanation"] = explanation
+    if (
+        not all(
+            bool(facts[key]["ok"])
+            for key in ("workspace", "python", "package", "model", "github", "proxy")
+        )
+        or _as_bool(payload.get("explain"))
+    ) and client is not None and model_fact.get("ok"):
+        try:
+            explanation = client.explain_environment(facts)
+        except AiTestError:
+            explanation = None
+        if explanation is not None:
+            facts["explanation"] = explanation
     return facts
 
 
@@ -228,11 +459,12 @@ def cmd_project_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "根目录与已登记项目重叠：" + "、".join(item.project_id for item in overlap),
             "明确选择要登记的项目根目录",
         )
+    secrets = known_secret_values([])
     project = Project(
         project_id=new_id("proj"),
-        name=_text(payload, "name") or root.name,
+        name=redact(_text(payload, "name") or root.name, secrets),
         root=str(root),
-        goal=_text(payload, "goal"),
+        goal=redact(_text(payload, "goal"), secrets),
     )
     ws.save_project(project)
     return {"project_id": project.project_id, "revision": project.revision, "existing": False}
@@ -264,9 +496,13 @@ def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     if not isinstance(patch, dict):
         raise invalid_request("patch 必须是对象")
     data = project.model_dump(mode="json")
+    secrets = _project_secrets(ws, project.project_id)
     for key in ("name", "goal"):
         if key in patch:
-            data[key] = patch[key]
+            value = patch[key]
+            if not isinstance(value, str):
+                raise invalid_request(f"字段必须是字符串：{key}")
+            data[key] = redact(value, secrets)
     project = Project.model_validate(data)
     project.revision += 1
     ws.save_project(project)
@@ -285,14 +521,6 @@ CONFIG_SECTIONS: tuple[str, ...] = (
     "data",
 )
 
-_SECRET_FIELD = re.compile(
-    r"(?i)(^|[._-])("
-    r"api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|secret|"
-    r"token|password|passwd|credential|credentials|private[_-]?key|"
-    r"authorization|cookie"
-    r")$"
-)
-
 
 def _config_path(ws: Workspace, project_id: str) -> Path:
     return ws.project_dir(project_id) / "project.config.json"
@@ -309,7 +537,7 @@ def _find_secret_field(value: Any, prefix: str = "") -> str | None:
         for key, item in value.items():
             name = str(key)
             path = f"{prefix}{name}"
-            if _SECRET_FIELD.search(name):
+            if is_secret_field(name):
                 return path
             found = _find_secret_field(item, f"{path}.")
             if found is not None:
@@ -319,19 +547,23 @@ def _find_secret_field(value: Any, prefix: str = "") -> str | None:
             found = _find_secret_field(item, f"{prefix}{index}.")
             if found is not None:
                 return found
+    elif isinstance(value, str) and looks_like_secret_value(value):
+        return f"{prefix}<value>"
     return None
 
 
 def _strip_secret_fields(value: Any) -> Any:
-    """Drop credential-looking keys from a config tree before reading or writing."""
+    """Drop credential-named keys and redact credential-looking values."""
     if isinstance(value, dict):
         return {
             key: _strip_secret_fields(item)
             for key, item in value.items()
-            if not _SECRET_FIELD.search(str(key))
+            if not is_secret_field(str(key))
         }
     if isinstance(value, list):
         return [_strip_secret_fields(item) for item in value]
+    if isinstance(value, str) and looks_like_secret_value(value):
+        return "***"
     return value
 
 
@@ -471,6 +703,86 @@ def cmd_module_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
 # -- task -------------------------------------------------------------------
 
 
+def _task_signal_context(ws: Workspace, project: Project) -> str:
+    """Collect the five target signals: changes, issues, modules, docs, history."""
+    root = Path(project.root)
+    parts = [f"项目：{project.name}\n目标：{project.goal or '未填写'}"]
+    modules = [module.name for module in project.modules if module.name.strip()]
+    deps = [
+        f"{module.name}->{dependency.to}"
+        for module in project.modules
+        for dependency in module.deps
+    ]
+    parts.append("模块：" + ("、".join(modules) if modules else "未登记"))
+    if deps:
+        parts.append("模块依赖：" + "、".join(deps))
+    docs = ""
+    for name in ("README.md", "README.rst", "pyproject.toml", "package.json", "requirements.txt"):
+        path = root / name
+        if not path.is_file():
+            continue
+        try:
+            docs += f"\n--- {name} ---\n" + path.read_text(
+                encoding="utf-8", errors="replace"
+            )[:1200]
+        except OSError:
+            continue
+    if docs:
+        parts.append("项目文档与依赖声明：" + docs)
+    tasks_dir = ws.project_dir(project.project_id) / "tasks"
+    history: list[str] = []
+    if tasks_dir.is_dir():
+        for path in sorted(tasks_dir.glob("*.json"))[-5:]:
+            try:
+                task = read_model(path, Task)
+            except AiTestError:
+                continue
+            history.append(f"{task.title}（{task.revision}）")
+    if history:
+        parts.append("历史任务：" + "、".join(history))
+    issues_dir = ws.project_dir(project.project_id) / "issues"
+    open_issues: list[str] = []
+    if issues_dir.is_dir():
+        for path in sorted(issues_dir.glob("*.json")):
+            try:
+                issue = read_model(path, Issue)
+            except AiTestError:
+                continue
+            if issue.status != "closed":
+                open_issues.append(f"{issue.title}（{issue.status}/{issue.severity}）")
+    if open_issues:
+        parts.append("未关闭问题：" + "；".join(open_issues[:10]))
+    since = ""
+    runs_dir = ws.project_dir(project.project_id) / "runs"
+    if runs_dir.is_dir():
+        run_files = sorted(
+            runs_dir.glob("*/run.json"), key=lambda item: item.stat().st_mtime
+        )
+        if run_files:
+            try:
+                latest = read_model(run_files[-1], Run)
+                since = latest.started_at
+            except (AiTestError, OSError):
+                since = ""
+    git_args = ["git", "-C", str(root), "log", "--oneline", "-20"]
+    if since:
+        git_args = ["git", "-C", str(root), "log", f"--since={since}", "--oneline", "-20"]
+    try:
+        completed = subprocess.run(
+            git_args, capture_output=True, text=True, timeout=10, check=False
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            parts.append("最近提交：\n" + completed.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    config = load_project_config(ws, project.project_id)
+    secret_list = known_secret_values([config])
+    text = "\n\n".join(parts)
+    for secret in secret_list:
+        text = text.replace(secret, "***")
+    return text
+
+
 def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -484,8 +796,7 @@ def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
             "fallback_intent": "smoke",
             "ai_generated": False,
         }
-    modules = "、".join(module.name for module in project.modules) or "未登记模块"
-    context = f"项目：{project.name}\n目标：{project.goal}\n模块：{modules}"
+    context = _task_signal_context(ws, project)
     try:
         candidates = client.suggest_targets(context)
     except AiTestError:
@@ -588,18 +899,22 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
         {module.module_id for module in project.modules},
         ai_extracted=ai_extracted,
     )
+    secrets = _project_secrets(ws, project.project_id)
+    for item in items:
+        item.text = redact(item.text, secrets)
+        item.source = redact(item.source, secrets)
     task = Task(
         task_id=new_id("task"),
         project_id=project.project_id,
-        title=title,
-        goal=goal,
+        title=redact(title, secrets),
+        goal=redact(goal, secrets),
         intent=intent,
-        scope=_text(payload, "scope"),
-        inputs=_text(payload, "inputs"),
-        outputs=_text(payload, "outputs"),
-        preconditions=[str(x) for x in payload.get("preconditions", [])],
-        executor=_text(payload, "executor"),
-        reviewer=_text(payload, "reviewer"),
+        scope=redact(_text(payload, "scope"), secrets),
+        inputs=redact(_text(payload, "inputs"), secrets),
+        outputs=redact(_text(payload, "outputs"), secrets),
+        preconditions=[redact(str(x), secrets) for x in payload.get("preconditions", [])],
+        executor=redact(_text(payload, "executor"), secrets),
+        reviewer=redact(_text(payload, "reviewer"), secrets),
         acceptance_items=items,
     )
     write_model(_task_path(ws, project.project_id, task.task_id), task)
@@ -691,6 +1006,13 @@ def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             )
         ]
     updated = Task.model_validate(data)
+    secrets = _project_secrets(ws, project.project_id)
+    for key in ("title", "goal", "scope", "inputs", "outputs", "executor", "reviewer"):
+        setattr(updated, key, redact(getattr(updated, key), secrets))
+    updated.preconditions = [redact(item, secrets) for item in updated.preconditions]
+    for item in updated.acceptance_items:
+        item.text = redact(item.text, secrets)
+        item.source = redact(item.source, secrets)
     updated.revision += 1
     write_model(_task_path(ws, project.project_id, updated.task_id), updated)
     return {
@@ -732,6 +1054,10 @@ def cmd_delivery_save(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         commit=_text(payload, "commit"),
     )
     delivery.complete = bool(delivery.run_commands and delivery.commit)
+    secrets = _project_secrets(ws, task.project_id)
+    delivery = Delivery.model_validate(
+        redact_tree(delivery.model_dump(mode="json"), secrets)
+    )
     path = ws.project_dir(task.project_id) / "deliveries" / f"{task.task_id}.json"
     write_model(path, delivery)
     return {
@@ -758,11 +1084,13 @@ def cmd_delivery_draft(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     commit = _text(payload, "commit").strip()
     client = build_client(ws, project.project_id)
     if client is None:
-        raise AiTestError(
-            "MODEL_UNAVAILABLE",
-            "未配置模型密钥，无法起草交付说明",
-            "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
-        )
+        return {
+            "draft": None,
+            "sources": {"commit": commit},
+            "status": "not_generated",
+            "reason": "model_missing",
+            "message": "未配置模型密钥，交付说明未生成；可手工填写后 delivery.save",
+        }
     context = build_delivery_context(project, task, commit)
     draft = client.draft_delivery(context)
     files = context["files"]
@@ -813,6 +1141,8 @@ def cmd_template_apply(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             "设置 AITEST_MODEL_KEY 或在用户配置写入 model.api_key",
         )
     result = apply_template(client, template, project, task)
+    secrets = _project_secrets(ws, project.project_id)
+    result = redact_tree(result, secrets)
     target = _task_templates_dir(ws, project.project_id, task.task_id) / (
         f"{result['template_id']}.json"
     )
@@ -842,14 +1172,17 @@ def cmd_template_apply(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
 def cmd_rules_save(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
+    secrets = _project_secrets(ws, project.project_id)
     rule = RuleVersion(
         rules_version_id=new_id("rule"),
         project_id=project.project_id,
-        name=_text({"name": _require(payload, "name")}, "name"),
+        name=redact(_text({"name": _require(payload, "name")}, "name"), secrets),
         version=str(_require(payload, "version")),
-        steps_md=_text(payload, "steps_md"),
-        ai_rules=[str(x) for x in payload.get("ai_rules", [])],
-        evidence_requirements=[str(x) for x in payload.get("evidence_requirements", [])],
+        steps_md=redact(_text(payload, "steps_md"), secrets),
+        ai_rules=[redact(str(x), secrets) for x in payload.get("ai_rules", [])],
+        evidence_requirements=[
+            redact(str(x), secrets) for x in payload.get("evidence_requirements", [])
+        ],
     )
     write_model(
         ws.project_dir(project.project_id) / "rules" / f"{rule.rules_version_id}.json", rule
@@ -915,12 +1248,13 @@ def cmd_rules_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     source = Path(_text({"path": _require(payload, "path")}, "path")).expanduser().resolve()
     if not source.is_file():
         raise invalid_path(f"文件不存在：{source}")
+    secrets = _project_secrets(ws, project.project_id)
     rule = RuleVersion(
         rules_version_id=new_id("rule"),
         project_id=project.project_id,
-        name=_text({"name": _require(payload, "name")}, "name"),
+        name=redact(_text({"name": _require(payload, "name")}, "name"), secrets),
         version=str(_require(payload, "version")),
-        steps_md=source.read_text(encoding="utf-8"),
+        steps_md=redact(source.read_text(encoding="utf-8"), secrets),
     )
     write_model(
         ws.project_dir(project.project_id) / "rules" / f"{rule.rules_version_id}.json", rule

@@ -40,8 +40,8 @@ declare global {
   }
 }
 
-/** 单次调用的兜底上限；正常由宿主 bridge 自己控制超时。 */
-const CALL_TIMEOUT_MS = 180_000;
+/** 单次调用的兜底上限；首次运行时准备可能需要下载与离线安装。 */
+const CALL_TIMEOUT_MS = 300_000;
 
 export class HostError extends Error {
   readonly code: string;

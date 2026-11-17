@@ -18,11 +18,26 @@ T = TypeVar("T", bound=BaseModel)
 SCHEMA_VERSION = 1
 
 
+def _read_text(path: Path, attempts: int = 20) -> str:
+    """Read UTF-8 text, retrying brief Windows sharing violations on replace."""
+    last_error: PermissionError | None = None
+    for _ in range(attempts):
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.05)
+        except OSError:
+            raise
+    assert last_error is not None
+    raise last_error
+
+
 def read_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"文件不存在：{path}", "检查路径或先创建记录")
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(_read_text(path))
     except (OSError, json.JSONDecodeError) as exc:
         raise AiTestError(
             "INVALID_REQUEST", f"文件无法读取：{path}（{exc}）", "修复或重建该文件"

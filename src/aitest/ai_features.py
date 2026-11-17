@@ -8,14 +8,21 @@ prompt and are never logged.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from aitest.adapters.model import ModelClient
 
 _ALLOWED_KINDS = frozenset({"real", "mock", "mixed", "unknown"})
+
+_TEST_NAME_MARKERS = ("test_", "_test.", ".test.", ".spec.", "tests/", "spec/")
+_MAX_SCAN_FILES = 200
+_MAX_FILE_READ = 128 * 1024
 
 _SKIP_DIRS = frozenset(
     {
@@ -95,9 +102,24 @@ _BANNED_SUMMARY_WORDS = (
     "通过",
     "不通过",
     "质量良好",
+    "质量合格",
     "可以上线",
+    "建议上线",
     "建议发布",
+    "可以发布",
+    "可以交付",
+    "准备发布",
     "全部通过",
+    "一切正常",
+    "没有问题",
+    "基本可用",
+    "验收通过",
+    "测试通过",
+)
+
+_STDLIB = frozenset(getattr(sys, "stdlib_module_names", ()))
+_TEST_FRAMEWORKS = frozenset(
+    {"pytest", "unittest", "nose", "playwright", "selenium", "vitest", "jest", "mocha"}
 )
 
 _SYSTEM_MOCK_JUDGE = (
@@ -172,10 +194,98 @@ def _collect_files(root: Path, max_files: int, max_depth: int) -> list[Path]:
 
 def _read_excerpt(path: Path) -> str:
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            return handle.read(_MAX_EXCERPT_CHARS)
     except OSError:
         return ""
-    return text[:_MAX_EXCERPT_CHARS]
+
+
+def _test_files(root: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(root.rglob("*")):
+        if len(files) >= _MAX_SCAN_FILES:
+            break
+        if not path.is_file():
+            continue
+        lowered = path.as_posix().lower()
+        name = path.name.lower()
+        if not any(marker in lowered for marker in _TEST_NAME_MARKERS):
+            continue
+        if name.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go")):
+            files.append(path)
+    return files
+
+
+def _local_names(root: Path) -> set[str]:
+    names: set[str] = set()
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return names
+    for entry in entries:
+        if entry.is_dir() and (entry / "__init__.py").is_file():
+            names.add(entry.name)
+        elif entry.is_file() and entry.suffix == ".py":
+            names.add(entry.stem)
+    src = root / "src"
+    if src.is_dir():
+        try:
+            for entry in src.iterdir():
+                if entry.is_dir():
+                    names.add(entry.name)
+                elif entry.suffix == ".py":
+                    names.add(entry.stem)
+        except OSError:
+            pass
+    return names
+
+
+def collect_dependencies(project_root: Path) -> list[str]:
+    """Collect likely external dependencies from test code and test config.
+
+    This is deliberately shallow: imports and URLs visible in test files. The
+    model still decides real/mock/mixed/unknown by reading the sampled source.
+    """
+    found: set[str] = set()
+    local = _local_names(project_root)
+    for path in _test_files(project_root):
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read(_MAX_FILE_READ)
+        except OSError:
+            continue
+        if path.suffix == ".py":
+            try:
+                tree = ast.parse(text)
+            except (SyntaxError, ValueError):
+                tree = None
+            if tree is not None:
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            found.add(alias.name.split(".", 1)[0])
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        found.add(node.module.split(".", 1)[0])
+        for match in re.finditer(
+            r"""(?:require\s*\(\s*|from\s+|import\s+)["']([@\w./-]+)["']""", text
+        ):
+            name = match.group(1)
+            if name.startswith((".", "/")):
+                continue
+            found.add(name.split("/", 1)[0])
+        for match in re.finditer(r"https?://([A-Za-z0-9_.:-]+)", text):
+            host = match.group(1).split(":", 1)[0]
+            if host and host not in {"localhost", "127.0.0.1", "example.com"}:
+                found.add(host)
+    return sorted(
+        name
+        for name in found
+        if name
+        and name not in _STDLIB
+        and name not in _TEST_FRAMEWORKS
+        and name not in local
+        and not name.startswith("_")
+    )
 
 
 def _sampled_payload(
@@ -212,13 +322,11 @@ def _file_digest(path: Path) -> str:
 def _cache_key(
     project_revision: int,
     dependencies: list[str],
-    evidence: list[str],
     hashes: list[dict[str, str]],
 ) -> str:
     payload = {
         "project_revision": project_revision,
         "dependencies": dependencies,
-        "evidence": evidence,
         "files": hashes,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -347,9 +455,19 @@ def judge_mock(
     samples, read_files, limit_reached, hashes = _sampled_payload(
         project_root, max_files, max_depth
     )
+    if limit_reached:
+        return [
+            _unknown(
+                dependency,
+                f"达到读取上限（最多 {max_files} 个文件、{max_depth} 层），未判定",
+                read_files=read_files,
+                limit_reached=True,
+            )
+            for dependency in dependencies
+        ]
     cache_path: Path | None = None
     if workspace is not None and project_revision is not None:
-        key = _cache_key(project_revision, dependencies, evidence, hashes)
+        key = _cache_key(project_revision, dependencies, hashes)
         cache_path = workspace / ".cache" / "mock" / f"{key}.json"
         if use_cache:
             cached = _read_cached(cache_path)
@@ -398,6 +516,12 @@ def judge_mock(
     return results
 
 
+def _conclusion_free(text: str) -> bool:
+    """Reject conclusion words even when spaced or punctuated by the model."""
+    compact = re.sub(r"[\s\W_]+", "", text, flags=re.UNICODE).lower()
+    return not any(word in compact for word in _BANNED_SUMMARY_WORDS)
+
+
 def summarize_report(facts: dict[str, Any], *, client: ModelClient) -> str | None:
     """Return a factual summary, or ``None`` when the model is unusable or conclusive."""
     try:
@@ -417,6 +541,6 @@ def summarize_report(facts: dict[str, Any], *, client: ModelClient) -> str | Non
             break
     if text is None:
         return None
-    if any(word in text for word in _BANNED_SUMMARY_WORDS):
+    if not _conclusion_free(text):
         return None
     return text
