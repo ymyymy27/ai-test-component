@@ -173,7 +173,7 @@ onMounted(() => {
   margin-bottom: var(--space-3);
   padding: 8px var(--space-3);
   background: var(--accent-fill);
-  border: 1px solid rgba(130, 175, 205, 0.25);
+  border: 1px solid var(--accent-border);
   border-radius: var(--r-control);
   font-size: var(--fs-12);
   color: var(--text-2);

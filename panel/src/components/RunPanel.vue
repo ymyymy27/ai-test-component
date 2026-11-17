@@ -465,7 +465,7 @@ async function cancelRun(): Promise<void> {
   gap: var(--space-2);
   padding: var(--space-3);
   background: var(--failed-fill);
-  border: 1px solid rgba(214, 141, 132, 0.25);
+  border: 1px solid var(--failed-border);
   border-radius: var(--r-control);
 }
 

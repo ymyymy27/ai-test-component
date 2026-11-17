@@ -99,7 +99,7 @@ withDefaults(
 
 .btn-danger {
   background: transparent;
-  border-color: rgba(214, 141, 132, 0.4);
+  border-color: var(--failed-border);
   color: var(--failed);
 }
 

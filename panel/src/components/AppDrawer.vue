@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
   z-index: 40;
   display: flex;
   justify-content: flex-end;
-  background: rgba(4, 6, 8, 0.58);
+  background: var(--scrim);
   animation: fade 140ms ease-out;
 }
 

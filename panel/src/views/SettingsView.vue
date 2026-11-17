@@ -16,6 +16,7 @@ import {
   repairEnvironment,
   session,
 } from "@/state/session";
+import { SKINS, setSkin, skin } from "@/state/skin";
 
 const doctor = computed(() => session.doctor);
 
@@ -361,6 +362,33 @@ onMounted(() => {
       <p class="hint">
         GitHub 只读读取一个仓库的提交、PR、检查与部署版本，复用 gh 的登录态；不可用时不影响本地测试。链路采集读取项目配置里的日志路径与只读查询命令，缺请求标识或日志时记录缺口，不补造。
       </p>
+    </section>
+
+    <section class="card appearance" data-testid="appearance">
+      <div class="section-title">
+        <h2>外观</h2>
+        <span class="section-note">只影响本机面板，不改变结论</span>
+      </div>
+      <div class="skin-options" role="radiogroup" aria-label="皮肤">
+        <button
+          v-for="item in SKINS"
+          :key="item.id"
+          type="button"
+          class="skin-option"
+          :class="{ on: skin === item.id }"
+          role="radio"
+          :aria-checked="skin === item.id"
+          @click="setSkin(item.id)"
+        >
+          <span class="skin-swatch" :class="`swatch-${item.id}`" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+          <span class="skin-copy">
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.summary }}</small>
+          </span>
+        </button>
+      </div>
     </section>
 
     <section class="card advanced" :class="{ open: advancedOpen }" data-testid="advanced-config">
@@ -746,7 +774,7 @@ onMounted(() => {
 .input:focus {
   border-color: var(--accent-line);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(130, 175, 205, 0.16);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .textarea {
@@ -760,7 +788,7 @@ onMounted(() => {
 
 .action-error {
   padding: 8px 10px;
-  border: 1px solid rgba(207, 122, 122, 0.35);
+  border: 1px solid var(--failed-border);
   background: var(--failed-fill);
   border-radius: var(--r-control);
   color: var(--text-2);
@@ -770,7 +798,7 @@ onMounted(() => {
 
 .saved-note {
   padding: 8px 10px;
-  border: 1px solid rgba(134, 179, 148, 0.3);
+  border: 1px solid var(--passed-border);
   background: var(--passed-fill);
   border-radius: var(--r-control);
   font-size: var(--fs-12);
@@ -819,6 +847,104 @@ onMounted(() => {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
+}
+
+.appearance .section-title {
+  align-items: center;
+}
+
+.skin-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.skin-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  text-align: left;
+  color: var(--text);
+}
+
+.skin-option:hover {
+  border-color: var(--accent-line);
+}
+
+.skin-option.on {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+}
+
+.skin-swatch {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  width: 38px;
+  height: 30px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  flex: none;
+}
+
+.skin-swatch i {
+  display: block;
+  height: 3px;
+  background: currentColor;
+}
+
+.skin-swatch i:nth-child(1) {
+  width: 100%;
+  opacity: 0.8;
+}
+
+.skin-swatch i:nth-child(2) {
+  width: 70%;
+  opacity: 0.55;
+}
+
+.skin-swatch i:nth-child(3) {
+  width: 45%;
+  opacity: 0.35;
+}
+
+.swatch-console {
+  background: #08090a;
+  color: #e0a56b;
+}
+
+.swatch-paper {
+  background: #f3efe7;
+  color: #9a5a2e;
+}
+
+.skin-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skin-copy strong {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+}
+
+.skin-copy small {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+@media (max-width: 520px) {
+  .skin-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {

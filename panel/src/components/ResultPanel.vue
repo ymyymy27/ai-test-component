@@ -1147,7 +1147,7 @@ watch(runId, () => {
 
 .disposition-applicable {
   color: var(--passed);
-  border-color: rgba(134, 179, 148, 0.25);
+  border-color: var(--passed-border);
 }
 
 .disposition-not_applicable {
@@ -1157,7 +1157,7 @@ watch(runId, () => {
 .disposition-unsupported,
 .disposition-unknown {
   color: var(--incomplete);
-  border-color: rgba(201, 168, 111, 0.25);
+  border-color: var(--incomplete-border);
 }
 
 .template {
@@ -1288,7 +1288,7 @@ watch(runId, () => {
 .input:focus {
   border-color: var(--accent-line);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(130, 175, 205, 0.16);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .textarea {
@@ -1308,7 +1308,7 @@ watch(runId, () => {
   align-items: baseline;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid rgba(134, 179, 148, 0.25);
+  border: 1px solid var(--passed-border);
   background: var(--passed-fill);
   border-radius: var(--r-control);
 }

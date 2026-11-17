@@ -181,6 +181,43 @@ try {
     await screenshot("proposal.png", true);
   });
 
+  await step("皮肤切换：Console / Paper 切换并持久化", async () => {
+    await gotoMock("proposal");
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "console",
+      "默认皮肤不是 console",
+    );
+    await page.locator('[aria-label="切换皮肤"]').click();
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "paper",
+      "切换后不是 paper",
+    );
+    await screenshot("proposal-paper.png", true);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "paper",
+      "刷新后皮肤没有持久化",
+    );
+    await page.locator('[aria-label="切换皮肤"]').click();
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "console",
+      "恢复 console 失败",
+    );
+
+    await gotoMock("result");
+    await page.waitForSelector('[data-testid="result-panel"]');
+    await page.locator('[aria-label="切换皮肤"]').click();
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "paper",
+      "结果页切换 Paper 失败",
+    );
+    await screenshot("result-paper.png");
+    await page.locator('[aria-label="切换皮肤"]').click();
+    console.log("  ✓ 皮肤切换并跨刷新保持，结果页同样生效");
+  });
+
   await step("顶部项目切换：切到另一个已登记项目并重新生成测试单", async () => {
     await gotoMock("proposal");
     await page.waitForSelector('[data-testid="proposal-panel"]');
@@ -318,7 +355,7 @@ try {
     await expectText("还有 5 条验收项未纳入本次范围");
     await page.waitForTimeout(500);
     await screenshot("result-top.png");
-    await screenshot("result.png", true);
+    await screenshot("result.png");
 
     await page.locator('[data-testid="failed-case"] .tile').first().click();
     await expectText("已请求用系统程序打开");
@@ -370,7 +407,7 @@ try {
     await page.waitForTimeout(200);
     const sticky = await page.locator('[data-testid="rerun-button"]').boundingBox();
     assert(sticky !== null && sticky.y < 130, "滚动后“再测一次”没有保持在视口顶部");
-    await screenshot("result-scrolled-viewport.png");
+    await screenshot("result-scrolled-v2.png");
     console.log("  ✓ 滚动后主操作仍可见");
 
     await page.locator('[data-testid="rerun-button"]').click();
@@ -415,10 +452,18 @@ try {
     await expectText("模型");
     await expectText("工作空间");
     await expectText("GitHub");
+    await page.waitForSelector('[data-testid="appearance"]');
+    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "Paper" }).click();
+    assert(
+      (await page.locator("html").getAttribute("data-skin")) === "paper",
+      "设置页切换 Paper 失败",
+    );
+    await screenshot("settings-paper.png");
+    await page.locator('[data-testid="appearance"] .skin-option', { hasText: "Console" }).click();
     await page.locator("button", { hasText: "重新自检" }).click();
     await page.locator("button", { hasText: "修复可自动处理项" }).click();
     await page.waitForTimeout(300);
-    await screenshot("settings.png", true);
+    await screenshot("settings.png");
 
     await page.locator('[data-testid="advanced-config"] .advanced-head').click();
     await page.waitForSelector("#config-services");
@@ -505,7 +550,11 @@ try {
     }));
     assert(metrics.scrollWidth <= metrics.innerWidth + 1, `窄幅横向溢出：${metrics.scrollWidth} > ${metrics.innerWidth}`);
     assert(metrics.start && metrics.start.right <= metrics.innerWidth + 1, "开始测试按钮超出视口");
-    await narrow.screenshot({ path: resolve(outDir, "narrow-420.png"), fullPage: true });
+    await narrow.screenshot({ path: resolve(outDir, "narrow-420.png") });
+    await narrow.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await narrow.waitForTimeout(200);
+    await narrow.screenshot({ path: resolve(outDir, "narrow-420-bottom.png") });
+    await narrow.evaluate(() => window.scrollTo(0, 0));
 
     await narrow.goto(`${base}/?mock=result`, { waitUntil: "networkidle" });
     await narrow.waitForSelector('[data-testid="result-panel"]');
@@ -517,7 +566,7 @@ try {
       resultMetrics.scrollWidth <= resultMetrics.innerWidth + 1,
       `窄幅结果页横向溢出：${resultMetrics.scrollWidth} > ${resultMetrics.innerWidth}`,
     );
-    await narrow.screenshot({ path: resolve(outDir, "narrow-result-420.png"), fullPage: true });
+    await narrow.screenshot({ path: resolve(outDir, "narrow-result-420.png") });
 
     await narrow.goto(`${base}/?mock=settings`, { waitUntil: "networkidle" });
     await narrow.waitForSelector('[data-testid="settings-view"]');
@@ -529,7 +578,7 @@ try {
       settingsMetrics.scrollWidth <= settingsMetrics.innerWidth + 1,
       `窄幅设置页横向溢出：${settingsMetrics.scrollWidth} > ${settingsMetrics.innerWidth}`,
     );
-    await narrow.screenshot({ path: resolve(outDir, "narrow-settings-420.png"), fullPage: true });
+    await narrow.screenshot({ path: resolve(outDir, "narrow-settings-420.png") });
     await narrow.close();
     console.log("  ✓ 420px 建议单、结果页与设置页均无横向溢出");
   });

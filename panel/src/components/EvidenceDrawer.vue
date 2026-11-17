@@ -183,13 +183,13 @@ watch(
 
 .action-note {
   background: var(--incomplete-fill);
-  border: 1px solid rgba(201, 168, 111, 0.3);
+  border: 1px solid var(--incomplete-border);
   color: var(--text-2);
 }
 
 .error-note {
   background: var(--failed-fill);
-  border: 1px solid rgba(214, 141, 132, 0.3);
+  border: 1px solid var(--failed-border);
   color: var(--text-2);
 }
 

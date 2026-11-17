@@ -6,6 +6,7 @@ type IconName =
   | "folder"
   | "settings"
   | "history"
+  | "theme"
   | "play"
   | "check"
   | "close"
@@ -59,6 +60,10 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 16 });
       <path d="M4 12a8 8 0 1 0 2.5-5.8" />
       <path d="M4 5v4h4" />
       <path d="M12 8v5l3 2" />
+    </template>
+    <template v-else-if="name === 'theme'">
+      <circle cx="12" cy="12" r="7" />
+      <path d="M12 5a7 7 0 0 0 0 14z" fill="currentColor" stroke="none" />
     </template>
     <template v-else-if="name === 'play'">
       <path d="M8 5l11 7-11 7z" />

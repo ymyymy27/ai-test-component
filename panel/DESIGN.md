@@ -102,3 +102,10 @@
 
 - 构建产物由 Trae 注入的 CSP 加载：脚本需 nonce，样式允许 `'unsafe-inline'`（Vue 动态样式），图片仅本地与 data URI。
 - 面板不访问网络、不写文件；所有数据来自 `window.aitestHost.call`。
+
+## 10. 皮肤
+
+- `data-skin="console"`：默认石墨黑 + 铜色（上面的 token）。
+- `data-skin="paper"`：暖纸底 + 墨色文字 + 锈色信号；语义状态色相应加深，保持对比度。
+- 皮肤只覆盖 token，不改变布局、组件结构、文案或任何业务事实；切换入口在顶栏主题按钮与设置 `[05] 外观`。
+- 偏好写入 `localStorage["aitest.skin"]`，刷新/重开面板后保持；宿主禁用存储时只影响本次会话。

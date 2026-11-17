@@ -144,12 +144,12 @@ async function closeIssue(issue: IssueSummary): Promise<void> {
 
 .notice-line {
   background: var(--passed-fill);
-  border: 1px solid rgba(134, 179, 148, 0.3);
+  border: 1px solid var(--passed-border);
 }
 
 .error-line {
   background: var(--failed-fill);
-  border: 1px solid rgba(214, 141, 132, 0.3);
+  border: 1px solid var(--failed-border);
   color: var(--text-2);
 }
 

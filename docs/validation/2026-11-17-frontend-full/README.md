@@ -2,9 +2,9 @@
 
 - 环境：Windows 11，Chrome（Playwright `channel: chrome`，headless），Vite dev `http://localhost:5174`，静态演示宿主 `?mock=...`。
 - 命令：`cd panel && npm run dev -- --port 5174`，另开终端 `npm run test:e2e -- http://localhost:5174 ../docs/validation/2026-11-17-frontend-full`。
-- 结果：14 组浏览器检查全部通过；面板组件测试 59 项通过；`vue-tsc` 与 `vite build` 通过；测试过程中无浏览器运行时错误。
+- 结果：15 组浏览器检查全部通过；面板组件测试 61 项通过；`vue-tsc` 与 `vite build` 通过；测试过程中无浏览器运行时错误。
 - 截图：本目录 `*.png`；脚本：`panel/scripts/e2e-frontend.mjs`。
-- 2026-11-17 完成 AITEST CONSOLE 重设计：去掉居中卡片，改为全宽控制台；顶栏 `AITEST` 字标 + `PROJECT` + `READY`，底部固定 `LOCAL / NO NETWORK` 状态线；建议单使用 `RANGE` 刻度与 `CHECKS` 编号清单，结果页使用大号结论 + `[01]…` 分区 + 折叠失败行，运行页使用分段进度与 `>` 当前用例；调整抽屉改为 `INSPECTOR`。同时补上真实 Trae 缺失的三条写入命令、`run.manual` 人工记录、webview 资源缓存版本号。见 `result-top.png`、`running.png`、`proposal.png`、`adjust-overview.png`、`result-scrolled-viewport.png`、`real-trae-result.png`。
+- 2026-11-17 完成 AITEST CONSOLE 重设计：去掉居中卡片，改为全宽控制台；顶栏 `AITEST` 字标 + `PROJECT` + `READY`，底部固定 `LOCAL / NO NETWORK` 状态线；建议单使用 `RANGE` 刻度与 `CHECKS` 编号清单，结果页使用大号结论 + `[01]…` 分区 + 折叠失败行，运行页使用分段进度与 `>` 当前用例；调整抽屉改为 `INSPECTOR`。同时补上真实 Trae 缺失的三条写入命令、`run.manual` 人工记录、webview 资源缓存版本号。见 `result-top.png`、`running.png`、`proposal.png`、`adjust-overview.png`、`result-scrolled-v2.png`、`proposal-paper.png`、`settings-paper.png`、`real-trae-result.png`。
 
 ## 覆盖范围
 
@@ -21,6 +21,7 @@
 | 历史 | 3 条运行、刷新、回放上一次取消运行、结论与状态一致 |
 | 项目详情 | 模块与最近运行、从最近运行打开结果、进入设置 |
 | 设置 | 环境自检/重新自检/修复、模型、工作空间、GitHub、六个高级配置分组、合法保存、非法 JSON 拦截、返回测试单 |
+| 皮肤 | 顶栏主题按钮与设置 `[05] 外观` 切换 Console/Paper；刷新后保持；两套截图见 `proposal-paper.png`、`settings-paper.png` |
 | 通过结果 | 全部通过时显示“本次没有失败，不需要生成分析”，不再出现“分析未生成” |
 | 次级结果操作 | 只重跑单条失败用例、新目标回到建议测试单 |
 | 布局与键盘 | 420px 建议单、结果页、设置页均无横向溢出；`AITEST` 字标、`READY` 状态、固定状态线、`Ctrl+Enter` 开始；结果滚动后主操作吸顶；抽屉打开锁定背景滚动，Escape 关闭后解锁 |

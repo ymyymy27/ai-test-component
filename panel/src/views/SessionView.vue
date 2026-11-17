@@ -370,7 +370,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 .input:focus {
   border-color: var(--accent-line);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(130, 175, 205, 0.18);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .order {

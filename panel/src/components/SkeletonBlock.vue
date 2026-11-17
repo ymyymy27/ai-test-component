@@ -30,7 +30,7 @@ withDefaults(defineProps<{ lines?: number; label?: string }>(), {
 .line {
   height: 10px;
   border-radius: 3px;
-  background: linear-gradient(90deg, #1d2226 0%, #232a2f 50%, #1d2226 100%);
+  background: linear-gradient(90deg, var(--skeleton-a) 0%, var(--skeleton-b) 50%, var(--skeleton-a) 100%);
   background-size: 200% 100%;
   animation: sweep 1.4s ease-in-out infinite;
 }

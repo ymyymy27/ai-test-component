@@ -43,7 +43,7 @@ defineEmits<{ retry: [] }>();
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--failed-fill);
-  border: 1px solid rgba(214, 141, 132, 0.28);
+  border: 1px solid var(--failed-border);
   border-radius: var(--r-control);
 }
 

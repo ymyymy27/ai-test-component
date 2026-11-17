@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import type { Project, ProjectSummary } from "@/api/types";
+import { SKINS, skin, toggleSkin } from "@/state/skin";
 import Icon from "./Icon.vue";
 
 const props = defineProps<{
@@ -37,6 +38,10 @@ const envCode = computed(() => {
       return "CHECK";
   }
 });
+
+const skinName = computed(
+  () => SKINS.find((item) => item.id === skin.value)?.name ?? "Console",
+);
 
 const envTone = computed(() => {
   switch (props.env) {
@@ -79,6 +84,15 @@ const envTone = computed(() => {
     </label>
 
     <div class="right">
+      <button
+        type="button"
+        class="icon-btn"
+        aria-label="切换皮肤"
+        :title="`切换皮肤（当前 ${skinName}）`"
+        @click="toggleSkin"
+      >
+        <Icon name="theme" :size="16" />
+      </button>
       <button type="button" class="env" :title="`${envLabel}，打开设置查看明细`" @click="$emit('settings')">
         <span class="env-led" :class="`led-${envTone}`" aria-hidden="true"></span>
         <span class="env-code">{{ envCode }}</span>
