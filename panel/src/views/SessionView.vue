@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import AppButton from "@/components/AppButton.vue";
 import AdjustDrawer from "@/components/AdjustDrawer.vue";
@@ -22,6 +22,7 @@ import {
   openProjectDrawer,
   refreshRun,
   session,
+  startTest,
 } from "@/state/session";
 
 const picking = ref(false);
@@ -33,6 +34,26 @@ const targetsOpen = ref(false);
 let timer: number | undefined;
 
 const proposal = computed(() => session.proposal);
+
+const orderKind = computed(() => {
+  if (session.phase === "result") {
+    return "运行结果";
+  }
+  if (session.phase === "running") {
+    return "运行中";
+  }
+  return "测试单";
+});
+
+const orderCode = computed(() => {
+  if (session.phase === "result") {
+    return "REPORT";
+  }
+  if (session.phase === "running") {
+    return "RUN";
+  }
+  return "PLAN";
+});
 
 const orderTitle = computed(() => {
   if (session.phase === "proposal") {
@@ -98,7 +119,40 @@ function schedulePolling(): void {
 
 watch(() => session.phase, schedulePolling, { immediate: true });
 
+// 相位或回放运行切换时回到测试单顶部，避免落在上一次运行的滚动位置。
+watch([() => session.phase, () => session.activeRunId], async () => {
+  await nextTick();
+  const toTop = (): void => {
+    try {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    } catch {
+      // jsdom 不实现滚动；浏览器中才有效。
+    }
+  };
+  toTop();
+  window.requestAnimationFrame(toTop);
+  window.setTimeout(toTop, 80);
+});
+
 onUnmounted(stopPolling);
+
+function onKeydown(event: KeyboardEvent): void {
+  if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") {
+    return;
+  }
+  if (session.phase !== "proposal" || !session.ready) {
+    return;
+  }
+  const target = event.target as HTMLElement | null;
+  if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
+    return;
+  }
+  event.preventDefault();
+  void startTest();
+}
+
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
@@ -184,6 +238,11 @@ onUnmounted(stopPolling);
       <article class="order" :data-phase="session.phase" data-testid="test-order">
       <header class="order-head">
         <div class="order-head-main">
+          <p class="order-eyebrow">
+            <span class="eyebrow-code">{{ orderCode }}</span>
+            <span class="eyebrow-sep">/</span>
+            <span>{{ session.project?.name }} · {{ orderKind }}</span>
+          </p>
           <h1>{{ orderTitle }}</h1>
           <p v-if="orderNote" class="order-note">{{ orderNote }}</p>
         </div>
@@ -229,6 +288,16 @@ onUnmounted(stopPolling);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  width: 100%;
+  max-width: var(--layout-max);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-7);
+}
+
+@media (max-width: 520px) {
+  .session {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
 }
 
 .welcome {
@@ -308,10 +377,10 @@ onUnmounted(stopPolling);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .order-head {
@@ -320,7 +389,7 @@ onUnmounted(stopPolling);
   justify-content: space-between;
   gap: var(--space-3);
   padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .order-head-main {
@@ -328,6 +397,24 @@ onUnmounted(stopPolling);
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.order-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+.eyebrow-code {
+  color: var(--accent);
+}
+
+.eyebrow-sep {
+  color: var(--line-strong);
 }
 
 .order-head h1 {
@@ -364,9 +451,11 @@ onUnmounted(stopPolling);
   padding: 4px 8px;
   background: none;
   border: 1px solid transparent;
-  border-radius: var(--r-control);
+  border-radius: 0;
   color: var(--text-3);
-  font-size: var(--fs-12);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
 .nav-btn:hover {
@@ -377,7 +466,7 @@ onUnmounted(stopPolling);
 
 @media (max-width: 520px) {
   .order {
-    padding: var(--space-3);
+    padding: 0;
   }
 
   .order-head {

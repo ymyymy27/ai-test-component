@@ -54,6 +54,8 @@ npm run build          # 先打 wheel、构建 panel/，再复制到 media/ 并�
 npm run build:wheel    # 只重建 media/runtime 的 aitest wheel 与依赖 wheel
 npm run build:panel    # 只重建面板产物
 npm run package        # 生成 dist/aitest-trae.vsix（含 media/runtime wheel）
+
+面板资源 URL 会带 `index.html` 内容哈希查询串；重新打包同一扩展版本后，宿主不会命中旧 webview 缓存。
 ```
 
 `npm run build` 需要仓库根目录 `panel/` 的依赖已安装（`cd panel && npm install`）。面板构建失败时不会覆盖 `media/panel`。

@@ -29,6 +29,7 @@ const page = await context.newPage();
 const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
 
+
 let passed = 0;
 
 function normalize(text) {
@@ -127,7 +128,7 @@ try {
   await step("建议测试单：默认全选、范围联动、换目标与自定义目标", async () => {
     await gotoMock("proposal");
     await page.waitForSelector('[data-testid="proposal-panel"]');
-    await expectText("将验证");
+    await expectText("CHECKS / 验收标准");
     await expectCount('[data-testid="proposal-criteria"] li', 8, "验收标准条数");
     assert(
       normalize(await page.locator('[data-testid="proposal-scope-value"]').innerText()).includes("8/8"),
@@ -313,8 +314,10 @@ try {
   });
 
   await step("结果页：覆盖、证据、分析、问题、导出、意见、再测", async () => {
-    await expectText("失败用例（2）");
+    await expectText("失败用例 · 2");
     await expectText("还有 5 条验收项未纳入本次范围");
+    await page.waitForTimeout(500);
+    await screenshot("result-top.png");
     await screenshot("result.png", true);
 
     await page.locator('[data-testid="failed-case"] .tile').first().click();
@@ -334,6 +337,13 @@ try {
     assert((await closedSelect.inputValue()) === "closed", "关闭后状态选择器不是已关闭");
     assert(await closedSelect.isDisabled(), "关闭后状态选择器仍可编辑");
     console.log("  ✓ 问题状态更新与关闭");
+
+    await page.locator(".manual-row button", { hasText: "记录结果" }).first().click();
+    await page.locator('select[aria-label="人工结果"]').selectOption("passed");
+    await page.locator('textarea[aria-label="人工备注"]').fill("手工核对：订单只出现一次");
+    await page.locator(".manual-form button", { hasText: "保存记录" }).click();
+    await expectText("人工记录已保存");
+    console.log("  ✓ 人工记录写回并刷新结论");
 
     await page.locator('[data-testid="link-block"] summary').click();
     await expectText("首错节点");
@@ -360,7 +370,7 @@ try {
     await page.waitForTimeout(200);
     const sticky = await page.locator('[data-testid="rerun-button"]').boundingBox();
     assert(sticky !== null && sticky.y < 130, "滚动后“再测一次”没有保持在视口顶部");
-    await screenshot("result-scrolled.png");
+    await screenshot("result-scrolled-viewport.png");
     console.log("  ✓ 滚动后主操作仍可见");
 
     await page.locator('[data-testid="rerun-button"]').click();
@@ -395,7 +405,7 @@ try {
     await screenshot("project-drawer.png");
     await page.locator('[role="dialog"][aria-label="项目详情"] .recent-row').first().click();
     await page.waitForSelector('[data-testid="result-panel"]');
-    await expectText("失败用例（2）");
+    await expectText("失败用例 · 2");
     console.log("  ✓ 项目详情打开最近运行");
     await openProject();
     await page.locator('[role="dialog"][aria-label="项目详情"] button', { hasText: "打开设置" }).click();
@@ -450,7 +460,7 @@ try {
     await gotoMock("passed");
     await page.waitForSelector('[data-testid="result-panel"]');
     await expectText("通过");
-    await expectText("范围覆盖");
+    await expectText("验收项范围");
     await expectText("3/8");
     await expectText("本次没有失败，不需要生成分析。");
     await screenshot("passed-result.png", true);
@@ -471,6 +481,16 @@ try {
     await page.waitForSelector('[data-testid="proposal-panel"]');
     await expectText("验证下单成功后订单只出现一次");
     console.log("  ✓ 新目标回到建议测试单");
+  });
+
+  await step("键盘启动：Ctrl+Enter 直接开始测试", async () => {
+    await gotoMock("proposal");
+    await page.waitForSelector('[data-testid="proposal-panel"]');
+    await expectText("CTRL+ENTER RUN");
+    await page.keyboard.press("Control+Enter");
+    await page.waitForSelector('[data-testid="run-panel"]');
+    await expectText("运行中");
+    console.log("  ✓ Ctrl+Enter 从建议单进入运行");
   });
 
   await step("窄幅布局：420px 主操作可达且无横向溢出", async () => {

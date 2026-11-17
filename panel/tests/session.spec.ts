@@ -103,7 +103,8 @@ describe("单页测试单：五个状态", () => {
 
     expect(wrapper.find(".order-head h1").text()).toBe("验证下单成功后订单只出现一次");
     expect(wrapper.text()).toContain("依据：order 模块近三次提交");
-    expect(wrapper.text()).toContain("将验证 2 条验收标准");
+    expect(wrapper.text()).toContain("CHECKS / 验收标准");
+    expect(wrapper.find(".console-count").text()).toBe("02");
     expect(wrapper.findAll('[data-testid="proposal-criteria"] li')).toHaveLength(3);
     expect(wrapper.findAll('[role="switch"]')).toHaveLength(2);
     for (const toggle of wrapper.findAll('[role="switch"]')) {

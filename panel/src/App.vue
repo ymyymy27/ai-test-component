@@ -37,6 +37,11 @@ onMounted(() => {
     @settings="openSettings"
   />
 
+  <header v-if="!hostReady" class="rawbar">
+    <span class="rawbar-brand">AITEST<span aria-hidden="true">▌</span></span>
+    <span class="rawbar-status">NO HOST</span>
+  </header>
+
   <main id="main" class="container">
     <EmptyState
       v-if="!hostReady"
@@ -67,9 +72,87 @@ onMounted(() => {
       <SessionView v-else />
     </template>
   </main>
+
+  <footer class="statusline">
+    <span class="status-item"><i aria-hidden="true"></i> LOCAL</span>
+    <span class="status-item">NO NETWORK</span>
+    <span class="status-item">
+      {{
+        session.phase === "running"
+          ? "POLL / 2S"
+          : session.phase === "proposal"
+            ? "CTRL+ENTER RUN"
+            : "LOCAL CLI"
+      }}
+    </span>
+  </footer>
 </template>
 
 <style scoped>
+.rawbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-h);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.rawbar-brand {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.2em;
+  color: var(--text);
+}
+
+.rawbar-brand span {
+  margin-left: 5px;
+  color: var(--accent);
+}
+
+.rawbar-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--failed);
+}
+
+.statusline {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--text-disabled);
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-item i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--passed);
+}
+
+.status-item:nth-child(3) {
+  margin-left: auto;
+}
+
 .boot {
   display: flex;
   flex-direction: column;

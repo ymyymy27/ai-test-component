@@ -943,6 +943,7 @@ export async function startTest(): Promise<void> {
   }
   proposal.starting = true;
   proposal.startError = null;
+  session.notice = "";
   try {
     if (!(await saveItems())) {
       return;
@@ -1041,6 +1042,7 @@ export async function openResult(runId: string): Promise<boolean> {
     return false;
   }
   setLoading("result", true);
+  session.notice = "";
   session.activeRunId = runId;
   try {
     const detail = await api.runStatus(session.project.project_id, runId);
@@ -1164,6 +1166,37 @@ export async function cancelActiveRun(): Promise<void> {
     flash(`${friendly.title}。${friendly.next}`);
   } finally {
     setLoading("cancel", false);
+  }
+}
+
+/** 记录一次人工核对；写回后重新读取运行，结论仍由后端派生。 */
+export async function recordManual(
+  caseId: string,
+  result: "passed" | "failed" | "blocked",
+  note = "",
+): Promise<boolean> {
+  if (!session.project || !session.activeRunId) {
+    return false;
+  }
+  setLoading("manual", true);
+  try {
+    await api.recordManual(
+      session.project.project_id,
+      session.activeRunId,
+      caseId,
+      "人工核对",
+      result,
+      note,
+    );
+    await openResult(session.activeRunId);
+    flash("人工记录已保存，结论已重新读取。");
+    return true;
+  } catch (error) {
+    const friendly = describeError(error);
+    flash(`${friendly.title}。${friendly.next}`);
+    return false;
+  } finally {
+    setLoading("manual", false);
   }
 }
 

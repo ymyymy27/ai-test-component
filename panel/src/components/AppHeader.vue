@@ -3,7 +3,6 @@ import { computed } from "vue";
 
 import type { Project, ProjectSummary } from "@/api/types";
 import Icon from "./Icon.vue";
-import StatusDot from "./StatusDot.vue";
 
 const props = defineProps<{
   projects: ProjectSummary[];
@@ -26,6 +25,19 @@ const envLabel = computed(() => {
   }
 });
 
+const envCode = computed(() => {
+  switch (props.env) {
+    case "ok":
+      return "READY";
+    case "warn":
+      return "LIMITED";
+    case "error":
+      return "ERROR";
+    default:
+      return "CHECK";
+  }
+});
+
 const envTone = computed(() => {
   switch (props.env) {
     case "ok":
@@ -42,12 +54,14 @@ const envTone = computed(() => {
 
 <template>
   <header class="topbar">
-    <div class="ident">
-      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span v-if="!project" class="ident-text">AI 辅助测试</span>
+    <div class="brand" aria-label="AITEST">
+      <span class="brand-name">AITEST</span>
+      <span class="brand-cursor" aria-hidden="true"></span>
+      <span class="brand-sep" aria-hidden="true">/</span>
     </div>
 
     <label v-if="project" class="project-select">
+      <span class="project-kicker" aria-hidden="true">PROJECT</span>
       <span class="sr-only">切换项目</span>
       <select
         :value="project.project_id"
@@ -66,7 +80,8 @@ const envTone = computed(() => {
 
     <div class="right">
       <button type="button" class="env" :title="`${envLabel}，打开设置查看明细`" @click="$emit('settings')">
-        <StatusDot :tone="envTone" :label="envLabel" />
+        <span class="env-led" :class="`led-${envTone}`" aria-hidden="true"></span>
+        <span class="env-code">{{ envCode }}</span>
       </button>
       <button type="button" class="icon-btn" aria-label="打开设置" title="设置" @click="$emit('settings')">
         <Icon name="settings" :size="17" />
@@ -83,49 +98,49 @@ const envTone = computed(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 48px;
+  height: var(--header-h);
   padding: 0 var(--space-4);
-  background: rgba(14, 16, 18, 0.92);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(8px);
 }
 
-.ident {
+.brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
+  gap: 5px;
+  flex: none;
 }
 
-.mark {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  width: 18px;
-  height: 18px;
-  padding: 0 3px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  background: var(--surface-raised);
-}
-
-.mark i {
-  display: block;
-  height: 1px;
-  background: var(--text-3);
-}
-
-.mark i:nth-child(2) {
-  width: 70%;
-  background: var(--accent);
-}
-
-.ident-text {
-  font-size: var(--fs-13);
+.brand-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
   font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+  letter-spacing: 0.2em;
+  color: var(--text);
+}
+
+.brand-cursor {
+  width: 6px;
+  height: 12px;
+  background: var(--accent);
+  animation: cursor-blink 1.2s step-end infinite;
+}
+
+.brand-sep {
+  margin-left: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 .project-select {
@@ -133,16 +148,24 @@ const envTone = computed(() => {
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  max-width: 320px;
+  max-width: 300px;
+}
+
+.project-kicker {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
 }
 
 .project-select select {
   appearance: none;
   width: 100%;
   min-height: 30px;
-  padding: 4px 26px 4px 10px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line-strong);
+  padding: 4px 26px 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--r-control);
   color: var(--text);
   font-size: var(--fs-13);
@@ -150,8 +173,10 @@ const envTone = computed(() => {
   cursor: pointer;
 }
 
-.project-select select:hover {
-  border-color: #454d55;
+.project-select select:hover,
+.project-select select:focus-visible {
+  background: var(--surface-raised);
+  border-color: var(--line);
 }
 
 .select-chev {
@@ -171,10 +196,37 @@ const envTone = computed(() => {
 .env {
   display: inline-flex;
   align-items: center;
-  padding: 5px 8px;
+  gap: 7px;
+  padding: 5px 6px;
   background: none;
   border: 0;
-  border-radius: var(--r-control);
+  border-radius: 0;
+}
+
+.env-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.led-ok {
+  background: var(--passed);
+}
+
+.led-warn {
+  background: var(--incomplete);
+}
+
+.led-error {
+  background: var(--failed);
+}
+
+.env-code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
 }
 
 .env:hover {
@@ -204,7 +256,7 @@ const envTone = computed(() => {
     gap: var(--space-2);
   }
 
-  .ident-text {
+  .project-kicker {
     display: none;
   }
 

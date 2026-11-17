@@ -18,6 +18,7 @@ npm run build               # vue-tsc + vite build
 - `result`：结果相位
 - `settings`：设置页
 - `no-project`：无项目，走选择目录流程
+- `passed`：全部通过的结果，验证“不需要分析”与项目检查/验收项记分牌
 
 演示数据只用于界面回归，不连接真实工作空间，也不进入生产构建。
 

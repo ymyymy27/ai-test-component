@@ -49,15 +49,17 @@ withDefaults(
 }
 
 .btn-md {
-  min-height: 32px;
-  padding: 6px 14px;
-  font-size: var(--fs-13);
+  min-height: 30px;
+  padding: 6px 13px;
+  font-size: var(--fs-12);
+  letter-spacing: 0.02em;
 }
 
 .btn-sm {
-  min-height: 28px;
-  padding: 4px 10px;
-  font-size: var(--fs-12);
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: var(--fs-11);
+  letter-spacing: 0.02em;
 }
 
 .btn.block {
@@ -75,14 +77,14 @@ withDefaults(
 }
 
 .btn-secondary {
-  background: var(--surface-raised);
+  background: transparent;
   border-color: var(--line-strong);
   color: var(--text);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #20262b;
-  border-color: #454d55;
+  background: var(--surface-raised);
+  border-color: var(--accent-line);
 }
 
 .btn-ghost {

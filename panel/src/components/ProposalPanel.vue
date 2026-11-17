@@ -18,11 +18,6 @@ import {
 
 const proposal = computed(() => session.proposal);
 
-const percent = computed(() => {
-  const total = applicableCount();
-  return total > 0 ? Math.round((selectedCount() / total) * 100) : 0;
-});
-
 const scopeNote = computed(() => {
   const total = applicableCount();
   const chosen = selectedCount();
@@ -74,12 +69,41 @@ function retryExtract(): void {
         @retry="loadProposal"
       />
 
+      <section class="scope-block" data-testid="proposal-scope">
+        <div class="scope-head">
+          <span class="scope-label"><span class="code">RANGE</span> / 范围</span>
+          <span class="scope-value numeric" data-testid="proposal-scope-value">
+            {{ selectedCount() }}<span class="slash">/</span>{{ applicableCount() }}
+            <span class="quiet">条适用</span>
+          </span>
+        </div>
+        <div
+          class="scope-ticks"
+          role="progressbar"
+          :aria-valuenow="selectedCount()"
+          :aria-valuemin="0"
+          :aria-valuemax="applicableCount()"
+          aria-label="本次范围覆盖"
+        >
+          <span
+            v-for="item in proposal.items"
+            :key="item.id"
+            class="scope-tick"
+            :class="{
+              on: item.enabled,
+              off: item.observable && !item.enabled,
+              unavailable: !item.observable,
+            }"
+          ></span>
+        </div>
+        <p class="hint scope-note">{{ scopeNote }}</p>
+      </section>
+
       <section class="criteria-block">
-        <div class="section-title">
-          <h2>
-            将验证 <span class="numeric">{{ applicableCount() }}</span> 条验收标准
-          </h2>
-          <span class="section-note">默认全选，点掉即排除</span>
+        <div class="console-head">
+          <span class="console-label">CHECKS / 验收标准</span>
+          <span class="console-count numeric">{{ String(applicableCount()).padStart(2, "0") }}</span>
+          <span class="console-note">默认全选，点掉即排除</span>
         </div>
 
         <ErrorNotice
@@ -92,21 +116,24 @@ function retryExtract(): void {
 
         <ul v-if="proposal.items.length" class="criteria" data-testid="proposal-criteria">
           <li
-            v-for="item in proposal.items"
+            v-for="(item, index) in proposal.items"
             :key="item.id"
             class="criteria-row"
             :class="{ off: !item.observable, excluded: item.observable && !item.enabled }"
           >
+            <span class="criteria-index numeric">{{ String(index + 1).padStart(2, "0") }}</span>
             <button
               v-if="item.observable"
               type="button"
-              class="switch"
+              class="check"
               role="switch"
               :aria-checked="item.enabled"
               :aria-label="`纳入：${item.text}`"
               @click="toggleProposalItem(item)"
             >
-              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              <span class="check-box" :class="{ on: item.enabled }" aria-hidden="true">
+                <Icon v-if="item.enabled" name="check" :size="10" />
+              </span>
             </button>
             <span v-else class="switch-placeholder" aria-hidden="true">—</span>
             <span class="criteria-text">{{ item.text }}</span>
@@ -121,38 +148,17 @@ function retryExtract(): void {
         </p>
       </section>
 
-      <section class="scope-block" data-testid="proposal-scope">
-        <div class="scope-head">
-          <span class="scope-label">范围</span>
-          <span class="scope-value numeric" data-testid="proposal-scope-value">
-            {{ selectedCount() }}<span class="slash">/</span>{{ applicableCount() }}
-            <span class="quiet">条适用</span>
-          </span>
-        </div>
-        <div
-          class="scope-track"
-          role="progressbar"
-          :aria-valuenow="selectedCount()"
-          :aria-valuemin="0"
-          :aria-valuemax="applicableCount()"
-          aria-label="本次范围覆盖"
-        >
-          <span class="scope-fill" :style="{ width: `${percent}%` }"></span>
-        </div>
-        <p class="hint scope-note">{{ scopeNote }}</p>
-      </section>
-
       <dl class="facts">
         <div class="fact">
-          <dt>环境</dt>
+          <dt><span class="code">ENV</span> 环境</dt>
           <dd>{{ envText }}</dd>
         </div>
         <div class="fact">
-          <dt>副作用</dt>
+          <dt><span class="code">WRITES</span> 副作用</dt>
           <dd>可能写入测试数据；默认不自动清理。</dd>
         </div>
         <div class="fact">
-          <dt>预计耗时</dt>
+          <dt><span class="code">EST</span> 预计耗时</dt>
           <dd>未提供估算；按用例数量与项目启动时间而定。</dd>
         </div>
       </dl>
@@ -177,6 +183,7 @@ function retryExtract(): void {
         >
           <Icon name="play" :size="13" />
           开始测试
+          <span class="run-code">RUN</span>
         </AppButton>
       </footer>
     </template>
@@ -211,13 +218,46 @@ function retryExtract(): void {
   border-top: 1px solid var(--line);
 }
 
+.console-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.console-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+
+.console-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-16);
+  color: var(--accent);
+}
+
+.console-note {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
 .criteria-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-3);
-  padding: 8px 0;
+  gap: var(--space-2);
+  padding: 7px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.criteria-index {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-disabled);
 }
 
 .criteria-row:last-child {
@@ -248,65 +288,51 @@ function retryExtract(): void {
   white-space: nowrap;
 }
 
-.switch {
+.check {
   display: grid;
   place-items: center;
-  width: 28px;
+  width: 20px;
   height: 20px;
   padding: 0;
   background: none;
   border: 0;
 }
 
-.switch:hover .switch-track {
-  border-color: var(--accent-line);
+.check-box {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 1px;
+  background: var(--surface-sunken);
+  color: var(--bg);
 }
 
-.switch:focus-visible {
+.check-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.check:hover .check-box {
+  border-color: var(--accent);
+}
+
+.check:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 10px;
-}
-
-.switch-track {
-  position: relative;
-  display: block;
-  width: 26px;
-  height: 14px;
-  border-radius: 7px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-sunken);
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease;
-}
-
-.switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-3);
-  transition:
-    transform 140ms ease,
-    background-color 140ms ease;
-}
-
-.switch[aria-checked="true"] .switch-track {
-  background: var(--accent-fill-strong);
-  border-color: var(--accent-line);
-}
-
-.switch[aria-checked="true"] .switch-knob {
-  transform: translateX(12px);
-  background: var(--accent);
 }
 
 .switch-placeholder {
   color: var(--text-disabled);
   text-align: center;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
 }
 
 .empty-note {
@@ -344,19 +370,30 @@ function retryExtract(): void {
   color: var(--text-3);
 }
 
-.scope-track {
-  height: 4px;
-  border-radius: 2px;
-  border: 1px solid var(--line);
-  background: var(--surface-sunken);
-  overflow: hidden;
+.scope-ticks {
+  display: flex;
+  gap: 2px;
+  height: 8px;
 }
 
-.scope-fill {
-  display: block;
-  height: 100%;
+.scope-tick {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.scope-tick.off {
+  background: var(--line-strong);
+}
+
+.scope-tick.unavailable {
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+}
+
+.scope-tick.on {
   background: var(--accent-line);
-  transition: width 220ms ease;
 }
 
 .scope-note {
@@ -365,15 +402,19 @@ function retryExtract(): void {
 
 .facts {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
   margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .fact {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .fact dt {
@@ -398,6 +439,13 @@ function retryExtract(): void {
   border-top: 1px solid var(--line);
 }
 
+.run-code {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  opacity: 0.65;
+}
+
 .foot-note {
   flex: 1 1 220px;
   max-width: 44ch;
@@ -405,18 +453,18 @@ function retryExtract(): void {
 
 @media (max-width: 520px) {
   .criteria-row {
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: 18px 20px minmax(0, 1fr);
     row-gap: 2px;
   }
 
   .criteria-note {
-    grid-column: 2;
+    grid-column: 3;
     max-width: 100%;
   }
 
-  .fact {
+  .facts {
     grid-template-columns: 1fr;
-    gap: 1px;
+    gap: var(--space-3);
   }
 
   .sheet-foot :deep(.btn) {

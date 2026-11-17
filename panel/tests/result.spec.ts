@@ -1,7 +1,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
-import CoverageMeter from "@/components/CoverageMeter.vue";
+import ResultSummary from "@/components/ResultSummary.vue";
 import ResultPanel from "@/components/ResultPanel.vue";
 import { session } from "@/state/session";
 
@@ -128,7 +128,7 @@ describe("结果相位：内联问题", () => {
 
     const block = wrapper.find('[data-testid="issue-inline"]');
     expect(block.text()).toContain("重复提交生成两条订单");
-    expect(block.text()).toContain("issue_abc123");
+    expect(block.text()).not.toContain("issue_abc123");
 
     await block.find(".status-label select").setValue("in_progress");
     await flushPromises();
@@ -270,21 +270,50 @@ describe("结果相位：报告与意见", () => {
 });
 
 describe("项目级冒烟检查", () => {
+  const base = {
+    verdict: "passed" as const,
+    selected: 0,
+    applicable: 0,
+    projectMode: true,
+    projectPassed: 3,
+    projectTotal: 3,
+    caseTotal: 3,
+    casePassed: 3,
+    caseFailed: 0,
+    caseIncomplete: 0,
+    caseManual: 0,
+    pendingItems: 0,
+    assumptions: 0,
+    ticks: [
+      { tone: "passed" as const, label: "检查 1" },
+      { tone: "passed" as const, label: "检查 2" },
+      { tone: "passed" as const, label: "检查 3" },
+    ],
+  };
+
   it("没有验收项时展示检查通过数而不是 0/0 覆盖", () => {
-    const wrapper = mount(CoverageMeter, {
-      props: { selected: 0, applicable: 0, caseTotal: 3, casePassed: 3 },
-    });
+    const wrapper = mount(ResultSummary, { props: base });
     expect(wrapper.text()).toContain("项目检查");
-    expect(wrapper.text().replace(/\s+/g, "")).toContain("3/3通过");
-    expect(wrapper.text()).toContain("项目级检查不绑定验收项");
-    expect(wrapper.text()).not.toContain("没有适用的验收项");
+    expect(wrapper.text().replace(/\s+/g, "")).toContain("3/3");
+    expect(wrapper.text()).toContain("项目检查 3 / 3 通过");
   });
 
   it("有失败检查时按通过数展示进度", () => {
-    const wrapper = mount(CoverageMeter, {
-      props: { selected: 0, applicable: 0, caseTotal: 3, casePassed: 2 },
+    const wrapper = mount(ResultSummary, {
+      props: {
+        ...base,
+        verdict: "failed",
+        projectPassed: 2,
+        casePassed: 2,
+        caseFailed: 1,
+        ticks: [
+          { tone: "passed", label: "检查 1" },
+          { tone: "passed", label: "检查 2" },
+          { tone: "failed", label: "检查 3" },
+        ],
+      },
     });
-    expect(wrapper.text().replace(/\s+/g, "")).toContain("2/3通过");
-    expect(wrapper.find('[role="progressbar"]').attributes("aria-valuenow")).toBe("2");
+    expect(wrapper.text().replace(/\s+/g, "")).toContain("2/3");
+    expect(wrapper.text()).toContain("项目检查 2 / 3 通过");
   });
 });

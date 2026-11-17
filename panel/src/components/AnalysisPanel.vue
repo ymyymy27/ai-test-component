@@ -12,8 +12,10 @@ const props = withDefaults(
     canGenerate?: boolean;
     /** No failed or stalled cases, so there is nothing to analyze. */
     notNeeded?: boolean;
+    /** Section number shown beside the heading. */
+    step?: string;
   }>(),
-  { analysis: undefined, loading: false, canGenerate: false, notNeeded: false },
+  { analysis: undefined, loading: false, canGenerate: false, notNeeded: false, step: "" },
 );
 
 defineEmits<{ generate: [] }>();
@@ -63,7 +65,7 @@ const invalidText = computed(() =>
 <template>
   <section class="analysis" aria-label="AI 失败分析">
     <div class="analysis-head">
-      <h2>AI 失败分析</h2>
+      <h2><span v-if="step" class="sec-no">{{ step }}</span> AI 失败分析</h2>
       <span class="hint">只解释事实，不改变结论</span>
     </div>
 
@@ -154,8 +156,18 @@ const invalidText = computed(() =>
   margin-bottom: var(--space-3);
 }
 
+.sec-no {
+  margin-right: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: 400;
+  color: var(--text-disabled);
+}
+
 .analysis-head h2 {
-  font-size: var(--fs-14);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  color: var(--text-3);
 }
 
 .state {

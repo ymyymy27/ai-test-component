@@ -25,22 +25,26 @@ withDefaults(
 .empty {
   display: flex;
   gap: var(--space-4);
-  padding: var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
+  max-width: 680px;
+  margin: var(--space-6) auto 0;
+  padding: var(--space-5) 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
 }
 
 .empty-icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   flex: none;
-  border-radius: var(--r-control);
-  border: 1px solid var(--line);
-  background: var(--surface-raised);
-  color: var(--text-2);
+  border-radius: 0;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--accent);
 }
 
 .empty-copy {
@@ -51,7 +55,8 @@ withDefaults(
 }
 
 .empty-copy h2 {
-  font-size: var(--fs-14);
+  font-size: var(--fs-20);
+  letter-spacing: -0.01em;
 }
 
 .empty-body {
@@ -68,9 +73,10 @@ withDefaults(
   margin-top: var(--space-2);
 }
 
-@media (max-width: 420px) {
+@media (max-width: 520px) {
   .empty {
-    padding: var(--space-4);
+    margin: var(--space-5) var(--space-3) 0;
+    padding: var(--space-4) 0;
     gap: var(--space-3);
   }
 }

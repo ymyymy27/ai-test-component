@@ -254,6 +254,26 @@ export const api = {
     return callHost("run.cancel", { project_id: projectId, run_id: runId });
   },
 
+  recordManual(
+    projectId: string,
+    runId: string,
+    caseId: string,
+    step: string,
+    result: "passed" | "failed" | "blocked",
+    note: string,
+    evidence: string[] = [],
+  ): Promise<{ case_id: string; result: string; steps: unknown[] }> {
+    return callHost("run.manual", {
+      project_id: projectId,
+      run_id: runId,
+      case_id: caseId,
+      step,
+      result,
+      note,
+      evidence,
+    });
+  },
+
   runAnalysis(projectId: string, runId: string): Promise<{ status: string; analysis: unknown }> {
     return callHost("analysis.run", { project_id: projectId, run_id: runId });
   },

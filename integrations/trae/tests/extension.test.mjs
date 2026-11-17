@@ -272,15 +272,25 @@ test("run.start keeps confirmation, other commands cannot smuggle it", async () 
   assert.equal(state.bridgeCalls[3].options.confirm, false);
 });
 
-test("run.cancel, analysis.run and issue.list stay inside the allowlist", async () => {
+test("panel writes and reads stay inside the allowlist", async () => {
   state.bridgeCalls.length = 0;
-  for (const command of ["run.cancel", "analysis.run", "issue.list", "report.opinion"]) {
+  const commands = [
+    "task.update",
+    "module.add",
+    "delivery.save",
+    "run.cancel",
+    "run.manual",
+    "analysis.run",
+    "issue.list",
+    "report.opinion",
+  ];
+  for (const command of commands) {
     state.receive({ type: "call", id: "allowed-" + command, command, payload: {} });
   }
-  await until(() => state.bridgeCalls.length === 4, "allowed commands");
+  await until(() => state.bridgeCalls.length === commands.length, "allowed commands");
   assert.deepEqual(
     state.bridgeCalls.map((call) => call.command),
-    ["run.cancel", "analysis.run", "issue.list", "report.opinion"],
+    commands,
   );
 });
 

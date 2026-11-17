@@ -154,8 +154,8 @@ async function submitCustom(): Promise<void> {
 
 .menu {
   position: fixed;
-  top: 56px;
-  right: max(16px, calc((100vw - 760px) / 2 + 24px));
+  top: calc(var(--header-h) + 8px);
+  right: max(16px, calc((100vw - var(--layout-max)) / 2 + 24px));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -163,8 +163,9 @@ async function submitCustom(): Promise<void> {
   max-height: min(70vh, 520px);
   overflow-y: auto;
   padding: var(--space-4);
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--line-strong);
+  border-radius: 0;
   border-radius: var(--r-card);
   box-shadow: var(--shadow-pop);
   animation: drop 160ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -185,7 +186,10 @@ async function submitCustom(): Promise<void> {
 }
 
 .menu-head h2 {
-  font-size: var(--fs-14);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.12em;
+  color: var(--text-2);
 }
 
 .close {
@@ -225,8 +229,9 @@ async function submitCustom(): Promise<void> {
   gap: 3px;
   width: 100%;
   padding: 10px var(--space-3);
-  background: var(--surface-sunken);
+  background: none;
   border: 0;
+  border-bottom: 1px solid var(--line);
   text-align: left;
   color: var(--text);
 }

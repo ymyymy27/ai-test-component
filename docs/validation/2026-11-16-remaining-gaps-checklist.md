@@ -17,7 +17,8 @@
 - [x] H9 同类问题修复：分析未生成按 `analysis.reason` 区分文案；`PLAN_STALE` 自动重生成计划且只重试一次；`task.list` 同 title+goal 任务复用；演示宿主版本 0.5.0（`panel npm test` 54 项、`panel npm run build`、`integrations/trae npm run build`；真实 Trae 本轮未重新安装重验）
 - [x] H10 通用冒烟快速检查：不再默认跑全量 pytest，改为入口导入 + pytest 收集 + 最小测试模块，支持 `l1.smoke_command` 覆盖；requests 两次 3/3 通过，真实 Trae 面板显示“项目检查 3/3 通过”并完成再测（`docs/validation/2026-11-17-trae-smoke/`）
 - [x] H11 项目级结果与不需要分析的文案：没有验收项时显示检查通过数而非 0/0；通过运行显示“本次没有失败，不需要生成分析”（`panel npm test` 59 项，真实 Trae 截图 `analysis.png`）
-- [x] H12 前端全功能浏览器回归：无宿主/无项目/建议单/换目标/调整抽屉/交付/模板/模块建议/运行/取消/结果/证据/问题/报告/意见/历史/项目详情/设置/窄幅/键盘共 13 组通过；取消文案、结果页分析传参、webview 资源缓存与演示宿主一致性修复；真实 Trae 验证最新结果与调整抽屉（`panel npm run test:e2e`，`docs/validation/2026-11-17-frontend-full/`）
+- [x] H12 前端全功能浏览器回归：无宿主/无项目/建议单/换目标/调整抽屉/交付/模板/模块建议/运行/取消/结果/证据/问题/报告/意见/历史/项目详情/设置/窄幅/键盘共 14 组通过；取消文案、结果页分析传参、webview 资源缓存与演示宿主一致性修复；真实 Trae 验证最新结果与调整抽屉（`panel npm run test:e2e`，`docs/validation/2026-11-17-frontend-full/`）
+- [x] H13 前端 AITEST 控制台重设计：全宽无卡片、`AITEST` 字标与 `READY`/状态线、铜色信号、`RANGE` 刻度与 `CHECKS` 编号清单、结论大号记分牌与 `[01]…` 分区、折叠失败行、分段进度、`INSPECTOR` 抽屉、`Ctrl+Enter` 启动、人工记录写回；真实 Trae 白名单补齐 `task.update/module.add/delivery.save/run.manual`；最终控制台在真实 Trae 完全重启后确认（`panel npm test` 59 项、扩展 48 项、浏览器 14 组）
 
 ## I 验证缺口
 

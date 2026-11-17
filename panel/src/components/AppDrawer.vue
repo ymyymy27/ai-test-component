@@ -105,6 +105,7 @@ onBeforeUnmount(() => {
     >
       <header class="drawer-head">
         <div class="drawer-copy">
+          <span class="drawer-kicker">INSPECTOR</span>
           <h2>{{ title }}</h2>
           <p v-if="note" class="hint">{{ note }}</p>
         </div>
@@ -136,9 +137,9 @@ onBeforeUnmount(() => {
 .drawer {
   display: flex;
   flex-direction: column;
-  width: min(440px, 100vw);
+  width: min(var(--drawer-w), 100vw);
   height: 100%;
-  background: var(--surface);
+  background: var(--bg);
   border-left: 1px solid var(--line-strong);
   box-shadow: var(--shadow-pop);
   animation: slide 180ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -158,6 +159,13 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+
+.drawer-kicker {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
 }
 
 .drawer-copy h2 {
@@ -194,8 +202,8 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--line);
-  background: var(--surface);
+  border-top: 1px solid var(--line-strong);
+  background: var(--bg);
 }
 
 @keyframes slide {

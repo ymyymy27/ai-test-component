@@ -776,6 +776,51 @@ onMounted(() => {
   font-size: var(--fs-12);
 }
 
+.stack {
+  counter-reset: section;
+}
+
+.card {
+  counter-increment: section;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: var(--space-4) 0;
+}
+
+.card .section-title h2 {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.card .section-title h2::before {
+  content: "[" counter(section, decimal-leading-zero) "] ";
+  color: var(--accent);
+}
+
+.card.advanced {
+  padding: 0;
+}
+
+.advanced-head {
+  padding: var(--space-4) 0;
+  border-radius: 0;
+}
+
+.advanced-body {
+  padding: 0 0 var(--space-4);
+}
+
+.fact-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 @media (max-width: 520px) {
   .fact {
     grid-template-columns: 1fr auto;

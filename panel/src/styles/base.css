@@ -23,6 +23,7 @@ body {
 
 #app {
   min-height: 100vh;
+  padding-bottom: 24px;
 }
 
 h1,
@@ -122,21 +123,25 @@ hr {
 
 .container {
   width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: var(--space-5) var(--space-5) var(--space-7);
-}
-
-@media (max-width: 520px) {
-  .container {
-    padding: var(--space-4) var(--space-3) var(--space-6);
-  }
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .stack {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  width: 100%;
+  max-width: var(--layout-max);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-7);
+}
+
+@media (max-width: 520px) {
+  .stack {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
 }
 
 .stack-sm {
@@ -213,6 +218,42 @@ hr {
   color: var(--text-3);
 }
 
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.sec-no {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-disabled);
+}
+
+.sec-no::before {
+  content: "[";
+}
+
+.sec-no::after {
+  content: "]";
+}
+
+.section-label .sec-note {
+  margin-left: auto;
+  font-size: var(--fs-11);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-3);
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -269,7 +310,8 @@ pre.output {
   padding: var(--space-3);
   background: var(--surface-sunken);
   border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0;
   color: var(--text-2);
   font-family: var(--font-mono);
   font-size: var(--fs-12);
@@ -289,4 +331,41 @@ pre.output {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 1px;
+  background: var(--surface-sunken);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+input[type="checkbox"]::after {
+  content: "";
+  width: 6px;
+  height: 3px;
+  border-left: 2px solid var(--bg);
+  border-bottom: 2px solid var(--bg);
+  transform: rotate(-45deg) translateY(-1px);
+  opacity: 0;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  opacity: 1;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

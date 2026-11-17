@@ -615,6 +615,18 @@ export function installMockHost(scenario = "proposal"): void {
         case "run.cancel":
           cancelled = true;
           return ok({ cancel_requested: true });
+        case "run.manual": {
+          const caseId = String(body["case_id"] ?? "");
+          const target = run.cases.find((item) => item.case_id === caseId);
+          if (target) {
+            target.result = String(body["result"] ?? "passed") as typeof target.result;
+          }
+          return ok({
+            case_id: caseId,
+            result: target?.result ?? "passed",
+            steps: [{ step: String(body["step"] ?? "人工核对"), result: body["result"] ?? "passed" }],
+          });
+        }
         case "analysis.run":
           return ok({ status: "generated", analysis: run.analysis[0] });
         case "issue.list":

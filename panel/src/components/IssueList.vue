@@ -85,7 +85,6 @@ async function closeIssue(issue: IssueSummary): Promise<void> {
             <Badge :tone="statusTone(issue.status)">{{ ISSUE_STATUS_LABEL[issue.status] }}</Badge>
             <Badge tone="neutral">{{ SEVERITY_LABEL[issue.severity] }}</Badge>
             <span class="quiet numeric">出现 {{ issue.occurrences }} 次</span>
-            <span class="quiet mono issue-id">{{ issue.issue_id }}</span>
           </span>
         </div>
         <div class="issue-controls">

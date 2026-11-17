@@ -136,7 +136,16 @@ export function methodLabel(method?: string): string {
   if (method.startsWith("manual:")) {
     return "人工核对";
   }
-  return method;
+  if (method.startsWith("sql:")) {
+    return "数据库查询";
+  }
+  if (method.startsWith("junit:")) {
+    return "JUnit 报告";
+  }
+  if (method.startsWith("pytest:")) {
+    return "pytest";
+  }
+  return "既定方式";
 }
 
 export function dependencyLabel(dep?: "build" | "service" | null): string {

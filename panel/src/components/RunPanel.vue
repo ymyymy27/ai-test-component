@@ -4,13 +4,16 @@ import { computed, ref } from "vue";
 import { describeError, type FriendlyError } from "@/api/errors";
 import {
   CASE_RESULT_LABEL,
+  LAYER_LABEL,
   RUN_STATUS_BADGE,
   RUN_STATUS_LABEL,
   formatDateTime,
+  methodLabel,
 } from "@/api/labels";
-import type { CaseResult } from "@/api/types";
+import type { CaseResult, Layer } from "@/api/types";
 import AppButton from "@/components/AppButton.vue";
 import Badge from "@/components/Badge.vue";
+import StatusMark from "@/components/StatusMark.vue";
 import ErrorNotice from "@/components/ErrorNotice.vue";
 import Icon from "@/components/Icon.vue";
 import {
@@ -28,10 +31,6 @@ const total = computed(() => run.value?.cases.length ?? 0);
 const processed = computed(
   () => run.value?.cases.filter((item) => item.result !== "not_run").length ?? 0,
 );
-const progress = computed(() =>
-  total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0,
-);
-
 const planCases = computed(() => {
   const map = new Map<string, string>();
   for (const planCase of session.plan?.cases ?? []) {
@@ -64,8 +63,40 @@ const currentCase = computed(() => {
   const planCase = session.plan?.cases.find((item) => item.case_id === next.case_id);
   return {
     title: planCase?.title || planCase?.expected || "正在执行",
-    layer: planCase?.layer ?? "",
+    layer: (planCase?.layer ?? "") as Layer | "",
+    method: methodLabel(planCase?.verify_method),
+    position: (run.value?.cases.indexOf(next) ?? 0) + 1,
   };
+});
+
+function segmentTone(result: CaseResult): string {
+  if (result === "passed") {
+    return "passed";
+  }
+  if (result === "failed") {
+    return "failed";
+  }
+  if (result === "not_run") {
+    return "pending";
+  }
+  return "incomplete";
+}
+
+function segmentTitle(caseId: string, result: CaseResult): string {
+  const planCase = session.plan?.cases.find((item) => item.case_id === caseId);
+  const title = planCase?.title || planCase?.expected || "项目检查";
+  return `${title}：${CASE_RESULT_LABEL[result]}`;
+}
+
+const segments = computed(() => {
+  const cases = run.value?.cases ?? [];
+  const currentIndex = cases.findIndex((item) => item.result === "not_run");
+  return cases.map((item, index) => ({
+    key: item.case_id,
+    tone: segmentTone(item.result),
+    current: item.result === "not_run" && index === currentIndex,
+    title: segmentTitle(item.case_id, item.result),
+  }));
 });
 
 const evidenceCount = computed(() => {
@@ -167,21 +198,30 @@ async function cancelRun(): Promise<void> {
       <span class="progress-value numeric">{{ processed }} / {{ total }}</span>
     </div>
     <div
-      class="progress"
+      class="segments"
       role="progressbar"
       :aria-valuenow="processed"
       :aria-valuemin="0"
       :aria-valuemax="total"
       aria-label="用例进度"
     >
-      <span class="progress-fill" :style="{ width: `${progress}%` }"></span>
+      <span
+        v-for="segment in segments"
+        :key="segment.key"
+        class="segment"
+        :class="[`seg-${segment.tone}`, { current: segment.current }]"
+        :title="segment.title"
+      ></span>
     </div>
     <p class="hint">{{ statusNote }}</p>
 
     <div v-if="currentCase" class="current">
-      <span class="current-label">当前用例</span>
+      <span class="current-label">第 {{ currentCase.position }} / {{ total }} 条</span>
       <span class="current-title">{{ currentCase.title }}</span>
-      <Badge v-if="currentCase.layer" tone="neutral">{{ currentCase.layer }}</Badge>
+      <Badge v-if="currentCase.layer" tone="neutral">
+        {{ currentCase.layer ? LAYER_LABEL[currentCase.layer] : "" }}
+      </Badge>
+      <span v-if="currentCase.method" class="current-method">{{ currentCase.method }}</span>
     </div>
     <div v-else-if="run?.status === 'running'" class="current">
       <span class="current-label">当前用例</span>
@@ -191,7 +231,7 @@ async function cancelRun(): Promise<void> {
     <ul v-if="liveItems.length" class="live-list" aria-label="验收项实时状态">
       <li v-for="row in liveItems" :key="row.item.item_id" class="live-row">
         <span class="live-text">{{ row.item.text }}</span>
-        <Badge :tone="row.state.tone">{{ row.state.label }}</Badge>
+        <StatusMark :tone="row.state.tone" :label="row.state.label" />
       </li>
     </ul>
 
@@ -302,19 +342,53 @@ async function cancelRun(): Promise<void> {
   color: var(--text-2);
 }
 
-.progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  overflow: hidden;
+.segments {
+  display: flex;
+  gap: 2px;
+  height: 12px;
 }
 
-.progress-fill {
-  display: block;
-  height: 100%;
+.segment {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.seg-passed {
+  background: var(--passed);
+}
+
+.seg-failed {
+  background: var(--failed);
+}
+
+.seg-incomplete {
+  background: var(--incomplete);
+}
+
+.seg-pending {
+  background: var(--line-strong);
+}
+
+.segment.current {
   background: var(--accent-line);
-  transition: width 240ms ease;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.current-method {
+  font-size: var(--fs-11);
+  color: var(--text-3);
 }
 
 .current {
@@ -322,10 +396,11 @@ async function cancelRun(): Promise<void> {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  padding: var(--space-3);
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  padding: var(--space-2) 0 var(--space-2) 10px;
+  background: none;
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0;
 }
 
 .current-label {

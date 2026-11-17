@@ -1,42 +1,43 @@
-/* Design tokens: graphite editor ground, one steel accent, muted verdicts. */
+/* Design tokens: console graphite, copper signal, sharp instrument edges. */
 :root {
   color-scheme: dark;
 
-  --bg: #0e1012;
-  --surface: #15181b;
-  --surface-raised: #1a1e22;
-  --surface-sunken: #0b0d0f;
-  --line: #262b30;
-  --line-strong: #363d44;
+  --bg: #08090a;
+  --surface: #0f1111;
+  --surface-raised: #171a1a;
+  --surface-sunken: #050606;
+  --line: #252a2a;
+  --line-strong: #3a4141;
 
-  --text: #e7eaec;
-  --text-2: #a3acb4;
-  --text-3: #7d868e;
-  --text-disabled: #5a6269;
+  --text: #f0f1f1;
+  --text-2: #a8aeae;
+  --text-3: #7e8686;
+  --text-disabled: #565d5d;
 
-  --accent: #a8c8e0;
-  --accent-line: #4a7d9e;
-  --accent-fill: rgba(130, 175, 205, 0.12);
-  --accent-fill-strong: rgba(130, 175, 205, 0.2);
+  --accent: #e0a56b;
+  --accent-line: #b57a45;
+  --accent-fill: rgba(224, 165, 107, 0.1);
+  --accent-fill-strong: rgba(224, 165, 107, 0.18);
 
-  --passed: #86b394;
-  --passed-fill: rgba(110, 160, 128, 0.12);
-  --failed: #d68d84;
-  --failed-fill: rgba(190, 98, 88, 0.13);
-  --incomplete: #c9a86f;
-  --incomplete-fill: rgba(190, 155, 90, 0.12);
-  --neutral: #9aa3ab;
+  --passed: #8fbf9c;
+  --passed-fill: rgba(110, 170, 130, 0.1);
+  --failed: #e08d82;
+  --failed-fill: rgba(200, 100, 90, 0.11);
+  --incomplete: #d2b074;
+  --incomplete-fill: rgba(200, 165, 95, 0.1);
+  --neutral: #98a1a8;
   --neutral-fill: rgba(154, 163, 171, 0.1);
 
-  --primary-bg: #e9edf0;
-  --primary-bg-hover: #f6f8f9;
-  --primary-text: #101316;
+  --primary-bg: #f0f1f1;
+  --primary-bg-hover: #ffffff;
+  --primary-text: #090a0a;
 
   --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
     "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular",
     "Microsoft YaHei UI", monospace;
 
+  --fs-11: 11px;
   --fs-12: 12px;
   --fs-13: 13px;
   --fs-14: 14px;
@@ -52,10 +53,14 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --r-card: 12px;
-  --r-control: 8px;
-  --r-chip: 6px;
+  --layout-max: 820px;
+  --header-h: 40px;
+  --drawer-w: 420px;
 
-  --focus: #9fc4dd;
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --r-card: 0px;
+  --r-control: 2px;
+  --r-chip: 2px;
+
+  --focus: #e5b98a;
+  --shadow-pop: 0 18px 40px rgba(0, 0, 0, 0.55);
 }
