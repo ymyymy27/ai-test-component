@@ -48,8 +48,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | --- | --- | --- |
 | `INVALID_REQUEST` | 信封或字段不合法 | 按字段提示修正 |
 | `USAGE` | 参数、输入文件或信封格式错误（退出码 2） | 修正参数后重试 |
-| `INVALID_PATH` | 目录不存在或不可写，或项目/运行 ID 含非法字符 | 换目录、修权限或检查 ID |
-| `CONFIG_INVALID` | 项目配置不是合法 JSON 对象 | 修复 `project.config.json` 后重试 |
+| `INVALID_PATH` | 目录不存在或不可写，或项目 ID 含非法字符 | 换目录、修权限或检查项目 ID |
+| `CONFIG_INVALID` | 其他命令读取到不是合法 JSON 对象的项目配置；`project.config` 自身读取仍返回 `INVALID_REQUEST` | 修复 `project.config.json` 后重试 |
 | `WORKSPACE_LOCKED` | 业务文件被另一进程持有 | 等待或关闭另一实例 |
 | `PROJECT_NOT_FOUND` | 项目不存在 | 先建项目或检查 ID |
 | `TASK_NOT_FOUND` | 任务不存在 | 先建任务 |
@@ -65,7 +65,6 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
 | `GITHUB_UNAVAILABLE` | `gh` 缺失、未登录或读取失败 | 安装/登录后重试 |
 | `LINK_CONFIG_MISSING` | 缺日志或查询配置 | 补项目配置 |
-| `DEPENDENCY_MISSING` | 缺运行依赖 | 在确认页授权安装或手动安装 |
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
 | `EVIDENCE_BUDGET` | 证据预算已用完或视频未启用 | 调整 evidence 配置或只提交关键证据 |
 | `EVIDENCE_WRITE_FAILED` | 证据写入失败 | 检查目录权限与磁盘 |
@@ -274,7 +273,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"plan_id": "plan_...", "plan_no": 2, "task_revision": 3, "created_at": "...", "revision": 1, "intent": "business", "source_signature": "sha256", "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "coverage": {"selected": 2, "applicable": 8}, "case_count": 4, "cases": 4, "dependencies": ["pytest"], "status": "published", "ai_generated": true}
 ```
 
-规则：每个选中验收项至少一条用例；生成后自动发布为 `published`。发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。`verify_method` 必须合法：`command:` 后非空；`script:` 需要 `script_name` 与 `script_content`；`http:` 必须是非空 JSON 数组且每项有 `method/url`；`playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；`sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描；`case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
+规则：每个选中验收项至少一条用例；生成后自动发布为 `published`。发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。`verify_method` 必须合法：`command:` 后非空；`script:` 需要 `script_name` 与 `script_content`；`http:` 必须是非空 JSON 数组且每项有 `method/url`，默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝，未跟随的 3xx 在没有状态断言时按未完成处理；`playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；`sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描；`case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
 
 `task.intent=smoke` 且任务没有适用验收项时只生成 L1 用例，默认不跑全量测试：按项目事实生成“构建/入口检查（`l1.build` 或可识别入口模块导入）”“pytest 测试发现（`python -m pytest --collect-only -q`）”“最小测试模块（`tests` 下最小的非空 `test_*.py`）”；项目可用 `l1.smoke_command` 覆盖为单条命令。非 pytest 项目回退到 `runners`/`package.json` 声明的测试命令；没有可用检查时返回 `INVALID_REQUEST`。不允许 `http:`、`playwright:` 或外部 URL。`task.intent=business` 时保留原有分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
 
@@ -349,7 +348,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 - `list` 返回 `issue_id/title/status/severity/occurrences`，并附带 `last_at`、`last_result`、`unstable`、`disposition`、`reason`、`verification_run_id`、`last_case_id`、`last_run_id` 供列表展示；
 - `show` 入参 `{"issue_id"}`，返回完整问题（含 `occurrences`、证据引用、处置与状态）；
 - `update` 入参 `{"issue_id", "status"|"disposition", "severity", "fix_version", "reason"}`；允许的流转是待确认→处理中，处理中→待复测或退回待确认，待复测→处理中或退回待确认，已关闭→处理中（重开必须写原因）。`update` 不能直接把状态改为 `closed`；关闭必须走 `issue.close` 并绑定新运行。非缺陷/重复/延期必须写理由；
-- `close` 入参 `{"issue_id", "run_id"}`：问题必须处于 `retest`，运行必须为 `completed`、包含该用例、有效结果（含预期核实降级）为 `passed` 且有证据，且不能复用问题发生时的运行；`cancelled`、`interrupted`、`execution_error` 或原始 `passed` 但应按 `blocked` 计的运行都不能关闭。否则返回 `RUN_STATE_CONFLICT`。
+- `close` 入参 `{"issue_id", "run_id"}`：问题必须处于 `retest`，运行必须为 `completed`、开始时间晚于问题最后一次发生、包含该用例、有效结果（含预期核实降级）为 `passed` 且有证据，且不能复用问题发生时的运行；`cancelled`、`interrupted`、`execution_error` 或原始 `passed` 但应按 `blocked` 计的运行都不能关闭。否则返回 `RUN_STATE_CONFLICT`。
 
 ### 4.8 报告
 
@@ -528,7 +527,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 <workspace>/
 ├─ workspace.json
 ├─ .workspace.lock                     排他写锁
-├─ requests/<request_id>.json          写操作幂等缓存
+├─ requests/<request_id+command+payload 的短哈希>.json          写操作幂等缓存
 ├─ actions/doctor.jsonl                环境自检与修复动作
 ├─ actions/<YYYY-MM>.jsonl             worker 与运行动作
 └─ projects/<project_id>/
@@ -566,7 +565,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   "model": {"base_url": "https://api.deepseek.com", "name": "deepseek-chat", "timeout_seconds": 120},
   "services": {"start": "", "stop": "", "health": "", "timeout_seconds": 120, "keep_on_failure": false},
   "link": {"request_id_header": "X-Request-Id", "log_paths": [], "log_format": "jsonl", "log_fields": {}, "db_query": ""},
-  "runners": {"pytest": {"parallel": false, "args": ""}, "playwright": {"parallel": false}},
+  "runners": {"pytest": {"command": "pytest"}, "playwright": {"command": "npx playwright test"}},
   "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false, "mock": {"max_files": 40, "max_depth": 3}}
 }
 ```

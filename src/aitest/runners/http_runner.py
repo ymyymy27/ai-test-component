@@ -33,8 +33,8 @@ class _SafeRedirect(urllib.request.HTTPRedirectHandler):
         new = urllib.parse.urlsplit(newurl)
         if new.hostname != old.hostname:
             raise ValueError(f"redirect target host is not allowed: {new.hostname}")
-        if old.scheme == "https" and new.scheme != "https":
-            raise ValueError("redirect would downgrade https to http")
+        if new.scheme not in {"http", "https"} or new.scheme != old.scheme:
+            raise ValueError("redirect target scheme is not allowed")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 

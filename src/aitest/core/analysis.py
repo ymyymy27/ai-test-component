@@ -70,7 +70,7 @@ def _store(ws: Workspace, project_id: str, run_dir: Path, analysis: Analysis) ->
         cause["cause"] = redact(cause.get("cause", ""), secrets)
     # Re-read under the workspace lock: the worker, evidence.add and
     # run.manual may have written the same run while the model call ran.
-    with ws.lock():
+    with ws.lock(timeout=120.0):
         current = read_model(run_dir / "run.json", Run)
         allowed = set(current.evidence_refs)
         analysis.evidence_refs = [

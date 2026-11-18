@@ -30,13 +30,13 @@ from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
 from aitest.core.reports import build_report
 from aitest.errors import AiTestError
-from aitest.models import Attempt, Case, Delivery, Plan, Project, Run, case_item_ids
+from aitest.models import Attempt, Case, Delivery, Plan, Project, Run
 from aitest.procutil import process_created_at
 from aitest.runners.base import RunnerResult
 from aitest.runners.command_runner import run_command
 from aitest.runners.http_runner import run_http_sequence
 from aitest.runners.junit import parse_junit
-from aitest.security import is_secret_field, looks_like_secret_value, redact, redact_bytes
+from aitest.security import is_secret_field, redact, redact_bytes
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -100,7 +100,7 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     env: dict[str, str] = {}
     package_root = Path(__file__).resolve().parents[1]
     for key, value in os.environ.items():
-        if is_secret_field(key) or looks_like_secret_value(value):
+        if is_secret_field(key):
             continue
         if key == "PYTHONPATH":
             parts = [
@@ -740,13 +740,13 @@ def _postprocess(ws: Workspace, project: Project, run_dir: Path, run: Run) -> No
         except Exception as exc:  # noqa: BLE001 - post-processing must not fail the run
             _record_postprocess_error(run_dir, "analysis", exc)
     try:
-        with ws.lock():
+        with ws.lock(timeout=300.0):
             draft_failed_issues(ws, project.project_id, run_dir)
     except Exception as exc:  # noqa: BLE001 - issue drafting must not block reports
         _record_postprocess_error(run_dir, "issues", exc)
     if run.status in {"completed", "execution_error", "cancelled"}:
         try:
-            with ws.lock():
+            with ws.lock(timeout=300.0):
                 build_report(ws, project, run_dir)
         except Exception as exc:  # noqa: BLE001 - a failed report never changes run state
             _record_postprocess_error(run_dir, "report", exc)
@@ -848,8 +848,7 @@ def main(argv: list[str] | None = None) -> int:
             else ""
         )
         plan_has_build = bool(build_command) and any(
-            not case_item_ids(case)
-            and case.verify_method.strip() == f"command:{build_command}"
+            case.verify_method.strip().removeprefix("command:").strip() == build_command
             for case in plan.cases
         )
         l1 = _run_l1(

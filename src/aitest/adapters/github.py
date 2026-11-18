@@ -69,7 +69,15 @@ def _mapping(value: object) -> dict[str, Any]:
 
 
 def _items(value: object) -> list[object]:
-    return list(value) if isinstance(value, list) else []
+    if not isinstance(value, list):
+        return []
+    rows: list[object] = []
+    for item in value:
+        if isinstance(item, list):
+            rows.extend(item)
+        else:
+            rows.append(item)
+    return rows
 
 
 def _string(value: object) -> str:

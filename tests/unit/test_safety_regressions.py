@@ -389,8 +389,8 @@ def test_cancelled_l1_is_incomplete() -> None:
     assert verdict(plan, run) == "incomplete"
 
 
-def test_dead_worker_pid_is_stale_immediately() -> None:
-    from datetime import datetime
+def test_dead_worker_pid_is_stale_after_short_grace() -> None:
+    from datetime import datetime, timedelta
 
     from aitest.runtime_commands import _heartbeat_stale
 
@@ -398,8 +398,22 @@ def test_dead_worker_pid_is_stale_immediately() -> None:
     run.status = "running"
     run.pid = 999_999_999
     run.pid_created_at = 1.0
-    run.heartbeat_at = datetime.now().astimezone().isoformat()
+    run.heartbeat_at = (datetime.now().astimezone() - timedelta(seconds=10)).isoformat()
     assert _heartbeat_stale(run) is True
+
+
+def test_live_worker_is_not_stale_only_because_heartbeat_is_old() -> None:
+    import os
+    from datetime import datetime, timedelta
+
+    from aitest.runtime_commands import _heartbeat_stale
+
+    run = _run([RunCase(case_id="c1", result="not_run")])
+    run.status = "running"
+    run.pid = os.getpid()
+    run.pid_created_at = None
+    run.heartbeat_at = (datetime.now().astimezone() - timedelta(seconds=300)).isoformat()
+    assert _heartbeat_stale(run) is False
 
 
 def test_request_cache_key_is_bound_to_command_and_payload(tmp_path: Path) -> None:
@@ -528,3 +542,14 @@ def test_analysis_store_merges_current_run_and_rejects_outside_refs(tmp_path: Pa
     saved = read_model(run_dir / "run.json", Run)
     assert saved.evidence_refs == ["evidence/ok.log", "evidence/late.log"]
     assert saved.analysis[-1].evidence_refs == ["evidence/ok.log", "evidence/late.log"]
+
+
+def test_run_env_keeps_connection_strings_needed_by_tests(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from aitest.worker import _run_env
+
+    dsn = "postgres://user:pass@localhost/db"
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    env = _run_env(tmp_path, None, "run_1")
+    assert env.get("DATABASE_URL") == dsn

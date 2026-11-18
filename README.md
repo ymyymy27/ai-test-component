@@ -11,7 +11,7 @@
 | 项 | 当前值 |
 | --- | --- |
 | 产品版本 | **0.5.0**（`pyproject.toml`、`panel/package.json`、`integrations/trae/package.json` 一致） |
-| 代码规模 | **40** 个 Python 模块，约 **11,730** 行；**260** 个 pytest 节点；面板 vitest **48**、扩展 node test **48** |
+| 代码规模 | **40** 个 Python 模块，约 **11,767** 行；**263** 个 pytest 节点；面板 vitest **48**、扩展 node test **48** |
 | 运行环境 | Windows 11 x64；Python 3.11—3.13（开发与 CI 使用 3.13） |
 | 宿主 | Trae（VS Code 兼容扩展）；面板产物可在浏览器中调试 |
 | 版本历史 | [CHANGELOG](CHANGELOG.md) |

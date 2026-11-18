@@ -289,8 +289,9 @@ def _collect_logs(
         return [], [_gap("log", "未配置日志路径")], []
     if log_format == "regex" and not fields.get("pattern"):
         return [], [_gap("log", "未配置日志正则")], []
-    if log_format == "regex" and "request_id" not in str(fields.get("pattern", "")):
-        return [], [_gap("log", "日志正则缺少 request_id 命名组，无法按请求关联")], []
+    request_field = str(fields.get("request_id") or "request_id")
+    if log_format == "regex" and f"(?P<{request_field}>" not in str(fields.get("pattern", "")):
+        return [], [_gap("log", f"日志正则缺少 {request_field} 命名组，无法按请求关联")], []
     paths = _expand_paths(log_paths)
     if not paths:
         return [], [_gap("log", "未找到日志文件")], []

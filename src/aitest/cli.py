@@ -17,7 +17,7 @@ from aitest.errors import AiTestError, ErrorInfo
 from aitest.storage.workspace import Workspace
 
 _SELF_LOCKED = frozenset(
-    {"run.start", "run.manual", "evidence.add", "data.cleanup", "analysis.run", "run.cancel"}
+    {"run.start", "run.manual", "evidence.add", "analysis.run", "run.cancel"}
 )
 
 _LOCK_TIMEOUTS: dict[str, float] = {

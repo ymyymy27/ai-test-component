@@ -463,3 +463,14 @@ def test_read_github_does_not_attach_unrelated_pull_requests() -> None:
 
     assert data["prs"] == []
     assert not any("pulls?state=all" in " ".join(args) for args, _ in calls)
+
+
+def test_read_github_flattens_slurped_pull_pages() -> None:
+    responses = _github_responses()
+    prs = json.loads(responses["repos/o/r/commits/abc123/pulls"])
+    responses["repos/o/r/commits/abc123/pulls"] = json.dumps([prs])
+    runner, _calls = _github_runner(responses)
+
+    data = read_github("o/r", "main", runner=runner)
+
+    assert [item["number"] for item in data["prs"]] == [12]

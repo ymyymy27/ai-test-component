@@ -158,8 +158,7 @@ def save_evidence(
     """
     if not name or Path(name).name != name or name in {".", ".."}:
         raise ValueError(f"证据名称不合法：{name}")
-    if secrets:
-        data = redact_bytes(data, secrets)
+    data = redact_bytes(data, secrets or [])
     evidence_dir = run_dir / "evidence"
     payload = data[:file_cap_bytes]
     actual_size = original_size if original_size is not None else len(data)

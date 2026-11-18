@@ -647,7 +647,8 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     project = _project(ws, payload)
     action = _text(payload, "action", "get")
     path = _config_path(ws, project.project_id)
-    existing = _strip_secret_fields(_read_project_config(path))
+    raw = _read_project_config(path)
+    existing = _strip_secret_fields(raw)
     if action == "get":
         return {"config": _whitelisted_config(existing)}
     if action != "update":
@@ -675,7 +676,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             raise invalid_request(
                 f"{section} 必须是对象", f"把 {section} 写成 JSON 对象后重试"
             )
-    merged = dict(existing)
+    merged = dict(raw)
     for section, value in patch.items():
         if value is None:
             merged.pop(section, None)
@@ -686,7 +687,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
         )
     merged["schema_version"] = 1
     write_json(path, merged)
-    return {"config": _whitelisted_config(merged)}
+    return {"config": _whitelisted_config(_strip_secret_fields(merged))}
 
 
 # -- module -----------------------------------------------------------------

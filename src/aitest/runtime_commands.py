@@ -945,17 +945,21 @@ def _runs_dir(ws: Workspace, project_id: str) -> Path:
 
 
 def _heartbeat_stale(run: Run, seconds: float = 120.0) -> bool:
-    if run.pid and not pid_alive(run.pid, run.pid_created_at):
-        # A known dead worker is stale immediately; waiting for the heartbeat
-        # threshold leaves the run stuck in ``running`` for two minutes.
-        return True
     if not run.heartbeat_at:
         return True
     try:
         then = datetime.fromisoformat(run.heartbeat_at).timestamp()
     except ValueError:
         return True
-    return (time.time() - then) > seconds
+    age = time.time() - then
+    if run.pid:
+        if pid_alive(run.pid, run.pid_created_at):
+            # A live worker may be in a long command; never start a second run
+            # just because its heartbeat is old.
+            return False
+        # A dead PID is stale after a short grace, without waiting two minutes.
+        return age > 5
+    return age > seconds
 
 
 def _refresh_stale(run: Run) -> Run:
@@ -1413,6 +1417,12 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         },
         "warnings": warnings,
     }
+
+
+def _safe_id(value: str, label: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+        raise invalid_request(f"{label} 不合法：{value}")
+    return value
 
 
 def _run_id(payload: Payload) -> str:
@@ -2168,7 +2178,9 @@ def _export_lines(report: Report) -> list[str]:
 def cmd_report_export(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    report_id = _text({"id": _require(payload, "report_id")}, "id")
+    report_id = _safe_id(
+        _text({"id": _require(payload, "report_id")}, "id"), "报告 ID"
+    )
     path = _report_path(ws, project.project_id, report_id)
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"报告不存在：{report_id}", "先生成报告")
@@ -2190,7 +2202,9 @@ def cmd_report_export(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
 def cmd_report_opinion(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    report_id = _text({"id": _require(payload, "report_id")}, "id")
+    report_id = _safe_id(
+        _text({"id": _require(payload, "report_id")}, "id"), "报告 ID"
+    )
     path = _report_path(ws, project.project_id, report_id)
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"报告不存在：{report_id}", "先生成报告")
@@ -2275,9 +2289,9 @@ def cmd_issue_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
 def cmd_issue_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    issue_id = _text({"id": _require(payload, "issue_id")}, "id")
-    if Path(issue_id).name != issue_id:
-        raise invalid_request(f"问题 ID 不合法：{issue_id}")
+    issue_id = _safe_id(
+        _text({"id": _require(payload, "issue_id")}, "id"), "问题 ID"
+    )
     path = _issues_dir(ws, project.project_id) / f"{issue_id}.json"
     if not path.is_file():
         raise invalid_request(f"问题不存在：{issue_id}")
@@ -2296,7 +2310,9 @@ _ISSUE_TRANSITIONS: dict[str, set[str]] = {
 def cmd_issue_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    issue_id = _text({"id": _require(payload, "issue_id")}, "id")
+    issue_id = _safe_id(
+        _text({"id": _require(payload, "issue_id")}, "id"), "问题 ID"
+    )
     path = _issues_dir(ws, project.project_id) / f"{issue_id}.json"
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"问题不存在：{issue_id}", "检查问题 ID")
@@ -2351,7 +2367,9 @@ def cmd_issue_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    issue_id = _text({"id": _require(payload, "issue_id")}, "id")
+    issue_id = _safe_id(
+        _text({"id": _require(payload, "issue_id")}, "id"), "问题 ID"
+    )
     path = _issues_dir(ws, project.project_id) / f"{issue_id}.json"
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"问题不存在：{issue_id}", "检查问题 ID")
@@ -2380,6 +2398,17 @@ def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "关闭问题需要新运行，不能复用问题发生时的运行",
             "重新执行包含该用例的回归运行",
         )
+    last_at = max((item.at for item in issue.occurrences if item.at), default="")
+    if last_at and run.started_at:
+        try:
+            if datetime.fromisoformat(run.started_at) <= datetime.fromisoformat(last_at):
+                raise AiTestError(
+                    "RUN_STATE_CONFLICT",
+                    "关闭问题需要晚于最后一次发生的回归运行",
+                    "问题最后一次发生后再执行一次回归",
+                )
+        except ValueError:
+            pass
     case_id = issue.occurrences[-1].case_id if issue.occurrences else ""
     run_case = next((item for item in run.cases if item.case_id == case_id), None)
     if run_case is None:
