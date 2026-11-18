@@ -1,0 +1,194 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_fa0b97ab0676",
+      "acceptance_item_ids": [
+        "ai_fa0b97ab0676"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_9b7106f95523",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "注册后使用新用户名和密码登录，响应重定向到博客首页（/），且会话中保存了该用户，页面显示已登录状态（如出现用户名或退出登录入口）。",
+      "layer": "L2",
+      "result": "passed",
+      "title": "注册新用户后使用该账号登录成功",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_fa0b97ab0676",
+      "acceptance_item_ids": [
+        "ai_fa0b97ab0676"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_e94f0086448a",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "使用已注册用户名但错误密码登录时，响应返回 200 并重新渲染登录页，页面包含错误提示（如“Incorrect password.”），且未建立登录会话。",
+      "layer": "L2",
+      "result": "passed",
+      "title": "使用错误密码登录失败并提示错误",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_fa0b97ab0676",
+      "acceptance_item_ids": [
+        "ai_fa0b97ab0676"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_f9e5bcaf115a-0.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_f9e5bcaf115a",
+      "evidence_refs": [
+        "evidence/case_f9e5bcaf115a-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "pytest 执行成功，退出码为 0，所有测试通过。",
+      "layer": "L1",
+      "result": "passed",
+      "title": "运行项目现有测试套件确认基础功能可用",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 1456,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/deps-install.log",
+      "sha256": "b4c63eea92a295b52547858d1f139fbee5767ce96c05a7c34a35ef6eb93d84b1"
+    },
+    {
+      "bytes": 660,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_f9e5bcaf115a-0.log",
+      "sha256": "1394a604caddf68216263710403ed872a17d7e3a69bffcc072a288f8119cfb99"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/deps-install.log",
+    "evidence/case_f9e5bcaf115a-0.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-18T11:18:28+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_9b7106f95523",
+        "case_e94f0086448a",
+        "case_f9e5bcaf115a"
+      ],
+      "item_id": "ai_fa0b97ab0676",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "注册用户后可以登录"
+    }
+  ],
+  "l1": {
+    "blocking_reasons": [],
+    "build": {
+      "evidence_ref": null,
+      "exit_code": null,
+      "ok": true
+    },
+    "cases": [],
+    "entries": []
+  },
+  "layers": {
+    "L1": 1,
+    "L2": 2,
+    "L3": 0
+  },
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "pyproject.toml",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "tests/conftest.py",
+        "tests/test_factory.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "flask",
+      "read_files": [
+        ".ws-smoke/workspace.json",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "flaskr/schema.sql",
+        "pyproject.toml",
+        "tests/conftest.py",
+        "tests/data.sql",
+        "tests/test_auth.py",
+        "tests/test_blog.py",
+        "tests/test_db.py",
+        "tests/test_factory.py"
+      ],
+      "reason": "pyproject.toml 将 flask 声明为运行时依赖；应用代码在 flaskr/__init__.py、auth.py、blog.py、db.py 中直接导入并使用 Flask 的 API（Flask、Blueprint、g、session、render_template 等），测试也通过 create_app 和 test_client 使用真实 Flask 框架，未发现 mock 或替代实现。"
+    }
+  ],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": true,
+  "report_id": "rep_f9bb62eb8255",
+  "revision": 1,
+  "rules_version_id": "rule_07b724026e51",
+  "run_id": "run_e68a18cc3cc3",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 1，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

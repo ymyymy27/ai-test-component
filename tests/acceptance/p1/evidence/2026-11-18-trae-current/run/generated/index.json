@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "generated_at": "2026-11-18T11:18:20+08:00",
+      "model": "provided",
+      "name": "test_register_then_login.py",
+      "secrets_redacted": false,
+      "sha256": "8dafbb5b6daa57b29e15ef8952d251157111e7486ae522b46aec530bdaea132c"
+    },
+    {
+      "generated_at": "2026-11-18T11:18:20+08:00",
+      "model": "provided",
+      "name": "test_login_wrong_password.py",
+      "secrets_redacted": false,
+      "sha256": "9651b0041dcab62a4796dc2992f27b46229563d885ab70ec78782fcec5cc609b"
+    }
+  ],
+  "schema_version": 1
+}

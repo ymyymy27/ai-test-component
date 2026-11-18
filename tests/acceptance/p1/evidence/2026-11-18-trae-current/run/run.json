@@ -1,0 +1,134 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-18T11:18:23+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:18:23+08:00"
+        }
+      ],
+      "case_id": "case_9b7106f95523",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-18T11:18:24+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:18:24+08:00"
+        }
+      ],
+      "case_id": "case_e94f0086448a",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_f9e5bcaf115a-0.log"
+          ],
+          "finished_at": "2026-11-18T11:18:26+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:18:26+08:00"
+        }
+      ],
+      "case_id": "case_f9e5bcaf115a",
+      "evidence_refs": [
+        "evidence/case_f9e5bcaf115a-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "e9c4fc70357d77387550139769df32d50ea5b577628b7ddcde1051b92716ea96",
+  "confirmation_id": "conf_e48c9e70c1d2",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-18T11:18:20+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_e68a18cc3cc3_",
+  "dependencies": [
+    "flask",
+    "pytest"
+  ],
+  "dependency_install_ok": true,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/deps-install.log",
+    "evidence/case_f9e5bcaf115a-0.log"
+  ],
+  "heartbeat_at": "2026-11-18T11:18:26+08:00",
+  "l1": {
+    "build": {
+      "evidence_ref": null,
+      "exit_code": null,
+      "ok": true
+    },
+    "cancelled": false,
+    "entries": []
+  },
+  "latest_report_id": "rep_f9bb62eb8255",
+  "media_bytes": 2116,
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "pyproject.toml",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "tests/conftest.py",
+        "tests/test_factory.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "flask",
+      "read_files": [
+        ".ws-smoke/workspace.json",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "flaskr/schema.sql",
+        "pyproject.toml",
+        "tests/conftest.py",
+        "tests/data.sql",
+        "tests/test_auth.py",
+        "tests/test_blog.py",
+        "tests/test_db.py",
+        "tests/test_factory.py"
+      ],
+      "reason": "pyproject.toml 将 flask 声明为运行时依赖；应用代码在 flaskr/__init__.py、auth.py、blog.py、db.py 中直接导入并使用 Flask 的 API（Flask、Blueprint、g、session、render_template 等），测试也通过 create_app 和 test_client 使用真实 Flask 框架，未发现 mock 或替代实现。"
+    }
+  ],
+  "pid": 40392,
+  "pid_created_at": 1794971900.6141717,
+  "plan_id": "plan_75d4dc8e3688",
+  "project_id": "proj_1c8be660cb0a",
+  "request_ids": [],
+  "run_id": "run_e68a18cc3cc3",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_fa0b97ab0676"
+    ],
+    "frozen_at": "2026-11-18T11:18:20+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-18T11:18:20+08:00",
+  "status": "completed"
+}

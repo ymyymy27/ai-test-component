@@ -1,0 +1,13 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.2.0, pluggy-1.7.0
+rootdir: E:\pilot\flask\examples\tutorial
+configfile: pyproject.toml
+testpaths: tests
+collected 24 items
+
+tests\test_auth.py ........                                              [ 33%]
+tests\test_blog.py ............                                          [ 83%]
+tests\test_db.py ..                                                      [ 91%]
+tests\test_factory.py ..                                                 [100%]
+
+============================= 24 passed in 1.91s ==============================

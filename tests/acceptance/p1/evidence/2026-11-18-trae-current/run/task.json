@@ -1,0 +1,33 @@
+{
+  "acceptance_items": [
+    {
+      "item_id": "ai_807d82105277",
+      "module_id": null,
+      "observable": false,
+      "source": "验证博客基本流程",
+      "status": "pending",
+      "text": "验证博客基本流程"
+    },
+    {
+      "item_id": "ai_fa0b97ab0676",
+      "module_id": null,
+      "observable": true,
+      "source": "手动补充",
+      "status": "active",
+      "text": "注册用户后可以登录"
+    }
+  ],
+  "executor": "",
+  "goal": "验证博客基本流程",
+  "inputs": "",
+  "intent": "business",
+  "outputs": "",
+  "preconditions": [],
+  "project_id": "proj_1c8be660cb0a",
+  "reviewer": "",
+  "revision": 1,
+  "schema_version": 1,
+  "scope": "",
+  "task_id": "task_26f65292f5c1",
+  "title": "验证博客基本流程"
+}
