@@ -9,7 +9,7 @@ npm test                    # 48 项组件/状态测试
 npm run build               # vue-tsc + vite build
 ```
 
-当前测试基线（2026-11-17，版本 0.5.0）：面板 vitest 48 项；扩展 node test 48 项、后端 pytest 263 项见各自目录。
+当前测试基线（2026-11-17，版本 0.5.0）：面板 vitest 48 项；扩展 node test 48 项、后端 pytest 265 项见各自目录。
 
 ## 演示宿主
 

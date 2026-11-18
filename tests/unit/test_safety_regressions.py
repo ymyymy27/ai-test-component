@@ -553,3 +553,11 @@ def test_run_env_keeps_connection_strings_needed_by_tests(
     monkeypatch.setenv("DATABASE_URL", dsn)
     env = _run_env(tmp_path, None, "run_1")
     assert env.get("DATABASE_URL") == dsn
+
+
+def test_missing_task_snapshot_does_not_report_zero_uncovered() -> None:
+    from aitest.core.scope import uncovered_items
+
+    items = uncovered_items(None, Scope(preset="selected", acceptance_item_ids=["a"]), 3)
+    assert len(items) == 2
+    assert all("任务快照缺失" in item for item in items)

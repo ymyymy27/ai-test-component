@@ -30,10 +30,17 @@ def all_applicable_items(task: Task) -> list[AcceptanceItem]:
     return [item for item in task.acceptance_items if item.status == "active"]
 
 
-def uncovered_items(task: Task | None, scope: Scope) -> list[str]:
-    """Return ``id：text`` for applicable items that the scope did not select."""
+def uncovered_items(
+    task: Task | None, scope: Scope, fallback_count: int = 0
+) -> list[str]:
+    """Return ``id：text`` for applicable items that the scope did not select.
+
+    When the task and its snapshot are both gone, use the frozen applicable
+    count so a missing history cannot be shown as "uncovered 0".
+    """
     if task is None:
-        return []
+        missing = max(0, fallback_count - len(scope.acceptance_item_ids))
+        return [f"未还原验收项 {index + 1}（任务快照缺失）" for index in range(missing)]
     selected = set(scope.acceptance_item_ids)
     return [
         f"{item.item_id}：{item.text}"

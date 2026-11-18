@@ -1494,7 +1494,9 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
                 task_snapshot = read_model(task_path, Task) if task_path.is_file() else None
             except AiTestError:
                 task_snapshot = None
-        uncovered = uncovered_items(task_snapshot, plan_snapshot.scope)
+        uncovered = uncovered_items(
+            task_snapshot, plan_snapshot.scope, plan_snapshot.applicable_count
+        )
     link: dict[str, Any] | None = None
     link_path = run_dir / "link.json"
     if link_path.is_file():

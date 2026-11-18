@@ -1454,3 +1454,41 @@ def test_http_runner_follows_same_host_redirect(http_server: _RecordingServer) -
         [{"url": f"{_base_url(http_server)}/redirect", "follow_redirects": True}]
     )
     assert result.status == "passed"
+
+
+def test_run_cancel_stops_active_command_and_marks_remaining(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    command = f'"{sys.executable}" -c "import time; time.sleep(20)"'
+    plan = _plan(tmp_path, capsys, setup, [_case(item_id, f"command: {command}")])
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": setup["project"]["project_id"], "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )["data"]
+    for _ in range(50):
+        live = call(
+            tmp_path,
+            "run.status",
+            {"project_id": setup["project"]["project_id"], "run_id": started["run_id"]},
+            capsys,
+        )["data"]["run"]
+        if live.get("current_case_id"):
+            break
+        time.sleep(0.1)
+    cancelled = call(
+        tmp_path,
+        "run.cancel",
+        {"project_id": setup["project"]["project_id"], "run_id": started["run_id"]},
+        capsys,
+    )
+    assert cancelled["ok"] is True
+    status = _wait_completed(
+        tmp_path, capsys, setup["project"]["project_id"], started["run_id"]
+    )["data"]
+    assert status["run"]["status"] == "cancelled"
+    assert status["run"]["cases"][0]["result"] in {"blocked", "not_run"}

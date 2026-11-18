@@ -447,7 +447,7 @@ def build_report(
     outcome = verdict(plan, run)
     counts = coverage(plan, run)
     task = _load_task(ws, project.project_id, plan.task_id, run_dir)
-    uncovered = scope_uncovered(task, plan.scope)
+    uncovered = scope_uncovered(task, plan.scope, plan.applicable_count)
     delivery = (
         _load_delivery(ws, project.project_id, task.task_id, run_dir)
         if task is not None

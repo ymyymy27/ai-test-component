@@ -1054,7 +1054,10 @@ def main(argv: list[str] | None = None) -> int:
                     run.heartbeat_at = iso_now()
                     _save(run_path, run)
                 else:
-                    run.status = "completed"
+                    if cancelled():
+                        _mark_cancelled(run)
+                    else:
+                        run.status = "completed"
     except Exception as exc:  # noqa: BLE001 - record unexpected failure, do not crash silently
         run.status = "execution_error"
         run.current_case_id = ""
