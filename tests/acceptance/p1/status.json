@@ -4,7 +4,7 @@
   "phase": 1,
   "scope": "product_acceptance_not_scaffold_tests",
   "baseline": "2026-11-16 轻量插件重构基线",
-  "baseline_commit": "5da5552a",
+  "baseline_commit": "150fb647",
   "baseline_note": "2026-11-16 轻量插件重构基线；AC09/AC12 于 2026-11-18 在当前工作树重跑",
   "update_rules": {
     "scenario_expected": "scenario／expected／related_frs 逐字取自《需求规格》第 4 节验收场景表，需求文档改动后同步，不得单方改写",
@@ -354,7 +354,7 @@
         "Python Playwright 1.59.0",
         "deepseek-chat",
         "ai-test-component 0.5.0",
-        "working tree after 5da5552a"
+        "commit 150fb647"
       ],
       "actual": "真实模型 deepseek-chat 生成 2 条 Playwright Python 用例与脚本（ai_generated=true）；脚本落盘到 generated/ 后执行，两条用例均 passed，执行日志和脚本内截图都进入 evidence_refs。",
       "evidence": {
