@@ -282,6 +282,8 @@ test("panel writes and reads stay inside the allowlist", async () => {
     "task.update",
     "module.add",
     "delivery.save",
+    "delivery.show",
+    "plan.update",
     "run.cancel",
     "run.manual",
     "analysis.run",

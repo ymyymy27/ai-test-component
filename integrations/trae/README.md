@@ -54,8 +54,8 @@ media/
 | 环境 | `doctor` |
 | 项目 | `project.add`、`project.config`、`project.list`、`project.show` |
 | 任务与模块 | `task.add`、`task.list`、`task.show`、`task.suggest`、`task.update`、`module.suggest`、`module.add` |
-| 交付与模板 | `delivery.draft`、`delivery.save`、`template.list`、`template.apply` |
-| 计划与运行 | `plan.generate`、`plan.show`、`run.start`、`run.status`、`run.list`、`run.cancel`、`run.manual`、`analysis.run` |
+| 交付与模板 | `delivery.draft`、`delivery.save`、`delivery.show`、`template.list`、`template.apply` |
+| 计划与运行 | `plan.generate`、`plan.show`、`plan.update`、`run.start`、`run.status`、`run.list`、`run.cancel`、`run.manual`、`analysis.run` |
 | 证据 | `evidence.list`、`evidence.add` |
 | 规则 | `rules.save`、`rules.list`、`rules.show`、`rules.import`、`rules.export`、`rules.bind` |
 | GitHub 与链路 | `github.read`、`link.import`、`link.assert` |
@@ -67,7 +67,7 @@ media/
 
 `run.start` 只有在执行前确认区点击“开始测试”时才带 `--confirm`；其他命令即使请求确认也不会带上。
 
-已知缺口：面板 `api/commands.ts` 还调用了 `delivery.show` 与 `plan.update`，但这两条命令不在当前白名单，计划文档里的交付读取/保存会在 Trae 中收到 `COMMAND_NOT_ALLOWED`；在补齐白名单和真实宿主回归前，不要把这部分当成已验证。
+`plan.update` 与 `delivery.show` 已在白名单；计划文档里的交付读取/保存仍需真实 Trae 回归，完成前不要把这部分当成已验证。
 
 ## 构建与测试
 

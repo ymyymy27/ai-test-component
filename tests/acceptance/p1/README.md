@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 26 条 AC：26 条 `verified`、0 条 `not_verified`、0 条 `untested`；
+- 27 条 AC：27 条 `verified`、0 条 `not_verified`、0 条 `untested`；
 - 2026-11-16 先按当前代码重跑 26 条场景（[G3 批次](evidence/2026-11-16-g3-rerun/README.md)），随后补齐 P1-AC04/06/07/12 的行为并用真实 CLI/模型/Playwright 重跑（[G3b 批次](evidence/2026-11-16-g3b/README.md)）；
 - 单元、合同、集成测试通过不等于验收通过。
 

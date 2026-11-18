@@ -251,6 +251,9 @@ async function checkCandidate(
   if (major < 3 || (major === 3 && minor < 11)) {
     return { ...base, ok: false, version, versionOk: false, detail: `Python ${version} 低于 3.11` };
   }
+  if (major > 3 || (major === 3 && minor >= 14)) {
+    return { ...base, ok: false, version, versionOk: false, detail: `Python ${version} 不在支持的 3.11-3.13 范围` };
+  }
   const importError = info["import_error"];
   if (typeof importError === "string") {
     return {

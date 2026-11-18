@@ -46,8 +46,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 | code | 含义 | next_step |
 | --- | --- | --- |
-| `INVALID_REQUEST` | 信封或字段不合法 | 按字段提示修正 |
-| `USAGE` | 参数、输入文件或信封格式错误（退出码 2） | 修正参数后重试 |
+| `INVALID_REQUEST` | payload 字段语义不合法（handler 校验失败，退出码 1） | 按字段提示修正 |
+| `USAGE` | 参数、输入文件或信封 JSON/结构解析失败（退出码 2） | 修正参数后重试 |
 | `INVALID_PATH` | 目录不存在或不可写，或项目 ID 含非法字符 | 换目录、修权限或检查项目 ID |
 | `CONFIG_INVALID` | 其他命令读取到不是合法 JSON 对象的项目配置；`project.config` 自身读取仍返回 `INVALID_REQUEST` | 修复 `project.config.json` 后重试 |
 | `WORKSPACE_LOCKED` | 业务文件被另一进程持有 | 等待或关闭另一实例 |
@@ -68,9 +68,9 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
 | `EVIDENCE_BUDGET` | 证据预算已用完或视频未启用 | 调整 evidence 配置或只提交关键证据 |
 | `EVIDENCE_WRITE_FAILED` | 证据写入失败 | 检查目录权限与磁盘 |
-| `SCHEMA_UNSUPPORTED` | 旧数据格式 | 备份后转换或重建 |
+| `SCHEMA_UNSUPPORTED` | 旧数据格式 | 备份后重建或重新生成 |
 | `BACKUP_INVALID` | 备份损坏或校验失败 | 换备份 |
-| `CLEANUP_FAILED` | 清理命令未配置、无法执行或退出码非零 | 检查项目配置与项目根目录 |
+| `CLEANUP_FAILED` | 清理命令无法执行或退出码非零；未配置清理段返回 `INVALID_REQUEST` | 检查项目配置与项目根目录 |
 | `DISK_FULL` | 磁盘不足 | 清理磁盘后重试 |
 | `INTERNAL` | 未预期错误 | 附 request_id 反馈 |
 
@@ -318,7 +318,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"run_id": "run_...", "case_id": "case_...", "step": "打开订单列表", "result": "passed", "note": "", "evidence": ["evidence/shot-1.png"]}
 ```
 
-只允许对 `layer=L3` 且验证方式为空、`manual:` 或不具备自动验证方式的用例记录；对自动用例调用返回 `RUN_STATE_CONFLICT`。返回该用例当前状态；未记录完的步骤保持 `manual_pending`。
+只允许在运行结束后记录；运行中返回 `RUN_ACTIVE`。只允许对 `layer=L3` 且验证方式为空、`manual:` 或不具备自动验证方式的用例记录；对自动用例调用返回 `RUN_STATE_CONFLICT`。返回该用例当前状态；未记录完的步骤保持 `manual_pending`。
 
 #### `data.cleanup`
 
@@ -330,7 +330,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"run_id": "run_...", "case_id": "case_...", "path": "/abs/shot.png", "note": "人工补证"}
 ```
 
-入参 `case_id` 可选，给出时把证据同时挂到该用例；`note` 可选，随证据记录。`media_type` 入参被忽略，媒体类型按证据文件名推断，由 `evidence.list` 返回。返回 `{"evidence_ref": "evidence/..."}`。
+仅运行结束后可用；运行中返回 `RUN_ACTIVE`。入参 `case_id` 可选，给出时把证据同时挂到该用例；`note` 可选，随证据记录。`media_type` 入参被忽略，媒体类型按证据文件名推断，由 `evidence.list` 返回。返回 `{"evidence_ref": "evidence/..."}`。
 
 #### `evidence.list`
 
@@ -354,7 +354,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `report.generate`
 
-入参 `{"run_id"}`；返回 `report_id`（前缀 `rep_`）、`generated_at`、`outcome`、`conclusion`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`uncovered_items`、`unverified_items`、`layers`、`item_details`（验收项主表）、`l1`（项目级检查）、`issue_count`、`failure_occurrences`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。每次调用生成新报告并把 `latest_report_id` 写回运行记录。
+入参 `{"run_id"}`；返回 `report_id`（前缀 `rep_`）、`generated_at`、`outcome`、`conclusion`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`uncovered_items`、`unverified_items`、`layers`、`item_details`（验收项主表）、`l1`（项目级检查）、`issue_count`、`failure_occurrences`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。仅运行结束后可用；运行中返回 `RUN_ACTIVE`。每次调用生成新报告并把 `latest_report_id` 写回运行记录；显式重新生成会重新判定 Mock，并使用本次运行的有效用例结果与 plan/task/delivery 快照；旧报告保留。
 
 #### `report.show`
 
@@ -426,11 +426,11 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `backup.create`
 
-入参 `{"path": "/abs/backup.zip", "include_evidence": false}`；返回 `{"path", "sha256", "bytes", "includes_evidence"}`。
+入参 `{"path": "/abs/backup.zip", "include_evidence": false}`；返回 `path`、`sha256`、`bytes`、`includes_evidence`、`estimated_evidence_bytes`、`estimated_evidence_mb`；预计证据大小由 CLI 返回，面板当前不展示。
 
 #### `backup.restore`
 
-入参 `{"path": "/abs/backup.zip", "target": "/abs/new-workspace"}`；返回恢复清单与缺口；目标必须为空目录。恢复先校验 manifest `schema_version=1`、路径规范化、重复条目、符号链接、条目数（≤100000）与解压总大小（≤2 GiB），再解压到同目录临时目录并原子替换；中途失败不会留下半恢复目标。
+入参 `{"path": "/abs/backup.zip", "target": "/abs/new-workspace"}`；返回恢复清单与缺口；目标不存在且父目录可写，或已存在且为空目录。恢复先校验 manifest `schema_version=1`、路径规范化、重复条目、符号链接、条目数（≤100000）与解压总大小（≤2 GiB），再解压到同目录临时目录并原子替换；中途失败不会留下半恢复目标。
 
 #### `doctor`
 
@@ -494,8 +494,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `task.json`：
 
 ```json
-{"schema_version": 1, "task_id": "task_...", "project_id": "proj_...", "title": "", "goal": "", "intent": "business", "acceptance_items": [{"item_id": "ai_...", "text": "", "observable": true, "status": "active", "source": ""}], "revision": 1}
+{"schema_version": 1, "task_id": "task_...", "project_id": "proj_...", "title": "", "goal": "", "intent": "business", "scope": "", "inputs": "", "outputs": "", "preconditions": [], "executor": "", "reviewer": "", "acceptance_items": [{"item_id": "ai_...", "text": "", "observable": true, "status": "active", "source": "", "module_id": null}], "revision": 1}
 ```
+
+示例是完整落盘字段；计划契约摘要只包含 `intent` 与 active 验收项的 `id/text/status/observable/module_id`，不包含 title/goal/executor/reviewer。
 
 `plan.json`：
 
@@ -544,10 +546,11 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
    │  ├─ run.json
    │  ├─ plan.json                    启动时的计划快照（含收窄后的范围）
    │  ├─ task.json                    启动时的任务快照
+   │  ├─ delivery.json                启动时的交付快照
    │  ├─ manual/<case_id>.json        人工检查记录
    │  ├─ link.json                    导入的调用链与定位
    │  ├─ evidence/                    证据文件
-   │  └─ generated/                   运行前生成并校验的脚本
+   │  └─ generated/                   运行前生成并校验的脚本；含 index.json
    ├─ issues/<issue_id>.json
    ├─ reports/<report_id>.json
    └─ github/<commit>.json            github.read 的只读快照
@@ -574,7 +577,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 ## 7 版本与兼容
 
-- 数据文件 `schema_version` 递增；旧版本只提示转换或重建，不自动迁移；
+- 数据文件 `schema_version` 递增；旧版本只提示重建或重新生成，没有自动转换工具，不自动迁移；
 - 命令与字段变更需同步本册、`models.py`、扩展与契约测试；
 - 新增命令不改变已有字段语义；废弃命令先标记，再删除。
 

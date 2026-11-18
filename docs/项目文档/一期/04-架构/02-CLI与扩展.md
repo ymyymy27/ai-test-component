@@ -154,7 +154,7 @@ CLI → JSON → bridge → 面板渲染
 
 - 扩展在 `extension.ts` 用 `PANEL_COMMANDS` 白名单放行面板调用，当前 46 条；白名单之外一律 `COMMAND_NOT_ALLOWED`，即使 CLI 已注册；
 - `panel/src/api/commands.ts` 实际接入 43 条命令；`rules.save`、`rules.import`、`rules.export`、`link.assert` 已在白名单但暂无面板入口；
-- `delivery.show`、`plan.update` 出现在 `api/commands.ts` 中，但不在当前白名单，面板调用会被拒绝；改面板动作前先同步白名单；
+- `delivery.show`、`plan.update` 已在 `PANEL_COMMANDS` 白名单；计划保存/交付读取的宿主回归仍待补；
 - `plan.publish`、`data.cleanup`、`project.update` 等命令不在白名单，面板不能直接调用。
 
 ## 5 安装与升级
