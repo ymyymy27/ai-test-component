@@ -6,7 +6,7 @@
 
 - Trae CN（本机已有安装，更新日志显示 v3.4.17）
 - 扩展 `aitest-local.aitest-trae` 0.5.0
-- VSIX：`integrations/trae/dist/aitest-trae.vsix`，sha256 `57ed292c8661fde8a6668c2c6de6317bbd789112724a743184d1b89bfebd64ee`
+- 运行用 VSIX：sha256 `57ed292c8661fde8a6668c2c6de6317bbd789112724a743184d1b89bfebd64ee`；其后只在 `package.json` 补 `repository` 字段并重新打包，扩展代码与面板资产未变，当前 `dist/aitest-trae.vsix` 的 sha256 为 `b148e06469cc2a50b78b8b9373c9d59f0c9c53b04cc689e2e24468a1ae10e207`。
 - 面板资产：`index-lnHucDoK.js`、`index-CRd6spLM.css`
 - Python 3.11.9，工作空间 `%APPDATA%/aitest/workspaces/trae`
 - 项目 `tutorial`（`proj_1c8be660cb0a`），任务“验证博客基本流程”
