@@ -37,6 +37,11 @@ _SYSTEM_CASES = (
     '"mock_allowed": true, "importance": "high|medium|low", '
     '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。'
     "expectation_source 必须逐字引用对应验收项原文；preconditions 至少一条，不得留空。"
+    "script_name 只能是单层文件名，不要带目录，扩展名只能是 .py、.ts 或 .js；"
+    "verify_method 用 script: 时填同一个文件名。使用 Python Playwright 时写 .py，"
+    "脚本从环境变量或默认本机地址读取目标页，不要写死 example.com。"
+    "Playwright 脚本必须在关键页面调用 page.screenshot(path=\"test-results/<名称>.png\")，"
+    "至少保存一张截图作为证据。"
     "verify_method 只允许四种前缀：command:（shell 命令）、"
     "script:（配合 script_content）、http:（JSON 请求数组）、"
     "playwright:（脚本路径）。"

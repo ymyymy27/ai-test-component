@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "request_id": "",
+  "data": {
+    "task_id": "task_e05e319e4bd9",
+    "revision": 1,
+    "intent": "business",
+    "acceptance_items": [
+      {
+        "item_id": "ai_21adbb993ffe",
+        "status": "active",
+        "text": "依赖构建的用例",
+        "observable": true,
+        "module_id": null
+      },
+      {
+        "item_id": "ai_df3b3ae4de60",
+        "status": "active",
+        "text": "独立用例一",
+        "observable": true,
+        "module_id": null
+      },
+      {
+        "item_id": "ai_d3530a15274b",
+        "status": "active",
+        "text": "独立用例二",
+        "observable": true,
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}

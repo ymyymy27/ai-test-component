@@ -1,0 +1,41 @@
+{
+  "acceptance_items": [
+    {
+      "item_id": "ai_21adbb993ffe",
+      "module_id": null,
+      "observable": true,
+      "source": "",
+      "status": "active",
+      "text": "依赖构建的用例"
+    },
+    {
+      "item_id": "ai_df3b3ae4de60",
+      "module_id": null,
+      "observable": true,
+      "source": "",
+      "status": "active",
+      "text": "独立用例一"
+    },
+    {
+      "item_id": "ai_d3530a15274b",
+      "module_id": null,
+      "observable": true,
+      "source": "",
+      "status": "active",
+      "text": "独立用例二"
+    }
+  ],
+  "executor": "",
+  "goal": "",
+  "inputs": "",
+  "intent": "business",
+  "outputs": "",
+  "preconditions": [],
+  "project_id": "proj_8c4d10737425",
+  "reviewer": "",
+  "revision": 1,
+  "schema_version": 1,
+  "scope": "",
+  "task_id": "task_e05e319e4bd9",
+  "title": "L1 构建失败阻塞验证"
+}

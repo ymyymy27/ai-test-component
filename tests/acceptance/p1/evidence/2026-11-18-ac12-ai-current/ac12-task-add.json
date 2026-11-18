@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "request_id": "",
+  "data": {
+    "task_id": "task_dc191a5c5632",
+    "revision": 1,
+    "intent": "business",
+    "acceptance_items": [
+      {
+        "item_id": "ai_a0f7be7b6b08",
+        "status": "active",
+        "text": "首页显示订单列表标题",
+        "observable": true,
+        "module_id": null
+      },
+      {
+        "item_id": "ai_8344b463c85d",
+        "status": "active",
+        "text": "点击查看详情后显示订单详情",
+        "observable": true,
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}

@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "request_id": "",
+  "data": {
+    "config": {
+      "l1": {
+        "build": "\"E:\\Python311\\python.exe\" -c \"import sys; sys.exit(1)\"",
+        "entry": []
+      }
+    }
+  },
+  "_returncode": 0
+}

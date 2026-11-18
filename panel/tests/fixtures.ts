@@ -552,6 +552,21 @@ export function workspaceRoutes(overrides: Record<string, Route> = {}): Record<s
     "project.show": { project: PROJECT },
     "project.add": { project_id: PROJECT.project_id, revision: 1, existing: true },
     "project.config": { config: {} },
+    "rules.list": {
+      rules: [{ rules_version_id: "rule_1", name: "默认规则", version: "1.0.0" }],
+    },
+    "rules.show": {
+      rule: {
+        rules_version_id: "rule_1",
+        name: "默认规则",
+        version: "1.0.0",
+        steps_md: "按页面主流程验证",
+        ai_rules: ["只读操作"],
+        evidence_requirements: ["截图"],
+      },
+    },
+    "rules.save": { rules_version_id: "rule_2", version: "1.0.1" },
+    "rules.bind": { project_id: PROJECT.project_id, rules_version_id: "rule_1" },
     "task.suggest": {
       candidates: [
         {
@@ -670,6 +685,7 @@ export function workspaceRoutes(overrides: Record<string, Route> = {}): Record<s
     "report.list": { reports: REPORT_VERSIONS },
     "report.export": { path: "E:\\reports\\run.md", bytes: 10 },
     "report.opinion": { opinion: { by: "李四", at: "2026-11-16T15:00:00+08:00", text: "复测通过" } },
+    "link.assert": { result: "passed" },
     "delivery.show": { delivery: DELIVERY },
     "delivery.draft": {
       draft: DELIVERY_DRAFT,

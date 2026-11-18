@@ -156,3 +156,23 @@ def test_mirrored_cases_match_results() -> None:
 def test_update_rules_state_the_boundaries() -> None:
     rules = _load_status()["update_rules"]
     assert set(rules) >= _REQUIRED_UPDATE_RULES
+
+
+def test_verified_rows_record_owner_and_artifact_versions() -> None:
+    for row in _results():
+        if row["result"] != "verified":
+            continue
+        assert isinstance(row.get("owner"), str) and row["owner"].strip(), (
+            f"{row['id']} 标为 verified 却没有登记 owner"
+        )
+        versions = row.get("artifact_versions")
+        assert isinstance(versions, list) and versions, (
+            f"{row['id']} 标为 verified 却没有登记 artifact_versions"
+        )
+
+
+def test_status_records_baseline_commit() -> None:
+    commit = _load_status().get("baseline_commit")
+    assert isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit), (
+        "status.json 缺少可识别的 baseline_commit"
+    )

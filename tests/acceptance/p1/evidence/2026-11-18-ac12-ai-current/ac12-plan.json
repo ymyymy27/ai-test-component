@@ -1,0 +1,88 @@
+{
+  "applicable_count": 2,
+  "cases": [
+    {
+      "acceptance_item_id": "ai_a0f7be7b6b08",
+      "acceptance_item_ids": [],
+      "case_id": "case_aad745d6cc4a",
+      "dependencies": [
+        "playwright"
+      ],
+      "depends_on": null,
+      "expectation_source": "首页显示订单列表标题",
+      "expectation_verified": true,
+      "expected": "首页可见订单列表标题文本",
+      "importance": "high",
+      "layer": "L2",
+      "mock_allowed": false,
+      "preconditions": [
+        "Web 服务已在 http://127.0.0.1:5098/ 启动并可访问",
+        "已安装 Playwright 及 Chromium 浏览器"
+      ],
+      "script_content": "import os\nfrom playwright.sync_api import sync_playwright\n\nBASE_URL = os.environ.get(\"TARGET_URL\", \"http://127.0.0.1:5098/\")\n\n\ndef main():\n    os.makedirs(\"test-results\", exist_ok=True)\n    with sync_playwright() as p:\n        browser = p.chromium.launch()\n        page = browser.new_page()\n        page.goto(BASE_URL, wait_until=\"networkidle\")\n        page.screenshot(path=\"test-results/home_order_list_title.png\")\n        body_text = page.inner_text(\"body\")\n        assert \"订单列表\" in body_text, f\"首页未显示订单列表标题，页面内容: {body_text[:200]}\"\n        browser.close()\n    print(\"PASS: 首页显示订单列表标题\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "script_name": "test_home_order_list_title.py",
+      "steps": [
+        "打开首页 http://127.0.0.1:5098/",
+        "等待页面加载完成",
+        "检查页面中是否存在订单列表标题文本"
+      ],
+      "title": "首页加载后显示订单列表标题",
+      "verify_method": "script:test_home_order_list_title.py",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_8344b463c85d",
+      "acceptance_item_ids": [],
+      "case_id": "case_c4c22bef04e4",
+      "dependencies": [
+        "playwright"
+      ],
+      "depends_on": null,
+      "expectation_source": "点击查看详情后显示订单详情",
+      "expectation_verified": true,
+      "expected": "点击查看详情后页面显示订单详情内容",
+      "importance": "high",
+      "layer": "L2",
+      "mock_allowed": false,
+      "preconditions": [
+        "Web 服务已在 http://127.0.0.1:5098/ 启动并可访问",
+        "首页存在订单列表及“查看详情”入口",
+        "已安装 Playwright 及 Chromium 浏览器"
+      ],
+      "script_content": "import os\nfrom playwright.sync_api import sync_playwright\n\nBASE_URL = os.environ.get(\"TARGET_URL\", \"http://127.0.0.1:5098/\")\n\n\ndef main():\n    os.makedirs(\"test-results\", exist_ok=True)\n    with sync_playwright() as p:\n        browser = p.chromium.launch()\n        page = browser.new_page()\n        page.goto(BASE_URL, wait_until=\"networkidle\")\n        detail = page.get_by_text(\"查看详情\").first\n        assert detail.count() > 0, \"首页未找到“查看详情”入口\"\n        detail.click()\n        page.wait_for_load_state(\"networkidle\")\n        page.screenshot(path=\"test-results/order_detail_after_click.png\")\n        body_text = page.inner_text(\"body\")\n        assert \"订单详情\" in body_text, f\"点击查看详情后未显示订单详情，页面内容: {body_text[:200]}\"\n        browser.close()\n    print(\"PASS: 点击查看详情后显示订单详情\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "script_name": "test_order_detail_after_click.py",
+      "steps": [
+        "打开首页 http://127.0.0.1:5098/",
+        "点击第一个“查看详情”按钮或链接",
+        "等待详情内容渲染",
+        "检查页面中是否显示订单详情"
+      ],
+      "title": "点击查看详情后显示订单详情",
+      "verify_method": "script:test_order_detail_after_click.py",
+      "warnings": []
+    }
+  ],
+  "created_at": "2026-11-18T11:02:26+08:00",
+  "plan_id": "plan_4feab89c0881",
+  "plan_no": 1,
+  "revision": 1,
+  "rules_version_id": null,
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_a0f7be7b6b08",
+      "ai_8344b463c85d"
+    ],
+    "frozen_at": null,
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "source_signature": "bd81621a097220f8c22452b8f03d0e585a61fe6861ea2119cf6d76603098a07c",
+  "status": "published",
+  "task_contract": "02fdd4c938985018bc1c6e959aa17ca785895917e22d71d67643062c16bc5a14",
+  "task_id": "task_dc191a5c5632",
+  "task_revision": 1,
+  "templates": [],
+  "unselected_by_module": [],
+  "warnings": []
+}

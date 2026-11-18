@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "request_id": "",
+  "data": {
+    "config": {
+      "services": {
+        "web": {
+          "start": "\"E:\\Python311\\python.exe\" server.py",
+          "health": "http://127.0.0.1:5098/"
+        }
+      }
+    }
+  },
+  "_returncode": 0
+}

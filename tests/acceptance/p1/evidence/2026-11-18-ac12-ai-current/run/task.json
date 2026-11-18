@@ -1,0 +1,33 @@
+{
+  "acceptance_items": [
+    {
+      "item_id": "ai_a0f7be7b6b08",
+      "module_id": null,
+      "observable": true,
+      "source": "",
+      "status": "active",
+      "text": "首页显示订单列表标题"
+    },
+    {
+      "item_id": "ai_8344b463c85d",
+      "module_id": null,
+      "observable": true,
+      "source": "",
+      "status": "active",
+      "text": "点击查看详情后显示订单详情"
+    }
+  ],
+  "executor": "",
+  "goal": "验证首页显示订单列表标题，点击查看详情后显示订单详情",
+  "inputs": "",
+  "intent": "business",
+  "outputs": "",
+  "preconditions": [],
+  "project_id": "proj_6400c441fc66",
+  "reviewer": "",
+  "revision": 1,
+  "schema_version": 1,
+  "scope": "",
+  "task_id": "task_dc191a5c5632",
+  "title": "订单页前端验证"
+}

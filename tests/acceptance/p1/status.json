@@ -1,9 +1,11 @@
 {
   "version": "0.2",
-  "updated_at": "2026-11-17",
+  "updated_at": "2026-11-18",
   "phase": 1,
   "scope": "product_acceptance_not_scaffold_tests",
   "baseline": "2026-11-16 轻量插件重构基线",
+  "baseline_commit": "5da5552a",
+  "baseline_note": "2026-11-16 轻量插件重构基线；AC09/AC12 于 2026-11-18 在当前工作树重跑",
   "update_rules": {
     "scenario_expected": "scenario／expected／related_frs 逐字取自《需求规格》第 4 节验收场景表，需求文档改动后同步，不得单方改写",
     "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
@@ -12,7 +14,7 @@
   "results": [
     {
       "id": "P1-AC01",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "在一个仓库根与其子目录分别登记项目",
       "expected": "提示根目录重叠，要求明确选择，不重复计数",
@@ -20,7 +22,10 @@
         "FR01"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "按当前 CLI 重跑：先登记仓库根，再登记其子目录，第二次返回 INVALID_REQUEST（根目录与已登记项目重叠）。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
@@ -33,11 +38,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac01-overlap-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC02",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "新项目无历史数据，打开目标选择",
       "expected": "给出通用目标候选，同时可直接自定义输入",
@@ -45,7 +51,10 @@
         "FR02"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Trae CN 1.107.1",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实 Trae CN 1.107.1 面板：在空工作空间新增项目 aitest-ac02-demo 后，显示“这次要验证什么”，给出通用目标候选“验证项目能否启动并跑通主流程”（来源“通用目标”），下方目标输入框可直接改写；页面明确提示默认选中但确认后才建任务。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-17-trae-panel/trae-target-selection.png",
@@ -58,11 +67,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-17-trae-panel/trae-target-selection.png",
         "tests/acceptance/p1/evidence/2026-11-17-trae-panel/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-17"
     },
     {
       "id": "P1-AC03",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "从任务描述提取验收项，其中一条不可观察",
       "expected": "可观察项进入范围，不可观察项标“待补充”并排除",
@@ -70,7 +80,10 @@
         "FR02"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实模型从任务描述提取 4 条验收项；“系统要稳定”为 pending 并被排除，其余 3 条 active。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
@@ -83,11 +96,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac03-task-extract-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC04",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "提交缺少运行方式的交付说明",
       "expected": "标“交付信息不完整”，不阻止保存，后续 L1 阻塞并说明",
@@ -95,7 +109,10 @@
         "FR03"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实 CLI 重跑：delivery.save 缺运行命令与提交时返回 complete=false；随后 run.start 执行两个用例，depends_on=build 的用例 blocked（message“交付信息不完整：缺运行方式或版本”），无依赖用例 passed，运行结论 incomplete。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-run-status.json",
@@ -109,11 +126,12 @@
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-delivery.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac04-run-status.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC05",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "同一项目绑定两个规则版本并分别使用",
       "expected": "历史运行保留原规则版本，新运行使用新版本",
@@ -121,7 +139,10 @@
         "FR04"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "同一项目保存两个规则版本；旧计划保留 v1，新计划使用 v2，项目绑定保持 v1。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
@@ -134,11 +155,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC06",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "自选范围只勾部分验收项",
       "expected": "显示 `S/M` 与未覆盖清单，结论只描述所选范围",
@@ -146,7 +168,10 @@
         "FR05"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实 CLI 重跑：自选 1/3 个适用验收项生成计划并运行，报告 selected=1、applicable=3，uncovered_items 返回未勾选的 2 项（“ai_…：库存扣减一次”“ai_…：订单可以取消”），run.status 返回同一清单；结论为 passed 且只描述所选范围。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-report.json",
@@ -160,11 +185,12 @@
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-report.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac06-run-status.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC07",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "AI 生成计划并发布",
       "expected": "每个选中验收项至少一条用例，预期带原文引用；直接可执行",
@@ -172,7 +198,11 @@
         "FR05"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "deepseek-chat"
+      ],
       "actual": "真实模型（deepseek-chat）重跑：为 2 个验收项生成 2 条用例并自动发布；plan.show 中两条 expectation_source 均等于对应验收项原文、expectation_verified=true，unverified_cases 为空（模型给出不一致或空引用时由 plan.generate 对齐，该分支由单元测试覆盖）。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan-show.json",
@@ -186,11 +216,12 @@
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/ac07-plan-show.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC08",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "计划发布后未确认就执行",
       "expected": "拒绝启动；确认后记录确认人与时间",
@@ -198,7 +229,10 @@
         "FR13"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "未确认启动返回 CONFIRMATION_REQUIRED；带 confirmed_by 启动后运行记录 confirmed_by=g3-runner 与 confirmed_at。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
@@ -211,11 +245,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-confirmation-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac08-run-record.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC09",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "L1 构建失败",
       "expected": "只阻塞 `depends_on=build` 的用例，其他用例继续",
@@ -223,24 +258,32 @@
         "FR06"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
-      "actual": "L1 build 退出码 1；仅 depends_on=build 的用例 blocked，两个独立用例继续并 passed。",
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "commit 5da5552a"
+      ],
+      "actual": "用当前工作树和真实 CLI 重跑：L1 build 退出码 1，仅 depends_on=build 的用例 blocked（message“L1 检查未通过”），两个独立用例继续并 passed；run.status 返回 outcome=failed。",
       "evidence": {
-        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
-        "description": "2026-11-16 G3 按当前代码重跑的真实输出",
+        "path": "tests/acceptance/p1/evidence/2026-11-18-ac09-current/ac09-run-status.json",
+        "description": "2026-11-18 当前工作树真实 CLI 重跑",
         "method": "real_cli"
       },
       "unverified_reason": "",
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac09-l1-block-run-recheck.json",
-        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+        "tests/acceptance/p1/evidence/2026-11-18-ac09-current/ac09-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac09-current/ac09-summary.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac09-current/run/run.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac09-current/run/evidence/l1-build.log",
+        "tests/acceptance/p1/evidence/2026-11-18-ac09-current/README.md"
+      ],
+      "verified_at": "2026-11-18"
     },
     {
       "id": "P1-AC10",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "L2 模块测试断言失败",
       "expected": "记录命令、输出、日志与证据，结果为失败",
@@ -248,7 +291,10 @@
         "FR07"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "pytest 断言失败用例记录 stdout 日志与 JUnit XML，用例结果 failed。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
@@ -261,11 +307,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac10-pytest-failure-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC11",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "接口返回 200 但数据库无记录",
       "expected": "业务断言失败，不显示真实业务通过",
@@ -273,7 +320,10 @@
         "FR08"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "接口返回 200 但数据库无对应记录；脚本断言失败，用例与报告均为 failed，未显示业务通过。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
@@ -286,11 +336,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-interface-db-missing-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac11-report-recheck.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC12",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "前端 L3 由 AI 生成 Playwright 脚本执行",
       "expected": "脚本落盘可重放，结果与截图入证据",
@@ -298,26 +349,37 @@
         "FR09"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
-      "actual": "真实 Chromium + 真实 Playwright 重跑：临时 HTTP 静态页由手写 L3 脚本打开并截图，脚本落盘到运行目录 generated/shot.py；test-results/home.png 与显式 page.screenshot(path=ui/detail.png) 两张截图复制到 evidence 并进入用例 evidence_refs，用例 passed。",
+      "artifact_versions": [
+        "Python 3.11.9",
+        "Python Playwright 1.59.0",
+        "deepseek-chat",
+        "ai-test-component 0.5.0",
+        "working tree after 5da5552a"
+      ],
+      "actual": "真实模型 deepseek-chat 生成 2 条 Playwright Python 用例与脚本（ai_generated=true）；脚本落盘到 generated/ 后执行，两条用例均 passed，执行日志和脚本内截图都进入 evidence_refs。",
       "evidence": {
-        "path": "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-run-status.json",
-        "description": "2026-11-16 G3b 按当前代码重跑：Playwright 截图进入运行证据",
+        "path": "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/ac12-run-status.json",
+        "description": "2026-11-18 真实模型生成 Playwright 脚本并执行",
         "method": "real_cli"
       },
       "unverified_reason": "",
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-run-status.json",
-        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-0-home.png",
-        "tests/acceptance/p1/evidence/2026-11-16-g3b/ac12-1-detail.png",
-        "tests/acceptance/p1/evidence/2026-11-16-g3b/summary.json"
-      ]
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/ac12-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/ac12-plan.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/ac12-summary.json",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/run/generated/test_home_order_list_title.py",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/run/generated/test_order_detail_after_click.py",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/run/evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/run/evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png",
+        "tests/acceptance/p1/evidence/2026-11-18-ac12-ai-current/README.md"
+      ],
+      "verified_at": "2026-11-18"
     },
     {
       "id": "P1-AC13",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "后端 L3 用接口序列完成业务闭环",
       "expected": "核对最终持久化，不因响应成功而判通过",
@@ -325,7 +387,10 @@
         "FR09"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "接口序列完成注册→登录→发帖→首页可见，并查询 SQLite 确认帖子记录存在；用例 passed。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
@@ -338,11 +403,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac13-interface-persistence-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC14",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "支付依赖使用本地桩，AI 读代码与请求证据判定",
       "expected": "标 Mock 并给出依据；无依据的依赖标未知",
@@ -350,7 +416,10 @@
         "FR10"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实模型将本地支付包判为 mock 并给出依据，将无证据的外部依赖与不存在的依赖判为 unknown。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
@@ -363,11 +432,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac14-mock-judgement-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC15",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "失败运行生成 AI 分析",
       "expected": "四段齐全；缺“未验证”时整条标不合格、不展示",
@@ -375,7 +445,10 @@
         "FR18"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "真实模型对失败运行生成四段分析（观察、证据引用、候选原因、未验证+下一步，未验证 4 条）；故障注入缺少“未验证”时 status=invalid、analysis=null。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
@@ -388,11 +461,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-analysis-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac15-invalid-analysis-recheck.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC16",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "同一失败原因连续出现在多次运行",
       "expected": "同一失败签名只建一个问题，追加发生记录",
@@ -400,7 +474,10 @@
         "FR11"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "同一失败签名第二次登记返回同一 issue_id、existing=true、revision=2；问题列表仅 1 条并含 2 次发生记录。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
@@ -413,11 +490,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac16-issue-dedupe-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC17",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "按验收项重跑",
       "expected": "新建运行，范围只含该验收项，旧运行完整保留",
@@ -425,7 +503,10 @@
         "FR11"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "按单个验收项新建运行，范围只含该验收项；旧运行完整保留，运行数增至 4。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
@@ -438,11 +519,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac17-rerun-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC18",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "报告含通过、失败、阻塞、未执行",
       "expected": "结论与计数准确；未执行不算通过；覆盖不全不称全部通过",
@@ -450,7 +532,10 @@
         "FR12"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "单次运行同时含 failed、blocked、passed、not_run；报告计数通过 1、失败 1、阻塞或未完成 2，结论 failed；未执行用例在用例明细中为 not_run，不计入通过，覆盖不全不称全部通过。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
@@ -464,11 +549,12 @@
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-run-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac18-mixed-report.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC19",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "填写与不填写验收意见",
       "expected": "填写时记录署名与时间；不填时导出显示未填写，不影响结论",
@@ -476,7 +562,10 @@
         "FR12"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "未填写时导出显示“未填写验收意见”；填写后记录 by=g3-runner、时间与正文，不影响结论。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
@@ -490,11 +579,12 @@
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-opinion-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-report-before-opinion.md",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac19-report-after-opinion.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC20",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "`gh` 未安装或未登录",
       "expected": "明确报告缺项，不使用缓存冒充最新；本地测试仍可用",
@@ -502,7 +592,10 @@
         "FR14"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "PATH 中无 gh 时 github.read 返回 GITHUB_UNAVAILABLE；同一工作空间运行查询仍可用。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
@@ -515,11 +608,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac20-gh-missing-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC21",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "缺少请求 ID 或日志未采集",
       "expected": "链路标缺口，不拼接为同一次调用",
@@ -527,7 +621,10 @@
         "FR15"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "缺少请求 ID 时 link.import 返回 request_id、log、db 三个缺口，nodes 为空，不拼接为同一次调用。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
@@ -540,11 +637,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac21-link-gaps-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC22",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "同一项目发起第二个运行",
       "expected": "拒绝并返回现有运行 ID；不同项目可并行",
@@ -552,7 +650,10 @@
         "FR13"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "同项目第二次启动返回 RUN_ACTIVE 并保留现有运行；不同项目的两个运行同时启动并各自完成。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
@@ -565,11 +666,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-active-run-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac22-parallel-projects-recheck.json"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC23",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "worker 被系统杀掉后重开",
       "expected": "心跳超时且 PID 不在，标 `interrupted`，保留已完成证据",
@@ -577,7 +679,10 @@
         "FR13"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "worker 进程被杀后心跳超时且 PID 不在，运行转为 interrupted；已完成的第一个用例结果与证据保留。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
@@ -590,11 +695,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac23-interrupted-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC24",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "备份后恢复到新目录",
       "expected": "记录与引用可核对；未包含的证据标“证据未包含”",
@@ -602,7 +708,10 @@
         "FR17"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "备份 18 个文件（默认不含证据），恢复到新目录并通过 manifest/sha256 校验；缺证据引用标注“证据未包含”。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
@@ -615,11 +724,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac24-backup-restore-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC25",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "环境缺 Python 或 `gh`",
       "expected": "分别报告缺项；低风险项 AI 可修，高风险只给命令",
@@ -627,7 +737,10 @@
         "FR13"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
       "actual": "doctor 逐项报告 GitHub 缺失；repair=true 自动重建目录并写探针；高风险项只给 winget 命令；AI 给出解释与命令。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
@@ -640,11 +753,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac25-doctor-repair-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC26",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "模型 API 不可用",
       "expected": "AI 步骤标“未生成”，测试、证据、报告照常可用",
@@ -652,8 +766,11 @@
         "FR18"
       ],
       "prerequisites": [],
-      "artifact_versions": [],
-      "actual": "空 APPDATA 且无密钥时 plan.generate 返回 MODEL_UNAVAILABLE；显式用例仍可运行、出证据、出报告；报告分析状态为 not_generated/model_missing。面板重写后的显示由组件测试覆盖，未在真实 Trae 重新验收。",
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
+      "actual": "空 APPDATA 且无密钥时 plan.generate 返回 MODEL_UNAVAILABLE，AI 步骤未生成；显式用例仍可运行、出证据、出报告；报告分析状态为 not_generated/model_missing。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
@@ -665,11 +782,12 @@
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-no-model-report.md"
-      ]
+      ],
+      "verified_at": "2026-11-16"
     },
     {
       "id": "P1-AC27",
-      "owner": null,
+      "owner": "ymy",
       "result": "verified",
       "scenario": "导入一次包含请求、日志与数据库结果的完整链路",
       "expected": "节点按顺序排列并标出缺口，断言显示首个异常与上下游，定位到已观测代码位置或未知范围",
@@ -699,7 +817,8 @@
         "tests/acceptance/p1/evidence/2026-11-17-link/ac27-assert.json",
         "tests/acceptance/p1/evidence/2026-11-17-link/ac27-run-status.json",
         "tests/acceptance/p1/evidence/2026-11-17-link/README.md"
-      ]
+      ],
+      "verified_at": "2026-11-17"
     }
   ],
   "cases": [

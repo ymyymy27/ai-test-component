@@ -1,0 +1,60 @@
+{
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-ac12-current\\ws",
+  "project": "proj_6400c441fc66",
+  "task": "task_dc191a5c5632",
+  "plan": "plan_4feab89c0881",
+  "run": "run_1aab5664154f",
+  "status": "completed",
+  "outcome": "passed",
+  "cases": [
+    {
+      "case_id": "case_aad745d6cc4a",
+      "result": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "passed",
+          "started_at": "2026-11-18T11:02:47+08:00",
+          "finished_at": "2026-11-18T11:02:47+08:00",
+          "evidence_refs": [
+            "evidence/case_aad745d6cc4a-0.log",
+            "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png"
+          ],
+          "message": ""
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_aad745d6cc4a-0.log",
+        "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png"
+      ]
+    },
+    {
+      "case_id": "case_c4c22bef04e4",
+      "result": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "passed",
+          "started_at": "2026-11-18T11:02:49+08:00",
+          "finished_at": "2026-11-18T11:02:49+08:00",
+          "evidence_refs": [
+            "evidence/case_c4c22bef04e4-0.log",
+            "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+          ],
+          "message": ""
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_c4c22bef04e4-0.log",
+        "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+      ]
+    }
+  ],
+  "evidence_refs": [
+    "evidence/deps-install.log",
+    "evidence/case_aad745d6cc4a-0.log",
+    "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png",
+    "evidence/case_c4c22bef04e4-0.log",
+    "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+  ]
+}

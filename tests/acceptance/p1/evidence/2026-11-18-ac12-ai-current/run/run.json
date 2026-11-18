@@ -1,0 +1,91 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_aad745d6cc4a-0.log",
+            "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png"
+          ],
+          "finished_at": "2026-11-18T11:02:47+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:02:47+08:00"
+        }
+      ],
+      "case_id": "case_aad745d6cc4a",
+      "evidence_refs": [
+        "evidence/case_aad745d6cc4a-0.log",
+        "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png"
+      ],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_c4c22bef04e4-0.log",
+            "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+          ],
+          "finished_at": "2026-11-18T11:02:49+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:02:49+08:00"
+        }
+      ],
+      "case_id": "case_c4c22bef04e4",
+      "evidence_refs": [
+        "evidence/case_c4c22bef04e4-0.log",
+        "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "86ff0c0eb147cf0dae545b88b9292c5105b1307492e9cfc3f05fafc2ca54ef77",
+  "confirmation_id": "conf_6a91851ea9a4",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-18T11:02:27+08:00",
+  "confirmed_by": "ac12-current",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_1aab5664154f_",
+  "dependencies": [
+    "playwright"
+  ],
+  "dependency_install_ok": true,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/deps-install.log",
+    "evidence/case_aad745d6cc4a-0.log",
+    "evidence/case_aad745d6cc4a-screenshot-0-home_order_list_title.png",
+    "evidence/case_c4c22bef04e4-0.log",
+    "evidence/case_c4c22bef04e4-screenshot-0-order_detail_after_click.png"
+  ],
+  "heartbeat_at": "2026-11-18T11:02:49+08:00",
+  "l1": null,
+  "latest_report_id": "",
+  "media_bytes": 18632,
+  "mock_judgement": [],
+  "pid": 48608,
+  "pid_created_at": 1794970947.441294,
+  "plan_id": "plan_4feab89c0881",
+  "project_id": "proj_6400c441fc66",
+  "request_ids": [],
+  "run_id": "run_1aab5664154f",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_a0f7be7b6b08",
+      "ai_8344b463c85d"
+    ],
+    "frozen_at": "2026-11-18T11:02:27+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "web",
+  "service_started": true,
+  "started_at": "2026-11-18T11:02:27+08:00",
+  "status": "completed"
+}

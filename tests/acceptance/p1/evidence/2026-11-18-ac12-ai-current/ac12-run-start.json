@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "request_id": "",
+  "data": {
+    "run_id": "run_1aab5664154f",
+    "status": "running",
+    "scope": {
+      "selected": 2,
+      "applicable": 2
+    },
+    "confirmation": {
+      "confirmation_id": "conf_6a91851ea9a4",
+      "confirmed_by": "ac12-current",
+      "confirmed_at": "2026-11-18T11:02:27+08:00",
+      "reused": false,
+      "fingerprint": "86ff0c0eb147cf0dae545b88b9292c5105b1307492e9cfc3f05fafc2ca54ef77",
+      "plan_revision": 1,
+      "side_effects": [
+        "case_aad745d6cc4a：执行 script 验证",
+        "case_c4c22bef04e4：执行 script 验证"
+      ],
+      "dependencies": [
+        "playwright"
+      ]
+    },
+    "warnings": []
+  },
+  "_returncode": 0
+}

@@ -31,6 +31,13 @@ const versionMenu = ref(false);
 const linkBusy = ref(false);
 const linkNote = ref("");
 const linkError = ref("");
+const linkNode = ref("");
+const linkExpected = ref("");
+const linkActual = ref("");
+const linkOperator = ref("equals");
+const assertBusy = ref(false);
+const assertNote = ref("");
+const assertError = ref("");
 
 const report = computed(() => workspace.report);
 const l1Cases = computed(
@@ -67,6 +74,39 @@ async function importLink(): Promise<void> {
     linkError.value = `${friendly.title}。${friendly.next}`;
   } finally {
     linkBusy.value = false;
+  }
+}
+
+async function assertLink(): Promise<void> {
+  if (!workspace.project || !run.value) {
+    return;
+  }
+  const nodeId = linkNode.value.trim();
+  const expected = linkExpected.value.trim();
+  const actual = linkActual.value.trim();
+  if (!nodeId || !expected || !actual) {
+    assertError.value = "节点、预期和实际值都要填写。";
+    return;
+  }
+  assertBusy.value = true;
+  assertNote.value = "";
+  assertError.value = "";
+  try {
+    const result = await api.assertLink(
+      workspace.project.project_id,
+      run.value.run.run_id,
+      nodeId,
+      expected,
+      actual,
+      linkOperator.value,
+    );
+    assertNote.value = result.result === "passed" ? "断言已写入并通过。" : "断言已写入，但没有通过。";
+    await loadRun(run.value.run.run_id);
+  } catch (failure) {
+    const friendly = describeError(failure);
+    assertError.value = `${friendly.title}。${friendly.next}`;
+  } finally {
+    assertBusy.value = false;
   }
 }
 
@@ -356,6 +396,41 @@ watch(
               {{ run.link.location.path }}:{{ run.link.location.line }}
             </p>
             <p v-else class="ui-help">位置未知：{{ run.link.location.reason }}</p>
+            <div class="link-assert">
+              <p class="ui-label">补充断言</p>
+              <div class="assert-row">
+                <label class="field">
+                  <span class="ui-label">节点</span>
+                  <input
+                    v-model="linkNode"
+                    class="ui-input"
+                    :placeholder="run.link.first_anomaly?.node_id || '例如 log:2'"
+                  />
+                </label>
+                <label class="field">
+                  <span class="ui-label">比较</span>
+                  <select v-model="linkOperator" class="ui-input">
+                    <option value="equals">等于</option>
+                    <option value="contains">包含</option>
+                    <option value="exists">存在</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">
+                <span class="ui-label">预期</span>
+                <input v-model="linkExpected" class="ui-input" placeholder="按场景填写预期值" />
+              </label>
+              <label class="field">
+                <span class="ui-label">实际</span>
+                <input v-model="linkActual" class="ui-input" placeholder="填写从链路观察到的值" />
+              </label>
+              <button type="button" class="ui-btn" :disabled="assertBusy" @click="assertLink">
+                {{ assertBusy ? "写入中…" : "写入断言" }}
+              </button>
+              <p v-if="assertError" class="ui-error">{{ assertError }}</p>
+              <p v-if="assertNote" class="ui-help">{{ assertNote }}</p>
+              <p class="ui-help">断言写入本次运行的链路记录；重新生成报告后才会反映到报告。</p>
+            </div>
           </div>
           <template v-else-if="run">
             <button type="button" class="ui-btn" :disabled="linkBusy" @click="importLink">
@@ -625,6 +700,18 @@ watch(
 .field {
   display: block;
   margin-bottom: 7px;
+}
+
+.link-assert {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.assert-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 8px;
 }
 
 .check {

@@ -457,6 +457,19 @@ export const api = {
     });
   },
 
+  saveRule(
+    projectId: string,
+    rule: {
+      name: string;
+      version: string;
+      steps_md: string;
+      ai_rules: string[];
+      evidence_requirements: string[];
+    },
+  ): Promise<{ rules_version_id: string; version: string }> {
+    return callHost("rules.save", { project_id: projectId, ...rule });
+  },
+
   bindRule(
     projectId: string,
     rulesVersionId: string,
@@ -481,6 +494,24 @@ export const api = {
       payload["request_id"] = requestId;
     }
     return callHost("link.import", payload);
+  },
+
+  assertLink(
+    projectId: string,
+    runId: string,
+    nodeId: string,
+    expected: string,
+    actual: string,
+    operator = "equals",
+  ): Promise<{ result: "passed" | "failed" }> {
+    return callHost("link.assert", {
+      project_id: projectId,
+      run_id: runId,
+      node_id: nodeId,
+      expected,
+      actual,
+      operator,
+    });
   },
 };
 

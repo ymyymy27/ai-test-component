@@ -39,6 +39,33 @@ describe("报告文档", () => {
     expect(text).toContain("验收意见");
   });
 
+  it("补充链路断言调用 link.assert", async () => {
+    workspace.run = {
+      ...RUN_DETAIL,
+      link: {
+        first_anomaly: { node_id: "log:2", type: "log", status: "failed" },
+        upstream: [],
+        downstream: [],
+        location: { known: false, reason: "没有源码位置" },
+      },
+    };
+    const harness = installHost(workspaceRoutes());
+    const wrapper = mount(ReportDocument);
+    await flushPromises();
+    const byPlaceholder = (value: string) =>
+      wrapper.findAll("input").find((item) => item.attributes("placeholder") === value)!;
+    await byPlaceholder("log:2").setValue("log:2");
+    await byPlaceholder("按场景填写预期值").setValue("order_1");
+    await byPlaceholder("填写从链路观察到的值").setValue("order_1");
+    await wrapper.findAll("button").find((item) => item.text() === "写入断言")!.trigger("click");
+    await flushPromises();
+    const call = harness.calls.find((item) => item.command === "link.assert");
+    expect(call?.payload["node_id"]).toBe("log:2");
+    expect(call?.payload["expected"]).toBe("order_1");
+    expect(call?.payload["actual"]).toBe("order_1");
+    expect(call?.payload["operator"]).toBe("equals");
+  });
+
   it("导出报告使用当前报告和路径", async () => {
     const harness = installHost(workspaceRoutes());
     const wrapper = mount(ReportDocument);

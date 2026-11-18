@@ -1,0 +1,95 @@
+{
+  "applicable_count": 3,
+  "cases": [
+    {
+      "acceptance_item_id": "ai_21adbb993ffe",
+      "acceptance_item_ids": [],
+      "case_id": "case_3c58d10e83fe",
+      "dependencies": [],
+      "depends_on": "build",
+      "expectation_source": "依赖构建的用例",
+      "expectation_verified": true,
+      "expected": "依赖构建的用例成功",
+      "importance": "medium",
+      "layer": "L2",
+      "mock_allowed": true,
+      "preconditions": [
+        "被测项目目录可访问"
+      ],
+      "script_content": null,
+      "script_name": null,
+      "steps": [],
+      "title": "",
+      "verify_method": "command:python -c \"print('blocked-case')\"",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_df3b3ae4de60",
+      "acceptance_item_ids": [],
+      "case_id": "case_6250d5753613",
+      "dependencies": [],
+      "depends_on": null,
+      "expectation_source": "独立用例一",
+      "expectation_verified": true,
+      "expected": "独立用例一通过",
+      "importance": "medium",
+      "layer": "L1",
+      "mock_allowed": true,
+      "preconditions": [
+        "被测项目目录可访问"
+      ],
+      "script_content": null,
+      "script_name": null,
+      "steps": [],
+      "title": "",
+      "verify_method": "command:python -c \"print('independent-1')\"",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_d3530a15274b",
+      "acceptance_item_ids": [],
+      "case_id": "case_67964e394b09",
+      "dependencies": [],
+      "depends_on": null,
+      "expectation_source": "独立用例二",
+      "expectation_verified": true,
+      "expected": "独立用例二通过",
+      "importance": "medium",
+      "layer": "L1",
+      "mock_allowed": true,
+      "preconditions": [
+        "被测项目目录可访问"
+      ],
+      "script_content": null,
+      "script_name": null,
+      "steps": [],
+      "title": "",
+      "verify_method": "command:python -c \"print('independent-2')\"",
+      "warnings": []
+    }
+  ],
+  "created_at": "2026-11-18T11:01:17+08:00",
+  "plan_id": "plan_4ae2521db438",
+  "plan_no": 1,
+  "revision": 1,
+  "rules_version_id": null,
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_21adbb993ffe",
+      "ai_df3b3ae4de60",
+      "ai_d3530a15274b"
+    ],
+    "frozen_at": null,
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "source_signature": "8021c63a0071fbda8982535d2d7db6bff1f9f3aba4234874760db041c87c5c3e",
+  "status": "published",
+  "task_contract": "6544f4dcd9228d3bf582c656ae7cd8f758ff613e0837c2bded53fe84d6299af2",
+  "task_id": "task_e05e319e4bd9",
+  "task_revision": 1,
+  "templates": [],
+  "unselected_by_module": [],
+  "warnings": []
+}

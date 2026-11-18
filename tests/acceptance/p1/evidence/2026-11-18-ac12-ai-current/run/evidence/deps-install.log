@@ -1,0 +1,5 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Requirement already satisfied: playwright in E:\Python311\Lib\site-packages (1.59.0)
+Requirement already satisfied: pyee<14,>=13 in E:\Python311\Lib\site-packages (from playwright) (13.0.1)
+Requirement already satisfied: greenlet<4.0.0,>=3.1.1 in E:\Python311\Lib\site-packages (from playwright) (3.5.0)
+Requirement already satisfied: typing-extensions in E:\Python311\Lib\site-packages (from pyee<14,>=13->playwright) (4.15.0)

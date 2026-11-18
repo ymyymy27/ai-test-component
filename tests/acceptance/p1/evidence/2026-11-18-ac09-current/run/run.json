@@ -1,0 +1,107 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "",
+          "message": "L1 检查未通过",
+          "result": "blocked",
+          "started_at": ""
+        }
+      ],
+      "case_id": "case_3c58d10e83fe",
+      "evidence_refs": [],
+      "result": "blocked"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_6250d5753613-0.log"
+          ],
+          "finished_at": "2026-11-18T11:01:19+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:01:19+08:00"
+        }
+      ],
+      "case_id": "case_6250d5753613",
+      "evidence_refs": [
+        "evidence/case_6250d5753613-0.log"
+      ],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_67964e394b09-0.log"
+          ],
+          "finished_at": "2026-11-18T11:01:19+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-18T11:01:19+08:00"
+        }
+      ],
+      "case_id": "case_67964e394b09",
+      "evidence_refs": [
+        "evidence/case_67964e394b09-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "fdea55b8ab8cd48118b123ee7bea601b8102354e184f52505402768c1246c167",
+  "confirmation_id": "conf_96bb91857fd0",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-18T11:01:18+08:00",
+  "confirmed_by": "ac09-current",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_d4be7db48509_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/l1-build.log",
+    "evidence/case_6250d5753613-0.log",
+    "evidence/case_67964e394b09-0.log"
+  ],
+  "heartbeat_at": "2026-11-18T11:01:19+08:00",
+  "l1": {
+    "build": {
+      "evidence_ref": "evidence/l1-build.log",
+      "exit_code": 1,
+      "ok": false
+    },
+    "cancelled": false,
+    "entries": []
+  },
+  "latest_report_id": "",
+  "media_bytes": 30,
+  "mock_judgement": [],
+  "pid": 27740,
+  "pid_created_at": 1794970878.4569058,
+  "plan_id": "plan_4ae2521db438",
+  "project_id": "proj_8c4d10737425",
+  "request_ids": [],
+  "run_id": "run_d4be7db48509",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_21adbb993ffe",
+      "ai_df3b3ae4de60",
+      "ai_d3530a15274b"
+    ],
+    "frozen_at": "2026-11-18T11:01:18+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-18T11:01:18+08:00",
+  "status": "completed"
+}

@@ -30,6 +30,12 @@ const rulesError = ref("");
 const rulesNote = ref("");
 const ruleDetail = ref<Rule | null>(null);
 const binding = ref("");
+const ruleOpen = ref(false);
+const ruleName = ref("");
+const ruleVersion = ref("");
+const ruleSteps = ref("");
+const ruleAiRules = ref("");
+const ruleEvidence = ref("");
 const githubRepo = ref("");
 const githubRef = ref("main");
 const github = ref<GithubChange | null>(null);
@@ -124,6 +130,48 @@ async function loadRules(): Promise<void> {
     if (!binding.value && data.rules.length) {
       binding.value = data.rules[0]?.rules_version_id ?? "";
     }
+  } catch (error) {
+    const friendly = describeError(error);
+    rulesError.value = `${friendly.title}。${friendly.next}`;
+  }
+}
+
+function splitLines(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+async function saveRule(): Promise<void> {
+  if (!workspace.project) {
+    return;
+  }
+  rulesError.value = "";
+  rulesNote.value = "";
+  const name = ruleName.value.trim();
+  const version = ruleVersion.value.trim();
+  if (!name || !version) {
+    rulesError.value = "规则名称和版本都要填写。";
+    return;
+  }
+  try {
+    const saved = await api.saveRule(workspace.project.project_id, {
+      name,
+      version,
+      steps_md: ruleSteps.value,
+      ai_rules: splitLines(ruleAiRules.value),
+      evidence_requirements: splitLines(ruleEvidence.value),
+    });
+    ruleName.value = "";
+    ruleVersion.value = "";
+    ruleSteps.value = "";
+    ruleAiRules.value = "";
+    ruleEvidence.value = "";
+    ruleOpen.value = false;
+    await loadRules();
+    binding.value = saved.rules_version_id;
+    rulesNote.value = "规则版本已保存；需要时再绑定到项目。";
   } catch (error) {
     const friendly = describeError(error);
     rulesError.value = `${friendly.title}。${friendly.next}`;
@@ -286,9 +334,36 @@ onMounted(() => {
       <template v-else>
         <p v-if="rulesError" class="ui-error">{{ rulesError }}</p>
         <p v-if="!rules.length && !rulesError" class="ui-help">
-          还没有规则版本。规则由 CLI 保存或导入，面板只负责绑定。
+          还没有规则版本。可以在这里新建，或先用 CLI 导入 Markdown。
         </p>
-        <div v-else class="rule-list">
+        <div v-if="ruleOpen" class="rule-editor">
+          <label class="field">
+            <span class="ui-label">规则名称</span>
+            <input v-model="ruleName" class="ui-input" placeholder="例如：下单回归规则" />
+          </label>
+          <label class="field">
+            <span class="ui-label">版本</span>
+            <input v-model="ruleVersion" class="ui-input" placeholder="例如：1.0.0" />
+          </label>
+          <label class="field">
+            <span class="ui-label">步骤与说明</span>
+            <textarea v-model="ruleSteps" class="ui-textarea config-text" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="ui-label">AI 规则（每行一条）</span>
+            <textarea v-model="ruleAiRules" class="ui-textarea" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="ui-label">证据要求（每行一条）</span>
+            <textarea v-model="ruleEvidence" class="ui-textarea" spellcheck="false" />
+          </label>
+          <div class="actions">
+            <button type="button" class="ui-btn" @click="saveRule">保存规则版本</button>
+            <button type="button" class="ui-link" @click="ruleOpen = false">取消</button>
+          </div>
+        </div>
+        <button v-else type="button" class="ui-link rule-new" @click="ruleOpen = true">新建规则版本</button>
+        <div v-if="!ruleOpen" class="rule-list">
           <div v-for="rule in rules" :key="rule.rules_version_id" class="rule-row">
             <label class="rule-pick">
               <input v-model="binding" type="radio" :value="rule.rules_version_id" />
@@ -593,6 +668,23 @@ onMounted(() => {
 
 .backup-result {
   margin-top: 6px;
+}
+
+.rule-editor {
+  margin: 8px 0 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-sunken);
+}
+
+.rule-editor .ui-textarea {
+  min-height: 64px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+}
+
+.rule-new {
+  margin: 6px 0;
 }
 
 .rule-list {

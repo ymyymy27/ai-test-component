@@ -40,12 +40,13 @@ include = [
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = [".", "src"]
+norecursedirs = ["tests/acceptance/p1/evidence"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
 # Validation archives retain the exact historical counterexample source bytes.
-extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules", ".zcode"]
+extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules", ".zcode", "tests/acceptance/p1/evidence"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

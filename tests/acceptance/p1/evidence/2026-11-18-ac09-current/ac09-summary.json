@@ -1,0 +1,73 @@
+{
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-ac09-current\\ws",
+  "project": "proj_8c4d10737425",
+  "task": "task_e05e319e4bd9",
+  "plan": "plan_4ae2521db438",
+  "run": "run_d4be7db48509",
+  "run_status": "completed",
+  "outcome": "failed",
+  "l1": {
+    "build": {
+      "evidence_ref": "evidence/l1-build.log",
+      "exit_code": 1,
+      "ok": false
+    },
+    "cancelled": false,
+    "entries": []
+  },
+  "cases": [
+    {
+      "case_id": "case_3c58d10e83fe",
+      "result": "blocked",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "blocked",
+          "started_at": "",
+          "finished_at": "",
+          "evidence_refs": [],
+          "message": "L1 检查未通过"
+        }
+      ],
+      "evidence_refs": []
+    },
+    {
+      "case_id": "case_6250d5753613",
+      "result": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "passed",
+          "started_at": "2026-11-18T11:01:19+08:00",
+          "finished_at": "2026-11-18T11:01:19+08:00",
+          "evidence_refs": [
+            "evidence/case_6250d5753613-0.log"
+          ],
+          "message": ""
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_6250d5753613-0.log"
+      ]
+    },
+    {
+      "case_id": "case_67964e394b09",
+      "result": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "passed",
+          "started_at": "2026-11-18T11:01:19+08:00",
+          "finished_at": "2026-11-18T11:01:19+08:00",
+          "evidence_refs": [
+            "evidence/case_67964e394b09-0.log"
+          ],
+          "message": ""
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_67964e394b09-0.log"
+      ]
+    }
+  ]
+}

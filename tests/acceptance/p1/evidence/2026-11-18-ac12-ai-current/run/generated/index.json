@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "generated_at": "2026-11-18T11:02:27+08:00",
+      "model": "provided",
+      "name": "test_home_order_list_title.py",
+      "secrets_redacted": false,
+      "sha256": "55d4d6cecee488af8941fd2faa35a78f95e1778752c0f342f381e139745d787f"
+    },
+    {
+      "generated_at": "2026-11-18T11:02:27+08:00",
+      "model": "provided",
+      "name": "test_order_detail_after_click.py",
+      "secrets_redacted": false,
+      "sha256": "39a3532fea228c985b0780c6b4b76751af8eaf77d269a075a0725aad8284baeb"
+    }
+  ],
+  "schema_version": 1
+}

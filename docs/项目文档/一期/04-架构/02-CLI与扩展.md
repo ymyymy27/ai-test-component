@@ -153,7 +153,7 @@ CLI → JSON → bridge → 面板渲染
 ### 4.7 面板命令边界
 
 - 扩展在 `extension.ts` 用 `PANEL_COMMANDS` 白名单放行面板调用，当前 46 条；白名单之外一律 `COMMAND_NOT_ALLOWED`，即使 CLI 已注册；
-- `panel/src/api/commands.ts` 实际接入 43 条命令；`rules.save`、`rules.import`、`rules.export`、`link.assert` 已在白名单但暂无面板入口；
+- `panel/src/api/commands.ts` 实际接入 44 条命令；`rules.save` 与 `link.assert` 已有面板入口；`rules.import`、`rules.export` 仍只走 CLI；
 - `delivery.show`、`plan.update` 已在 `PANEL_COMMANDS` 白名单；计划保存/交付读取的宿主回归仍待补；
 - `plan.publish`、`data.cleanup`、`project.update` 等命令不在白名单，面板不能直接调用。
 

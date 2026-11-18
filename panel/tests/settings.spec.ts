@@ -41,6 +41,28 @@ describe("设置页", () => {
     });
   });
 
+  it("新建规则版本调用 rules.save", async () => {
+    const harness = installHost(workspaceRoutes());
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+    await wrapper.findAll("button").find((item) => item.text() === "新建规则版本")!.trigger("click");
+    const byPlaceholder = (value: string) =>
+      wrapper.findAll("input").find((item) => item.attributes("placeholder") === value)!;
+    await byPlaceholder("例如：下单回归规则").setValue("回归规则");
+    await byPlaceholder("例如：1.0.0").setValue("1.0.1");
+    const areas = wrapper.findAll("textarea");
+    await areas[0]!.setValue("按页面主流程验证");
+    await areas[1]!.setValue("只读操作\n不访问外网");
+    await areas[2]!.setValue("截图");
+    await wrapper.findAll("button").find((item) => item.text() === "保存规则版本")!.trigger("click");
+    await flushPromises();
+    const call = harness.calls.find((item) => item.command === "rules.save");
+    expect(call?.payload["name"]).toBe("回归规则");
+    expect(call?.payload["version"]).toBe("1.0.1");
+    expect(call?.payload["ai_rules"]).toEqual(["只读操作", "不访问外网"]);
+    expect(call?.payload["evidence_requirements"]).toEqual(["截图"]);
+  });
+
   it("配置不是对象时指出下一步", async () => {
     const wrapper = mount(SettingsView);
     await flushPromises();

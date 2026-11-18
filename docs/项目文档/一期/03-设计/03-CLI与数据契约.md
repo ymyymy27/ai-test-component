@@ -273,9 +273,26 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"plan_id": "plan_...", "plan_no": 2, "task_revision": 3, "created_at": "...", "revision": 1, "intent": "business", "source_signature": "sha256", "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "coverage": {"selected": 2, "applicable": 8}, "case_count": 4, "cases": 4, "dependencies": ["pytest"], "status": "published", "ai_generated": true}
 ```
 
-规则：每个选中验收项至少一条用例；生成后自动发布为 `published`。发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。`verify_method` 必须合法：`command:` 后非空；`script:` 需要 `script_name` 与 `script_content`；`http:` 必须是非空 JSON 数组且每项有 `method/url`，默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝，未跟随的 3xx 在没有状态断言时按未完成处理；`playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；`sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描；`case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
+规则：
 
-`task.intent=smoke` 且任务没有适用验收项时只生成 L1 用例，默认不跑全量测试：按项目事实生成“构建/入口检查（`l1.build` 或可识别入口模块导入）”“pytest 测试发现（`python -m pytest --collect-only -q`）”“最小测试模块（`tests` 下最小的非空 `test_*.py`）”；项目可用 `l1.smoke_command` 覆盖为单条命令。非 pytest 项目回退到 `runners`/`package.json` 声明的测试命令；没有可用检查时返回 `INVALID_REQUEST`。不允许 `http:`、`playwright:` 或外部 URL。`task.intent=business` 时保留原有分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
+- 每个选中验收项至少一条用例；生成后自动发布为 `published`。
+- 发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。
+- `verify_method` 必须合法：
+  - `command:` 后非空；
+  - `script:` 需要 `script_name` 与 `script_content`；
+  - `http:` 必须是非空 JSON 数组且每项有 `method/url`；默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝；未跟随的 3xx 在没有状态断言时按未完成处理；
+  - `playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；
+  - `sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描。
+- `case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
+
+`task.intent=smoke` 且任务没有适用验收项时：
+
+- 只生成 L1 用例，默认不跑全量测试；
+- 按项目事实生成“构建/入口检查（`l1.build` 或可识别入口模块导入）”“pytest 测试发现（`python -m pytest --collect-only -q`）”“最小测试模块（`tests` 下最小的非空 `test_*.py`）”；
+- 项目可用 `l1.smoke_command` 覆盖为单条命令；非 pytest 项目回退到 `runners`/`package.json` 声明的测试命令；没有可用检查时返回 `INVALID_REQUEST`；
+- 不允许 `http:`、`playwright:` 或外部 URL。
+
+`task.intent=business` 时保留分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
 
 `source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、任务契约摘要、`rules_version_id`、`services`/`l1`/`runners` 配置摘要与项目根目录计算。任务契约只包含验证意图与验收项的 ID/文本/状态/可观察性/模块；只改标题、目标描述、执行人或评审人不会使计划失效。
 
@@ -301,11 +318,27 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"run_id": "run_...", "status": "running", "scope": {"selected": 2, "applicable": 8}, "confirmation": {"confirmation_id": "conf_...", "confirmed_by": "cli", "confirmed_at": "...", "reused": false, "fingerprint": "sha256", "plan_revision": 3, "side_effects": [], "dependencies": ["pytest"]}, "warnings": []}
 ```
 
-规则：必须有人确认。给出 `--confirm`，或存在与本次 `plan_id`、计划修订、范围和指纹一致的可复用确认记录（按项目最近一次运行的确认记录比对）；两者都没有返回 `CONFIRMATION_REQUIRED`。payload 里的 `confirmed_by` 不能代替 `--confirm`。收窄范围时指纹按收窄后的验收项集合重算。新确认写入 `confirmations/<confirmation_id>.json`，`run.json` 只记录 `confirmation_id`、指纹与确认人/时间，不内嵌确认正文。同一项目已有运行返回 `RUN_ACTIVE`，并在 message 中给出现有 run_id；范围为空返回 `SCOPE_EMPTY`；唯一例外是冒烟目标且任务没有适用验收项，此时只做项目级检查。启动前重新计算完整 `source_signature`：签名为空，或与当前项目修订、交付提交、任务契约、规则版本、`services`/`l1`/`runners` 配置、项目根目录不一致时返回 `PLAN_STALE`，要求重新生成计划；旧计划没有 `task_contract` 视为过期，不静默迁移。确认复用绑定 `plan_id + 计划修订 + 范围 + 指纹`，环境、凭据或副作用变化都会改变指纹，需要重新确认。启动时同时写 `runs/<id>/plan.json` 与 `runs/<id>/task.json` 快照。
+规则：
+
+- 必须有人确认：给出 `--confirm`，或存在与本次 `plan_id`、计划修订、范围和指纹一致的可复用确认记录（按项目最近一次运行的确认记录比对）；两者都没有返回 `CONFIRMATION_REQUIRED`。
+- payload 里的 `confirmed_by` 不能代替 `--confirm`；收窄范围时指纹按收窄后的验收项集合重算。
+- 新确认写入 `confirmations/<confirmation_id>.json`；`run.json` 只记录 `confirmation_id`、指纹与确认人/时间，不内嵌确认正文。
+- 同一项目已有运行返回 `RUN_ACTIVE`，并在 message 中给出现有 run_id；范围为空返回 `SCOPE_EMPTY`；唯一例外是冒烟目标且任务没有适用验收项，此时只做项目级检查。
+- 启动前重新计算完整 `source_signature`：签名为空，或与当前项目修订、交付提交、任务契约、规则版本、`services`/`l1`/`runners` 配置、项目根目录不一致时返回 `PLAN_STALE`；旧计划没有 `task_contract` 视为过期，不静默迁移。
+- 确认复用绑定 `plan_id + 计划修订 + 范围 + 指纹`；环境、凭据或副作用变化都会改变指纹，需要重新确认。启动时同时写 `runs/<id>/plan.json` 与 `runs/<id>/task.json` 快照。
 
 #### `run.status` / `run.list`
 
-- `status` 入参 `{"run_id"}`，顶层返回 `run`（完整运行记录，含 `current_case_id`、`confirmation_id`、`latest_report_id`、`cases`、`evidence_refs`、`analysis`）、`plan`（运行目录里的计划快照）、`task`（运行启动时的任务快照）、`task_snapshot`（旧运行没有快照时为 `false`）、`outcome`、`counts`（`selected/applicable/covered/passed/failed/incomplete`）、`item_outcomes`（每个所选验收项的最差结果与用例 ID）、`pending_items`、`manual_cases`、`l1`（项目级检查）、`uncovered_items`；若运行目录已有 `link.json`，附带 `link` 字段（首错节点、上下游与位置，见 4.10），没有链路数据时为 `null`。报告 ID 不在顶层，读 `run.latest_report_id`；当前用例读 `run.current_case_id`；
+- `status` 入参 `{"run_id"}`。顶层字段：
+  - `run`：完整运行记录，含 `current_case_id`、`confirmation_id`、`latest_report_id`、`cases`、`evidence_refs`、`analysis`；
+  - `plan`：运行目录里的计划快照；
+  - `task`：运行启动时的任务快照；`task_snapshot` 在旧运行没有快照时为 `false`；
+  - `outcome`、`counts`（`selected/applicable/covered/passed/failed/incomplete`）；
+  - `item_outcomes`：每个所选验收项的最差结果与用例 ID；
+  - `pending_items`、`manual_cases`、`l1`（项目级检查）、`uncovered_items`；
+  - `link`：运行目录已有 `link.json` 时为首错节点、上下游与位置（见 4.10），没有链路数据时为 `null`。
+
+  报告 ID 不在顶层，读 `run.latest_report_id`；当前用例读 `run.current_case_id`。
 - `list` 入参 `{"project_id", "limit": 20}`，按时间倒序；每条返回 `run_id/status/started_at/heartbeat_at/elapsed_seconds/plan_id/plan_no/plan_revision/task_id/task_title/task_snapshot/outcome/counts/scope/latest_report_id`。
 
 #### `run.cancel`
@@ -354,7 +387,16 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `report.generate`
 
-入参 `{"run_id"}`；返回 `report_id`（前缀 `rep_`）、`generated_at`、`outcome`、`conclusion`、`counts`、`coverage`、`changed_modules`、`unmapped_files`、`uncovered_items`、`unverified_items`、`layers`、`item_details`（验收项主表）、`l1`（项目级检查）、`issue_count`、`failure_occurrences`、`templates`。`templates` 是模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。仅运行结束后可用；运行中返回 `RUN_ACTIVE`。每次调用生成新报告并把 `latest_report_id` 写回运行记录；显式重新生成会重新判定 Mock，并使用本次运行的有效用例结果与 plan/task/delivery 快照；旧报告保留。
+入参 `{"run_id"}`。返回字段：
+
+- `report_id`（前缀 `rep_`）、`generated_at`；
+- `outcome`、`conclusion`、`counts`、`coverage`；
+- `changed_modules`、`unmapped_files`、`uncovered_items`、`unverified_items`；
+- `layers`、`item_details`（验收项主表）、`l1`（项目级检查）；
+- `issue_count`、`failure_occurrences`；
+- `templates`：模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。
+
+仅运行结束后可用；运行中返回 `RUN_ACTIVE`。每次调用生成新报告并把 `latest_report_id` 写回运行记录；显式重新生成会重新判定 Mock，并使用本次运行的有效用例结果与 plan/task/delivery 快照；旧报告保留。
 
 #### `report.show`
 
@@ -517,6 +559,30 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"schema_version": 1, "issue_id": "issue_...", "project_id": "proj_...", "signature": "...", "title": "", "severity": "P1", "status": "pending", "disposition": null, "occurrences": [], "fix_version": null, "evidence_refs": [], "revision": 1}
 ```
 
+`confirmation.json`：
+
+```json
+{"schema_version": 1, "confirmation_id": "conf_...", "project_id": "proj_...", "plan_id": "plan_...", "plan_revision": 3, "acceptance_item_ids": ["ai_..."], "environment": {}, "credentials": {}, "side_effects": [], "fingerprint": "sha256", "confirmed_by": "cli", "confirmed_at": "...", "run_id": "run_..."}
+```
+
+`deliveries/<task_id>.json`：
+
+```json
+{"schema_version": 1, "delivery_id": "dlv_...", "task_id": "task_...", "done": [], "not_done": [], "changed_modules": [], "interface_changes": [], "run_commands": [], "test_data": "", "dependencies": [], "mocks": [], "self_test_evidence": [], "commit": "", "complete": false, "revision": 1}
+```
+
+`rules/<rules_version_id>.json`：
+
+```json
+{"schema_version": 1, "rules_version_id": "rule_...", "project_id": "proj_...", "name": "", "version": "1.0.0", "steps_md": "", "ai_rules": [], "evidence_requirements": [], "revision": 1}
+```
+
+`runs/<run_id>/link.json`：
+
+```json
+{"schema_version": 1, "imported_at": "...", "nodes": [{"node_id": "log:2", "type": "log", "status": "failed", "message": "", "parent_id": "log:1", "evidence_ref": "app.jsonl:2"}], "assertions": [{"node_id": "log:2", "expected": "order_1", "actual": "order_1", "result": "passed"}], "gaps": [], "location": {"first_anomaly": {}, "upstream": [], "downstream": [], "location": {"known": true, "path": "app.jsonl", "line": 2}}}
+```
+
 `report.json`：
 
 ```json
@@ -596,3 +662,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 9. 报告结论与计数不因 AI 摘要改变；
 10. 旧格式备份恢复失败时给出 `SCHEMA_UNSUPPORTED`；
 11. `plan.show` 只按任务契约判过期，`run.start` 按完整来源签名判 `PLAN_STALE`，旧计划无 `task_contract` 判过期。
+12. `rules.save` 必填 `name/version`，规则版本绑定后新计划引用新版本，旧运行保留旧 `rules_version_id`；
+13. `run.status` 返回计划快照、任务快照与 `task_snapshot`；旧运行没有快照时明确为 `false`，不混用当前任务；
+14. 报告生成写回 `latest_report_id`；`report.list` 按 `generated_at` 倒序；重新生成不覆盖旧报告；
+15. `link.import` 缺配置返回 `LINK_CONFIG_MISSING`；`link.assert` 的节点不存在返回 `INVALID_REQUEST`，断言结果写回 `link.json`；
+16. `data.cleanup` 的清理命令必须含 `{run_id}` 或 `{data_prefix}`，非法 `run_id` 拒绝；`dry_run=false` 需要确认；
+17. `evidence.add` 只允许运行结束后补证；跨运行路径、重复文件名与超大文件按证据规则处理；
+18. 扩展白名单与 CLI 注册表一致：面板只能调用 `PANEL_COMMANDS` 中的命令，新增命令先同步扩展、测试与文档。

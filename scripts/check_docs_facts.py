@@ -31,6 +31,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = (
     "AGENTS.md",
     "README.md",
+    "docs/项目文档/一期/01-项目/01-项目简报.md",
+    "docs/项目文档/一期/01-项目/03-交付计划.md",
+    "docs/项目文档/一期/01-项目/04-遗留问题与风险.md",
+    "docs/项目文档/一期/05-测试验收/01-测试计划.md",
+    "docs/项目文档/一期/05-测试验收/02-验收台账.md",
+    "docs/项目文档/一期/06-发布运维/01-发布方案.md",
 )
 
 
@@ -84,6 +90,16 @@ RULES = (
     Rule(
         "测试节点数",
         re.compile(r"\|\s*测试收集\s*\|\s*\*\*([\d,]+)\*\*\s*个节点"),
+        "nodes",
+    ),
+    Rule(
+        "一期 AC 条数",
+        re.compile(r"(\d+)\s*条\s*AC"),
+        "acs",
+    ),
+    Rule(
+        "测试计划 pytest 节点",
+        re.compile(r"pytest\s*(\d+)\s*个节点"),
         "nodes",
     ),
     Rule(
