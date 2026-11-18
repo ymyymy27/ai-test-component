@@ -9,6 +9,9 @@ a verdict.
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 from aitest.models import AcceptanceItem, Scope, Task
 
 
@@ -37,3 +40,30 @@ def uncovered_items(task: Task | None, scope: Scope) -> list[str]:
         for item in all_applicable_items(task)
         if item.item_id not in selected
     ]
+
+
+def task_contract(task: Task) -> str:
+    """Stable digest of the facts that make a plan's cases/test intent valid.
+
+    Title, goal prose, executor and reviewer are deliberately excluded: editing
+    them must not force a new plan. Acceptance-item text/status/module changes
+    and the smoke/business intent do change what a plan is allowed to claim.
+    """
+    payload = {
+        "intent": task.intent,
+        "items": sorted(
+            [
+                [
+                    item.item_id,
+                    item.text,
+                    item.status,
+                    item.observable,
+                    item.module_id or "",
+                ]
+                for item in task.acceptance_items
+                if item.status == "active"
+            ]
+        ),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

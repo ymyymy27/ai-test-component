@@ -8,7 +8,9 @@ not be tied to the acceptance-item text may execute but can never count as
 
 from __future__ import annotations
 
-from aitest.models import CaseResult, Plan, Run, Verdict, new_id
+from typing import Literal
+
+from aitest.models import CaseResult, Plan, Run, Verdict, case_item_ids, new_id
 
 _FAILURE = "failed"
 _PENDING = {"blocked", "error", "not_run", "manual_pending"}
@@ -30,7 +32,7 @@ def worst_result(results: list[CaseResult]) -> CaseResult:
     return max(results, key=lambda item: _RANK[item])
 
 
-def _case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
+def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
     """Effective per-case results: an unverified expectation cannot pass."""
     by_case = {case.case_id: case for case in plan.cases}
     results: dict[str, CaseResult] = {}
@@ -39,7 +41,7 @@ def _case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
         result = run_case.result
         if (
             case is not None
-            and case.acceptance_item_id is not None
+            and case_item_ids(case)
             and not case.expectation_verified
             and result == "passed"
         ):
@@ -50,15 +52,18 @@ def _case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
 
 
 def _item_case_results(plan: Plan, run: Run) -> dict[str, list[CaseResult]]:
-    results = _case_results(plan, run)
+    results = case_results(plan, run)
     by_item: dict[str, list[CaseResult]] = {
         item_id: [] for item_id in plan.scope.acceptance_item_ids
     }
     for case in plan.cases:
-        if case.acceptance_item_id is None:
+        ids = case_item_ids(case)
+        if not ids:
             continue
         result = results.get(case.case_id, "not_run")
-        by_item.setdefault(case.acceptance_item_id, []).append(result)
+        for item_id in ids:
+            if item_id in by_item:
+                by_item[item_id].append(result)
     return by_item
 
 
@@ -76,23 +81,51 @@ def item_outcomes(plan: Plan, run: Run) -> dict[str, CaseResult]:
 
 def _project_results(plan: Plan, run: Run) -> list[CaseResult]:
     """Results of project-level checks (L1 cases without an acceptance item)."""
-    results = _case_results(plan, run)
+    results = case_results(plan, run)
     return [
         results.get(case.case_id, "not_run")
         for case in plan.cases
-        if case.acceptance_item_id is None
+        if not case_item_ids(case)
     ]
+
+
+def _l1_outcome(run: Run) -> Literal["failed", "incomplete"] | None:
+    """Project-level checks outside plan cases still affect the run verdict.
+
+    ``run.l1`` is written by the worker before case execution. A failed build or
+    entry import cannot be hidden just because the plan has no L1 case for it.
+    """
+    l1 = run.l1
+    if not isinstance(l1, dict):
+        return None
+    checks: list[bool] = []
+    build = l1.get("build")
+    if isinstance(build, dict) and "ok" in build:
+        checks.append(bool(build.get("ok")))
+    entries = l1.get("entries")
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, dict) and "ok" in entry:
+                checks.append(bool(entry.get("ok")))
+    if checks and not all(checks):
+        return "failed"
+    if l1.get("cancelled") is True:
+        return "incomplete"
+    return None
 
 
 def verdict(plan: Plan, run: Run) -> Verdict:
     outcomes = item_outcomes(plan, run)
     project_results = _project_results(plan, run)
     results = [*outcomes.values(), *project_results]
-    if not results:
-        return "incomplete" if plan.applicable_count > 0 else "not_applicable"
     if any(result == _FAILURE for result in results):
         return "failed"
-    if any(result in _PENDING for result in results):
+    l1_result = _l1_outcome(run)
+    if l1_result == "failed":
+        return "failed"
+    if not results:
+        return "incomplete" if plan.applicable_count > 0 else "not_applicable"
+    if l1_result == "incomplete" or any(result in _PENDING for result in results):
         return "incomplete"
     return "passed"
 

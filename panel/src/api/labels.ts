@@ -9,11 +9,11 @@ import type {
 } from "@/api/types";
 
 export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
-  running: "正在运行",
+  running: "运行中",
   completed: "已完成",
   cancelled: "已取消",
   interrupted: "已中断",
-  execution_error: "出错了",
+  execution_error: "执行出错",
 };
 
 export const RUN_STATUS_BADGE: Record<
@@ -47,11 +47,11 @@ export function cleanItemText(text: string | undefined): string {
 
 export const CASE_RESULT_LABEL: Record<CaseResult, string> = {
   passed: "通过",
-  failed: "没通过",
-  blocked: "卡住了",
-  error: "出错了",
-  not_run: "还没跑",
-  manual_pending: "等你确认",
+  failed: "失败",
+  blocked: "阻塞",
+  error: "出错",
+  not_run: "未运行",
+  manual_pending: "待人工",
 };
 
 export const CASE_RESULT_TONE: Record<
@@ -67,9 +67,21 @@ export const CASE_RESULT_TONE: Record<
 };
 
 export const LAYER_LABEL: Record<Layer, string> = {
-  L1: "能不能启动",
-  L2: "单个功能",
-  L3: "整条流程",
+  L1: "项目级检查",
+  L2: "自动检查",
+  L3: "人工检查",
+};
+
+export const INTENT_LABEL: Record<"smoke" | "business", string> = {
+  smoke: "项目快速检查",
+  business: "按验收项验证",
+};
+
+export const ISSUE_DISPOSITION_LABEL: Record<string, string> = {
+  fixed: "已修复",
+  non_defect: "非缺陷",
+  duplicate: "重复问题",
+  deferred: "延期处理",
 };
 
 export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {
@@ -80,10 +92,10 @@ export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {
 };
 
 export const SEVERITY_LABEL: Record<Severity, string> = {
-  P0: "最高",
-  P1: "高",
-  P2: "中",
-  P3: "低",
+  P0: "严重",
+  P1: "严重",
+  P2: "一般",
+  P3: "轻微",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -96,6 +108,7 @@ const SOURCE_LABEL: Record<string, string> = {
   docs: "项目文档",
   readme: "README",
   ai: "模型建议",
+  fallback: "通用目标",
 };
 
 export function sourceLabel(source?: string): string {
@@ -189,4 +202,14 @@ export function formatFullDateTime(value?: string | null): string {
     second: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+export function formatDuration(seconds?: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) {
+    return "耗时未记录";
+  }
+  const total = Math.round(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return minutes > 0 ? `${minutes} 分 ${rest} 秒` : `${rest} 秒`;
 }

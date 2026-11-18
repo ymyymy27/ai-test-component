@@ -452,3 +452,14 @@ def test_import_link_rejects_unknown_log_format(tmp_path: Path) -> None:
         _link("req-1", log_paths=[tmp_path / "app.log"], log_format="csv")
 
     assert exc.value.info.code == "LINK_CONFIG_MISSING"
+
+
+def test_read_github_does_not_attach_unrelated_pull_requests() -> None:
+    responses = _github_responses()
+    responses["repos/o/r/commits/abc123/pulls"] = "[]"
+    runner, calls = _github_runner(responses)
+
+    data = read_github("o/r", "main", runner=runner)
+
+    assert data["prs"] == []
+    assert not any("pulls?state=all" in " ".join(args) for args, _ in calls)

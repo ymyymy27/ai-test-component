@@ -1,8 +1,8 @@
 """Build the wheel, install it into a throwaway environment and run ``doctor``.
 
 This is the lightweight replacement for the old ``verify_artifacts.py`` /
-``smoke_wheel.py`` pair that moved to ``legacy/scripts/``. It only proves three
-things: the wheel builds, the package imports from the installed location (not
+``smoke_wheel.py`` pair, which has been removed from the repository. It only
+proves three things: the wheel builds, the package imports from the installed location (not
 from ``src/``), and ``python -m aitest.cli doctor`` returns a successful
 envelope. It does not inspect release metadata or compare artifact hashes.
 

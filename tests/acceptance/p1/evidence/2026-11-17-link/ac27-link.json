@@ -1,0 +1,88 @@
+{
+  "ok": true,
+  "request_id": "link.import1794901146052418400",
+  "data": {
+    "nodes": [
+      {
+        "node_id": "log:1",
+        "parent_id": "",
+        "type": "log",
+        "status": "passed",
+        "duration": null,
+        "input_ref": "",
+        "output_ref": "",
+        "message": "收到请求",
+        "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:1"
+      },
+      {
+        "node_id": "log:2",
+        "parent_id": "log:1",
+        "type": "log",
+        "status": "failed",
+        "duration": null,
+        "input_ref": "",
+        "output_ref": "",
+        "message": "订单查询为空",
+        "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:2"
+      },
+      {
+        "node_id": "db:1",
+        "parent_id": "log:2",
+        "type": "db",
+        "status": "passed",
+        "duration": null,
+        "input_ref": "",
+        "output_ref": "",
+        "message": "order row req-ac27",
+        "evidence_ref": "db:req-ac27:1"
+      }
+    ],
+    "assertions": [
+      {
+        "node_id": "log:2",
+        "expected": "order_1",
+        "actual": "missing",
+        "result": "failed"
+      }
+    ],
+    "gaps": [],
+    "location": {
+      "first_anomaly": {
+        "node_id": "log:2",
+        "type": "log",
+        "status": "failed",
+        "duration": null,
+        "message": "订单查询为空",
+        "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:2",
+        "parent_id": "log:1"
+      },
+      "upstream": [
+        {
+          "node_id": "log:1",
+          "type": "log",
+          "status": "passed",
+          "duration": null,
+          "message": "收到请求",
+          "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:1",
+          "parent_id": ""
+        }
+      ],
+      "downstream": [
+        {
+          "node_id": "db:1",
+          "type": "db",
+          "status": "passed",
+          "duration": null,
+          "message": "order row req-ac27",
+          "evidence_ref": "db:req-ac27:1",
+          "parent_id": "log:2"
+        }
+      ],
+      "location": {
+        "known": true,
+        "path": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl",
+        "line": 2
+      }
+    }
+  }
+}

@@ -66,6 +66,23 @@ export interface DeliveryDraft {
   self_test_evidence: string[];
 }
 
+export interface Delivery {
+  delivery_id: string;
+  task_id: string;
+  done: string[];
+  not_done: string[];
+  changed_modules: string[];
+  interface_changes: string[];
+  run_commands: string[];
+  test_data: string;
+  dependencies: string[];
+  mocks: string[];
+  self_test_evidence: string[];
+  commit: string;
+  complete: boolean;
+  revision: number;
+}
+
 export interface TaskSummary {
   task_id: string;
   title: string;
@@ -105,6 +122,33 @@ export interface TemplateResult {
   summary: Record<TemplateDisposition, number>;
 }
 
+export interface RuleSummary {
+  rules_version_id: string;
+  name: string;
+  version: string;
+}
+
+export interface Rule extends RuleSummary {
+  project_id: string;
+  steps_md: string;
+  ai_rules: string[];
+  evidence_requirements: string[];
+  revision: number;
+}
+
+export interface GithubChange {
+  repo: string;
+  branch: string;
+  commit: string;
+  files: string[];
+  prs: Record<string, unknown>[];
+  checks: Record<string, unknown>[];
+  deployment: Record<string, unknown> | null;
+  account?: string;
+  host?: string;
+  fetched_at?: string;
+}
+
 export interface LinkNode {
   node_id: string;
   type?: string;
@@ -112,6 +156,13 @@ export interface LinkNode {
   message?: string;
   evidence_ref?: string;
   parent_id?: string;
+}
+
+export interface LinkImportResult {
+  nodes: LinkNode[];
+  assertions: Record<string, unknown>[];
+  gaps: { node_id: string; reason: string }[];
+  location: LinkLocation;
 }
 
 export interface LinkLocation {
@@ -129,6 +180,7 @@ export interface Project {
   root: string;
   goal?: string;
   modules: Module[];
+  rules_version_id?: string | null;
   revision: number;
 }
 
@@ -138,6 +190,7 @@ export interface AcceptanceItem {
   observable: boolean;
   status: "active" | "pending";
   source?: string;
+  module_id?: string | null;
 }
 
 export interface Task {
@@ -174,12 +227,16 @@ export interface AddTaskResult {
 export interface PlanCase {
   case_id: string;
   acceptance_item_id: string | null;
+  acceptance_item_ids?: string[];
   layer: Layer;
   title?: string;
   preconditions?: string[];
   steps?: string[];
+  dependencies?: string[];
   expected: string;
   expectation_source?: string;
+  expectation_verified?: boolean;
+  warnings?: string[];
   verify_method?: string;
   mock_allowed?: boolean;
   importance?: "high" | "medium" | "low";
@@ -195,13 +252,24 @@ export interface Scope {
   frozen_at?: string | null;
 }
 
+export interface UnselectedHint {
+  module_id: string | null;
+  module_name: string;
+  count: number;
+}
+
 export interface Plan {
   plan_id: string;
   task_id: string;
+  plan_no?: number;
+  task_revision?: number;
+  task_contract?: string;
+  created_at?: string;
   scope: Scope;
   applicable_count: number;
   cases: PlanCase[];
   templates?: TemplateResult[];
+  unselected_by_module?: UnselectedHint[];
   status: "draft" | "published";
   source_signature?: string;
   revision: number;
@@ -209,12 +277,26 @@ export interface Plan {
 
 export interface GeneratedPlan {
   plan_id: string;
+  plan_no?: number;
+  task_revision?: number;
+  created_at?: string;
   revision: number;
   status: "draft" | "published";
   scope: Scope;
   coverage: { selected: number; applicable: number };
   cases: number;
+  case_count?: number;
+  dependencies?: string[];
+  ai_generated?: boolean;
   source_signature?: string;
+}
+
+export interface PlanDetail {
+  plan: Plan;
+  coverage: { selected: number; applicable: number };
+  stale?: boolean;
+  stale_reason?: string;
+  task_updated?: boolean;
 }
 
 export interface Attempt {
@@ -260,19 +342,35 @@ export interface Run {
   confirmed_by?: string;
   confirmed_at?: string;
   status: RunStatus;
+  current_case_id?: string;
   started_at: string;
   heartbeat_at?: string;
   cases: RunCase[];
   evidence_refs: string[];
   analysis: Analysis[];
   mock_judgement?: unknown[];
+  latest_report_id?: string;
+  dependency_install_ok?: boolean | null;
+  l1?: Record<string, unknown> | null;
 }
 
 export interface RunSummary {
   run_id: string;
   status: RunStatus;
+  current_case_id?: string;
   started_at: string;
   heartbeat_at?: string;
+  elapsed_seconds?: number | null;
+  plan_id?: string;
+  plan_no?: number;
+  plan_revision?: number;
+  task_id?: string;
+  task_title?: string;
+  task_snapshot?: boolean;
+  outcome?: Verdict | null;
+  counts?: Record<string, number>;
+  scope?: { selected: number; applicable: number };
+  latest_report_id?: string;
 }
 
 export interface ItemOutcome {
@@ -283,6 +381,11 @@ export interface ItemOutcome {
 
 export interface RunDetail {
   run: Run;
+  /** Exact plan snapshot used by this run. */
+  plan?: Plan | null;
+  /** Task snapshot captured at run start; null for old runs without one. */
+  task?: Task | null;
+  task_snapshot?: boolean;
   outcome: Verdict | null;
   /** Core-derived counts; the panel must not recompute them. */
   counts?: Record<string, number>;
@@ -303,6 +406,43 @@ export interface IssueSummary {
   status: IssueStatus;
   severity: Severity;
   occurrences: number;
+  last_at?: string;
+  last_result?: string;
+  unstable?: boolean;
+  disposition?: IssueDisposition | null;
+  reason?: string;
+  verification_run_id?: string;
+  last_case_id?: string;
+  last_run_id?: string;
+}
+
+export type IssueDisposition = "fixed" | "non_defect" | "duplicate" | "deferred";
+
+export interface IssueOccurrence {
+  run_id: string;
+  case_id: string;
+  at: string;
+  evidence_refs: string[];
+}
+
+export interface Issue {
+  issue_id: string;
+  project_id: string;
+  signature: string;
+  title: string;
+  steps: string[];
+  expected: string;
+  actual: string;
+  status: IssueStatus;
+  severity: Severity;
+  disposition?: IssueDisposition | null;
+  reason: string;
+  unstable: boolean;
+  last_result: string;
+  verification_run_id: string;
+  fix_version?: string | null;
+  revision: number;
+  occurrences: IssueOccurrence[];
 }
 
 export interface EvidenceItem {
@@ -312,11 +452,25 @@ export interface EvidenceItem {
   bytes: number;
   exists: boolean;
   missing_reason?: string;
+  sha256?: string;
+  media_type?: string;
+  truncated?: boolean;
+  note?: string;
 }
 
 export type ConfigSection = "model" | "services" | "link" | "runners" | "evidence" | "l1" | "data";
 
 export type ProjectConfig = Partial<Record<ConfigSection, Record<string, unknown>>>;
+
+export interface BackupResult {
+  path: string;
+  sha256: string;
+  bytes: number;
+  includes_evidence: boolean;
+  files: number;
+  estimated_evidence_bytes?: number;
+  estimated_evidence_mb?: number;
+}
 
 export interface DoctorFacts {
   workspace: { ok: boolean; path: string; workspace_id?: string };
@@ -338,8 +492,58 @@ export interface RepairItem {
 
 export interface ReportSummary {
   report_id: string;
+  run_id?: string;
+  generated_at?: string;
   outcome: Verdict;
+  conclusion?: string;
   counts: Record<string, number>;
+  coverage?: { selected: number; applicable: number };
+  uncovered_items?: string[];
+  unverified_items?: string[];
+}
+
+export interface ReportVersion {
+  report_id: string;
+  run_id: string;
+  generated_at: string;
+  outcome: Verdict;
+  revision: number;
+  has_opinion: boolean;
+}
+
+export interface Report {
+  report_id: string;
+  run_id: string;
+  generated_at?: string;
+  outcome: Verdict;
+  conclusion: string;
+  counts: Record<string, number>;
+  coverage: Record<string, number>;
+  changed_modules: string[];
+  unmapped_files: string[];
+  evidence_refs: string[];
+  mock_judgement: Record<string, unknown>[];
+  real_chain: boolean;
+  summary?: string | null;
+  summary_source?: "ai" | "fallback" | "none";
+  opinion?: Opinion | null;
+  issues: Record<string, unknown>[];
+  issue_count: number;
+  failure_occurrences: number;
+  analysis: Record<string, unknown>[];
+  layers: Record<string, number>;
+  rules_version_id?: string | null;
+  source_commit?: string | null;
+  templates: Record<string, unknown>[];
+  environment: Record<string, unknown>;
+  github?: Record<string, unknown> | null;
+  uncovered_items: string[];
+  unverified_items: string[];
+  item_details: Record<string, unknown>[];
+  case_details: Record<string, unknown>[];
+  evidence_index: Record<string, unknown>[];
+  l1?: Record<string, unknown> | null;
+  revision: number;
 }
 
 export interface Opinion {

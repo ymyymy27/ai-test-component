@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import threading
 from collections.abc import Iterator
 from datetime import datetime
@@ -92,6 +93,8 @@ class Workspace:
         return self.root / "projects"
 
     def project_dir(self, project_id: str) -> Path:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", project_id):
+            raise AiTestError("INVALID_PATH", f"项目 ID 不合法：{project_id}", "检查项目 ID")
         return self.projects_dir / project_id
 
     def project_path(self, project_id: str) -> Path:
@@ -106,6 +109,7 @@ class Workspace:
         return read_model(path, Project)
 
     def save_project(self, project: Project) -> None:
+        project.updated_at = iso_now()
         write_model(self.project_path(project.project_id), project)
 
     def list_projects(self) -> list[Project]:

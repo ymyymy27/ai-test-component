@@ -111,7 +111,8 @@ def test_import_link_returns_location_without_changing_existing_fields(
     assert [node["message"] for node in result["nodes"]] == ["boom"]
     assert result["assertions"] == []
     assert {"node_id": "db", "reason": "未配置数据库查询"} in result["gaps"]
-    assert result["location"]["first_anomaly"]["node_id"] == "log:1"
+    assert result["location"]["first_anomaly"]["node_id"].startswith("log:")
+    assert result["location"]["first_anomaly"]["node_id"].endswith(":1")
     assert result["location"]["location"] == {
         "known": True,
         "path": str(log_path),

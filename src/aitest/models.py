@@ -21,6 +21,17 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
+def case_item_ids(case: Case) -> list[str]:
+    """Acceptance-item IDs covered by one case, primary first without duplicates."""
+    ids: list[str] = []
+    if case.acceptance_item_id:
+        ids.append(case.acceptance_item_id)
+    for item_id in case.acceptance_item_ids:
+        if item_id not in ids:
+            ids.append(item_id)
+    return ids
+
+
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -49,6 +60,7 @@ class Project(Model):
     modules: list[Module] = Field(default_factory=list)
     rules_version_id: str | None = None
     revision: int = 1
+    updated_at: str = ""
 
 
 class AcceptanceItem(Model):
@@ -110,6 +122,7 @@ class RuleVersion(Model):
 class Case(Model):
     case_id: str = Field(default_factory=lambda: new_id("case"))
     acceptance_item_id: str | None = None
+    acceptance_item_ids: list[str] = Field(default_factory=list)
     layer: Layer
     title: str = ""
     preconditions: list[str] = Field(default_factory=list)
@@ -119,6 +132,7 @@ class Case(Model):
     expectation_verified: bool = False
     warnings: list[str] = Field(default_factory=list)
     verify_method: str = ""
+    dependencies: list[str] = Field(default_factory=list)
     mock_allowed: bool = True
     importance: Literal["high", "medium", "low"] = "medium"
     depends_on: Literal["build", "service"] | None = None
@@ -137,11 +151,16 @@ class Plan(Model):
     schema_version: int = 1
     plan_id: str
     task_id: str
+    plan_no: int = 0
+    task_revision: int = 0
+    task_contract: str = ""
+    created_at: str = ""
     scope: Scope
     applicable_count: int = 0
     rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
     templates: list[dict[str, Any]] = Field(default_factory=list)
+    unselected_by_module: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
     source_signature: str = ""
@@ -190,12 +209,14 @@ class Run(Model):
     confirmation_fingerprint: str = ""
     confirmation_reused: bool = False
     status: RunStatus = "running"
+    current_case_id: str = ""
     pid: int | None = None
     pid_created_at: float | None = None
     started_at: str = ""
     heartbeat_at: str = ""
     cases: list[RunCase] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
+    evidence_notes: dict[str, str] = Field(default_factory=dict)
     analysis: list[Analysis] = Field(default_factory=list)
     mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
     service_started: bool = False
@@ -203,7 +224,10 @@ class Run(Model):
     l1: dict[str, Any] | None = None
     media_bytes: int = 0
     data_prefix: str = ""
+    dependencies: list[str] = Field(default_factory=list)
+    dependency_install_ok: bool | None = None
     request_ids: list[str] = Field(default_factory=list)
+    latest_report_id: str = ""
 
 
 class Confirmation(Model):
@@ -275,6 +299,7 @@ class Report(Model):
     schema_version: int = 1
     report_id: str
     run_id: str
+    generated_at: str = ""
     outcome: Verdict
     conclusion: str = ""
     counts: dict[str, int] = Field(default_factory=dict)
@@ -298,6 +323,7 @@ class Report(Model):
     environment: dict[str, Any] = Field(default_factory=dict)
     github: dict[str, Any] | None = None
     uncovered_items: list[str] = Field(default_factory=list)
+    unverified_items: list[str] = Field(default_factory=list)
     item_details: list[dict[str, Any]] = Field(default_factory=list)
     case_details: list[dict[str, Any]] = Field(default_factory=list)
     evidence_index: list[dict[str, Any]] = Field(default_factory=list)

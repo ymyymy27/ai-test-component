@@ -62,9 +62,16 @@ _JOINED_SECRET_NAMES = frozenset(
 _SECRET_VALUE_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"\bglpat-[A-Za-z0-9_-]{16,}\b"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    re.compile(r"(?i)\b(?:postgres|postgresql|mysql|mongodb|redis|amqp)://[^\s:@/]+:[^\s@/]+@"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b"),
+    re.compile(r"\bnpm_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"\bsk_live_[A-Za-z0-9]{16,}\b"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
+    re.compile(r"(?i)\bBasic\s+[A-Za-z0-9+/=]{12,}"),
+    re.compile(r"(?i)\b(?:https?|postgres|postgresql|mysql|mongodb|redis|amqp)://[^\s:@/]+:[^\s@/]+@"),
 )
 
 
@@ -134,20 +141,30 @@ def redact(text: str, secrets: list[str]) -> str:
     for secret in secrets:
         if secret and len(secret) >= 4:
             result = result.replace(secret, "***")
+    for pattern in _SECRET_VALUE_PATTERNS:
+        result = pattern.sub("***", result)
     return result
 
 
 def redact_bytes(data: bytes, secrets: list[str]) -> bytes:
-    """Redact UTF-8 text payloads; binary media is returned unchanged."""
-    if not secrets:
+    """Redact known secrets and token-like text; binary media is returned unchanged."""
+    if not data:
         return data
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data
-    if "\x00" in text:
-        return data
-    return redact(text, secrets).encode("utf-8")
+    for encoding in ("utf-8", "utf-16", "gb18030"):
+        try:
+            text = data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        if "\x00" in text:
+            continue
+        redacted = redact(text, secrets)
+        if redacted == text:
+            return data
+        try:
+            return redacted.encode(encoding)
+        except UnicodeEncodeError:
+            continue
+    return data
 
 
 def redact_tree(value: Any, secrets: list[str]) -> Any:

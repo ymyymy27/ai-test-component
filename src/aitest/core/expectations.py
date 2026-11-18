@@ -10,7 +10,7 @@ warning.
 from __future__ import annotations
 
 from aitest.errors import invalid_request
-from aitest.models import AcceptanceItem, Case
+from aitest.models import AcceptanceItem, Case, case_item_ids
 
 _UNVERIFIED = "预期未证实：expectation_source 不是验收项原文的子串或等价引用"
 _MISSING_PRECONDITION = "缺少前置条件，执行前需人工确认"
@@ -39,13 +39,18 @@ def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
     warnings: list[str] = []
     for case in cases:
         case.warnings = []
-        item = by_id.get(case.acceptance_item_id or "")
-        if item is None:
+        ids = case_item_ids(case)
+        bound = [by_id.get(item_id) for item_id in ids]
+        if not ids or any(item is None for item in bound):
             case.expectation_verified = False
-            if case.acceptance_item_id is not None:
+            if ids:
                 case.warnings.append("未绑定当前任务的验收项，预期未证实")
         else:
-            case.expectation_verified = expectation_matches(case.expectation_source, item)
+            case.expectation_verified = all(
+                expectation_matches(case.expectation_source, item)
+                for item in bound
+                if item is not None
+            )
             if not case.expectation_verified:
                 case.warnings.append(_UNVERIFIED)
         if not case.preconditions:

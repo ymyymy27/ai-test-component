@@ -58,12 +58,27 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "run.manual",
   "analysis.run",
   "evidence.list",
+  "evidence.add",
+  "rules.save",
+  "rules.list",
+  "rules.show",
+  "rules.import",
+  "rules.export",
+  "rules.bind",
+  "github.read",
+  "link.import",
+  "link.assert",
   "issue.list",
+  "issue.show",
   "issue.update",
   "issue.close",
   "report.generate",
+  "report.show",
+  "report.list",
   "report.export",
   "report.opinion",
+  "backup.create",
+  "backup.restore",
 ]);
 
 /** 只有用户显式确认的命令才接受 `--confirm`。 */
@@ -81,6 +96,10 @@ const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "analysis.run": 120_000,
   "report.generate": 120_000,
   "report.export": 60_000,
+  "rules.import": 30_000,
+  "rules.export": 30_000,
+  "github.read": 60_000,
+  "link.import": 60_000,
   "project.config": 30_000,
   doctor: 30_000,
 };
@@ -343,15 +362,50 @@ function openPanel(context: vscode.ExtensionContext): void {
   context.subscriptions.push(created);
 }
 
-function checkEnvironment(context: vscode.ExtensionContext): void {
+async function checkEnvironment(context: vscode.ExtensionContext): Promise<void> {
   openPanel(context);
   clearRuntimeCache();
-  sendToPanel({ type: "command", command: "doctor" });
+  const result = await execute("doctor", {}, false);
+  if (!result.ok) {
+    void vscode.window.showErrorMessage(
+      `环境检查失败：${result.error?.message ?? "未知错误"}`,
+    );
+    return;
+  }
+  const data = isRecord(result.data) ? result.data : {};
+  const model = isRecord(data["model"]) ? data["model"] : {};
+  const github = isRecord(data["github"]) ? data["github"] : {};
+  const python = isRecord(data["python"]) ? data["python"] : {};
+  void vscode.window.showInformationMessage(
+    `环境检查：Python ${String(python["version"] ?? "未知")}；模型 ${
+      model["ok"] ? "可用" : "不可用"
+    }；GitHub ${github["ok"] ? "可用" : "不可用"}`,
+  );
 }
 
-function showRunStatus(context: vscode.ExtensionContext): void {
+async function showRunStatus(context: vscode.ExtensionContext): Promise<void> {
   openPanel(context);
-  sendToPanel({ type: "command", command: "runStatus" });
+  const binding = await refreshWorkspaceBinding();
+  if (!binding.projectId) {
+    void vscode.window.showInformationMessage("尚未绑定项目，请先在面板选择项目目录。");
+    return;
+  }
+  const runs = await execute("run.list", { project_id: binding.projectId }, false);
+  if (!runs.ok || !isRecord(runs.data)) {
+    void vscode.window.showErrorMessage(
+      `读取运行列表失败：${runs.error?.message ?? "未知错误"}`,
+    );
+    return;
+  }
+  const items = runs.data["runs"];
+  const latest = Array.isArray(items) && items.length > 0 ? items[0] : null;
+  if (!isRecord(latest)) {
+    void vscode.window.showInformationMessage("该项目还没有运行记录。");
+    return;
+  }
+  void vscode.window.showInformationMessage(
+    `最近运行 ${String(latest["run_id"] ?? "")}：${String(latest["status"] ?? "未知")}`,
+  );
 }
 
 function releasePanel(webview: vscode.Webview): void {

@@ -16,6 +16,25 @@ from aitest.commands import MUTATING, REGISTRY, cached_result, store_result
 from aitest.errors import AiTestError, ErrorInfo
 from aitest.storage.workspace import Workspace
 
+_SELF_LOCKED = frozenset(
+    {"run.start", "run.manual", "evidence.add", "data.cleanup", "analysis.run", "run.cancel"}
+)
+
+_LOCK_TIMEOUTS: dict[str, float] = {
+    "task.add": 180.0,
+    "plan.generate": 180.0,
+    "delivery.draft": 180.0,
+    "report.generate": 300.0,
+    "backup.create": 600.0,
+    "backup.restore": 600.0,
+    "github.read": 120.0,
+    "link.import": 120.0,
+}
+
+
+def _lock_timeout(command: str) -> float:
+    return _LOCK_TIMEOUTS.get(command, 30.0)
+
 
 def _usage(message: str, next_step: str = "修正参数后重试") -> AiTestError:
     return AiTestError("USAGE", message, next_step)
@@ -113,15 +132,19 @@ def main(argv: list[str] | None = None) -> int:
         workspace = Workspace(workspace_root)
         workspace.init()
         if request_id and command in MUTATING:
-            cached = cached_result(workspace, request_id)
+            cached = cached_result(workspace, request_id, command, inner)
             if cached is not None:
                 _write(cached)
                 _log(f"cached {command} in {time.monotonic() - started:.3f}s")
                 return 0
-        result = handler(workspace, inner, confirm)
+        if command in MUTATING and command not in _SELF_LOCKED:
+            with workspace.lock(timeout=_lock_timeout(command)):
+                result = handler(workspace, inner, confirm)
+        else:
+            result = handler(workspace, inner, confirm)
         response = {"ok": True, "request_id": request_id, "data": result}
         if request_id and command in MUTATING:
-            store_result(workspace, request_id, response)
+            store_result(workspace, request_id, response, command, inner)
         _write(response)
         _log(f"ok {command} in {time.monotonic() - started:.3f}s")
         return 0

@@ -1,0 +1,2 @@
+{"timestamp": "2026-11-17T15:39:05+08:00", "trace_id": "req-ac27", "module": "api", "level": "passed", "msg": "收到请求", "node_id": "log:1", "parent_id": ""}
+{"timestamp": "2026-11-17T15:39:05+08:00", "trace_id": "req-ac27", "module": "order", "level": "failed", "msg": "订单查询为空", "node_id": "log:2", "parent_id": "log:1", "expected": "order_1", "actual": "missing"}

@@ -46,18 +46,18 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": "真实 Trae CN 1.107.1 面板（2026-11-16 新版共享面板）在无历史数据时显示通用目标“验证项目能否启动并跑通主流程”，目标输入框可直接改写。",
+      "actual": "真实 Trae CN 1.107.1 面板：在空工作空间新增项目 aitest-ac02-demo 后，显示“这次要验证什么”，给出通用目标候选“验证项目能否启动并跑通主流程”（来源“通用目标”），下方目标输入框可直接改写；页面明确提示默认选中但确认后才建任务。",
       "evidence": {
-        "path": "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-wizard.png",
-        "description": "2026-11-16 新版共享面板/验收记录",
+        "path": "tests/acceptance/p1/evidence/2026-11-17-trae-panel/trae-target-selection.png",
+        "description": "真实 Trae 面板新增项目后的目标选择",
         "method": "real_trae_panel"
       },
       "unverified_reason": "",
       "blockers": null,
       "real_environment_verified": true,
       "source_evidence": [
-        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-wizard.png",
-        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/README.md"
+        "tests/acceptance/p1/evidence/2026-11-17-trae-panel/trae-target-selection.png",
+        "tests/acceptance/p1/evidence/2026-11-17-trae-panel/README.md"
       ]
     },
     {
@@ -653,7 +653,7 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": "空 APPDATA 且无密钥时 plan.generate 返回 MODEL_UNAVAILABLE；显式用例仍可运行、出证据、出报告；真实面板显示“分析未生成：模型当前不可用”。",
+      "actual": "空 APPDATA 且无密钥时 plan.generate 返回 MODEL_UNAVAILABLE；显式用例仍可运行、出证据、出报告；报告分析状态为 not_generated/model_missing。面板重写后的显示由组件测试覆盖，未在真实 Trae 重新验收。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
         "description": "2026-11-16 G3 按当前代码重跑的真实输出",
@@ -664,31 +664,42 @@
       "real_environment_verified": true,
       "source_evidence": [
         "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-model-unavailable-recheck.json",
-        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-no-model-report.md",
-        "tests/acceptance/p1/evidence/2026-11-16-panel-v2/trae-result.png"
+        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac26-no-model-report.md"
       ]
     },
     {
       "id": "P1-AC27",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "导入一次包含请求、日志与数据库结果的完整链路",
       "expected": "节点按顺序排列并标出缺口，断言显示首个异常与上下游，定位到已观测代码位置或未知范围",
       "related_frs": [
         "FR15",
         "FR16"
       ],
-      "prerequisites": [],
-      "artifact_versions": [],
-      "actual": null,
+      "prerequisites": [
+        "真实 JSONL 日志文件",
+        "只读查询命令"
+      ],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0"
+      ],
+      "actual": "真实 CLI：link.import 从 app.jsonl 与只读查询导入 log:1→log:2→db:1 三节点，无缺口；首错节点 log:2 带上游 log:1 与下游 db:1，位置解析为 app.jsonl:2；link.assert 写回断言并返回 passed。",
       "evidence": {
-        "path": null,
-        "description": null,
-        "method": null
+        "path": "tests/acceptance/p1/evidence/2026-11-17-link/ac27-link.json",
+        "description": "2026-11-17 按当前代码用真实日志文件与只读查询命令重跑",
+        "method": "real_cli"
       },
-      "unverified_reason": "完整链路夹具与节点断言定位尚未在真实输入上验证；当前只有 link.import 缺口路径证据。",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-17-link/ac27-link.json",
+        "tests/acceptance/p1/evidence/2026-11-17-link/ac27-assert.json",
+        "tests/acceptance/p1/evidence/2026-11-17-link/ac27-run-status.json",
+        "tests/acceptance/p1/evidence/2026-11-17-link/README.md"
+      ]
     }
   ],
   "cases": [
@@ -798,7 +809,7 @@
     },
     {
       "id": "P1-AC27",
-      "result": "untested"
+      "result": "verified"
     }
   ]
 }

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from aitest.config import known_secret_values
+from aitest.core.evidence import evidence_path
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
 from aitest.models import Issue, IssueOccurrence, Plan, Run, new_id
@@ -42,8 +43,8 @@ def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
     messages = [attempt.message for attempt in run_case.attempts if attempt.message]
     evidence: list[str] = []
     for ref in run_case.evidence_refs[:3]:
-        path = run_dir / ref
-        if not path.is_file():
+        path = evidence_path(run_dir, ref)
+        if path is None or not path.is_file():
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -80,6 +81,7 @@ def add_issue(
     steps: list[str] | None = None,
     expected: str = "",
     actual: str = "",
+    unstable: bool = False,
 ) -> dict[str, Any]:
     if run_dir is not None and error_type == "unknown" and not stack_key:
         run = read_model(run_dir / "run.json", Run)
@@ -101,6 +103,14 @@ def add_issue(
                 )
             )
             issue.last_result = "failed"
+            if issue.status == "closed":
+                # A closed issue that fails again is no longer closed; keep the
+                # occurrence and require a fresh retest before closing again.
+                issue.status = "retest"
+                issue.disposition = None
+                issue.reason = "关闭后再次复现，待复测"
+            if unstable:
+                issue.unstable = True
             issue.revision += 1
             write_model(path, issue)
             return {"issue_id": issue.issue_id, "existing": True, "revision": issue.revision}
@@ -117,6 +127,7 @@ def add_issue(
             IssueOccurrence(run_id=run_id, case_id=case_id, at=iso_now(), evidence_refs=refs)
         ],
         last_result="failed",
+        unstable=unstable,
     )
     write_model(directory / f"{issue.issue_id}.json", issue)
     return {"issue_id": issue.issue_id, "existing": False, "revision": issue.revision}
@@ -199,6 +210,31 @@ def _draft_issue(
     }
 
 
+def _previous_case_result(
+    ws: Workspace, project_id: str, current_run_id: str, case_id: str
+) -> str | None:
+    runs_dir = ws.project_dir(project_id) / "runs"
+    if not runs_dir.is_dir():
+        return None
+    candidates: list[tuple[str, str]] = []
+    for path in runs_dir.glob("*/run.json"):
+        try:
+            data = read_model(path, Run)
+        except AiTestError:
+            continue
+        if data.run_id == current_run_id:
+            continue
+        result = next(
+            (item.result for item in data.cases if item.case_id == case_id), None
+        )
+        if result is not None:
+            candidates.append((data.started_at, result))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0])
+    return candidates[-1][1]
+
+
 def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[str]:
     """Create draft issues for failed cases and flag inconsistent later passes."""
     run = read_model(run_dir / "run.json", Run)
@@ -212,6 +248,7 @@ def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[s
         if run_case.result != "failed":
             continue
         draft = _draft_issue(ws, project_id, run_dir, run, plan, run_case, secrets)
+        previous = _previous_case_result(ws, project_id, run.run_id, run_case.case_id)
         result = add_issue(
             ws,
             project_id,
@@ -223,6 +260,7 @@ def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[s
             actual=draft["actual"],
             evidence_refs=list(run_case.evidence_refs),
             run_dir=run_dir,
+            unstable=previous == "passed",
         )
         issue_ids.append(str(result["issue_id"]))
     return issue_ids

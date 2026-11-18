@@ -3,7 +3,7 @@
  * 数据是与契约同形的演示数据，不连接真实工作空间，也不进入生产构建。
  */
 import type { HostBridge } from "@/api/host";
-import type { DoctorFacts, IssueSummary, TemplateResult } from "@/api/types";
+import type { DoctorFacts, Issue, IssueSummary, TemplateResult } from "@/api/types";
 
 const NOW = "2026-11-16T14:20:00+08:00";
 const TASK_ID = "task_demo";
@@ -130,6 +130,7 @@ const run = {
   status: "completed",
   started_at: NOW,
   heartbeat_at: "2026-11-16T14:26:41+08:00",
+  latest_report_id: "rep_demo",
   evidence_refs: [
     "evidence/screenshot-order-list.png",
     "evidence/response.json",
@@ -138,7 +139,7 @@ const run = {
   cases: [
     {
       case_id: "case_1",
-      result: "failed",
+      result: "passed",
       attempts: [
         {
           attempt: 1,
@@ -248,6 +249,10 @@ const run = {
 const plan = {
   plan_id: PLAN_ID,
   task_id: TASK_ID,
+  plan_no: 2,
+  task_revision: 2,
+  task_contract: "demo-contract",
+  created_at: NOW,
   scope: run.scope,
   applicable_count: 8,
   cases: planCases,
@@ -255,6 +260,72 @@ const plan = {
   source_signature: "sha256:demo-plan",
   revision: 1,
 };
+
+const report = {
+  report_id: "rep_demo",
+  run_id: RUN_ID,
+  generated_at: "2026-11-16T14:27:10+08:00",
+  outcome: "failed",
+  conclusion: "本范围 3 / 8 通过 1、失败 1、阻塞 1；2 项未覆盖。",
+  counts: { selected: 3, applicable: 8, covered: 3, passed: 1, failed: 1, incomplete: 1 },
+  coverage: { selected: 3, applicable: 8 },
+  changed_modules: ["order", "stock"],
+  unmapped_files: [],
+  evidence_refs: ["evidence/stock-log.txt"],
+  mock_judgement: [{ dependency: "支付", kind: "mock", reason: "tests/conftest.py:18 使用本地桩" }],
+  real_chain: false,
+  summary: "本范围没有全部通过；库存扣减仍有重复。",
+  summary_source: "fallback",
+  opinion: null,
+  issues: [{ issue_id: "issue_1", title: "并发下单时库存被重复扣减", status: "pending" }],
+  issue_count: 1,
+  failure_occurrences: 1,
+  analysis: run.analysis,
+  layers: { L1: 1, L2: 2, L3: 3 },
+  rules_version_id: null,
+  source_commit: null,
+  templates: [],
+  environment: { python: "3.13.1", services: {} },
+  github: null,
+  uncovered_items: [
+    "ai_3：支付回调重复到达时不重复扣款",
+    "ai_4：下单失败时库存回滚",
+    "ai_6：订单详情显示正确金额",
+    "ai_7：通知在 30 秒内送达",
+    "ai_8：系统整体要稳定",
+  ],
+  unverified_items: [],
+  item_details: [
+    { item_id: "ai_1", text: items[0].text, module_id: "mod_order", selected: true, result: "passed", case_ids: ["case_1", "case_2"] },
+    { item_id: "ai_2", text: items[1].text, module_id: "mod_stock", selected: true, result: "failed", case_ids: ["case_3"] },
+    { item_id: "ai_5", text: items[4].text, module_id: "mod_order", selected: true, result: "blocked", case_ids: ["case_4", "case_5"] },
+  ],
+  case_details: planCases.map((item) => ({
+    case_id: item.case_id,
+    acceptance_item_id: item.acceptance_item_id,
+    acceptance_item_ids: item.acceptance_item_id ? [item.acceptance_item_id] : [],
+    layer: item.layer,
+    title: item.title,
+    expected: item.expected,
+    expectation_verified: true,
+    warnings: [],
+    result: run.cases.find((row) => row.case_id === item.case_id)?.result ?? "not_run",
+    evidence_refs: run.cases.find((row) => row.case_id === item.case_id)?.evidence_refs ?? [],
+    attempts: [],
+  })),
+  evidence_index: [
+    { ref: "evidence/screenshot-order-list.png", exists: true, bytes: 184320, sha256: "demo", media_type: "image/png" },
+    { ref: "evidence/response.json", exists: true, bytes: 2048, sha256: "demo", media_type: "application/json" },
+    { ref: "evidence/stock-log.txt", exists: true, bytes: 4096, sha256: "demo", media_type: "text/plain" },
+  ],
+  l1: { build: { ok: true }, entries: [], cases: [planCases[5]], blocking_reasons: [] },
+  revision: 2,
+};
+
+const reportVersions = [
+  { report_id: "rep_demo", run_id: RUN_ID, generated_at: "2026-11-16T14:27:10+08:00", outcome: "failed", revision: 2, has_opinion: false },
+  { report_id: "rep_demo_1", run_id: RUN_ID, generated_at: "2026-11-16T14:26:00+08:00", outcome: "failed", revision: 1, has_opinion: true },
+];
 
 const doctor: DoctorFacts = {
   workspace: { ok: true, path: "C:\\Users\\demo\\AppData\\Roaming\\aitest\\workspaces\\ws_demo", workspace_id: "ws_demo" },
@@ -297,19 +368,75 @@ const config = {
 const issues: IssueSummary[] = [
   {
     issue_id: "issue_1",
-    title: "重复提交同一幂等键生成两条订单",
+    title: "并发下单时库存被重复扣减",
     status: "pending",
     severity: "P1",
     occurrences: 2,
+    last_at: NOW,
+    last_result: "failed",
+    unstable: true,
+    disposition: null,
+    reason: "",
+    verification_run_id: "",
+    last_case_id: "case_3",
+    last_run_id: RUN_ID,
   },
   {
     issue_id: "issue_2",
-    title: "并发下单时库存被重复扣减",
+    title: "收银台提交后订单状态未更新",
     status: "retest",
     severity: "P2",
     occurrences: 1,
+    last_at: "2026-11-16T14:25:05+08:00",
+    last_result: "failed",
+    unstable: false,
+    disposition: "fixed",
+    reason: "已补状态回写",
+    verification_run_id: "",
+    last_case_id: "case_4",
+    last_run_id: RUN_ID,
   },
 ];
+
+const issueDetails: Record<string, Issue> = {
+  issue_1: {
+    ...issues[0],
+    reason: issues[0].reason ?? "",
+    unstable: issues[0].unstable ?? false,
+    last_result: issues[0].last_result ?? "",
+    verification_run_id: issues[0].verification_run_id ?? "",
+    disposition: issues[0].disposition ?? null,
+    project_id: project.project_id,
+    signature: "case_3:assertion:stock-deducted-twice",
+    steps: ["并发提交 2 个订单", "读取库存流水", "核对扣减次数"],
+    expected: "库存只扣减一次，流水只有一条",
+    actual: "库存流水出现 2 条扣减记录",
+    fix_version: null,
+    revision: 2,
+    occurrences: [
+      { run_id: RUN_ID, case_id: "case_3", at: NOW, evidence_refs: ["evidence/stock-log.txt"] },
+      { run_id: "run_prev", case_id: "case_3", at: "2026-11-15T10:06:00+08:00", evidence_refs: [] },
+    ],
+  },
+  issue_2: {
+    ...issues[1],
+    reason: issues[1].reason ?? "",
+    unstable: issues[1].unstable ?? false,
+    last_result: issues[1].last_result ?? "",
+    verification_run_id: issues[1].verification_run_id ?? "",
+    disposition: issues[1].disposition ?? null,
+    project_id: project.project_id,
+    signature: "case_4:timeout:status-not-updated",
+    steps: ["打开收银台", "提交订单", "查询订单状态"],
+    expected: "提交后订单状态变为已支付",
+    actual: "30 秒内状态仍未更新",
+    fix_version: "1.2.0",
+    revision: 3,
+    occurrences: [
+      { run_id: RUN_ID, case_id: "case_4", at: "2026-11-16T14:25:05+08:00", evidence_refs: [] },
+    ],
+  },
+};
 
 const evidenceFiles = [
   {
@@ -384,10 +511,15 @@ function fail(code: string, message: string, nextStep: string) {
 }
 
 export function installMockHost(scenario = "proposal"): void {
+  const queryView = new URLSearchParams(window.location.search).get("view");
   const initial = {
+    view:
+      queryView === "issues" || queryView === "history" || queryView === "settings"
+        ? queryView
+        : "test",
     screen: scenario === "settings" ? "settings" : "session",
     projectId: project.project_id,
-    runId: RUN_ID,
+    runId: scenario === "proposal" || scenario === "smoke" ? "" : RUN_ID,
     planId: PLAN_ID,
   };
   let state: unknown = initial;
@@ -405,6 +537,60 @@ export function installMockHost(scenario = "proposal"): void {
     status: item.status === "pending" ? "pending" : "active",
   }));
   const planTemplates: TemplateResult[] = [];
+
+  const taskSnapshot = () => ({
+    ...task,
+    intent: scenario === "smoke" ? "smoke" : task.intent,
+    acceptance_items: scenario === "smoke" ? [] : taskItems,
+    revision: taskRevision,
+  });
+
+  const makeDetail = (status: string, outcome: string | null, allPassed = false) => {
+    const cases = allPassed
+      ? run.cases.map((item) => ({ ...item, result: "passed", attempts: [] }))
+      : status === "running"
+        ? run.cases.map((item, index) =>
+            index < 2 ? item : { ...item, result: "not_run", attempts: [], evidence_refs: [] },
+          )
+        : run.cases;
+    const counts = allPassed
+      ? { selected: 3, applicable: 8, covered: 3, passed: 3, failed: 0, incomplete: 0 }
+      : status === "running"
+        ? { selected: 3, applicable: 8, covered: 2, passed: 1, failed: 1, incomplete: 0 }
+        : { selected: 3, applicable: 8, covered: 3, passed: 1, failed: 1, incomplete: 1 };
+    const itemOutcomes = allPassed
+      ? [
+          { item_id: "ai_1", result: "passed", case_ids: ["case_1", "case_2"] },
+          { item_id: "ai_2", result: "passed", case_ids: ["case_3"] },
+          { item_id: "ai_5", result: "passed", case_ids: ["case_4", "case_5"] },
+        ]
+      : [
+          { item_id: "ai_1", result: "passed", case_ids: ["case_1", "case_2"] },
+          { item_id: "ai_2", result: status === "running" ? "not_run" : "failed", case_ids: ["case_3"] },
+          { item_id: "ai_5", result: status === "running" ? "not_run" : "blocked", case_ids: ["case_4", "case_5"] },
+        ];
+    const current = status === "running" ? cases.find((item) => item.result === "not_run") : undefined;
+    return {
+      run: { ...run, status, current_case_id: current?.case_id ?? "", cases },
+      plan: { ...plan, cases: planCases },
+      task: taskSnapshot(),
+      task_snapshot: true,
+      outcome,
+      counts,
+      item_outcomes: itemOutcomes,
+      pending_items: status === "running" ? 1 : 0,
+      manual_cases: 1,
+      l1: { build: { ok: true }, entries: [], cases: [planCases[5]] },
+      uncovered_items: [
+        "ai_3：支付回调重复到达时不重复扣款",
+        "ai_4：下单失败时库存回滚",
+        "ai_6：订单详情显示正确金额",
+        "ai_7：通知在 30 秒内送达",
+        "ai_8：系统整体要稳定",
+      ],
+      link: null,
+    };
+  };
 
   const host: HostBridge = {
     getState: () => state,
@@ -450,6 +636,25 @@ export function installMockHost(scenario = "proposal"): void {
           return ok({ tasks });
         case "delivery.draft":
           return ok({ draft: deliveryDraft, sources: { readme: "README.md", manifest: "pyproject.toml", commit_stat: true } });
+        case "delivery.show":
+          return ok({
+            delivery: {
+              delivery_id: "dlv_demo",
+              task_id: TASK_ID,
+              done: deliveryDraft.done,
+              not_done: deliveryDraft.not_done,
+              changed_modules: deliveryDraft.changed_modules,
+              interface_changes: deliveryDraft.interface_changes,
+              run_commands: deliveryDraft.run_commands,
+              test_data: deliveryDraft.test_data.join("；"),
+              dependencies: deliveryDraft.dependencies,
+              mocks: deliveryDraft.mocks,
+              self_test_evidence: deliveryDraft.self_test_evidence,
+              commit: "abc1234",
+              complete: true,
+              revision: 1,
+            },
+          });
         case "delivery.save":
           return ok({ delivery_id: "dlv_demo", revision: 1, complete: true });
         case "template.list":
@@ -514,6 +719,7 @@ export function installMockHost(scenario = "proposal"): void {
               acceptance_items: scenario === "smoke" ? [] : taskItems,
               revision: taskRevision,
             },
+            plans: scenario === "smoke" ? [] : [PLAN_ID],
           });
         case "task.update": {
           const patch = (body["patch"] ?? {}) as {
@@ -566,7 +772,13 @@ export function installMockHost(scenario = "proposal"): void {
           });
         }
         case "plan.show":
-          return ok({ plan: { ...plan, templates: planTemplates } });
+          return ok({
+            plan: { ...plan, templates: planTemplates },
+            coverage: { selected: plan.scope.acceptance_item_ids.length, applicable: 8 },
+            stale: false,
+            stale_reason: "",
+            task_updated: false,
+          });
         case "run.start":
           startedRun = true;
           cancelled = false;
@@ -574,36 +786,17 @@ export function installMockHost(scenario = "proposal"): void {
         case "run.status":
           if (body["run_id"] === RUN_ID) {
             if (scenario === "passed") {
-              return ok({
-                run: {
-                  ...run,
-                  analysis: [],
-                  cases: run.cases.map((item) => ({ ...item, result: "passed" })),
-                },
-                outcome: "passed",
-              });
+              return ok(makeDetail("completed", "passed", true));
             }
             if (cancelled) {
-              return ok({ run: { ...run, status: "cancelled" }, outcome: "failed" });
+              return ok(makeDetail("cancelled", "incomplete"));
             }
             if (scenario === "running" || startedRun) {
-              return ok({
-                run: {
-                  ...run,
-                  status: "running",
-                  cases: run.cases.map((item, index) =>
-                    index < 4 ? item : { ...item, result: "not_run", attempts: [], evidence_refs: [] },
-                  ),
-                },
-                outcome: null,
-              });
+              return ok(makeDetail("running", null));
             }
-            return ok({ run, outcome: "failed" });
+            return ok(makeDetail("completed", "failed"));
           }
-          return ok({
-            run: { ...run, run_id: String(body["run_id"] ?? ""), status: "cancelled" },
-            outcome: "failed",
-          });
+          return ok(makeDetail("cancelled", "incomplete"));
         case "run.list": {
           if (scenario === "proposal" || scenario === "no-project" || scenario === "smoke") {
             return ok({ runs: [] });
@@ -615,18 +808,51 @@ export function installMockHost(scenario = "proposal"): void {
                 status: scenario === "running" ? "running" : "completed",
                 started_at: NOW,
                 heartbeat_at: NOW,
+                elapsed_seconds: 401,
+                plan_id: PLAN_ID,
+                plan_no: 2,
+                plan_revision: 1,
+                task_id: TASK_ID,
+                task_title: task.title,
+                task_snapshot: true,
+                outcome: scenario === "running" ? null : scenario === "passed" ? "passed" : "failed",
+                counts: { selected: 3, applicable: 8, covered: 3, passed: 1, failed: 1, incomplete: 1 },
+                scope: { selected: 3, applicable: 8 },
+                latest_report_id: "rep_demo",
               },
               {
                 run_id: "run_prev",
-                status: "cancelled",
+                status: "completed",
                 started_at: "2026-11-15T10:02:00+08:00",
                 heartbeat_at: "2026-11-15T10:08:00+08:00",
+                elapsed_seconds: 360,
+                plan_id: "plan_prev",
+                plan_no: 1,
+                plan_revision: 2,
+                task_id: TASK_ID,
+                task_title: task.title,
+                task_snapshot: true,
+                outcome: "passed",
+                counts: { selected: 2, applicable: 8, covered: 2, passed: 2, failed: 0, incomplete: 0 },
+                scope: { selected: 2, applicable: 8 },
+                latest_report_id: "rep_prev",
               },
               {
                 run_id: "run_old",
                 status: "interrupted",
                 started_at: "2026-11-14T16:40:00+08:00",
                 heartbeat_at: "2026-11-14T16:41:00+08:00",
+                elapsed_seconds: 60,
+                plan_id: "plan_old",
+                plan_no: 1,
+                plan_revision: 1,
+                task_id: "task_old",
+                task_title: "上一版下单流程",
+                task_snapshot: false,
+                outcome: "incomplete",
+                counts: { selected: 2, applicable: 6, covered: 1, passed: 0, failed: 0, incomplete: 1 },
+                scope: { selected: 2, applicable: 6 },
+                latest_report_id: "",
               },
             ],
           });
@@ -650,6 +876,8 @@ export function installMockHost(scenario = "proposal"): void {
           return ok({ status: "generated", analysis: run.analysis[0] });
         case "issue.list":
           return ok({ issues });
+        case "issue.show":
+          return ok({ issue: issueDetails[String(body["issue_id"] ?? "")] ?? issueDetails["issue_1"] });
         case "issue.update": {
           const issue = issues.find((item) => item.issue_id === body["issue_id"]);
           if (issue) {
@@ -670,6 +898,60 @@ export function installMockHost(scenario = "proposal"): void {
         }
         case "evidence.list":
           return ok({ run_id: String(body["run_id"] ?? ""), evidence: evidenceFiles });
+        case "rules.list":
+          return ok({
+            rules: [
+              {
+                rules_version_id: "rules_v1",
+                name: "默认检查规则",
+                version: "1.0",
+              },
+            ],
+          });
+        case "rules.show":
+          return ok({
+            rule: {
+              rules_version_id: "rules_v1",
+              project_id: project.project_id,
+              name: "默认检查规则",
+              version: "1.0",
+              steps_md: "复现步骤要能独立执行；失败必须附证据。",
+              ai_rules: ["不要用模拟数据证明真实链路"],
+              evidence_requirements: ["失败截图或日志"],
+              revision: 1,
+            },
+          });
+        case "rules.bind":
+          return ok({
+            project_id: project.project_id,
+            rules_version_id: String(body["rules_version_id"] ?? ""),
+          });
+        case "github.read":
+          return ok({
+            repo: String(body["repo"] ?? ""),
+            branch: String(body["ref"] ?? "main"),
+            commit: "0123456789abcdef0123456789abcdef01234567",
+            files: ["src/order.py", "src/stock.py"],
+            prs: [{ number: 12, title: "修复重复下单" }],
+            checks: [{ name: "ci", conclusion: "success" }],
+            deployment: null,
+            path: "github/demo.json",
+          });
+        case "link.import":
+          return ok({
+            nodes: [],
+            assertions: [],
+            gaps: [],
+            location: {
+              first_anomaly: null,
+              upstream: [],
+              downstream: [],
+              location: { known: false, reason: "演示宿主没有调用链日志" },
+            },
+            path: "runs/demo/link.json",
+          });
+        case "evidence.add":
+          return ok({ evidence_ref: "manual-demo.log" });
         case "module.suggest":
           return ok({
             modules: [
@@ -686,7 +968,17 @@ export function installMockHost(scenario = "proposal"): void {
         case "module.add":
           return ok({ module_id: "mod_new", revision: 5 });
         case "report.generate":
-          return ok({ report_id: "rep_demo", outcome: "failed", counts: { selected: 3, applicable: 8 } });
+          return ok({
+            report_id: "rep_demo",
+            run_id: RUN_ID,
+            generated_at: "2026-11-16T14:35:00+08:00",
+            outcome: "failed",
+            counts: { selected: 3, applicable: 8 },
+          });
+        case "report.show":
+          return ok({ report });
+        case "report.list":
+          return ok({ reports: reportVersions });
         case "report.export":
           return ok({ path: String(body["path"] ?? ""), bytes: 2048 });
         case "report.opinion":

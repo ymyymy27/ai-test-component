@@ -1,16 +1,21 @@
-/** 测试用宿主：按命令返回固定数据，并记录调用。 */
+/** 测试用宿主与固定事实：只做面板行为测试，不连接真实工作空间。 */
 import type { HostBridge, HostCallResult } from "@/api/host";
-import { session, type ProposalState } from "@/state/session";
 import type {
   DoctorFacts,
+  Delivery,
   EvidenceItem,
+  Issue,
   IssueSummary,
   Plan,
   Project,
+  Report,
+  ReportVersion,
   RunDetail,
+  RunSummary,
   Task,
   TemplateResult,
 } from "@/api/types";
+import { workspace } from "@/state/workspace";
 
 export interface HostRecord {
   command: string;
@@ -29,6 +34,7 @@ export interface Harness {
 export function installHost(routes: Record<string, Route>): Harness {
   const calls: HostRecord[] = [];
   const opened: string[] = [];
+  let state: unknown = {};
   const bridge: HostBridge = {
     async call(
       command: string,
@@ -57,8 +63,10 @@ export function installHost(routes: Record<string, Route>): Harness {
       }
       return { ok: true, data };
     },
-    getState: () => ({}),
-    setState: () => undefined,
+    getState: () => state,
+    setState: (next: unknown) => {
+      state = next;
+    },
     async openPath(path: string) {
       opened.push(path);
       return { ok: true, data: true };
@@ -68,61 +76,42 @@ export function installHost(routes: Record<string, Route>): Harness {
   return { calls, bridge, opened };
 }
 
-export function emptyProposal(): ProposalState {
-  return {
-    candidates: [],
-    index: -1,
-    fallback: "",
-    goal: "",
-    basis: "",
-    taskId: "",
-    taskRevision: 0,
-    taskGoal: "",
-    items: [],
-    itemsLoading: false,
-    itemsError: null,
-    itemsDirty: false,
-    preset: "all_applicable",
-    selected: [],
-    moduleIds: [],
-    suggestLoading: false,
-    suggestError: null,
-    previewPlan: null,
-    previewSignature: "",
-    starting: false,
-    startError: null,
-  };
-}
-
-export function resetSession(): void {
-  session.ready = true;
-  session.booting = false;
-  session.bootError = null;
-  session.screen = "session";
-  session.phase = "proposal";
-  session.projects = [];
-  session.project = null;
-  session.doctor = null;
-  session.doctorLoading = false;
-  session.env = "unknown";
-  session.history = [];
-  session.lastRun = null;
-  session.activeRunId = "";
-  session.activePlanId = "";
-  session.activeTaskId = "";
-  session.result = null;
-  session.plan = null;
-  session.task = null;
-  session.issues = [];
-  session.proposal = emptyProposal();
-  session.loading = {};
-  session.notice = "";
-  session.hostContext = null;
-  session.prefillRoot = "";
-  session.historyOpen = false;
-  session.adjustOpen = false;
-  session.projectOpen = false;
-  session.evidenceOpen = false;
+export function resetWorkspace(): void {
+  workspace.ready = true;
+  workspace.booting = false;
+  workspace.bootError = null;
+  workspace.view = "test";
+  workspace.stage = "plan";
+  workspace.sheet = null;
+  workspace.projects = [];
+  workspace.project = null;
+  workspace.doctor = null;
+  workspace.env = "unknown";
+  workspace.tasks = [];
+  workspace.task = null;
+  workspace.candidates = [];
+  workspace.candidateIndex = -1;
+  workspace.candidateLoading = false;
+  workspace.candidateError = null;
+  workspace.goal = "";
+  workspace.planIds = [];
+  workspace.plans = [];
+  workspace.plan = null;
+  workspace.planDetail = null;
+  workspace.scope = [];
+  workspace.run = null;
+  workspace.historical = false;
+  workspace.history = [];
+  workspace.issues = [];
+  workspace.issue = null;
+  workspace.reports = [];
+  workspace.report = null;
+  workspace.loading = {};
+  workspace.notice = "";
+  workspace.lastError = null;
+  workspace.hostContext = null;
+  workspace.prefillRoot = "";
+  workspace.addProjectOpen = false;
 }
 
 export const PROJECT: Project = {
@@ -144,6 +133,7 @@ export const ITEMS = [
     observable: true,
     status: "active" as const,
     source: "任务描述",
+    module_id: "mod_order",
   },
   {
     item_id: "ai_2",
@@ -151,6 +141,7 @@ export const ITEMS = [
     observable: true,
     status: "active" as const,
     source: "任务描述",
+    module_id: "mod_stock",
   },
   {
     item_id: "ai_3",
@@ -179,8 +170,12 @@ export const PLAN_CASES = [
     title: "重复提交同一订单",
     expected: "订单列表只出现一条",
     expectation_source: "下单后订单列表出现该订单",
+    expectation_verified: true,
+    warnings: [],
     verify_method: "command:pytest tests/test_order.py",
     importance: "high" as const,
+    preconditions: ["测试库可用"],
+    steps: ["提交两次", "查订单列表"],
   },
   {
     case_id: "case_2",
@@ -189,20 +184,28 @@ export const PLAN_CASES = [
     title: "并发下单核对库存",
     expected: "库存只扣一次",
     expectation_source: "库存扣减一次",
+    expectation_verified: true,
+    warnings: [],
     verify_method: "script:check_stock.py",
     importance: "high" as const,
+    preconditions: ["服务已启动"],
+    steps: ["并发提交", "查库存流水"],
   },
 ];
 
 export const PLAN: Plan = {
   plan_id: "plan_1",
   task_id: "task_1",
+  plan_no: 1,
+  task_revision: 1,
+  task_contract: "contract-1",
+  created_at: "2026-11-16T14:00:00+08:00",
   scope: {
     preset: "selected",
     module_ids: [],
     acceptance_item_ids: ["ai_1", "ai_2"],
   },
-  applicable_count: 3,
+  applicable_count: 2,
   cases: PLAN_CASES,
   status: "published",
   source_signature: "sha256:test-plan",
@@ -214,16 +217,19 @@ export const DOCTOR: DoctorFacts = {
   python: { ok: true, version: "3.13.1" },
   package: { ok: true, version: "0.5.0" },
   model: { ok: true, source: "user-config" },
-  github: { ok: true },
+  github: { ok: true, path: "C:\\Program Files\\GitHub CLI\\gh.exe" },
   proxy: { ok: true },
   repairs: [],
 };
 
 export const RUN_DETAIL: RunDetail = {
   outcome: "failed",
+  plan: PLAN,
+  task: TASK,
+  task_snapshot: true,
   counts: {
     selected: 2,
-    applicable: 3,
+    applicable: 2,
     covered: 2,
     passed: 1,
     failed: 1,
@@ -235,7 +241,7 @@ export const RUN_DETAIL: RunDetail = {
   ],
   pending_items: 0,
   manual_cases: 0,
-  uncovered_items: ["ai_3：系统要稳定"],
+  uncovered_items: [],
   run: {
     run_id: "run_1",
     plan_id: "plan_1",
@@ -247,6 +253,8 @@ export const RUN_DETAIL: RunDetail = {
     },
     status: "completed",
     started_at: "2026-11-16T14:20:00+08:00",
+    heartbeat_at: "2026-11-16T14:21:12+08:00",
+    latest_report_id: "rep_1",
     cases: [
       {
         case_id: "case_1",
@@ -255,7 +263,7 @@ export const RUN_DETAIL: RunDetail = {
           {
             attempt: 1,
             result: "failed",
-            message: "AssertionError: 期望 1 条订单，实际 2 条",
+            message: "期望 1 条订单，实际 2 条",
             evidence_refs: ["evidence/order-list.png"],
           },
         ],
@@ -284,10 +292,17 @@ export const RUN_DETAIL: RunDetail = {
 };
 
 export const RUNNING_DETAIL: RunDetail = {
+  ...RUN_DETAIL,
   outcome: null,
+  counts: { selected: 2, applicable: 2, covered: 1, passed: 1, failed: 0, incomplete: 0 },
+  item_outcomes: [
+    { item_id: "ai_1", result: "passed", case_ids: ["case_1"] },
+    { item_id: "ai_2", result: "not_run", case_ids: ["case_2"] },
+  ],
   run: {
     ...RUN_DETAIL.run,
     status: "running",
+    current_case_id: "case_2",
     cases: [
       {
         case_id: "case_1",
@@ -312,13 +327,8 @@ export const EVIDENCE: EvidenceItem[] = [
     path: "C:/data/ws/evidence/run_1/order-list.png",
     bytes: 2048,
     exists: true,
-  },
-  {
-    ref: "evidence/order-detail.json",
-    name: "order-detail.json",
-    path: "C:/data/ws/evidence/run_1/order-detail.json",
-    bytes: 512,
-    exists: true,
+    media_type: "image/png",
+    sha256: "abc123",
   },
   {
     ref: "evidence/missing.log",
@@ -332,18 +342,161 @@ export const EVIDENCE: EvidenceItem[] = [
 
 export const ISSUES: IssueSummary[] = [
   {
-    issue_id: "issue_abc123",
+    issue_id: "issue_1",
     title: "重复提交生成两条订单",
     status: "pending",
     severity: "P1",
     occurrences: 2,
+    last_at: "2026-11-16T14:20:00+08:00",
+    last_result: "failed",
+    unstable: false,
+    disposition: null,
+    reason: "",
+    verification_run_id: "",
+    last_case_id: "case_1",
+    last_run_id: "run_1",
   },
 ];
 
-export const RUN_SUMMARIES = [
-  { run_id: "run_1", status: "completed" as const, started_at: "2026-11-16T14:20:00+08:00" },
-  { run_id: "run_prev", status: "cancelled" as const, started_at: "2026-11-15T10:02:00+08:00" },
-  { run_id: "run_old", status: "interrupted" as const, started_at: "2026-11-14T16:40:00+08:00" },
+export const ISSUE_DETAIL: Issue = {
+  issue_id: "issue_1",
+  project_id: PROJECT.project_id,
+  signature: "case_1:assertion:order-count",
+  title: "重复提交生成两条订单",
+  steps: ["提交两次", "查订单列表"],
+  expected: "订单列表只出现一条",
+  actual: "出现两条",
+  status: "pending",
+  severity: "P1",
+  disposition: null,
+  reason: "",
+  unstable: false,
+  last_result: "failed",
+  verification_run_id: "",
+  fix_version: null,
+  revision: 1,
+  occurrences: [
+    {
+      run_id: "run_1",
+      case_id: "case_1",
+      at: "2026-11-16T14:20:00+08:00",
+      evidence_refs: ["evidence/order-list.png"],
+    },
+  ],
+};
+
+export const REPORT: Report = {
+  report_id: "rep_1",
+  run_id: "run_1",
+  generated_at: "2026-11-16T14:22:00+08:00",
+  outcome: "failed",
+  conclusion: "本范围 2 / 2 通过 1、失败 1。",
+  counts: { selected: 2, applicable: 2, covered: 2, passed: 1, failed: 1, incomplete: 0 },
+  coverage: { selected: 2, applicable: 2 },
+  changed_modules: ["订单"],
+  unmapped_files: [],
+  evidence_refs: ["evidence/order-list.png"],
+  mock_judgement: [],
+  real_chain: true,
+  summary: "本范围存在失败。",
+  summary_source: "fallback",
+  opinion: null,
+  issues: [{ issue_id: "issue_1", title: "重复提交生成两条订单", status: "pending" }],
+  issue_count: 1,
+  failure_occurrences: 1,
+  analysis: RUN_DETAIL.run.analysis as unknown as Record<string, unknown>[],
+  layers: { L1: 0, L2: 1, L3: 1 },
+  rules_version_id: null,
+  source_commit: null,
+  templates: [],
+  environment: { python: "3.13.1", services: {} },
+  github: null,
+  uncovered_items: [],
+  unverified_items: [],
+  item_details: [
+    {
+      item_id: "ai_1",
+      text: "下单后订单列表出现该订单",
+      module_id: "mod_order",
+      selected: true,
+      result: "failed",
+      case_ids: ["case_1"],
+    },
+    {
+      item_id: "ai_2",
+      text: "库存扣减一次",
+      module_id: "mod_stock",
+      selected: true,
+      result: "passed",
+      case_ids: ["case_2"],
+    },
+  ],
+  case_details: PLAN_CASES.map((item) => ({
+    case_id: item.case_id,
+    acceptance_item_id: item.acceptance_item_id,
+    acceptance_item_ids: [item.acceptance_item_id],
+    layer: item.layer,
+    title: item.title,
+    expected: item.expected,
+    expectation_verified: true,
+    warnings: [],
+    result: item.case_id === "case_1" ? "failed" : "passed",
+    evidence_refs: item.case_id === "case_1" ? ["evidence/order-list.png"] : [],
+    attempts: [],
+  })),
+  evidence_index: [
+    { ref: "evidence/order-list.png", exists: true, bytes: 2048, sha256: "abc123", media_type: "image/png" },
+  ],
+  l1: null,
+  revision: 1,
+};
+
+export const REPORT_VERSIONS: ReportVersion[] = [
+  {
+    report_id: "rep_1",
+    run_id: "run_1",
+    generated_at: "2026-11-16T14:22:00+08:00",
+    outcome: "failed",
+    revision: 1,
+    has_opinion: false,
+  },
+];
+
+export const RUN_SUMMARIES: RunSummary[] = [
+  {
+    run_id: "run_1",
+    status: "completed",
+    started_at: "2026-11-16T14:20:00+08:00",
+    heartbeat_at: "2026-11-16T14:21:12+08:00",
+    elapsed_seconds: 72,
+    plan_id: "plan_1",
+    plan_no: 1,
+    plan_revision: 1,
+    task_id: "task_1",
+    task_title: TASK.title,
+    task_snapshot: true,
+    outcome: "failed",
+    counts: { selected: 2, applicable: 2, covered: 2, passed: 1, failed: 1, incomplete: 0 },
+    scope: { selected: 2, applicable: 2 },
+    latest_report_id: "rep_1",
+  },
+  {
+    run_id: "run_old",
+    status: "completed",
+    started_at: "2026-11-15T10:02:00+08:00",
+    heartbeat_at: "2026-11-15T10:03:00+08:00",
+    elapsed_seconds: 60,
+    plan_id: "plan_old",
+    plan_no: 1,
+    plan_revision: 1,
+    task_id: "task_old",
+    task_title: "上一版下单流程",
+    task_snapshot: false,
+    outcome: "passed",
+    counts: { selected: 1, applicable: 1, covered: 1, passed: 1, failed: 0, incomplete: 0 },
+    scope: { selected: 1, applicable: 1 },
+    latest_report_id: "",
+  },
 ];
 
 export const TEMPLATE_RESULT: TemplateResult = {
@@ -359,15 +512,25 @@ export const TEMPLATE_RESULT: TemplateResult = {
       disposition: "applicable",
       reason: "有启动命令",
     },
-    {
-      item_id: "state",
-      layer: "L2",
-      objective: "状态可核对",
-      disposition: "unknown",
-      reason: "模型未提供理由",
-    },
   ],
-  summary: { applicable: 1, not_applicable: 0, unsupported: 0, unknown: 1 },
+  summary: { applicable: 1, not_applicable: 0, unsupported: 0, unknown: 0 },
+};
+
+export const DELIVERY: Delivery = {
+  delivery_id: "dlv_1",
+  task_id: TASK.task_id,
+  done: ["下单接口"],
+  not_done: [],
+  changed_modules: ["order"],
+  interface_changes: [],
+  run_commands: ["pytest tests/test_order.py"],
+  test_data: "测试库",
+  dependencies: [],
+  mocks: [],
+  self_test_evidence: ["自测截图"],
+  commit: "abc1234",
+  complete: true,
+  revision: 1,
 };
 
 export const DELIVERY_DRAFT = {
@@ -382,7 +545,7 @@ export const DELIVERY_DRAFT = {
   self_test_evidence: ["自测截图"],
 };
 
-export function sessionRoutes(overrides: Record<string, Route> = {}): Record<string, Route> {
+export function workspaceRoutes(overrides: Record<string, Route> = {}): Record<string, Route> {
   return {
     doctor: DOCTOR,
     "project.list": { projects: [{ project_id: PROJECT.project_id, name: PROJECT.name, root: PROJECT.root }] },
@@ -397,19 +560,13 @@ export function sessionRoutes(overrides: Record<string, Route> = {}): Record<str
           source: "git",
           intent: "business",
         },
-        {
-          title: "验证并发下单库存只扣一次",
-          reason: "未关闭问题",
-          source: "issue",
-          intent: "business",
-        },
       ],
       fallback: "验证项目能否启动并跑通主流程",
       intent: "smoke",
       fallback_intent: "smoke",
       ai_generated: true,
     },
-    "task.list": { tasks: [] },
+    "task.list": { tasks: [{ task_id: TASK.task_id, title: TASK.title, revision: 1 }] },
     "task.add": {
       task_id: TASK.task_id,
       revision: 1,
@@ -420,7 +577,7 @@ export function sessionRoutes(overrides: Record<string, Route> = {}): Record<str
         text: item.text,
       })),
     },
-    "task.show": { task: TASK },
+    "task.show": { task: TASK, plans: [PLAN.plan_id] },
     "task.update": (payload: Record<string, unknown>) => {
       const patch = payload["patch"] as
         | { acceptance_items?: { item_id?: string; text: string; status: string }[] }
@@ -437,29 +594,10 @@ export function sessionRoutes(overrides: Record<string, Route> = {}): Record<str
         })),
       };
     },
-    "plan.generate": {
-      plan_id: PLAN.plan_id,
-      revision: 1,
-      status: "published",
-      scope: PLAN.scope,
-      coverage: { selected: 2, applicable: 3 },
-      cases: PLAN_CASES.length,
-    },
-    "plan.show": { plan: PLAN },
-    "run.start": { run_id: "run_1", status: "running", scope: { selected: 2, applicable: 3 } },
-    "run.status": RUN_DETAIL,
-    "run.list": { runs: RUN_SUMMARIES },
-    "run.cancel": { cancel_requested: true },
-    "issue.list": { issues: ISSUES },
-    "issue.update": { issue_id: "issue_abc123", status: "in_progress", revision: 2 },
-    "issue.close": { issue_id: "issue_abc123", status: "closed" },
-    "evidence.list": { run_id: "run_1", evidence: EVIDENCE },
-    "analysis.run": { status: "generated", analysis: RUN_DETAIL.run.analysis[0] },
-    "report.generate": { report_id: "rep_1", outcome: "failed", counts: {} },
-    "report.export": { path: "E:\\reports\\run.md", bytes: 10 },
-    "report.opinion": { opinion: { by: "李四", at: "2026-11-16T15:00:00+08:00", text: "复测通过" } },
     "template.list": {
-      templates: [{ template_id: "python-service", name: "Python服务", version: "1.0.0", item_count: 2 }],
+      templates: [
+        { template_id: "python-service", name: "Python服务", version: "1.0.0", item_count: 1 },
+      ],
     },
     "template.apply": {
       template: TEMPLATE_RESULT,
@@ -469,17 +607,82 @@ export function sessionRoutes(overrides: Record<string, Route> = {}): Record<str
     },
     "module.suggest": {
       modules: [
-        { name: "order", responsibility: "下单", owner: "", deps: [{ to: "stock", type: "calls", note: "扣减" }] },
-        { name: "stock", responsibility: "库存", owner: "", deps: [] },
+        {
+          name: "order",
+          responsibility: "下单",
+          owner: "",
+          deps: [{ to: "stock", type: "calls", note: "扣减" }],
+        },
       ],
       registered: [],
     },
     "module.add": { module_id: "mod_new", revision: 3 },
+    "plan.generate": {
+      plan_id: PLAN.plan_id,
+      plan_no: 1,
+      task_revision: 1,
+      created_at: PLAN.created_at,
+      revision: 1,
+      status: "published",
+      scope: PLAN.scope,
+      coverage: { selected: 2, applicable: 2 },
+      cases: PLAN_CASES.length,
+    },
+    "plan.show": {
+      plan: PLAN,
+      coverage: { selected: 2, applicable: 2 },
+      stale: false,
+      stale_reason: "",
+      task_updated: false,
+    },
+    "plan.update": {
+      plan_id: PLAN.plan_id,
+      plan_no: 1,
+      task_revision: 1,
+      revision: 2,
+      status: "published",
+      warnings: [],
+      unverified_cases: [],
+    },
+    "run.start": { run_id: "run_1", status: "running", scope: { selected: 2, applicable: 2 } },
+    "run.status": RUN_DETAIL,
+    "run.list": { runs: RUN_SUMMARIES },
+    "run.cancel": { cancel_requested: true },
+    "run.manual": {
+      case_id: "case_2",
+      result: "passed",
+      steps: [{ step: "并发提交", result: "passed" }],
+    },
+    "issue.list": { issues: ISSUES },
+    "issue.show": { issue: ISSUE_DETAIL },
+    "issue.update": { issue_id: "issue_1", status: "in_progress", revision: 2 },
+    "issue.close": { issue_id: "issue_1", status: "closed" },
+    "evidence.list": { run_id: "run_1", evidence: EVIDENCE },
+    "analysis.run": { status: "generated", analysis: RUN_DETAIL.run.analysis[0] },
+    "report.generate": {
+      report_id: "rep_1",
+      run_id: "run_1",
+      generated_at: "2026-11-16T14:22:00+08:00",
+      outcome: "failed",
+      counts: {},
+    },
+    "report.show": { report: REPORT },
+    "report.list": { reports: REPORT_VERSIONS },
+    "report.export": { path: "E:\\reports\\run.md", bytes: 10 },
+    "report.opinion": { opinion: { by: "李四", at: "2026-11-16T15:00:00+08:00", text: "复测通过" } },
+    "delivery.show": { delivery: DELIVERY },
     "delivery.draft": {
       draft: DELIVERY_DRAFT,
       sources: { readme: "README.md", manifest: "pyproject.toml", commit_stat: true },
     },
-    "delivery.save": { delivery_id: "dlv_1", revision: 1, complete: false },
+    "delivery.save": { delivery_id: "dlv_1", revision: 1, complete: true },
+    "backup.create": {
+      path: "E:\\backup\\aitest.zip",
+      sha256: "abc123456789",
+      bytes: 100,
+      includes_evidence: false,
+      files: 3,
+    },
     ...overrides,
   };
 }

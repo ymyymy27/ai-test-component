@@ -90,6 +90,9 @@ export const window = {
     return panel;
   },
   showWarningMessage: (text) => { state.warning = text; },
+  showInformationMessage: (text) => { state.info = text; },
+  showErrorMessage: (text) => { state.error = text; },
+  setStatusBarMessage: () => ({ dispose() {} }),
 };
 
 export const ViewColumn = { One: 1 };
@@ -206,17 +209,18 @@ test("openPanel loads the shared panel build with CSP, nonce and injected bridge
   assert.equal(webview.html.includes("pipe"), false);
 });
 
-test("ready publishes settings context and flushes queued panel commands", async () => {
+test("ready publishes settings context and checkEnvironment runs doctor", async () => {
   state.sent.length = 0;
-  state.commands.get("aitest.checkEnvironment")();
+  state.info = "";
+  await state.commands.get("aitest.checkEnvironment")();
   assert.equal(state.revealed, 1);
+  assert.match(state.info, /环境检查/);
   assert.equal(state.sent.length, 0);
   state.receive({ type: "ready" });
   await tick();
   const context = state.sent.find((message) => message.type === "context");
   assert.match(context.workspacePath, /aitest[\\/]workspaces[\\/]default$/);
   assert.equal(context.pythonPath, "");
-  assert.equal(state.sent.some((message) => message.type === "command" && message.command === "doctor"), true);
 });
 
 test("panel call dispatches through the bridge with discovered runtime and settings", async () => {
@@ -282,7 +286,14 @@ test("panel writes and reads stay inside the allowlist", async () => {
     "run.manual",
     "analysis.run",
     "issue.list",
+    "issue.show",
     "report.opinion",
+    "report.show",
+    "report.list",
+    "rules.list",
+    "github.read",
+    "link.import",
+    "evidence.add",
   ];
   for (const command of commands) {
     state.receive({ type: "call", id: "allowed-" + command, command, payload: {} });
@@ -296,7 +307,7 @@ test("panel writes and reads stay inside the allowlist", async () => {
 
 test("commands outside the panel allowlist never reach the bridge", async () => {
   state.bridgeCalls.length = 0;
-  state.receive({ type: "call", id: "blocked", command: "backup.create", payload: {} });
+  state.receive({ type: "call", id: "blocked", command: "project.delete", payload: {} });
   await until(() => state.sent.some((message) => message.type === "result" && message.id === "blocked"), "blocked result");
   assert.equal(state.bridgeCalls.length, 0);
   const result = state.sent.at(-1);

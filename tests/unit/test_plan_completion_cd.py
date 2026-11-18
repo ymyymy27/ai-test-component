@@ -202,6 +202,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - handler API
         self.server.seen.append({key: value for key, value in self.headers.items()})
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/ok")
+            self.end_headers()
+            return
         body = b'{"ok": true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -1060,7 +1065,12 @@ def test_worker_junit_command_reads_fixed_xml_and_passes(
     project_id = setup["project"]["project_id"]
     item_id = setup["task"]["acceptance_items"][0]["item_id"]
     (tmp_path / "repo" / "junit.xml").write_text(_junit_xml(False), encoding="utf-8")
-    plan = _plan(tmp_path, capsys, setup, [_case(item_id, "junit:echo ready")])
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [_case(item_id, "junit:python -c \"print(open('junit.xml',encoding='utf-8').read())\"")],
+    )
     run_id, run = _run_plan(tmp_path, capsys, setup, plan)
 
     assert run["cases"][0]["result"] == "passed"
@@ -1075,10 +1085,25 @@ def test_worker_junit_failure_is_failed(tmp_path: Path, capsys: Capsys) -> None:
     setup = _setup(tmp_path, capsys)
     item_id = setup["task"]["acceptance_items"][0]["item_id"]
     (tmp_path / "repo" / "junit.xml").write_text(_junit_xml(True), encoding="utf-8")
-    plan = _plan(tmp_path, capsys, setup, [_case(item_id, "junit:echo ready")])
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [_case(item_id, "junit:python -c \"print(open('junit.xml',encoding='utf-8').read())\"")],
+    )
     _, run = _run_plan(tmp_path, capsys, setup, plan)
     assert run["cases"][0]["result"] == "failed"
     assert "JUnit" in run["cases"][0]["attempts"][0]["message"]
+
+
+def test_worker_junit_ignores_stale_report_file(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(tmp_path, capsys)
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    (tmp_path / "repo" / "junit.xml").write_text(_junit_xml(False), encoding="utf-8")
+    plan = _plan(tmp_path, capsys, setup, [_case(item_id, "junit:echo ready")])
+    _, run = _run_plan(tmp_path, capsys, setup, plan)
+    assert run["cases"][0]["result"] == "error"
+    assert "未找到 JUnit XML" in run["cases"][0]["attempts"][0]["message"]
 
 
 def test_worker_junit_missing_report_is_error(tmp_path: Path, capsys: Capsys) -> None:
@@ -1341,3 +1366,91 @@ def test_worker_collects_real_playwright_screenshot(tmp_path: Path, capsys: Caps
     run_dir = ws.project_dir(project_id) / "runs" / run_id
     data = (run_dir / shot).read_bytes()
     assert data.startswith(b"\x89PNG")
+
+
+def test_run_manual_rejects_automatic_case(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(tmp_path, capsys)
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    plan = _plan(tmp_path, capsys, setup, [_case(item_id, "command: exit 1")])
+    run_id, run = _run_plan(tmp_path, capsys, setup, plan)
+    response = call(
+        tmp_path,
+        "run.manual",
+        {
+            "project_id": setup["project"]["project_id"],
+            "run_id": run_id,
+            "case_id": run["cases"][0]["case_id"],
+            "step": "强行改判",
+            "result": "passed",
+        },
+        capsys,
+    )
+    assert response["ok"] is False
+    assert response["error"]["code"] == "RUN_STATE_CONFLICT"
+
+
+def test_data_cleanup_requires_run_id_for_data_prefix(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    _write_config(
+        ws,
+        project_id,
+        {"data": {"cleanup": "echo {data_prefix}", "cleanup_dry_run": "echo dry"}},
+    )
+    missing = call(
+        tmp_path,
+        "data.cleanup",
+        {"project_id": project_id, "dry_run": False},
+        capsys,
+        confirm=True,
+    )
+    assert missing["ok"] is False
+    assert missing["error"]["code"] == "INVALID_REQUEST"
+    traversal = call(
+        tmp_path,
+        "data.cleanup",
+        {"project_id": project_id, "dry_run": False, "run_id": ".."},
+        capsys,
+        confirm=True,
+    )
+    assert traversal["ok"] is False
+    assert traversal["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_plan_rejects_shell_characters_in_playwright_path(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    response = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {
+                "preset": "selected",
+                "acceptance_item_ids": [item_id],
+            },
+            "cases": [_case(item_id, 'playwright:ui/a.ts" & calc')],
+        },
+        capsys,
+    )
+    assert response["ok"] is False
+    assert response["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_http_runner_rejects_unasserted_redirect(http_server: _RecordingServer) -> None:
+    result = run_http_sequence([{"url": f"{_base_url(http_server)}/redirect"}])
+    assert result.status == "blocked"
+    assert "without following" in result.error
+
+
+def test_http_runner_follows_same_host_redirect(http_server: _RecordingServer) -> None:
+    result = run_http_sequence(
+        [{"url": f"{_base_url(http_server)}/redirect", "follow_redirects": True}]
+    )
+    assert result.status == "passed"

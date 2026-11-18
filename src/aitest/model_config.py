@@ -8,6 +8,7 @@ from typing import Any
 
 from aitest.adapters.model import ModelClient
 from aitest.config import load_user_config, model_key
+from aitest.errors import AiTestError
 from aitest.storage.workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -24,9 +25,19 @@ def load_project_config(ws: Workspace, project_id: str) -> dict[str, Any]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AiTestError(
+            "CONFIG_INVALID",
+            f"项目配置无法读取：{path.name}",
+            "修复 project.config.json 的 JSON 后重试",
+        ) from exc
+    if not isinstance(data, dict):
+        raise AiTestError(
+            "CONFIG_INVALID",
+            f"项目配置不是对象：{path.name}",
+            "把 project.config.json 改成 JSON 对象",
+        )
+    return data
 
 
 def _timeout(value: object) -> float:

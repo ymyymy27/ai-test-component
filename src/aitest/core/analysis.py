@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from aitest.config import known_secret_values
+from aitest.core.evidence import evidence_path
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config, model_settings
 from aitest.models import Analysis, Run
@@ -47,8 +48,8 @@ def _evidence_excerpts(
 ) -> list[str]:
     excerpts: list[str] = []
     for ref in refs[:_MAX_EVIDENCE_FILES]:
-        path = run_dir / ref
-        if not path.is_file():
+        path = evidence_path(run_dir, ref)
+        if path is None or not path.is_file():
             excerpts.append(f"--- {ref} ---\n（证据文件不存在）")
             continue
         try:
@@ -60,15 +61,23 @@ def _evidence_excerpts(
     return excerpts
 
 
-def _store(ws: Workspace, project_id: str, run_dir: Path, run: Run, analysis: Analysis) -> None:
+def _store(ws: Workspace, project_id: str, run_dir: Path, analysis: Analysis) -> None:
     secrets = known_secret_values([load_project_config(ws, project_id)])
     analysis.observed = redact(analysis.observed, secrets)
     analysis.unverified = [redact(item, secrets) for item in analysis.unverified]
     analysis.next_steps = [redact(item, secrets) for item in analysis.next_steps]
     for cause in analysis.candidate_causes:
         cause["cause"] = redact(cause.get("cause", ""), secrets)
-    run.analysis.append(analysis)
-    write_model(run_dir / "run.json", run)
+    # Re-read under the workspace lock: the worker, evidence.add and
+    # run.manual may have written the same run while the model call ran.
+    with ws.lock():
+        current = read_model(run_dir / "run.json", Run)
+        allowed = set(current.evidence_refs)
+        analysis.evidence_refs = [
+            redact(ref, secrets) for ref in analysis.evidence_refs if ref in allowed
+        ]
+        current.analysis.append(analysis)
+        write_model(run_dir / "run.json", current)
 
 
 def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]:
@@ -77,12 +86,12 @@ def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]
     failed = [case for case in run.cases if case.result in {"failed", "blocked", "error"}]
     if not failed:
         analysis = Analysis(status="not_generated", reason="no_failures")
-        _store(ws, project_id, run_dir, run, analysis)
+        _store(ws, project_id, run_dir, analysis)
         return {"status": "not_generated", "reason": "no_failures", "analysis": None}
     client = build_client(ws, project_id)
     if client is None:
         analysis = Analysis(status="not_generated", reason="model_missing")
-        _store(ws, project_id, run_dir, run, analysis)
+        _store(ws, project_id, run_dir, analysis)
         return {"status": "not_generated", "reason": "model_missing", "analysis": None}
     refs = [ref for case in failed for ref in case.evidence_refs]
     secrets = known_secret_values([load_project_config(ws, project_id)])
@@ -97,11 +106,11 @@ def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]
             status = "not_generated"
             reason = "model_error"
         analysis = Analysis(status=status, reason=reason)
-        _store(ws, project_id, run_dir, run, analysis)
+        _store(ws, project_id, run_dir, analysis)
         return {"status": status, "reason": reason, "analysis": None}
     except Exception:
         analysis = Analysis(status="not_generated", reason="model_error")
-        _store(ws, project_id, run_dir, run, analysis)
+        _store(ws, project_id, run_dir, analysis)
         return {"status": "not_generated", "reason": "model_error", "analysis": None}
     analysis = Analysis(
         status="generated",
@@ -114,7 +123,7 @@ def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]
         unverified=[str(item) for item in data["unverified"]],
         next_steps=[str(item) for item in data["next_steps"]],
     )
-    _store(ws, project_id, run_dir, run, analysis)
+    _store(ws, project_id, run_dir, analysis)
     return {
         "status": "generated",
         "reason": "",

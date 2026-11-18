@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -30,6 +32,7 @@ from aitest.core.analysis import analyze_run
 from aitest.core.evidence import (
     data_prefix,
     evidence_bytes,
+    evidence_path,
     save_evidence,
     settings_from_config,
 )
@@ -39,8 +42,8 @@ from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
 from aitest.core.project_context import build_project_context
 from aitest.core.reports import build_report
-from aitest.core.scope import applicable_items, uncovered_items
-from aitest.core.verdict import coverage, item_outcomes, verdict
+from aitest.core.scope import applicable_items, task_contract, uncovered_items
+from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
 from aitest.model_config import build_client, load_project_config
 from aitest.models import (
@@ -59,10 +62,11 @@ from aitest.models import (
     RunCase,
     Scope,
     Task,
+    case_item_ids,
     new_id,
 )
 from aitest.procutil import pid_alive
-from aitest.security import redact, redact_bytes, scan_script
+from aitest.security import redact, redact_bytes, redact_tree, scan_script
 from aitest.storage.files import read_json, read_model, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -122,14 +126,22 @@ def _selected_items(task: Any, scope: Scope, project: Project) -> tuple[list[str
 def _ensure_plan_coverage(plan: Plan, task: Task) -> None:
     """A published plan must cover every selected item and never have an empty S."""
     selected = list(plan.scope.acceptance_item_ids)
-    if not selected and task.intent != "smoke":
+    if not selected and (task.intent != "smoke" or applicable_items(task)):
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条可用验收项")
-    covered = {case.acceptance_item_id for case in plan.cases if case.acceptance_item_id}
+    covered: set[str] = set()
+    for case in plan.cases:
+        bound = set(case_item_ids(case))
+        outside = bound - set(selected)
+        if outside:
+            raise invalid_request(
+                f"用例 {case.case_id} 绑定了范围外验收项：" + "、".join(sorted(outside))
+            )
+        covered.update(bound)
     missing = [item for item in selected if item not in covered]
     if missing:
         raise invalid_request("以下验收项没有对应用例：" + "、".join(missing))
     for case in plan.cases:
-        if case.acceptance_item_id is None and case.layer != "L1":
+        if not case_item_ids(case) and case.layer != "L1":
             raise invalid_request(
                 f"用例 {case.case_id} 未关联验收项",
                 "只有 L1 项目级检查可以不关联验收项；其余用例必须绑定验收项",
@@ -171,14 +183,15 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
             break
     config = load_project_config(ws, project.project_id)
     derived = build_project_context(root, config)
+    secrets = known_secret_values([config])
     return {
         "root": str(root),
-        "routes": sources,
+        "routes": [redact(item, secrets) for item in sources],
         "files": files,
-        "readme": excerpt,
-        "services": derived["services"],
-        "runners": config.get("runners", {}),
-        "l1": config.get("l1", {}),
+        "readme": redact(excerpt, secrets),
+        "services": redact_tree(derived["services"], secrets),
+        "runners": redact_tree(config.get("runners", {}), secrets),
+        "l1": redact_tree(config.get("l1", {}), secrets),
         "test_commands": derived["test_commands"],
         "smoke_command": derived["smoke_command"],
         "smallest_test": derived["smallest_test"],
@@ -283,8 +296,17 @@ def _validate_verify_method(case: Case) -> None:
                     raise _invalid_method(case, f"http: 每项需要非空 {key}")
         return
     if method.startswith("playwright:"):
-        if not method[len("playwright:") :].strip():
+        rest = method[len("playwright:") :].strip()
+        if not rest:
             raise _invalid_method(case, "playwright: 后需要脚本路径")
+        matches = scan_script(rest)
+        if matches:
+            raise _invalid_method(case, f"命令包含危险操作：{', '.join(matches)}")
+        if any(char in rest for char in "\"'`$;&|<>"):
+            raise _invalid_method(case, "playwright: 脚本路径包含不安全的 shell 字符")
+        script_path = Path(rest)
+        if script_path.is_absolute() or ".." in script_path.parts:
+            raise _invalid_method(case, "playwright: 脚本路径必须是项目内的相对路径")
         return
     for prefix in ("sql:", "junit:", "pytest:"):
         if method.startswith(prefix):
@@ -296,6 +318,30 @@ def _validate_verify_method(case: Case) -> None:
                 raise _invalid_method(case, f"命令包含危险操作：{', '.join(matches)}")
             return
     raise _invalid_method(case, f"未知验证方式前缀：{method.split(':', 1)[0]}")
+
+
+def _plan_dependencies(cases: list[Case]) -> list[str]:
+    return sorted({dependency for case in cases for dependency in case.dependencies})
+
+
+def _unselected_by_module(
+    task: Task, selected: list[str], project: Project
+) -> list[dict[str, Any]]:
+    names = {module.module_id: module.name for module in project.modules}
+    counts: dict[str, int] = {}
+    for item in task.acceptance_items:
+        if item.status != "active" or item.item_id in selected:
+            continue
+        key = item.module_id or ""
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {
+            "module_id": key or None,
+            "module_name": names.get(key, ""),
+            "count": count,
+        }
+        for key, count in sorted(counts.items())
+    ]
 
 
 def _redact_cases(cases: list[Case], secrets: list[str]) -> None:
@@ -403,6 +449,18 @@ def _validate_smoke_case(case: Case, allowed_commands: list[str]) -> None:
     raise _invalid_method(case, "冒烟目标只允许 command: 或 pytest:")
 
 
+_SAFE_DEPENDENCY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-\[\]=<>,!~]*$")
+
+
+def _validate_dependencies(case: Case) -> None:
+    for dependency in case.dependencies:
+        if not _SAFE_DEPENDENCY.fullmatch(dependency):
+            raise invalid_request(
+                f"用例 {case.case_id} 的依赖名不合法：{dependency}",
+                "依赖名只允许包名与版本约束字符，不接受命令或多条参数",
+            )
+
+
 def _validate_plan_cases(
     cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
 ) -> None:
@@ -421,8 +479,18 @@ def _validate_plan_cases(
     for module in _detect_entry_modules(root):
         allowed_commands.append(f'python -c "import {module}"')
     allowed_hosts = _allowed_http_hosts(context)
+    seen_ids: set[str] = set()
     for case in cases:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
+            raise invalid_request(
+                f"用例 ID 不合法：{case.case_id}",
+                "用例 ID 只允许字母、数字、下划线和连字符，最多 128 字符",
+            )
+        if case.case_id in seen_ids:
+            raise invalid_request(f"用例 ID 重复：{case.case_id}")
+        seen_ids.add(case.case_id)
         _validate_verify_method(case)
+        _validate_dependencies(case)
         if case.script_content:
             hosts = _script_example_hosts(case.script_content)
             if hosts:
@@ -601,6 +669,21 @@ def _delivery_commit(ws: Workspace, project: Project, task_id: str) -> str:
     return _git_head(Path(project.root))
 
 
+def _next_plan_no(ws: Workspace, project_id: str, task_id: str) -> int:
+    """Next human-facing plan number within one task (new scope = new plan)."""
+    directory = ws.project_dir(project_id) / "plans"
+    highest = 0
+    if directory.is_dir():
+        for path in directory.glob("*.json"):
+            try:
+                existing = read_model(path, Plan)
+            except AiTestError:
+                continue
+            if existing.task_id == task_id:
+                highest = max(highest, existing.plan_no)
+    return highest + 1
+
+
 def _plan_signature(
     ws: Workspace,
     project: Project,
@@ -608,12 +691,14 @@ def _plan_signature(
     rules_version_id: str | None,
 ) -> str:
     config = load_project_config(ws, project.project_id)
+    task = _task_by_id(ws, project.project_id, task_id)
     services = config.get("services")
     l1 = config.get("l1")
     runners = config.get("runners")
     payload = {
         "project_revision": project.revision,
         "delivery_commit": _delivery_commit(ws, project, task_id),
+        "task_contract": task_contract(task),
         "rules_version_id": rules_version_id or "",
         "services": services if isinstance(services, dict) else {},
         "l1": l1 if isinstance(l1, dict) else {},
@@ -633,7 +718,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         raise invalid_request("scope 必须是对象")
     scope = Scope.model_validate(scope_payload)
     selected, applicable = _selected_items(task, scope, project)
-    if not selected and task.intent != "smoke":
+    if not selected and (task.intent != "smoke" or applicable):
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条可用验收项")
     scope.acceptance_item_ids = list(selected)
     context = _project_context(project, ws)
@@ -663,12 +748,14 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 raw_cases.append(
                     {
                         "acceptance_item_id": item["acceptance_item_id"],
+                        "acceptance_item_ids": item.get("acceptance_item_ids") or [],
                         "layer": item["layer"],
                         "title": item.get("title") or "",
                         "expected": item["expected"],
                         "expectation_source": item["expectation_source"],
                         "preconditions": item.get("preconditions") or [],
                         "steps": item.get("steps") or [],
+                        "dependencies": item.get("dependencies") or [],
                         "mock_allowed": item.get("mock_allowed", True),
                         "importance": item.get("importance") or "medium",
                         "verify_method": _normalize_method(
@@ -703,6 +790,10 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     plan = Plan(
         plan_id=new_id("plan"),
         task_id=task.task_id,
+        plan_no=_next_plan_no(ws, task.project_id, task.task_id),
+        task_revision=task.revision,
+        task_contract=task_contract(task),
+        created_at=iso_now(),
         scope=scope,
         applicable_count=applicable,
         rules_version_id=_text(payload, "rules_version_id") or None,
@@ -710,17 +801,27 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         warnings=warnings,
         status="published",
     )
+    plan.unselected_by_module = _unselected_by_module(task, selected, project)
     plan.source_signature = _plan_signature(ws, project, task.task_id, plan.rules_version_id)
     write_model(_plan_path(ws, task.project_id, plan.plan_id), plan)
+    scope_payload = scope.model_dump(mode="json")
+    scope_payload["coverage"] = {"selected": len(selected), "applicable": applicable}
+    ai_generated = not isinstance(payload.get("cases"), list) or not payload.get("cases")
     return {
         "plan_id": plan.plan_id,
+        "plan_no": plan.plan_no,
+        "task_revision": plan.task_revision,
+        "created_at": plan.created_at,
         "revision": plan.revision,
         "status": plan.status,
         "intent": task.intent,
         "source_signature": plan.source_signature,
-        "scope": scope.model_dump(mode="json"),
+        "scope": scope_payload,
         "coverage": {"selected": len(selected), "applicable": applicable},
         "cases": len(cases),
+        "case_count": len(cases),
+        "ai_generated": ai_generated,
+        "dependencies": _plan_dependencies(cases),
         "warnings": warnings,
         "unverified_cases": [case.case_id for case in cases if not case.expectation_verified],
     }
@@ -742,6 +843,13 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         data["cases"] = patch["cases"]
     plan = Plan.model_validate(data)
     task = _task_by_id(ws, project.project_id, plan.task_id)
+    current_contract = task_contract(task)
+    if not plan.task_contract or plan.task_contract != current_contract:
+        raise AiTestError(
+            "PLAN_STALE",
+            "验收项或验证方式已变化，当前计划不能再修改",
+            "重新生成计划后再改用例",
+        )
     context = _project_context(project, ws)
     _validate_plan_cases(plan.cases, task.intent, context)
     _ensure_plan_coverage(plan, task)
@@ -758,10 +866,15 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     write_model(revision_path, old_plan)
     plan.revision += 1
     plan.status = "published"
+    plan.unselected_by_module = _unselected_by_module(
+        task, list(plan.scope.acceptance_item_ids), project
+    )
     plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
     write_model(_plan_path(ws, project.project_id, plan.plan_id), plan)
     return {
         "plan_id": plan.plan_id,
+        "plan_no": plan.plan_no,
+        "task_revision": plan.task_revision,
         "revision": plan.revision,
         "status": plan.status,
         "source_signature": plan.source_signature,
@@ -774,7 +887,27 @@ def cmd_plan_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     del confirm
     project = _project(ws, payload)
     plan = _load_plan(ws, project.project_id, _text({"id": _require(payload, "plan_id")}, "id"))
-    return {"plan": plan.model_dump(mode="json")}
+    task = _task_by_id(ws, project.project_id, plan.task_id)
+    current_contract = task_contract(task)
+    if not plan.task_contract:
+        stale = True
+        stale_reason = "旧计划没有任务契约，需要重新生成"
+    elif plan.task_contract != current_contract:
+        stale = True
+        stale_reason = "验收项或验证方式已变化，需要重新生成计划"
+    else:
+        stale = False
+        stale_reason = ""
+    return {
+        "plan": plan.model_dump(mode="json"),
+        "coverage": {
+            "selected": len(plan.scope.acceptance_item_ids),
+            "applicable": plan.applicable_count,
+        },
+        "stale": stale,
+        "stale_reason": stale_reason,
+        "task_updated": plan.task_revision != task.revision,
+    }
 
 
 def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -812,15 +945,17 @@ def _runs_dir(ws: Workspace, project_id: str) -> Path:
 
 
 def _heartbeat_stale(run: Run, seconds: float = 120.0) -> bool:
+    if run.pid and not pid_alive(run.pid, run.pid_created_at):
+        # A known dead worker is stale immediately; waiting for the heartbeat
+        # threshold leaves the run stuck in ``running`` for two minutes.
+        return True
     if not run.heartbeat_at:
         return True
     try:
         then = datetime.fromisoformat(run.heartbeat_at).timestamp()
     except ValueError:
         return True
-    return (time.time() - then) > seconds and not pid_alive(
-        run.pid, run.pid_created_at
-    )
+    return (time.time() - then) > seconds
 
 
 def _refresh_stale(run: Run) -> Run:
@@ -843,10 +978,22 @@ def _active_run(ws: Workspace, project_id: str) -> Run | None:
     if not directory.is_dir():
         return None
     for path in sorted(directory.glob("*/run.json")):
-        existing = read_model(path, Run)
+        try:
+            existing = read_model(path, Run)
+        except AiTestError:
+            continue
         if existing.status == "running" and not _heartbeat_stale(existing):
             return existing
     return None
+
+
+def _elapsed_seconds(start: str, end: str) -> int | None:
+    try:
+        started = datetime.fromisoformat(start)
+        finished = datetime.fromisoformat(end)
+    except ValueError:
+        return None
+    return max(0, int((finished - started).total_seconds()))
 
 
 def _confirmation_dir(ws: Workspace, project_id: str) -> Path:
@@ -906,7 +1053,8 @@ def _side_effects(plan: Plan, selected: list[str]) -> list[str]:
     """Side-effect summary shown in the confirmation record."""
     effects: list[str] = []
     for case in plan.cases:
-        if case.acceptance_item_id is not None and case.acceptance_item_id not in selected:
+        bound = set(case_item_ids(case))
+        if bound and bound.isdisjoint(selected):
             continue
         method = case.verify_method.strip()
         if method.startswith("http:"):
@@ -932,7 +1080,10 @@ def _latest_run(ws: Workspace, project_id: str) -> Run | None:
         return None
     latest: Run | None = None
     for path in sorted(directory.glob("*/run.json")):
-        run = read_model(path, Run)
+        try:
+            run = read_model(path, Run)
+        except AiTestError:
+            continue
         if latest is None or run.started_at > latest.started_at:
             latest = run
     return latest
@@ -976,6 +1127,7 @@ def _save_evidence_file(
     secrets_list: list[str] | None = None,
     *,
     result: str = "failed",
+    original_size: int | None = None,
 ) -> str:
     ref = save_evidence(
         run_dir,
@@ -986,6 +1138,7 @@ def _save_evidence_file(
         allow_video=allow_video,
         file_cap_bytes=cap if cap is not None else 20 * 1024 * 1024,
         secrets=secrets_list,
+        original_size=original_size,
     )
     if ref is None:
         raise AiTestError(
@@ -1006,7 +1159,7 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     if not plan.source_signature or plan.source_signature != current_signature:
         raise AiTestError(
             "PLAN_STALE",
-            "计划缺少来源签名，或生成后项目、交付提交、规则或服务配置已变化",
+            "计划缺少来源签名，或生成后项目、交付提交、任务验收项、规则或服务配置已变化",
             "重新生成计划后重试",
         )
     confirmed_by = _text(payload, "confirmed_by")
@@ -1019,10 +1172,19 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         if outside:
             raise invalid_request("收窄范围超出计划范围：" + "、".join(outside))
         selected = [str(item) for item in narrowing]
-    if not selected and not any(case.acceptance_item_id is None for case in plan.cases):
+    if not selected and (
+        plan.applicable_count > 0
+        or not any(not case_item_ids(case) for case in plan.cases)
+    ):
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条验收项")
     environment = _environment_summary(ws, project.project_id)
     credentials = _credential_summary()
+    relevant_cases = [
+        case
+        for case in plan.cases
+        if not case_item_ids(case) or not set(case_item_ids(case)).isdisjoint(selected)
+    ]
+    dependencies = _plan_dependencies(relevant_cases)
     side_effects = _side_effects(plan, selected)
     fingerprint = _confirmation_fingerprint(
         plan, selected, environment, credentials, side_effects
@@ -1076,7 +1238,8 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
             filtered = [
                 case
                 for case in plan.cases
-                if case.acceptance_item_id in selected or case.acceptance_item_id is None
+                if not case_item_ids(case)
+                or not set(case_item_ids(case)).isdisjoint(selected)
             ]
             snapshot_scope = plan.scope.model_copy(update={"acceptance_item_ids": selected})
             snapshot = plan.model_copy(update={"cases": filtered, "scope": snapshot_scope})
@@ -1154,7 +1317,14 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
                     / f"{new_confirmation.confirmation_id}.json",
                     new_confirmation,
                 )
+            task = _task_by_id(ws, project.project_id, plan.task_id)
             write_model(run_dir / "plan.json", snapshot)
+            write_model(run_dir / "task.json", task)
+            delivery_path = (
+                ws.project_dir(project.project_id) / "deliveries" / f"{task.task_id}.json"
+            )
+            if delivery_path.is_file():
+                write_model(run_dir / "delivery.json", read_model(delivery_path, Delivery))
             run = Run(
                 run_id=run_id,
                 plan_id=plan.plan_id,
@@ -1239,14 +1409,22 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
             **confirmation_info,
             "plan_revision": plan.revision,
             "side_effects": side_effects,
+            "dependencies": dependencies,
         },
         "warnings": warnings,
     }
 
 
+def _run_id(payload: Payload) -> str:
+    run_id = _text({"id": _require(payload, "run_id")}, "id")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
+        raise invalid_request("run_id 不合法")
+    return run_id
+
+
 def _run(ws: Workspace, payload: Payload) -> tuple[Path, Run]:
     project = _project(ws, payload)
-    run_id = _text({"id": _require(payload, "run_id")}, "id")
+    run_id = _run_id(payload)
     path = _runs_dir(ws, project.project_id) / run_id / "run.json"
     if not path.is_file():
         raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
@@ -1267,34 +1445,46 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     del confirm
     run_dir, run = _run(ws, payload)
     plan_path = run_dir / "plan.json"
+    plan_snapshot: Plan | None = None
+    task_snapshot: Task | None = None
+    task_snapshot_exists = False
     outcome = None
     uncovered: list[str] = []
     counts: dict[str, int] = {}
     item_rows: list[dict[str, Any]] = []
     pending_items = 0
     if plan_path.is_file():
-        plan = read_model(plan_path, Plan)
-        outcome = verdict(plan, run)
-        counts = coverage(plan, run)
+        plan_snapshot = read_model(plan_path, Plan)
+        outcome = verdict(plan_snapshot, run)
+        counts = coverage(plan_snapshot, run)
         item_rows = [
             {
                 "item_id": item_id,
                 "result": result,
                 "case_ids": [
                     case.case_id
-                    for case in plan.cases
-                    if case.acceptance_item_id == item_id
+                    for case in plan_snapshot.cases
+                    if item_id in case_item_ids(case)
                 ],
             }
-            for item_id, result in item_outcomes(plan, run).items()
+            for item_id, result in item_outcomes(plan_snapshot, run).items()
         ]
         pending_items = max(0, counts.get("applicable", 0) - counts.get("covered", 0))
-        task_path = ws.project_dir(run.project_id) / "tasks" / f"{plan.task_id}.json"
-        try:
-            task = read_model(task_path, Task) if task_path.is_file() else None
-        except AiTestError:
-            task = None
-        uncovered = uncovered_items(task, plan.scope)
+        snapshot_path = run_dir / "task.json"
+        snapshot_present = snapshot_path.is_file()
+        if snapshot_present:
+            try:
+                task_snapshot = read_model(snapshot_path, Task)
+                task_snapshot_exists = True
+            except AiTestError:
+                task_snapshot = None
+        if task_snapshot is None and not snapshot_present:
+            task_path = ws.project_dir(run.project_id) / "tasks" / f"{plan_snapshot.task_id}.json"
+            try:
+                task_snapshot = read_model(task_path, Task) if task_path.is_file() else None
+            except AiTestError:
+                task_snapshot = None
+        uncovered = uncovered_items(task_snapshot, plan_snapshot.scope)
     link: dict[str, Any] | None = None
     link_path = run_dir / "link.json"
     if link_path.is_file():
@@ -1311,6 +1501,9 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
             )
     return {
         "run": run.model_dump(mode="json"),
+        "plan": plan_snapshot.model_dump(mode="json") if plan_snapshot is not None else None,
+        "task": task_snapshot.model_dump(mode="json") if task_snapshot is not None else None,
+        "task_snapshot": task_snapshot_exists,
         "outcome": outcome,
         "counts": counts,
         "item_outcomes": item_rows,
@@ -1329,17 +1522,70 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     directory = _runs_dir(ws, project.project_id)
     if directory.is_dir():
         for path in sorted(directory.glob("*/run.json")):
-            run = _refresh_and_save(path, read_model(path, Run))
+            try:
+                run = _refresh_and_save(path, read_model(path, Run))
+            except AiTestError:
+                continue
+            run_dir = path.parent
+            plan_snapshot: Plan | None = None
+            task_snapshot: Task | None = None
+            task_snapshot_exists = False
+            plan_path = run_dir / "plan.json"
+            if plan_path.is_file():
+                try:
+                    plan_snapshot = read_model(plan_path, Plan)
+                except AiTestError:
+                    plan_snapshot = None
+            task_path = run_dir / "task.json"
+            if task_path.is_file():
+                try:
+                    task_snapshot = read_model(task_path, Task)
+                    task_snapshot_exists = True
+                except AiTestError:
+                    task_snapshot = None
+            if task_snapshot is None and plan_snapshot is not None:
+                current_path = (
+                    ws.project_dir(project.project_id)
+                    / "tasks"
+                    / f"{plan_snapshot.task_id}.json"
+                )
+                if current_path.is_file():
+                    try:
+                        task_snapshot = read_model(current_path, Task)
+                    except AiTestError:
+                        task_snapshot = None
+            outcome = verdict(plan_snapshot, run) if plan_snapshot is not None else None
+            counts = coverage(plan_snapshot, run) if plan_snapshot is not None else {}
             runs.append(
                 {
                     "run_id": run.run_id,
                     "status": run.status,
                     "started_at": run.started_at,
                     "heartbeat_at": run.heartbeat_at,
+                    "elapsed_seconds": _elapsed_seconds(run.started_at, run.heartbeat_at),
+                    "plan_id": run.plan_id,
+                    "plan_no": plan_snapshot.plan_no if plan_snapshot is not None else 0,
+                    "plan_revision": plan_snapshot.revision if plan_snapshot is not None else 0,
+                    "task_id": plan_snapshot.task_id if plan_snapshot is not None else "",
+                    "task_title": task_snapshot.title if task_snapshot is not None else "",
+                    "task_snapshot": task_snapshot_exists,
+                    "outcome": outcome,
+                    "counts": counts,
+                    "scope": {
+                        "selected": counts.get("selected", 0),
+                        "applicable": counts.get("applicable", 0),
+                    },
+                    "latest_report_id": run.latest_report_id,
                 }
             )
     runs.sort(key=lambda item: item["started_at"], reverse=True)
-    return {"runs": runs}
+    raw_limit = payload.get("limit", 20)
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 200))
+    return {"runs": runs[:limit]}
 
 
 def cmd_run_cancel(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -1371,21 +1617,25 @@ def _manual_evidence_ref(
     if not candidate.is_absolute():
         relative = value.replace("\\", "/")
         target = (run_dir / relative).resolve()
-        root = run_dir.resolve()
-        if (target == root or root in target.parents) and target.is_file():
+        evidence_root = (run_dir / "evidence").resolve()
+        if evidence_root in target.parents and target.is_file():
             return relative
     source = candidate.expanduser().resolve()
     if not source.is_file():
         raise invalid_path(f"证据文件不存在：{source}")
     name = f"manual-{secrets.token_hex(4)}-{source.name}"
+    cap_bytes = cap if cap is not None else 20 * 1024 * 1024
+    with source.open("rb") as handle:
+        data = handle.read(cap_bytes + 1)
     return _save_evidence_file(
         run_dir,
         name,
-        source.read_bytes(),
+        data,
         budget,
         cap,
         allow_video,
         secrets_list,
+        original_size=source.stat().st_size,
     )
 
 
@@ -1408,7 +1658,15 @@ def cmd_run_manual(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
             raise invalid_request(f"运行中没有该用例：{case_id}")
         plan = read_model(run_dir / "plan.json", Plan)
         plan_case = next((item for item in plan.cases if item.case_id == case_id), None)
-        required_steps = list(plan_case.steps) if plan_case is not None else []
+        if plan_case is None:
+            raise invalid_request(f"运行计划中没有该用例：{case_id}")
+        if not is_manual_case(plan_case):
+            raise AiTestError(
+                "RUN_STATE_CONFLICT",
+                "该用例由自动方式验证，不能用人工记录改判",
+                "自动用例失败请修复后重跑；只有 L3 人工用例可以记录结果",
+            )
+        required_steps = list(plan_case.steps)
         config = load_project_config(ws, run.project_id)
         budget, cap, allow_video = _evidence_settings(config)
         secrets_list = known_secret_values([config])
@@ -1484,10 +1742,30 @@ def cmd_evidence_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         config = load_project_config(ws, run.project_id)
         budget, cap, allow_video = _evidence_settings(config)
         secrets_list = known_secret_values([config])
+        cap_bytes = cap if cap is not None else 20 * 1024 * 1024
+        with source.open("rb") as handle:
+            data = handle.read(cap_bytes + 1)
         ref = _save_evidence_file(
-            run_dir, name, source.read_bytes(), budget, cap, allow_video, secrets_list
+            run_dir,
+            name,
+            data,
+            budget,
+            cap,
+            allow_video,
+            secrets_list,
+            original_size=source.stat().st_size,
         )
         run.evidence_refs.append(ref)
+        note = redact(_text(payload, "note"), secrets_list)
+        if note:
+            run.evidence_notes[ref] = note
+        case_id = _text(payload, "case_id")
+        if case_id:
+            run_case = next((item for item in run.cases if item.case_id == case_id), None)
+            if run_case is None:
+                raise invalid_request(f"运行中没有该用例：{case_id}")
+            if ref not in run_case.evidence_refs:
+                run_case.evidence_refs.append(ref)
         run.media_bytes = evidence_bytes(run_dir)
         write_model(run_dir / "run.json", run)
     return {"evidence_ref": ref}
@@ -1498,16 +1776,27 @@ def cmd_evidence_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     run_dir, run = _run(ws, payload)
     items = []
     for ref in run.evidence_refs:
-        path = run_dir / ref
-        exists = path.is_file()
+        path = evidence_path(run_dir, ref)
+        exists = path is not None and path.is_file()
+        digest = ""
+        if exists and path is not None:
+            try:
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError:
+                digest = ""
+        guessed, _encoding = mimetypes.guess_type(ref)
         items.append(
             {
                 "ref": ref,
                 "name": Path(ref).name,
                 "path": str(path) if exists else "",
-                "bytes": path.stat().st_size if exists else 0,
+                "bytes": path.stat().st_size if exists and path is not None else 0,
                 "exists": exists,
                 "missing_reason": "" if exists else "证据文件不在运行目录中",
+                "sha256": digest,
+                "media_type": guessed or "application/octet-stream",
+                "truncated": (run_dir / "evidence" / f"{Path(ref).name}.truncated").is_file(),
+                "note": run.evidence_notes.get(ref, ""),
             }
         )
     return {"evidence": items, "run_id": run.run_id}
@@ -1525,6 +1814,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
     return {
         "report_id": report.report_id,
         "run_id": report.run_id,
+        "generated_at": report.generated_at,
         "outcome": report.outcome,
         "conclusion": report.conclusion,
         "counts": report.counts,
@@ -1532,6 +1822,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         "changed_modules": report.changed_modules,
         "unmapped_files": report.unmapped_files,
         "uncovered_items": report.uncovered_items,
+        "unverified_items": report.unverified_items,
         "layers": report.layers,
         "item_details": report.item_details,
         "l1": report.l1,
@@ -1551,6 +1842,55 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
 
 def _report_path(ws: Workspace, project_id: str, report_id: str) -> Path:
     return ws.project_dir(project_id) / "reports" / f"{report_id}.json"
+
+
+def cmd_report_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    report_id = _text({"id": _require(payload, "report_id")}, "id")
+    if Path(report_id).name != report_id:
+        raise invalid_request(f"报告 ID 不合法：{report_id}")
+    path = _report_path(ws, project.project_id, report_id)
+    if not path.is_file():
+        raise invalid_request(f"报告不存在：{report_id}")
+    report = read_model(path, Report)
+    return {"report": report.model_dump(mode="json")}
+
+
+def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    run_id = _text({"id": _require(payload, "run_id")}, "id")
+    directory = ws.project_dir(project.project_id) / "reports"
+    rows: list[dict[str, Any]] = []
+    if directory.is_dir():
+        for path in directory.glob("*.json"):
+            try:
+                report = read_model(path, Report)
+            except AiTestError:
+                continue
+            if report.run_id != run_id:
+                continue
+            generated_at = report.generated_at
+            if not generated_at:
+                try:
+                    generated_at = datetime.fromtimestamp(path.stat().st_mtime).isoformat(
+                        timespec="seconds"
+                    )
+                except OSError:
+                    generated_at = ""
+            rows.append(
+                {
+                    "report_id": report.report_id,
+                    "run_id": report.run_id,
+                    "generated_at": generated_at,
+                    "outcome": report.outcome,
+                    "revision": report.revision,
+                    "has_opinion": report.opinion is not None,
+                }
+            )
+    rows.sort(key=lambda item: item["generated_at"], reverse=True)
+    return {"reports": rows}
 
 
 def _cell(value: object) -> str:
@@ -1679,6 +2019,12 @@ def _export_lines(report: Report) -> list[str]:
     lines.append("## 未覆盖清单")
     if report.uncovered_items:
         lines.extend(f"- {item}" for item in report.uncovered_items)
+    else:
+        lines.append("- 无")
+    lines.append("")
+    lines.append("## 未验证项")
+    if report.unverified_items:
+        lines.extend(f"- {item}" for item in report.unverified_items)
     else:
         lines.append("- 无")
     lines.append("")
@@ -1832,7 +2178,13 @@ def cmd_report_export(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     text = "\n".join(_export_lines(report))
     secrets = known_secret_values([load_project_config(ws, project.project_id)])
     target.write_text(redact(text, secrets), encoding="utf-8")
-    return {"path": str(target), "bytes": target.stat().st_size}
+    data = target.read_bytes()
+    return {
+        "path": str(target),
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "lines": text.count("\n") + 1,
+    }
 
 
 def cmd_report_opinion(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -1863,7 +2215,7 @@ def _issues_dir(ws: Workspace, project_id: str) -> Path:
 def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    run_id = _text({"run_id": _require(payload, "run_id")}, "run_id")
+    run_id = _run_id(payload)
     run_dir = _runs_dir(ws, project.project_id) / run_id
     if not (run_dir / "run.json").is_file():
         raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
@@ -1895,19 +2247,42 @@ def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
 def cmd_issue_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    issues = [
-        {
-            "issue_id": issue.issue_id,
-            "title": issue.title,
-            "status": issue.status,
-            "severity": issue.severity,
-            "occurrences": len(issue.occurrences),
-        }
-        for issue in (
-            read_model(path, Issue) for path in _issues_dir(ws, project.project_id).glob("*.json")
+    issues = []
+    for issue in (
+        read_model(path, Issue) for path in _issues_dir(ws, project.project_id).glob("*.json")
+    ):
+        last = max(issue.occurrences, key=lambda item: item.at) if issue.occurrences else None
+        issues.append(
+            {
+                "issue_id": issue.issue_id,
+                "title": issue.title,
+                "status": issue.status,
+                "severity": issue.severity,
+                "occurrences": len(issue.occurrences),
+                "last_at": last.at if last is not None else "",
+                "last_result": issue.last_result,
+                "unstable": issue.unstable,
+                "disposition": issue.disposition,
+                "reason": issue.reason,
+                "verification_run_id": issue.verification_run_id,
+                "last_case_id": last.case_id if last is not None else "",
+                "last_run_id": last.run_id if last is not None else "",
+            }
         )
-    ]
     return {"issues": issues}
+
+
+def cmd_issue_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    issue_id = _text({"id": _require(payload, "issue_id")}, "id")
+    if Path(issue_id).name != issue_id:
+        raise invalid_request(f"问题 ID 不合法：{issue_id}")
+    path = _issues_dir(ws, project.project_id) / f"{issue_id}.json"
+    if not path.is_file():
+        raise invalid_request(f"问题不存在：{issue_id}")
+    issue = read_model(path, Issue)
+    return {"issue": issue.model_dump(mode="json")}
 
 
 _ISSUE_TRANSITIONS: dict[str, set[str]] = {
@@ -1987,12 +2362,12 @@ def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             f"问题当前状态为 {issue.status}，不能直接关闭",
             "先复测并把状态更新为 retest",
         )
-    run_id = _text({"run_id": _require(payload, "run_id")}, "run_id")
+    run_id = _run_id(payload)
     run_dir = _runs_dir(ws, project.project_id) / run_id
     if not (run_dir / "run.json").is_file():
         raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "先执行回归")
     run = read_model(run_dir / "run.json", Run)
-    if run.status in {"running", "interrupted", "execution_error"}:
+    if run.status != "completed":
         raise AiTestError(
             "RUN_STATE_CONFLICT",
             f"运行状态为 {run.status}，不能作为关闭依据",
@@ -2013,10 +2388,12 @@ def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             f"回归运行中没有用例 {case_id}",
             "在回归范围里包含该用例",
         )
-    if run_case.result != "passed":
+    plan = read_model(run_dir / "plan.json", Plan)
+    effective = case_results(plan, run).get(case_id, "not_run")
+    if effective != "passed":
         raise AiTestError(
             "RUN_STATE_CONFLICT",
-            f"回归运行结果不是通过（{run_case.result}）",
+            f"回归运行结果不是通过（{effective}）",
             "修复后重跑，或保持问题未关闭",
         )
     if not run_case.evidence_refs:
@@ -2044,11 +2421,27 @@ def _invalid_backup(message: str) -> AiTestError:
     return AiTestError("BACKUP_INVALID", message, "换一个备份或重新备份")
 
 
-def _check_zip_member(name: str) -> None:
-    normalized = name.replace("\\", "/")
+_MAX_BACKUP_FILES = 100_000
+_MAX_BACKUP_UNCOMPRESSED = 2 * 1024**3
+
+
+def _check_zip_member(name: str) -> str:
+    import posixpath
+
+    raw = name.replace("\\", "/")
+    normalized = posixpath.normpath(raw)
     parts = normalized.split("/")
-    if not name or normalized.startswith("/") or ".." in parts or ":" in parts[0]:
+    if normalized != raw:
+        raise _invalid_backup(f"备份路径未规范化：{name}")
+    if (
+        not name
+        or normalized.startswith("/")
+        or raw.startswith("/")
+        or ".." in parts
+        or ":" in parts[0]
+    ):
         raise _invalid_backup(f"备份包含非法路径：{name}")
+    return normalized
 
 
 def _zip_manifest(archive: zipfile.ZipFile) -> tuple[list[str], dict[str, str]]:
@@ -2063,8 +2456,10 @@ def _zip_manifest(archive: zipfile.ZipFile) -> tuple[list[str], dict[str, str]]:
     if not isinstance(data, dict):
         raise _invalid_backup("备份 manifest 不是对象")
     if data.get("schema_version") != 1:
-        raise _invalid_backup(
-            "备份格式版本不受支持：" + repr(data.get("schema_version"))
+        raise AiTestError(
+            "SCHEMA_UNSUPPORTED",
+            "备份格式版本不受支持：" + repr(data.get("schema_version")),
+            "用当前版本重新备份；旧备份需先转换",
         )
     files = data.get("files")
     hashes = data.get("sha256")
@@ -2253,26 +2648,46 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             raise invalid_path(f"目标不是目录：{target}", "换一个空目录")
         if any(target.iterdir()):
             raise invalid_path(f"目标目录非空：{target}", "换一个空目录")
-    with zipfile.ZipFile(source) as archive:
-        files, hashes = _zip_manifest(archive)
+    try:
+        archive = zipfile.ZipFile(source)
+    except (zipfile.BadZipFile, OSError) as exc:
+        raise _invalid_backup(f"备份无法打开：{exc}") from exc
+    with archive:
         members: dict[str, zipfile.ZipInfo] = {}
+        total_size = 0
         for member in archive.infolist():
-            _check_zip_member(member.filename)
+            normalized = _check_zip_member(member.filename)
             if member.is_dir():
                 continue
-            if member.filename in members:
+            if normalized in members:
                 raise _invalid_backup(f"备份包含重复条目：{member.filename}")
             if member.external_attr >> 16 & 0o170000 == 0o120000:
                 raise _invalid_backup(f"备份包含符号链接：{member.filename}")
-            members[member.filename] = member
+            total_size += member.file_size
+            if len(members) + 1 > _MAX_BACKUP_FILES:
+                raise _invalid_backup("备份条目过多，拒绝恢复")
+            if total_size > _MAX_BACKUP_UNCOMPRESSED:
+                raise _invalid_backup("备份解压后体积超过上限，拒绝恢复")
+            members[normalized] = member
+        files, hashes = _zip_manifest(archive)
         if set(members) - {"manifest.json"} != set(files):
             raise _invalid_backup("备份 manifest 与 zip 内容不一致")
         for name in files:
+            _check_zip_member(name)
             digest = hashlib.sha256(archive.read(name)).hexdigest()
             if digest != hashes[name]:
                 raise _invalid_backup(f"备份文件摘要不匹配：{name}")
-        target.mkdir(parents=True, exist_ok=True)
-        archive.extractall(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp_target = target.parent / f".{target.name}.restore-{secrets.token_hex(4)}"
+        try:
+            temp_target.mkdir(parents=True)
+            archive.extractall(temp_target)
+            if target.exists():
+                target.rmdir()
+            os.replace(temp_target, target)
+        except OSError as exc:
+            shutil.rmtree(temp_target, ignore_errors=True)
+            raise _invalid_backup(f"恢复失败：{exc}") from exc
     missing = _missing_evidence(target)
     notes = f"证据未包含：{len(missing)} 个引用在恢复目录中不存在" if missing else ""
     return {
@@ -2319,11 +2734,12 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     if not dry_run and not confirm:
         raise AiTestError("CONFIRMATION_REQUIRED", "清理数据需要确认", "加 --confirm 或先 dry-run")
     run_id = _text(payload, "run_id")
-    if "{run_id}" in command_value and not run_id:
-        raise invalid_request("清理命令包含 {run_id} 占位符，需要提供 run_id")
-    if run_id and not all(char.isalnum() or char in "-_." for char in run_id):
-        raise invalid_request("run_id 只允许字母、数字、-、_ 和 .")
-    if not dry_run and "{run_id}" not in command_value and "{data_prefix}" not in command_value:
+    needs_run_id = "{run_id}" in command_value or "{data_prefix}" in command_value
+    if needs_run_id and not run_id and not dry_run:
+        raise invalid_request("执行清理需要提供 run_id")
+    if run_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", run_id):
+        raise invalid_request("run_id 只允许字母、数字、- 和 _，且不能以点开头")
+    if not dry_run and not needs_run_id:
         raise invalid_request(
             "清理命令必须包含 {run_id} 或 {data_prefix} 占位符",
             "只允许按本次运行的标记或 ID 清理，不做全表或按时间删除",
@@ -2408,9 +2824,12 @@ REGISTRY.update(
         "evidence.list": cmd_evidence_list,
         "issue.add": cmd_issue_add,
         "issue.list": cmd_issue_list,
+        "issue.show": cmd_issue_show,
         "issue.update": cmd_issue_update,
         "issue.close": cmd_issue_close,
         "report.generate": cmd_report_generate,
+        "report.show": cmd_report_show,
+        "report.list": cmd_report_list,
         "report.export": cmd_report_export,
         "report.opinion": cmd_report_opinion,
         "backup.create": cmd_backup_create,

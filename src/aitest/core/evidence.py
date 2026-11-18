@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from aitest.errors import AiTestError
-from aitest.security import redact_bytes
+from aitest.security import ensure_within, redact_bytes
 
 DEFAULT_FILE_CAP_BYTES = 20 * 1024 * 1024
 DEFAULT_MEDIA_BUDGET_MB = 500
@@ -45,6 +45,16 @@ MEDIA_SUFFIXES = VIDEO_SUFFIXES | frozenset(
 def data_prefix(run_id: str) -> str:
     """Return the stable test-data marker injected into executed commands."""
     return f"aitest_{run_id}_"
+
+
+def evidence_path(run_dir: Path, ref: str) -> Path | None:
+    """Resolve an evidence reference only when it stays inside the run directory."""
+    if not ref:
+        return None
+    try:
+        return ensure_within(run_dir, run_dir / ref)
+    except ValueError:
+        return None
 
 
 def is_media(name: str) -> bool:
@@ -138,6 +148,7 @@ def save_evidence(
     allow_video: bool = True,
     file_cap_bytes: int = DEFAULT_FILE_CAP_BYTES,
     secrets: list[str] | None = None,
+    original_size: int | None = None,
 ) -> str | None:
     """Persist one evidence file and return its run-relative reference.
 
@@ -151,7 +162,8 @@ def save_evidence(
         data = redact_bytes(data, secrets)
     evidence_dir = run_dir / "evidence"
     payload = data[:file_cap_bytes]
-    truncated = len(data) > file_cap_bytes
+    actual_size = original_size if original_size is not None else len(data)
+    truncated = actual_size > file_cap_bytes
     if result != "failed":
         reason = ""
         if is_video(name) and not allow_video:

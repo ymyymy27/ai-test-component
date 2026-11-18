@@ -283,6 +283,250 @@ def test_generated_script_runs_and_dangerous_script_is_rejected(
     assert escaped["error"]["code"] == "INVALID_REQUEST"
 
 
+def _wait_terminal(
+    tmp_path: Path, capsys: Capsys, project_id: str, run_id: str
+) -> dict[str, Any]:
+    status: dict[str, Any] = {}
+    for _ in range(600):
+        status = call(
+            tmp_path,
+            "run.status",
+            {"project_id": project_id, "run_id": run_id},
+            capsys,
+        )
+        if status["data"]["run"]["status"] != "running":
+            return status
+        time.sleep(0.1)
+    return status
+
+
+def test_plan_number_contract_and_task_change_invalidates_plan(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    task_id = setup["task"]["task_id"]
+    first = call(
+        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
+    )["data"]
+    second = call(
+        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
+    )["data"]
+    assert first["plan_no"] == 1
+    assert second["plan_no"] == 2
+
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {"project_id": project_id, "plan_id": first["plan_id"]},
+        capsys,
+    )
+    assert shown["data"]["stale"] is False
+
+    updated_task = call(
+        tmp_path,
+        "task.update",
+        {
+            "project_id": project_id,
+            "task_id": task_id,
+            "patch": {
+                "acceptance_items": [
+                    {
+                        "item_id": setup["item"],
+                        "text": "下单后列表必须只出现一条订单",
+                        "observable": True,
+                    }
+                ]
+            },
+        },
+        capsys,
+    )
+    assert updated_task["ok"] is True
+
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {"project_id": project_id, "plan_id": first["plan_id"]},
+        capsys,
+    )
+    assert shown["data"]["stale"] is True
+    assert shown["data"]["task_updated"] is True
+
+    blocked_update = call(
+        tmp_path,
+        "plan.update",
+        {"project_id": project_id, "plan_id": first["plan_id"], "patch": {"cases": []}},
+        capsys,
+    )
+    assert blocked_update["ok"] is False
+    assert blocked_update["error"]["code"] == "PLAN_STALE"
+
+    blocked_run = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": first["plan_id"]},
+        capsys,
+        confirm=True,
+    )
+    assert blocked_run["ok"] is False
+    assert blocked_run["error"]["code"] == "PLAN_STALE"
+
+
+def test_run_status_and_list_return_snapshots(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )["data"]
+    status = _wait_terminal(tmp_path, capsys, project_id, started["run_id"])
+    assert status["data"]["run"]["status"] == "completed"
+    assert status["data"]["run"]["current_case_id"] == ""
+    assert status["data"]["task_snapshot"] is True
+    assert status["data"]["task"]["title"] == "下单验证"
+    assert status["data"]["plan"]["plan_id"] == plan["plan_id"]
+
+    call(
+        tmp_path,
+        "task.update",
+        {
+            "project_id": project_id,
+            "task_id": setup["task"]["task_id"],
+            "patch": {"acceptance_items": [
+                {"item_id": setup["item"], "text": "运行后改过的验收项", "observable": True}
+            ]},
+        },
+        capsys,
+    )
+    after = call(
+        tmp_path,
+        "run.status",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )
+    assert after["data"]["task"]["acceptance_items"][0]["text"] == "下单后列表出现订单"
+
+    listing = call(tmp_path, "run.list", {"project_id": project_id, "limit": 5}, capsys)
+    row = listing["data"]["runs"][0]
+    assert row["task_title"] == "下单验证"
+    assert row["plan_no"] == 1
+    assert row["outcome"] == "passed"
+    assert row["counts"]["selected"] == 1
+    assert row["latest_report_id"]
+    assert row["task_snapshot"] is True
+
+    snapshot = (
+        tmp_path
+        / "ws"
+        / "projects"
+        / project_id
+        / "runs"
+        / started["run_id"]
+        / "task.json"
+    )
+    snapshot.unlink()
+    without = call(tmp_path, "run.list", {"project_id": project_id, "limit": 5}, capsys)
+    assert without["data"]["runs"][0]["task_snapshot"] is False
+
+
+def test_report_show_and_list_expose_full_report(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys)["data"]
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )["data"]
+    _wait_terminal(tmp_path, capsys, project_id, started["run_id"])
+
+    generated = call(
+        tmp_path,
+        "report.generate",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )["data"]
+    assert generated["generated_at"]
+    shown = call(
+        tmp_path,
+        "report.show",
+        {"project_id": project_id, "report_id": generated["report_id"]},
+        capsys,
+    )
+    assert shown["ok"] is True
+    report = shown["data"]["report"]
+    assert report["report_id"] == generated["report_id"]
+    assert "mock_judgement" in report
+    assert "evidence_index" in report
+    assert "opinion" in report
+
+    versions = call(
+        tmp_path,
+        "report.list",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )
+    assert any(item["report_id"] == generated["report_id"] for item in versions["data"]["reports"])
+    refreshed = call(
+        tmp_path,
+        "run.status",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )
+    assert refreshed["data"]["run"]["latest_report_id"] == generated["report_id"]
+
+
+def test_issue_show_and_list_summary(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    plan = call(tmp_path, "plan.generate", _plan_payload(setup, "command: exit 1"), capsys)["data"]
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )["data"]
+    status = _wait_terminal(tmp_path, capsys, project_id, started["run_id"])
+    case_id = status["data"]["plan"]["cases"][0]["case_id"]
+    added = call(
+        tmp_path,
+        "issue.add",
+        {
+            "project_id": project_id,
+            "run_id": started["run_id"],
+            "case_id": case_id,
+            "title": "列表数量不对",
+            "severity": "P1",
+            "error_type": "manual-check",
+            "stack_key": "unique-stack-1",
+        },
+        capsys,
+    )["data"]
+    issue_id = added["issue_id"]
+    listing = call(tmp_path, "issue.list", {"project_id": project_id}, capsys)["data"]["issues"]
+    row = next(item for item in listing if item["issue_id"] == issue_id)
+    assert row["last_at"]
+    assert row["last_result"] == "failed"
+    assert row["last_case_id"] == case_id
+    assert row["last_run_id"] == started["run_id"]
+
+    shown = call(
+        tmp_path, "issue.show", {"project_id": project_id, "issue_id": issue_id}, capsys
+    )
+    assert shown["ok"] is True
+    issue = shown["data"]["issue"]
+    assert issue["issue_id"] == issue_id
+    assert len(issue["occurrences"]) == 1
+    assert issue["occurrences"][0]["case_id"] == case_id
+
+
 def test_run_env_drops_inherited_pythonhome(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

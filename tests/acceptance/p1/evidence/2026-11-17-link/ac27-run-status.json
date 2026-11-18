@@ -1,0 +1,125 @@
+{
+  "ok": true,
+  "request_id": "run.status1794901146980808300",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_c5b31b78ddae",
+      "plan_id": "plan_c3c05db3470a",
+      "project_id": "proj_5a08fc5cf46f",
+      "scope": {
+        "preset": "selected",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_dec9ba2514c0"
+        ],
+        "frozen_at": "2026-11-17T15:39:04+08:00"
+      },
+      "confirmed_by": "cli",
+      "confirmed_at": "2026-11-17T15:39:04+08:00",
+      "confirmation_id": "conf_b4229fdd2e31",
+      "confirmation_fingerprint": "95c18d3f699bcc843db5d38c51caabbd7572e7086aa0949fc6a8669e0bec1810",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 68580,
+      "pid_created_at": 1794901144.7579608,
+      "started_at": "2026-11-17T15:39:04+08:00",
+      "heartbeat_at": "2026-11-17T15:39:05+08:00",
+      "cases": [
+        {
+          "case_id": "case_6d7923e43e0d",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-17T15:39:05+08:00",
+              "finished_at": "2026-11-17T15:39:05+08:00",
+              "evidence_refs": [
+                "evidence/case_6d7923e43e0d-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_6d7923e43e0d-0.log"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_6d7923e43e0d-0.log"
+      ],
+      "evidence_notes": {},
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": false,
+      "service_name": "",
+      "l1": null,
+      "media_bytes": 4,
+      "data_prefix": "aitest_run_c5b31b78ddae_",
+      "dependencies": [],
+      "dependency_install_ok": null,
+      "request_ids": []
+    },
+    "outcome": "passed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "item_outcomes": [
+      {
+        "item_id": "ai_dec9ba2514c0",
+        "result": "passed",
+        "case_ids": [
+          "case_6d7923e43e0d"
+        ]
+      }
+    ],
+    "pending_items": 0,
+    "manual_cases": 0,
+    "l1": null,
+    "uncovered_items": [],
+    "link": {
+      "downstream": [
+        {
+          "duration": null,
+          "evidence_ref": "db:req-ac27:1",
+          "message": "order row req-ac27",
+          "node_id": "db:1",
+          "parent_id": "log:2",
+          "status": "passed",
+          "type": "db"
+        }
+      ],
+      "first_anomaly": {
+        "duration": null,
+        "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:2",
+        "message": "订单查询为空",
+        "node_id": "log:2",
+        "parent_id": "log:1",
+        "status": "failed",
+        "type": "log"
+      },
+      "location": {
+        "known": true,
+        "line": 2,
+        "path": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl"
+      },
+      "upstream": [
+        {
+          "duration": null,
+          "evidence_ref": "E:\\ai-test-component\\tests\\acceptance\\p1\\evidence\\2026-11-17-link\\app.jsonl:1",
+          "message": "收到请求",
+          "node_id": "log:1",
+          "parent_id": "",
+          "status": "passed",
+          "type": "log"
+        }
+      ]
+    }
+  }
+}

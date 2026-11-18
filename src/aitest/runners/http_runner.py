@@ -7,7 +7,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from aitest.runners.assertions import MISSING, evaluate, resolve_path
@@ -25,13 +25,27 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only within the same host and never downgrade TLS."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        old = urllib.parse.urlsplit(req.full_url)
+        new = urllib.parse.urlsplit(newurl)
+        if new.hostname != old.hostname:
+            raise ValueError(f"redirect target host is not allowed: {new.hostname}")
+        if old.scheme == "https" and new.scheme != "https":
+            raise ValueError("redirect would downgrade https to http")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_SAFE_REDIRECT_OPENER = urllib.request.build_opener(_SafeRedirect())
 _NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def _send(
     request: urllib.request.Request, timeout_seconds: float, *, follow_redirects: bool
 ) -> tuple[int, bytes]:
-    opener = urllib.request.urlopen if follow_redirects else _NO_REDIRECT_OPENER.open
+    opener = _SAFE_REDIRECT_OPENER.open if follow_redirects else _NO_REDIRECT_OPENER.open
     try:
         with opener(request, timeout=timeout_seconds) as response:
             return response.status, response.read(MAX_RESPONSE_BYTES + 1)
@@ -46,6 +60,7 @@ def run_http_sequence(
     timeout_seconds: float = 30,
     request_id_header: str | None = None,
     request_id: str | None = None,
+    cancelled: Callable[[], bool] | None = None,
 ) -> RunnerResult:
     """Run requests in order, evaluating optional JSON-path assertions after each.
 
@@ -56,6 +71,8 @@ def run_http_sequence(
     assertions: list[dict[str, Any]] = []
     last_body = b""
     for index, spec in enumerate(requests):
+        if cancelled is not None and cancelled():
+            return RunnerResult(status="blocked", stdout=last_body, error="cancelled")
         label = f"request {index + 1}"
         method_value = spec.get("method", "GET")
         if not isinstance(method_value, str) or not method_value:
@@ -125,6 +142,13 @@ def run_http_sequence(
         expects = spec.get("expect") or []
         if not isinstance(expects, list):
             return RunnerResult(status="error", error=f"{label} expect must be a list")
+        if 300 <= response_status < 400 and not expects:
+            return RunnerResult(
+                status="blocked",
+                stdout=response_body,
+                assertions=assertions,
+                error=f"{label} returned HTTP {response_status} without following the redirect",
+            )
         if not expects:
             continue
         if all(isinstance(check, Mapping) and check.get("path") == "status" for check in expects):

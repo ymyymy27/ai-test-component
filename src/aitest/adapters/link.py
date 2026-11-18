@@ -104,7 +104,7 @@ def _parse_timestamp(value: object) -> datetime | None:
         except ValueError:
             return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
+        parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
     return parsed.astimezone(UTC)
 
 
@@ -263,7 +263,7 @@ def _log_candidates(
         seen_request_id = _text(canonical.get("request_id"))
         if pattern is None and seen_request_id != request_id:
             continue
-        if pattern is not None and seen_request_id and seen_request_id != request_id:
+        if pattern is not None and seen_request_id != request_id:
             continue
 
         node = _node(
@@ -271,7 +271,7 @@ def _log_candidates(
             values,
             kind="log",
             evidence_ref=f"{path}:{number}",
-            fallback_id=f"log:{number}",
+            fallback_id=f"log:{path}:{number}",
         )
         candidates.append((_timestamp_value(canonical, values, fields), node, canonical))
     return candidates
@@ -289,6 +289,8 @@ def _collect_logs(
         return [], [_gap("log", "未配置日志路径")], []
     if log_format == "regex" and not fields.get("pattern"):
         return [], [_gap("log", "未配置日志正则")], []
+    if log_format == "regex" and "request_id" not in str(fields.get("pattern", "")):
+        return [], [_gap("log", "日志正则缺少 request_id 命名组，无法按请求关联")], []
     paths = _expand_paths(log_paths)
     if not paths:
         return [], [_gap("log", "未找到日志文件")], []
@@ -459,6 +461,7 @@ def import_link(
     max_lines: int = 5000,
     window_seconds: int = 300,
     started_at: datetime | str | None = None,
+    ended_at: datetime | str | None = None,
 ) -> dict[str, Any]:
     """Import link nodes from existing logs and one configured read-only query.
 
@@ -474,10 +477,17 @@ def import_link(
         center = started_at
     elif isinstance(started_at, str):
         center = _parse_timestamp(started_at)
+    finish: datetime | None = center
+    if isinstance(ended_at, datetime):
+        finish = ended_at
+    elif ended_at:
+        finish = _parse_timestamp(ended_at) or finish
     window: tuple[datetime, datetime] | None = None
     if center is not None:
         span = timedelta(seconds=max(0, window_seconds))
-        window = (center - span, center + span)
+        if finish is None or finish < center:
+            finish = center
+        window = (center - span, finish + span)
     if log_format not in {"jsonl", "regex"}:
         raise AiTestError(
             "LINK_CONFIG_MISSING",

@@ -193,17 +193,23 @@ def read_github(repo: str, ref: str, *, runner: Runner = subprocess.run) -> dict
     if not sha:
         raise _unavailable("gh 返回的提交信息缺少 sha")
     pulls_payload = _items(
-        _api_json(runner, f"repos/{repo_path}/commits/{quote(sha, safe='')}/pulls")
+        _api_json(
+            runner,
+            f"repos/{repo_path}/commits/{quote(sha, safe='')}/pulls",
+            paginate=True,
+        )
     )
-    if not pulls_payload:
-        pulls_payload = _items(_api_json(runner, f"repos/{repo_path}/pulls?state=all"))
     checks_payload = _api_json(
         runner,
         f"repos/{repo_path}/commits/{quote(sha, safe='')}/check-runs",
         paginate=True,
     )
     deployments_payload = _items(
-        _api_json(runner, f"repos/{repo_path}/deployments?ref={ref_query}")
+        _api_json(
+            runner,
+            f"repos/{repo_path}/deployments?ref={ref_query}",
+            paginate=True,
+        )
     )
 
     prs = [_pull(item) for item in pulls_payload if isinstance(item, dict)]

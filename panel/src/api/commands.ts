@@ -2,18 +2,27 @@
 import { callHost } from "./host";
 import type {
   AddTaskResult,
+  BackupResult,
+  Delivery,
   DeliveryDraft,
   DoctorFacts,
   EvidenceItem,
   GeneratedPlan,
+  GithubChange,
+  LinkImportResult,
+  Issue,
   IssueSummary,
   ModuleSuggestion,
   Opinion,
-  Plan,
+  PlanDetail,
   Project,
   ProjectConfig,
   ProjectSummary,
+  Rule,
+  RuleSummary,
+  Report,
   ReportSummary,
+  ReportVersion,
   RunDetail,
   RunSummary,
   SuggestResult,
@@ -107,7 +116,7 @@ export const api = {
     return callHost("task.add", payload);
   },
 
-  showTask(projectId: string, taskId: string): Promise<{ task: Task }> {
+  showTask(projectId: string, taskId: string): Promise<{ task: Task; plans?: string[] }> {
     return callHost("task.show", { project_id: projectId, task_id: taskId });
   },
 
@@ -122,6 +131,7 @@ export const api = {
       observable: boolean;
       status: "active" | "pending";
       source?: string;
+      module_id?: string | null;
     }[];
   }): Promise<AddTaskResult> {
     return callHost("task.update", {
@@ -132,16 +142,43 @@ export const api = {
     });
   },
 
+  saveTask(input: {
+    projectId: string;
+    taskId: string;
+    revision: number;
+    patch: Record<string, unknown>;
+  }): Promise<AddTaskResult> {
+    return callHost("task.update", {
+      project_id: input.projectId,
+      task_id: input.taskId,
+      expected_revision: input.revision,
+      patch: input.patch,
+    });
+  },
+
   draftDelivery(
     projectId: string,
     taskId: string,
     commit?: string,
-  ): Promise<{ draft: DeliveryDraft; sources: { readme: string; manifest: string; commit_stat: boolean } }> {
+  ): Promise<{
+    draft: DeliveryDraft | null;
+    sources: { readme: string; manifest: string; commit_stat: boolean };
+    status?: string;
+    reason?: string;
+    message?: string;
+  }> {
     return callHost("delivery.draft", {
       project_id: projectId,
       task_id: taskId,
       ...(commit ? { commit } : {}),
     });
+  },
+
+  showDelivery(
+    projectId: string,
+    taskId: string,
+  ): Promise<{ delivery: Delivery | null }> {
+    return callHost("delivery.show", { project_id: projectId, task_id: taskId });
   },
 
   saveDelivery(input: {
@@ -216,8 +253,29 @@ export const api = {
     });
   },
 
-  showPlan(projectId: string, planId: string): Promise<{ plan: Plan }> {
+  showPlan(projectId: string, planId: string): Promise<PlanDetail> {
     return callHost("plan.show", { project_id: projectId, plan_id: planId });
+  },
+
+  updatePlan(input: {
+    projectId: string;
+    planId: string;
+    revision: number;
+    cases: unknown[];
+  }): Promise<{
+    plan_id: string;
+    plan_no?: number;
+    revision: number;
+    status: string;
+    warnings: string[];
+    unverified_cases: string[];
+  }> {
+    return callHost("plan.update", {
+      project_id: input.projectId,
+      plan_id: input.planId,
+      expected_revision: input.revision,
+      patch: { cases: input.cases },
+    });
   },
 
   startRun(
@@ -248,6 +306,23 @@ export const api = {
 
   listRuns(projectId: string, limit = 20): Promise<{ runs: RunSummary[] }> {
     return callHost("run.list", { project_id: projectId, limit });
+  },
+
+  createBackup(path: string, includeEvidence = false): Promise<BackupResult> {
+    return callHost("backup.create", { path, include_evidence: includeEvidence });
+  },
+
+  restoreBackup(
+    path: string,
+    target: string,
+  ): Promise<{
+    target: string;
+    files: number;
+    verified: boolean;
+    missing_evidence: string[];
+    notes?: string;
+  }> {
+    return callHost("backup.restore", { path, target });
   },
 
   cancelRun(projectId: string, runId: string): Promise<{ cancel_requested: boolean }> {
@@ -282,6 +357,14 @@ export const api = {
     return callHost("report.generate", { project_id: projectId, run_id: runId });
   },
 
+  showReport(projectId: string, reportId: string): Promise<{ report: Report }> {
+    return callHost("report.show", { project_id: projectId, report_id: reportId });
+  },
+
+  listReports(projectId: string, runId: string): Promise<{ reports: ReportVersion[] }> {
+    return callHost("report.list", { project_id: projectId, run_id: runId });
+  },
+
   exportReport(
     projectId: string,
     reportId: string,
@@ -308,10 +391,20 @@ export const api = {
     return callHost("issue.list", { project_id: projectId });
   },
 
+  showIssue(projectId: string, issueId: string): Promise<{ issue: Issue }> {
+    return callHost("issue.show", { project_id: projectId, issue_id: issueId });
+  },
+
   updateIssue(
     projectId: string,
     issueId: string,
-    patch: { status?: string; severity?: string; disposition?: string | null; fix_version?: string | null },
+    patch: {
+      status?: string;
+      severity?: string;
+      disposition?: string | null;
+      fix_version?: string | null;
+      reason?: string;
+    },
   ): Promise<{ issue_id: string; status: string; revision: number }> {
     return callHost("issue.update", { project_id: projectId, issue_id: issueId, ...patch });
   },
@@ -330,6 +423,64 @@ export const api = {
 
   listEvidence(projectId: string, runId: string): Promise<{ evidence: EvidenceItem[]; run_id?: string }> {
     return callHost("evidence.list", { project_id: projectId, run_id: runId });
+  },
+
+  addEvidence(
+    projectId: string,
+    runId: string,
+    path: string,
+    note = "",
+    caseId = "",
+  ): Promise<{ evidence_ref: string }> {
+    const payload: Record<string, unknown> = {
+      project_id: projectId,
+      run_id: runId,
+      path,
+    };
+    if (note) {
+      payload["note"] = note;
+    }
+    if (caseId) {
+      payload["case_id"] = caseId;
+    }
+    return callHost("evidence.add", payload);
+  },
+
+  listRules(projectId: string): Promise<{ rules: RuleSummary[] }> {
+    return callHost("rules.list", { project_id: projectId });
+  },
+
+  showRule(projectId: string, rulesVersionId: string): Promise<{ rule: Rule }> {
+    return callHost("rules.show", {
+      project_id: projectId,
+      rules_version_id: rulesVersionId,
+    });
+  },
+
+  bindRule(
+    projectId: string,
+    rulesVersionId: string,
+  ): Promise<{ project_id: string; rules_version_id: string }> {
+    return callHost("rules.bind", {
+      project_id: projectId,
+      rules_version_id: rulesVersionId,
+    });
+  },
+
+  readGithub(projectId: string, repo: string, ref = "main"): Promise<GithubChange & { path: string }> {
+    return callHost("github.read", { project_id: projectId, repo, ref });
+  },
+
+  importLink(
+    projectId: string,
+    runId: string,
+    requestId = "",
+  ): Promise<LinkImportResult & { path?: string }> {
+    const payload: Record<string, unknown> = { project_id: projectId, run_id: runId };
+    if (requestId) {
+      payload["request_id"] = requestId;
+    }
+    return callHost("link.import", payload);
   },
 };
 

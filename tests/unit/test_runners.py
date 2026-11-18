@@ -164,3 +164,18 @@ def test_run_http_sequence_failed_assertion(base_url: str) -> None:
     assert result.assertions[0]["passed"] is False
     assert result.assertions[0]["actual"] == 7
     assert "assertion failed" in result.error
+
+
+def test_run_command_can_be_cancelled(tmp_path: Path) -> None:
+    import sys
+
+    from aitest.runners.command_runner import run_command
+
+    result = run_command(
+        f'"{sys.executable}" -c "import time; time.sleep(20)"',
+        cwd=tmp_path,
+        timeout_seconds=30,
+        cancelled=lambda: True,
+    )
+    assert result.status == "blocked"
+    assert "cancelled" in (result.error or "")

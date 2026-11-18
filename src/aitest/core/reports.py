@@ -17,14 +17,26 @@ from aitest.adapters.github import read_commit_files
 from aitest.adapters.model import ModelClient
 from aitest.ai_features import collect_dependencies, judge_mock, summarize_report
 from aitest.config import known_secret_values
+from aitest.core.evidence import evidence_path
 from aitest.core.scope import uncovered_items as scope_uncovered
-from aitest.core.verdict import coverage, item_outcomes, verdict
+from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
-from aitest.models import Delivery, Issue, Module, Plan, Project, Report, Run, Task, new_id
+from aitest.models import (
+    Delivery,
+    Issue,
+    Module,
+    Plan,
+    Project,
+    Report,
+    Run,
+    Task,
+    case_item_ids,
+    new_id,
+)
 from aitest.security import redact_tree
 from aitest.storage.files import read_json, read_model, write_model
-from aitest.storage.workspace import Workspace
+from aitest.storage.workspace import Workspace, iso_now
 
 _OUTCOME_LABEL = {
     "passed": "本范围通过",
@@ -47,8 +59,9 @@ def _issues_summary(
                 issue = read_model(path, Issue)
             except AiTestError:
                 continue
-            if any(item.run_id == run.run_id for item in issue.occurrences):
-                related.add(issue.issue_id)
+            if not any(item.run_id == run.run_id for item in issue.occurrences):
+                continue
+            related.add(issue.issue_id)
             summary.append(
                 {
                     "issue_id": issue.issue_id,
@@ -161,14 +174,33 @@ def _environment(ws: Workspace, project_id: str) -> dict[str, Any]:
     return {"python": platform.python_version(), "services": services}
 
 
-def _load_delivery(ws: Workspace, project_id: str, task_id: str) -> Delivery | None:
+def _load_delivery(
+    ws: Workspace, project_id: str, task_id: str, run_dir: Path | None = None
+) -> Delivery | None:
+    if run_dir is not None and (run_dir / "delivery.json").is_file():
+        return read_model(run_dir / "delivery.json", Delivery)
     path = ws.project_dir(project_id) / "deliveries" / f"{task_id}.json"
     if not path.is_file():
         return None
     return read_model(path, Delivery)
 
 
-def _load_task(ws: Workspace, project_id: str, task_id: str) -> Task | None:
+def _load_task(
+    ws: Workspace,
+    project_id: str,
+    task_id: str,
+    run_dir: Path | None = None,
+) -> Task | None:
+    """Prefer the task snapshot captured when the run started."""
+    if run_dir is not None:
+        snapshot = run_dir / "task.json"
+        if snapshot.is_file():
+            try:
+                return read_model(snapshot, Task)
+            except AiTestError:
+                # A present but corrupt snapshot must not be replaced by the
+                # current task: that would silently rewrite history.
+                return None
     path = ws.project_dir(project_id) / "tasks" / f"{task_id}.json"
     if not path.is_file():
         return None
@@ -184,6 +216,7 @@ def _layers(plan: Plan) -> dict[str, int]:
 
 def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
     by_case = {case.case_id: case for case in run.cases}
+    effective = case_results(plan, run)
     details: list[dict[str, Any]] = []
     for case in plan.cases:
         run_case = by_case.get(case.case_id)
@@ -191,12 +224,13 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
             {
                 "case_id": case.case_id,
                 "acceptance_item_id": case.acceptance_item_id,
+                "acceptance_item_ids": case_item_ids(case),
                 "layer": case.layer,
                 "title": case.title,
                 "expected": case.expected,
                 "expectation_verified": case.expectation_verified,
                 "warnings": list(case.warnings),
-                "result": run_case.result if run_case is not None else "not_run",
+                "result": effective.get(case.case_id, "not_run"),
                 "evidence_refs": list(run_case.evidence_refs) if run_case is not None else [],
                 "attempts": [
                     {
@@ -219,8 +253,8 @@ def _item_details(plan: Plan, run: Run, task: Task | None) -> list[dict[str, Any
     outcomes = item_outcomes(plan, run)
     by_item: dict[str, list[str]] = {}
     for case in plan.cases:
-        if case.acceptance_item_id is not None:
-            by_item.setdefault(case.acceptance_item_id, []).append(case.case_id)
+        for item_id in case_item_ids(case):
+            by_item.setdefault(item_id, []).append(case.case_id)
     items = {item.item_id: item for item in task.acceptance_items} if task else {}
     details: list[dict[str, Any]] = []
     for item_id in plan.scope.acceptance_item_ids:
@@ -257,7 +291,7 @@ def _l1_details(plan: Plan, run: Run) -> dict[str, Any] | None:
     cases = {
         case["case_id"]: case
         for case in _case_details(plan, run)
-        if case["acceptance_item_id"] is None
+        if not case["acceptance_item_ids"]
     }
     if run.l1 is None and not cases:
         return None
@@ -282,10 +316,10 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
         refs.extend(case.evidence_refs)
     index: list[dict[str, Any]] = []
     for ref in _dedupe(refs):
-        path = run_dir / ref
-        exists = path.is_file()
+        path = evidence_path(run_dir, ref)
+        exists = path is not None and path.is_file()
         digest = ""
-        if exists:
+        if exists and path is not None:
             try:
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
             except OSError:
@@ -295,7 +329,7 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
             {
                 "ref": ref,
                 "exists": exists,
-                "bytes": path.stat().st_size if exists else 0,
+                "bytes": path.stat().st_size if exists and path is not None else 0,
                 "sha256": digest,
                 "media_type": guessed or "application/octet-stream",
             }
@@ -303,32 +337,9 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
     return index
 
 
-def _template_entries(
-    ws: Workspace, project_id: str, task: Task | None, plan: Plan
-) -> list[dict[str, Any]]:
-    entries = list(plan.templates)
-    seen = {
-        str(entry.get("template_id"))
-        for entry in entries
-        if isinstance(entry, dict) and entry.get("template_id")
-    }
-    if task is None:
-        return entries
-    directory = ws.project_dir(project_id) / "tasks" / task.task_id / "templates"
-    if not directory.is_dir():
-        return entries
-    for path in sorted(directory.glob("*.json")):
-        try:
-            data = read_json(path)
-        except AiTestError:
-            continue
-        entry = {key: value for key, value in data.items() if key != "schema_version"}
-        template_id = str(entry.get("template_id") or "")
-        if not template_id or template_id in seen:
-            continue
-        seen.add(template_id)
-        entries.append(entry)
-    return entries
+def _template_entries(plan: Plan) -> list[dict[str, Any]]:
+    """Template dispositions are part of the plan snapshot, not current task state."""
+    return [dict(entry) for entry in plan.templates if isinstance(entry, dict)]
 
 
 def _mock_judgement(
@@ -340,8 +351,6 @@ def _mock_judgement(
     workspace: Workspace,
 ) -> list[dict[str, Any]]:
     judgement = list(run.mock_judgement)
-    if client is None:
-        return judgement
     dependencies: list[str] = []
     if delivery is not None:
         dependencies = [*delivery.dependencies, *delivery.mocks]
@@ -353,6 +362,20 @@ def _mock_judgement(
     dependencies = _dedupe([item.strip() for item in dependencies if item.strip()])
     if not dependencies:
         return judgement
+    if client is None:
+        if judgement:
+            return judgement
+        return [
+            {
+                "name": dependency,
+                "kind": "unknown",
+                "reason": "未配置模型，真实性未判定",
+                "evidence_refs": [],
+                "read_files": [],
+                "limit_reached": False,
+            }
+            for dependency in dependencies
+        ]
     config = load_project_config(workspace, project.project_id)
     evidence_value = config.get("evidence")
     evidence = evidence_value if isinstance(evidence_value, dict) else {}
@@ -423,16 +446,30 @@ def build_report(
     plan = read_model(run_dir / "plan.json", Plan)
     outcome = verdict(plan, run)
     counts = coverage(plan, run)
-    task = _load_task(ws, project.project_id, plan.task_id)
+    task = _load_task(ws, project.project_id, plan.task_id, run_dir)
     uncovered = scope_uncovered(task, plan.scope)
     delivery = (
-        _load_delivery(ws, project.project_id, task.task_id) if task is not None else None
+        _load_delivery(ws, project.project_id, task.task_id, run_dir)
+        if task is not None
+        else None
     )
     source_commit = delivery.commit if delivery is not None and delivery.commit else None
     github, github_files = _github_record(ws, project.project_id, source_commit)
     changed_modules, unmapped_files = _module_impact(delivery, project.modules, github_files)
+    if task is not None:
+        selected_items = set(plan.scope.acceptance_item_ids)
+        module_names = {module.module_id: module.name for module in project.modules}
+        scope_modules = [
+            module_names[item.module_id]
+            for item in task.acceptance_items
+            if item.item_id in selected_items
+            and item.module_id is not None
+            and item.module_id in module_names
+        ]
+        changed_modules = _dedupe([*scope_modules, *changed_modules])
     client = build_client(ws, project.project_id) if use_model else None
     mock_judgement = _mock_judgement(project, run, run_dir, delivery, client, ws)
+    run.mock_judgement = list(mock_judgement)
     real_chain = bool(mock_judgement) and all(
         item.get("kind") == "real" for item in mock_judgement
     )
@@ -441,6 +478,7 @@ def build_report(
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
+        generated_at=iso_now(),
         outcome=outcome,
         conclusion=_conclusion(outcome, counts, uncovered),
         counts=counts,
@@ -459,10 +497,15 @@ def build_report(
         layers=_layers(plan),
         rules_version_id=plan.rules_version_id or project.rules_version_id,
         source_commit=source_commit,
-        templates=_template_entries(ws, project.project_id, task, plan),
+        templates=_template_entries(plan),
         environment=_environment(ws, project.project_id),
         github=github,
         uncovered_items=uncovered,
+        unverified_items=[
+            f"{case.case_id}：{'；'.join(case.warnings)}"
+            for case in plan.cases
+            if case.warnings
+        ],
         item_details=_item_details(plan, run, task),
         case_details=_case_details(plan, run),
         evidence_index=_evidence_index(run_dir, run),
@@ -471,4 +514,6 @@ def build_report(
     secrets = known_secret_values([load_project_config(ws, project.project_id)])
     safe = Report.model_validate(redact_tree(report.model_dump(mode="json"), secrets))
     write_model(ws.project_dir(project.project_id) / "reports" / f"{safe.report_id}.json", safe)
+    run.latest_report_id = safe.report_id
+    write_model(run_dir / "run.json", run)
     return safe

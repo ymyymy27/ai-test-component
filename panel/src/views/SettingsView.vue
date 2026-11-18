@@ -1,935 +1,664 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { onMounted, ref } from "vue";
 
 import { api } from "@/api/commands";
-import { describeError, type FriendlyError } from "@/api/errors";
-import type { ConfigSection, ProjectConfig } from "@/api/types";
-import AppButton from "@/components/AppButton.vue";
-import Badge from "@/components/Badge.vue";
-import ErrorNotice from "@/components/ErrorNotice.vue";
-import Icon from "@/components/Icon.vue";
-import StatusDot from "@/components/StatusDot.vue";
-import {
-  backToSession,
-  flash,
-  refreshDoctor,
-  repairEnvironment,
-  session,
-} from "@/state/session";
+import { describeError } from "@/api/errors";
+import type {
+  BackupResult,
+  GithubChange,
+  ProjectConfig,
+  Rule,
+  RuleSummary,
+} from "@/api/types";
 import { THEMES, setThemeMode, themeMode } from "@/state/theme";
+import { refreshDoctor, workspace } from "@/state/workspace";
 
-const doctor = computed(() => session.doctor);
+const config = ref<ProjectConfig>({});
+const configSection = ref<"services" | "l1" | "runners" | "evidence" | "link" | "model" | "data">("services");
+const configText = ref("{}");
+const configNote = ref("");
+const configError = ref("");
+const backupPath = ref("");
+const backupEvidence = ref(false);
+const backup = ref<BackupResult | null>(null);
+const backupError = ref("");
+const busy = ref(false);
+const configOpen = ref(false);
 
-const rows = computed(() => {
-  const facts = doctor.value;
-  if (!facts) {
-    return [];
-  }
-  return [
-    {
-      key: "python",
-      label: "Python 运行环境",
-      ok: facts.python.ok,
-      value: facts.python.version ? `版本 ${facts.python.version}` : "未找到",
-      hint: facts.python.ok ? "" : "需要 Python 3.11 及以上版本",
-    },
-    {
-      key: "package",
-      label: "测试服务包",
-      ok: facts.package.ok,
-      value: facts.package.version ? `版本 ${facts.package.version}` : "未安装",
-      hint: facts.package.ok ? "" : "本地服务包缺失，面板无法调用测试能力",
-    },
-    {
-      key: "workspace",
-      label: "用户数据工作空间",
-      ok: facts.workspace.ok,
-      value: facts.workspace.path,
-      hint: facts.workspace.ok ? "" : "目录不可写，需要换位置或修正权限",
-    },
-  ];
-});
+const rules = ref<RuleSummary[]>([]);
+const rulesError = ref("");
+const rulesNote = ref("");
+const ruleDetail = ref<Rule | null>(null);
+const binding = ref("");
+const githubRepo = ref("");
+const githubRef = ref("main");
+const github = ref<GithubChange | null>(null);
+const githubError = ref("");
+const githubNote = ref("");
+const githubBusy = ref(false);
 
-const risks = computed(() => doctor.value?.repairs ?? []);
-const hasAutoRepairs = computed(() => risks.value.some((item) => item.auto === true));
-
-function riskLabel(risk: string): string {
-  if (risk === "low") return "低风险";
-  if (risk === "medium") return "中风险";
-  return "高风险";
-}
-
-function riskTone(risk: string): "passed" | "incomplete" | "failed" {
-  if (risk === "low") return "passed";
-  if (risk === "medium") return "incomplete";
-  return "failed";
-}
-
-interface ConfigGroup {
-  key: Exclude<ConfigSection, "model">;
-  title: string;
-  hint: string;
-}
-
-const CONFIG_GROUPS: ConfigGroup[] = [
-  {
-    key: "services",
-    title: "服务",
-    hint: "单服务：{ start, health, stop, ... }；或 服务名 → 配置，取第一个。面板只保存这些非敏感字段。",
-  },
-  {
-    key: "link",
-    title: "链路",
-    hint: "日志路径、格式、字段映射与只读查询；缺请求标识时会记录缺口，不补造。",
-  },
-  {
-    key: "runners",
-    title: "运行器",
-    hint: "命令、接口或脚本运行器的默认参数；不会覆盖单条用例的验证方式。",
-  },
-  {
-    key: "evidence",
-    title: "证据预算",
-    hint: "媒体总预算、单文件上限与视频开关；超限时按策略压缩或截断。",
-  },
-  {
-    key: "l1",
-    title: "源码可运行（L1）",
-    hint: "项目级 build 命令、入口模块与超时；在用例执行前运行。",
-  },
-  {
-    key: "data",
-    title: "数据清理",
-    hint: "dry-run 与清理命令；真实清理仍需要显式确认。",
-  },
+const sections: { id: typeof configSection.value; label: string }[] = [
+  { id: "services", label: "服务与健康检查" },
+  { id: "l1", label: "项目级检查" },
+  { id: "runners", label: "运行器" },
+  { id: "evidence", label: "证据" },
+  { id: "link", label: "调用链" },
+  { id: "model", label: "模型" },
+  { id: "data", label: "测试数据" },
 ];
 
-const config = ref<ProjectConfig | null>(null);
-const drafts = reactive<Record<Exclude<ConfigSection, "model">, string>>({
-  services: "{}",
-  link: "{}",
-  runners: "{}",
-  evidence: "{}",
-  l1: "{}",
-  data: "{}",
-});
-const configLoading = ref(false);
-const saving = ref(false);
-const configLoadError = ref<FriendlyError | null>(null);
-const validationError = ref("");
-const saveError = ref<FriendlyError | null>(null);
-const savedNote = ref("");
-const activeGroup = ref<ConfigGroup["key"]>("services");
-const advancedOpen = ref(false);
-
-const activeGroupInfo = computed(
-  () => CONFIG_GROUPS.find((group) => group.key === activeGroup.value) ?? CONFIG_GROUPS[0],
-);
-
-const modelSection = computed(() => config.value?.model ?? {});
-const modelRows = computed(() => {
-  const model = modelSection.value;
-  const text = (value: unknown): string =>
-    typeof value === "string" || typeof value === "number" ? String(value) : "";
-  return [
-    { label: "服务地址", value: text(model["base_url"]) || "未设置（使用用户配置）" },
-    { label: "模型名称", value: text(model["name"]) || "未设置（使用默认模型）" },
-    {
-      label: "超时",
-      value:
-        model["timeout_seconds"] === undefined ? "未设置" : `${text(model["timeout_seconds"])} 秒`,
-    },
-  ];
-});
-const modelKeyState = computed(() => {
-  const facts = doctor.value?.model;
-  if (!facts) {
-    return { ok: false, text: "还没有自检结果，密钥状态未知" };
+function modelSource(value: string): string {
+  const source = value.toLowerCase();
+  if (source.includes("env")) {
+    return "环境变量";
   }
-  return facts.ok
-    ? { ok: true, text: facts.source === "user-config" ? "已配置（在用户配置里）" : "已配置" }
-    : { ok: false, text: "未配置；AI 能力不可用，本地测试仍可用" };
-});
-
-const githubState = computed(() => doctor.value?.github ?? { ok: false, path: null });
-
-function sectionText(value: Record<string, unknown> | undefined): string {
-  return JSON.stringify(value ?? {}, null, 2);
-}
-
-function fillDrafts(source: ProjectConfig): void {
-  for (const group of CONFIG_GROUPS) {
-    drafts[group.key] = sectionText(source[group.key]);
+  if (source.includes("user") || source.includes("config")) {
+    return "用户配置";
   }
+  return value ? "已配置" : "未配置";
 }
 
-function isDirty(key: ConfigGroup["key"]): boolean {
-  const loaded = sectionText(config.value?.[key]);
-  return drafts[key].trim() !== loaded.trim();
-}
-
-function selectGroup(key: ConfigGroup["key"]): void {
-  activeGroup.value = key;
-  validationError.value = "";
-  saveError.value = null;
+function pickSection(): void {
+  const value = config.value[configSection.value] ?? {};
+  configText.value = JSON.stringify(value, null, 2);
 }
 
 async function loadConfig(): Promise<void> {
-  if (!session.project) {
-    config.value = null;
+  if (!workspace.project) {
     return;
   }
-  configLoading.value = true;
-  configLoadError.value = null;
+  configError.value = "";
   try {
-    const data = await api.getProjectConfig(session.project.project_id);
+    const data = await api.getProjectConfig(workspace.project.project_id);
     config.value = data.config ?? {};
-    fillDrafts(config.value);
+    pickSection();
   } catch (error) {
-    configLoadError.value = describeError(error);
-  } finally {
-    configLoading.value = false;
-  }
-}
-
-function parseSection(group: ConfigGroup): Record<string, unknown> | null {
-  const text = drafts[group.key].trim();
-  if (!text) {
-    return {};
-  }
-  try {
-    const value: unknown = JSON.parse(text);
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("必须是 JSON 对象");
-    }
-    return value as Record<string, unknown>;
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    activeGroup.value = group.key;
-    validationError.value = `“${group.title}”的 JSON 无法解析：${detail}。下一步：检查逗号、引号和括号后重新保存。`;
-    return null;
+    const friendly = describeError(error);
+    configError.value = `${friendly.title}。${friendly.next}`;
   }
 }
 
 async function saveConfig(): Promise<void> {
-  if (!session.project) {
+  if (!workspace.project) {
     return;
   }
-  validationError.value = "";
-  saveError.value = null;
-  savedNote.value = "";
-  const patch: ProjectConfig = {};
-  for (const group of CONFIG_GROUPS) {
-    const parsed = parseSection(group);
-    if (parsed === null) {
-      return;
-    }
-    patch[group.key] = parsed;
-  }
-  saving.value = true;
+  configNote.value = "";
+  configError.value = "";
+  let parsed: unknown;
   try {
-    const data = await api.saveProjectConfig(session.project.project_id, patch);
-    config.value = data.config ?? {};
-    fillDrafts(config.value);
-    savedNote.value = "项目配置已保存。";
-    flash("项目配置已保存");
-  } catch (error) {
-    saveError.value = describeError(error);
-  } finally {
-    saving.value = false;
+    parsed = JSON.parse(configText.value || "{}");
+  } catch {
+    configError.value = "这段配置不是合法的对象。检查括号、引号和逗号后再保存。";
+    return;
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    configError.value = "这段配置必须是一个对象。";
+    return;
+  }
+  busy.value = true;
+  try {
+    const data = await api.saveProjectConfig(workspace.project.project_id, {
+      [configSection.value]: parsed as Record<string, unknown>,
+    });
+    config.value = data.config ?? {};
+    pickSection();
+    configNote.value = "项目配置已保存。";
+  } catch (error) {
+    const friendly = describeError(error);
+    configError.value = `${friendly.title}。${friendly.next}`;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function loadRules(): Promise<void> {
+  if (!workspace.project) {
+    rules.value = [];
+    return;
+  }
+  rulesError.value = "";
+  binding.value = workspace.project.rules_version_id ?? "";
+  try {
+    const data = await api.listRules(workspace.project.project_id);
+    rules.value = data.rules;
+    if (!binding.value && data.rules.length) {
+      binding.value = data.rules[0]?.rules_version_id ?? "";
+    }
+  } catch (error) {
+    const friendly = describeError(error);
+    rulesError.value = `${friendly.title}。${friendly.next}`;
+  }
+}
+
+async function bindRule(): Promise<void> {
+  if (!workspace.project || !binding.value) {
+    rulesNote.value = "先选一个规则版本。";
+    return;
+  }
+  rulesNote.value = "";
+  rulesError.value = "";
+  try {
+    await api.bindRule(workspace.project.project_id, binding.value);
+    const project = await api.showProject(workspace.project.project_id);
+    workspace.project = project.project;
+    rulesNote.value = "已绑定到项目；新生成的计划会引用这个版本。";
+  } catch (error) {
+    const friendly = describeError(error);
+    rulesError.value = `${friendly.title}。${friendly.next}`;
+  }
+}
+
+async function showRule(id: string): Promise<void> {
+  if (!workspace.project) {
+    return;
+  }
+  if (ruleDetail.value?.rules_version_id === id) {
+    ruleDetail.value = null;
+    return;
+  }
+  try {
+    const data = await api.showRule(workspace.project.project_id, id);
+    ruleDetail.value = data.rule;
+  } catch (error) {
+    const friendly = describeError(error);
+    rulesError.value = `${friendly.title}。${friendly.next}`;
+  }
+}
+
+async function readGithub(): Promise<void> {
+  if (!workspace.project) {
+    return;
+  }
+  const repo = githubRepo.value.trim();
+  if (!repo) {
+    githubError.value = "先填写仓库，例如 owner/name。";
+    return;
+  }
+  githubBusy.value = true;
+  githubError.value = "";
+  githubNote.value = "";
+  github.value = null;
+  try {
+    github.value = await api.readGithub(workspace.project.project_id, repo, githubRef.value.trim() || "main");
+    githubNote.value = "已读取并保存到项目工作空间。";
+  } catch (error) {
+    const friendly = describeError(error);
+    githubError.value = `${friendly.title}。${friendly.next}`;
+  } finally {
+    githubBusy.value = false;
+  }
+}
+
+async function runBackup(): Promise<void> {
+  backupError.value = "";
+  backup.value = null;
+  if (!backupPath.value.trim()) {
+    backupError.value = "先填写备份文件保存到哪里。";
+    return;
+  }
+  busy.value = true;
+  try {
+    backup.value = await api.createBackup(backupPath.value.trim(), backupEvidence.value);
+  } catch (error) {
+    const friendly = describeError(error);
+    backupError.value = `${friendly.title}。${friendly.next}`;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function repair(): Promise<void> {
+  if (!window.confirm("只执行低风险修复：创建目录、清理缓存、从项目配置移除密钥字段。继续？")) {
+    return;
+  }
+  await refreshDoctor(true);
 }
 
 onMounted(() => {
   void loadConfig();
+  void loadRules();
 });
 </script>
 
 <template>
-  <div class="stack settings" data-testid="settings-view">
-    <div class="head">
-      <button type="button" class="back" @click="backToSession">
-        <Icon name="arrow-left" :size="15" />
-        返回测试单
+  <div class="settings">
+    <header class="page-head">
+      <div>
+        <h1>设置</h1>
+        <p>环境、模型、GitHub 和项目配置；密钥正文不会显示，也不会写进工作空间。</p>
+      </div>
+      <button type="button" class="ui-btn" :disabled="Boolean(workspace.loading.doctor)" @click="refreshDoctor(false)">
+        重新自检
       </button>
-    </div>
-
-    <header class="head-copy">
-      <h1>设置</h1>
     </header>
 
-    <ErrorNotice
-      v-if="session.bootError && !doctor"
-      :error="session.bootError"
-      retry-label="重新自检"
-      :busy="session.doctorLoading"
-      @retry="refreshDoctor"
-    />
-
-    <section class="card" data-testid="env-check">
-      <div class="section-title">
+    <section class="section">
+      <div class="section-head">
         <h2>环境自检</h2>
-        <div class="row">
-          <AppButton size="sm" variant="ghost" :loading="session.doctorLoading" @click="refreshDoctor">
-            <Icon name="refresh" :size="14" />
-            重新自检
-          </AppButton>
-          <AppButton
-            v-if="hasAutoRepairs"
-            size="sm"
-            variant="secondary"
-            :loading="session.doctorLoading"
-            @click="repairEnvironment"
-          >
-            修复可自动处理项
-          </AppButton>
+        <span class="ui-help">{{ workspace.doctor ? "事实来自当前机器" : "还没有结果" }}</span>
+      </div>
+      <div v-if="workspace.doctor" class="facts">
+        <div class="fact">
+          <span>工作空间</span>
+          <b :class="{ bad: !workspace.doctor.workspace.ok }">{{ workspace.doctor.workspace.ok ? "可用" : "不可用" }}</b>
+          <span class="detail">{{ workspace.doctor.workspace.path }}</span>
+        </div>
+        <div class="fact">
+          <span>Python</span>
+          <b :class="{ bad: !workspace.doctor.python.ok }">{{ workspace.doctor.python.ok ? workspace.doctor.python.version : "不可用" }}</b>
+          <span class="detail"></span>
+        </div>
+        <div class="fact">
+          <span>插件包</span>
+          <b :class="{ bad: !workspace.doctor.package.ok }">{{ workspace.doctor.package.ok ? workspace.doctor.package.version : "不可用" }}</b>
+          <span class="detail"></span>
+        </div>
+        <div class="fact">
+          <span>模型</span>
+          <b :class="{ bad: !workspace.doctor.model.ok }">{{ workspace.doctor.model.ok ? "已连通" : "不可用" }}</b>
+          <span class="detail">{{ modelSource(workspace.doctor.model.source) }}</span>
+        </div>
+        <div class="fact">
+          <span>GitHub</span>
+          <b :class="{ bad: !workspace.doctor.github.ok }">{{ workspace.doctor.github.ok ? "已登录" : "未配置" }}</b>
+          <span class="detail">{{ workspace.doctor.github.path || "" }}</span>
+        </div>
+        <div class="fact">
+          <span>代理</span>
+          <b :class="{ bad: !workspace.doctor.proxy.ok }">{{ workspace.doctor.proxy.ok ? "正常" : "未通过" }}</b>
+          <span class="detail"></span>
         </div>
       </div>
-
-      <ul v-if="rows.length" class="facts">
-        <li v-for="row in rows" :key="row.key" class="fact">
-          <span class="fact-label">{{ row.label }}</span>
-          <span class="fact-value" :class="{ bad: !row.ok }">{{ row.value }}</span>
-          <span v-if="row.hint" class="fact-hint">{{ row.hint }}</span>
-          <StatusDot v-if="!row.ok" tone="warn" label="缺项" />
-        </li>
-      </ul>
-      <p v-else class="hint">还没有自检结果。</p>
-
-      <div v-if="risks.length" class="sub-block">
-        <h3>需要你处理</h3>
-        <ul class="repairs">
-          <li v-for="(item, index) in risks" :key="index" class="repair">
-            <Badge :tone="riskTone(item.risk)">{{ riskLabel(item.risk) }}</Badge>
-            <span class="repair-text mono">{{ item.command }}</span>
-            <span v-if="item.auto" class="hint">可随执行确认处理</span>
-          </li>
-        </ul>
-      </div>
-
-      <div v-if="session.doctor?.repairs_done?.length" class="sub-block">
-        <h3>最近一次自动修复</h3>
-        <ul class="done-list">
-          <li v-for="item in session.doctor.repairs_done" :key="item" class="mono">{{ item }}</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="card" data-testid="model-status">
-      <div class="section-title">
-        <h2>模型</h2>
-        <Badge v-if="!modelKeyState.ok" tone="incomplete">模型密钥：{{ modelKeyState.text }}</Badge>
-      </div>
-      <dl class="kv">
-        <div v-for="row in modelRows" :key="row.label" class="kv-row">
-          <dt>{{ row.label }}</dt>
-          <dd class="mono">{{ row.value }}</dd>
-        </div>
-      </dl>
-      <p class="hint">密钥只从用户配置或环境变量读取，不写入项目。</p>
-    </section>
-
-    <section class="card" data-testid="workspace-status">
-      <div class="section-title">
-        <h2>工作空间</h2>
-        <StatusDot
-          v-if="doctor && !doctor.workspace.ok"
-          tone="warn"
-          label="不可写"
-        />
-      </div>
-      <p v-if="doctor" class="path mono">{{ doctor.workspace.path }}</p>
-      <p v-else class="hint">还没有自检结果。</p>
-      <p class="hint">用于保存记录、证据与报告。可在编辑器设置中修改工作空间路径。</p>
-    </section>
-
-    <section class="card" data-testid="github-status">
-      <div class="section-title">
-        <h2>GitHub</h2>
-        <StatusDot v-if="!githubState.ok" tone="warn" label="不可用" />
-      </div>
-      <p v-if="githubState.path" class="path mono">{{ githubState.path }}</p>
-      <p class="hint">只读读取仓库的提交、PR、检查与部署；不可用不影响本地测试。</p>
-    </section>
-
-    <section class="card appearance" data-testid="appearance">
-      <div class="section-title">
-        <h2>外观</h2>
-      </div>
-      <div class="skin-options" role="radiogroup" aria-label="主题">
-        <button
-          v-for="item in THEMES"
-          :key="item.id"
-          type="button"
-          class="skin-option"
-          :class="{ on: themeMode === item.id }"
-          role="radio"
-          :aria-checked="themeMode === item.id"
-          @click="setThemeMode(item.id)"
-        >
-          <span class="skin-swatch" :class="`swatch-${item.id}`" aria-hidden="true">
-            <i></i><i></i><i></i>
-          </span>
-          <span class="skin-copy">
-            <strong>{{ item.name }}</strong>
-            <small>{{ item.summary }}</small>
-          </span>
+      <p v-else class="ui-help">还没有执行自检。</p>
+      <div class="actions">
+        <button type="button" class="ui-btn" :disabled="Boolean(workspace.loading.doctor)" @click="repair">
+          低风险修复
         </button>
       </div>
     </section>
 
-    <section class="card advanced" :class="{ open: advancedOpen }" data-testid="advanced-config">
-      <button
-        type="button"
-        class="advanced-head"
-        :aria-expanded="advancedOpen"
-        aria-controls="advanced-config-body"
-        @click="advancedOpen = !advancedOpen"
-      >
-        <span class="advanced-title">高级配置</span>
-        <span class="advanced-note">服务 · 链路 · 运行器 · 证据 · L1 · 数据清理</span>
-      </button>
-
-      <div v-if="advancedOpen" id="advanced-config-body" class="advanced-body">
-        <p v-if="!session.project" class="hint">
-          还没有选择项目。回到测试单选择项目后，这里会显示可编辑的服务、链路与运行器配置。
+    <section class="section">
+      <div class="section-head">
+        <h2>项目规则</h2>
+        <span class="ui-help">计划里的步骤与证据要求引用规则版本</span>
+      </div>
+      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
+      <template v-else>
+        <p v-if="rulesError" class="ui-error">{{ rulesError }}</p>
+        <p v-if="!rules.length && !rulesError" class="ui-help">
+          还没有规则版本。规则由 CLI 保存或导入，面板只负责绑定。
         </p>
-
-        <template v-else>
-          <div v-if="configLoading" class="hint">正在读取项目配置…</div>
-          <ErrorNotice
-            v-if="configLoadError"
-            :error="configLoadError"
-            retry-label="重新读取"
-            :busy="configLoading"
-            @retry="loadConfig"
-          />
-
-          <div class="tabs" role="tablist" aria-label="配置分组">
-            <button
-              v-for="group in CONFIG_GROUPS"
-              :key="group.key"
-              type="button"
-              role="tab"
-              class="tab"
-              :class="{ on: activeGroup === group.key }"
-              :aria-selected="activeGroup === group.key"
-              @click="selectGroup(group.key)"
-            >
-              {{ group.title }}
-              <span v-if="isDirty(group.key)" class="dirty-dot" aria-label="已修改"></span>
+        <div v-else class="rule-list">
+          <div v-for="rule in rules" :key="rule.rules_version_id" class="rule-row">
+            <label class="rule-pick">
+              <input v-model="binding" type="radio" :value="rule.rules_version_id" />
+              <span>{{ rule.name || rule.rules_version_id }}</span>
+              <small>{{ rule.version }}</small>
+              <small v-if="rule.rules_version_id === workspace.project?.rules_version_id" class="bound">
+                当前绑定
+              </small>
+            </label>
+            <button type="button" class="ui-link" @click="showRule(rule.rules_version_id)">
+              {{ ruleDetail?.rules_version_id === rule.rules_version_id ? "收起" : "查看" }}
             </button>
           </div>
+        </div>
+        <div v-if="ruleDetail" class="rule-detail">
+          <p v-if="ruleDetail.steps_md" class="ui-help">{{ ruleDetail.steps_md }}</p>
+          <p v-for="(line, index) in ruleDetail.ai_rules" :key="`ai-${index}`" class="ui-help">
+            · {{ line }}
+          </p>
+          <p v-for="(line, index) in ruleDetail.evidence_requirements" :key="`ev-${index}`" class="ui-help">
+            证据：{{ line }}
+          </p>
+        </div>
+        <div v-if="rules.length" class="actions">
+          <button type="button" class="ui-btn" :disabled="!binding" @click="bindRule">
+            绑定所选规则
+          </button>
+          <span v-if="rulesNote" class="ui-help">{{ rulesNote }}</span>
+        </div>
+      </template>
+    </section>
 
-          <div class="group-body" role="tabpanel" :aria-label="activeGroupInfo.title">
-            <p class="hint">{{ activeGroupInfo.hint }}</p>
-            <label class="field">
-              <span class="sr-only">{{ activeGroupInfo.title }} JSON</span>
-              <textarea
-                :id="`config-${activeGroup}`"
-                v-model="drafts[activeGroup]"
-                class="input textarea mono"
-                rows="8"
-                spellcheck="false"
-              ></textarea>
-            </label>
+    <section class="section">
+      <div class="section-head">
+        <h2>GitHub 变更</h2>
+        <span class="ui-help">可选；只读提交、PR 与检查结果</span>
+      </div>
+      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
+      <template v-else>
+        <div class="gh-row">
+          <label class="field gh-field">
+            <span class="ui-label">仓库</span>
+            <input v-model="githubRepo" class="ui-input" placeholder="owner/name" />
+          </label>
+          <label class="field gh-field">
+            <span class="ui-label">分支或提交</span>
+            <input v-model="githubRef" class="ui-input" placeholder="main" />
+          </label>
+          <button type="button" class="ui-btn" :disabled="githubBusy" @click="readGithub">
+            {{ githubBusy ? "读取中…" : "读取变更" }}
+          </button>
+        </div>
+        <p v-if="githubError" class="ui-error">{{ githubError }}</p>
+        <p v-if="githubNote" class="ui-help">{{ githubNote }}</p>
+        <template v-if="github">
+          <p class="ui-help">
+            {{ github.repo }} · {{ github.branch }} · {{ github.commit.slice(0, 12) }} ·
+            {{ github.files.length }} 个文件
+          </p>
+          <p v-for="file in github.files.slice(0, 12)" :key="file" class="ui-mono file-line">{{ file }}</p>
+          <p v-if="github.files.length > 12" class="ui-help">还有 {{ github.files.length - 12 }} 个文件。</p>
+          <p class="ui-help">PR {{ github.prs.length }} 条 · 检查 {{ github.checks.length }} 条</p>
+        </template>
+      </template>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>项目配置</h2>
+        <span class="ui-help">{{ workspace.project?.name || "还没有项目" }}</span>
+      </div>
+      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
+      <template v-else>
+        <div v-if="!configOpen" class="config-collapsed">
+          <p class="ui-help">
+            服务健康检查、运行器、调用链日志来源等按段保存；凭据字段会被拒绝。
+          </p>
+          <button type="button" class="ui-btn" @click="configOpen = true">编辑项目配置</button>
+        </div>
+        <template v-else>
+          <div class="section-tabs">
+            <button
+              v-for="section in sections"
+              :key="section.id"
+              type="button"
+              class="tab"
+              :class="{ on: configSection === section.id }"
+              @click="configSection = section.id; pickSection()"
+            >
+              {{ section.label }}
+            </button>
           </div>
-
-          <ErrorNotice
-            v-if="saveError"
-            :error="saveError"
-            :show-retry="false"
-            @retry="() => {}"
-          />
-          <p v-if="validationError" class="action-error" role="alert">{{ validationError }}</p>
-          <p v-if="savedNote" class="saved-note" role="status">{{ savedNote }}</p>
-
-          <div class="row advanced-actions">
-            <AppButton variant="primary" :loading="saving" @click="saveConfig">
-              保存项目配置
-            </AppButton>
-            <span class="hint">
-              保存会合并全部已编辑分组；哪一组写错就跳到那一组并说明下一步。
-            </span>
+          <textarea v-model="configText" class="ui-textarea config-text" spellcheck="false" />
+          <p class="ui-help">这里直接编辑该段项目配置；凭据字段会被拒绝，密钥不要写进来。</p>
+          <p v-if="configError" class="ui-error">{{ configError }}</p>
+          <p v-if="configNote" class="ui-help">{{ configNote }}</p>
+          <div class="actions">
+            <button type="button" class="ui-btn" :disabled="busy" @click="saveConfig">
+              保存这段配置
+            </button>
+            <button type="button" class="ui-link" @click="configOpen = false">收起</button>
           </div>
         </template>
+      </template>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>外观</h2>
+        <span class="ui-help">跟随系统时随编辑器明暗切换</span>
+      </div>
+      <div class="themes">
+        <label v-for="theme in THEMES" :key="theme.id" class="theme">
+          <input
+            type="radio"
+            name="theme"
+            :value="theme.id"
+            :checked="themeMode === theme.id"
+            @change="setThemeMode(theme.id)"
+          />
+          <span>{{ theme.name }}</span>
+          <small>{{ theme.summary }}</small>
+        </label>
       </div>
     </section>
 
-    <p class="footnote">
-      设置里的模型与链路能力不改变已有的测试判定；任何未验证项都会在测试单的结果里标出。
-    </p>
+    <section class="section">
+      <div class="section-head">
+        <h2>备份</h2>
+        <span class="ui-help">默认不包含证据文件</span>
+      </div>
+      <label class="field">
+        <span class="ui-label">保存到</span>
+        <input v-model="backupPath" class="ui-input" placeholder="例如 E:\backup\aitest.zip" />
+      </label>
+      <label class="check">
+        <input v-model="backupEvidence" type="checkbox" />
+        同时备份证据
+      </label>
+      <button type="button" class="ui-btn" :disabled="busy" @click="runBackup">创建备份</button>
+      <p v-if="backupError" class="ui-error">{{ backupError }}</p>
+      <div v-if="backup" class="backup-result">
+        <p class="ui-help">已保存：{{ backup.path }}</p>
+        <p class="ui-help">文件 {{ backup.files }} 个 · {{ backup.sha256.slice(0, 12) }}</p>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px 4px 2px;
-  background: none;
-  border: 0;
-  color: var(--text-2);
-  font-size: var(--fs-12);
-  border-radius: var(--r-control);
-}
-
-.back:hover {
-  color: var(--text);
-  background: var(--surface-raised);
-}
-
-.head-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.head-copy p {
-  font-size: var(--fs-12);
-  max-width: 64ch;
-  line-height: 1.6;
-}
-
-.repair-note {
-  margin-bottom: var(--space-3);
-}
-
-.facts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.fact {
-  display: grid;
-  grid-template-columns: 132px 1fr auto;
-  grid-template-areas:
-    "label value status"
-    "label hint status";
-  gap: 2px var(--space-3);
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
-  align-items: start;
-}
-
-.fact:last-child {
-  border-bottom: 0;
-}
-
-.fact-label {
-  grid-area: label;
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  padding-top: 1px;
-}
-
-.fact-value {
-  grid-area: value;
-  font-size: var(--fs-13);
-  color: var(--text);
-  word-break: break-word;
-}
-
-.fact-value.bad {
-  color: var(--incomplete);
-}
-
-.fact-hint {
-  grid-area: hint;
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  line-height: 1.5;
-}
-
-.fact :deep(.status) {
-  grid-area: status;
-}
-
-.sub-block {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-
-.sub-block h3 {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-
-.repairs,
-.done-list {
-  list-style: none;
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.repair {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.repair-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--text-2);
-  overflow-wrap: break-word;
-}
-
-.done-list {
-  color: var(--text-2);
-}
-
 .settings {
   max-width: var(--layout-max);
   margin: 0 auto;
+  padding: var(--space-4);
+  padding-bottom: var(--space-6);
 }
 
-.settings .card {
-  padding: var(--space-4) 0;
-  background: none;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-}
-
-.kv {
+.page-head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: 0;
-}
-
-.kv-row {
-  display: grid;
-  grid-template-columns: 96px 1fr;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--space-3);
-  font-size: var(--fs-12);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-strong);
 }
 
-.kv-row dt {
+.page-head h1 {
+  font-size: var(--fs-20);
+}
+
+.page-head p {
+  margin-top: 3px;
   color: var(--text-3);
+  font-size: var(--fs-11);
+  line-height: 1.5;
 }
 
-.kv-row dd {
-  margin: 0;
-  color: var(--text-2);
-  word-break: break-all;
+.section {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.path {
-  margin-bottom: var(--space-2);
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: 0;
-  color: var(--text-2);
-  word-break: break-all;
-}
-
-.footnote {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  line-height: 1.6;
-}
-
-/* 高级配置：折叠 + 分段，一次只显示一个 JSON 分组 */
-
-.advanced {
-  padding: 0;
-}
-
-.advanced-head {
+.section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  flex-wrap: wrap;
-  width: 100%;
-  padding: var(--space-4);
-  background: none;
-  border: 0;
-  text-align: left;
-  cursor: pointer;
-  border-radius: var(--r-card);
+  margin-bottom: 7px;
 }
 
-.advanced-head:hover {
-  background: var(--surface-raised);
+.section-head h2 {
+  margin: 0;
+  font-size: var(--fs-13);
 }
 
-.advanced-title {
-  font-size: var(--fs-14);
-  font-weight: 600;
-}
-
-.advanced-title::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 8px;
-  border-right: 1px solid var(--text-3);
-  border-bottom: 1px solid var(--text-3);
-  transform: rotate(-45deg) translateY(-1px);
-}
-
-.advanced.open .advanced-title::before {
-  transform: rotate(45deg) translateY(-1px);
-}
-
-.advanced-note {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-}
-
-.advanced-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-4);
-  border-top: 1px solid var(--line);
-  padding-top: var(--space-3);
-}
-
-.tabs {
-  display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--line);
-}
-
-.tab {
-  position: relative;
-  padding: 7px 10px;
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--text-3);
-  font-size: var(--fs-12);
-  margin-bottom: -1px;
-}
-
-.tab:hover {
-  color: var(--text-2);
-}
-
-.tab.on {
-  color: var(--text);
-  border-bottom-color: var(--accent-line);
-}
-
-.dirty-dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-left: 5px;
-  border-radius: 50%;
-  background: var(--incomplete);
-  vertical-align: middle;
-}
-
-.group-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field {
+.facts {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.input {
-  width: 100%;
-  padding: 7px 10px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  color: var(--text);
-  font-size: var(--fs-12);
-}
-
-.input:focus {
-  border-color: var(--accent-line);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-glow);
-}
-
-.textarea {
-  resize: vertical;
-  line-height: 1.55;
-}
-
-.advanced-actions {
-  flex-wrap: wrap;
-}
-
-.action-error {
-  padding: 8px 10px;
-  border: 1px solid var(--failed-border);
-  background: var(--failed-fill);
-  border-radius: var(--r-control);
-  color: var(--text-2);
-  font-size: var(--fs-12);
-  line-height: 1.6;
-}
-
-.saved-note {
-  padding: 8px 10px;
-  border: 1px solid var(--passed-border);
-  background: var(--passed-fill);
-  border-radius: var(--r-control);
-  font-size: var(--fs-12);
-}
-
-.card.advanced {
-  padding: 0;
-}
-
-.advanced-head {
-  padding: var(--space-4);
-  border-radius: var(--r-card);
-}
-
-.advanced-body {
-  padding: 0 var(--space-4) var(--space-4);
-}
-
-.fact-label {
-  font-size: var(--fs-12);
-}
-
-.appearance .section-title {
-  align-items: center;
-}
-
-.skin-options {
+.fact {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.skin-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
-  text-align: left;
-  color: var(--text);
-}
-
-.skin-option:hover {
-  border-color: var(--accent-line);
-}
-
-.skin-option.on {
-  border-color: var(--accent);
-  background: var(--accent-fill);
-}
-
-.skin-swatch {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 3px;
-  width: 38px;
-  height: 30px;
-  padding: 4px;
-  border: 1px solid var(--line-strong);
-  flex: none;
-}
-
-.skin-swatch i {
-  display: block;
-  height: 3px;
-  background: currentColor;
-}
-
-.skin-swatch i:nth-child(1) {
-  width: 100%;
-  opacity: 0.8;
-}
-
-.skin-swatch i:nth-child(2) {
-  width: 70%;
-  opacity: 0.55;
-}
-
-.skin-swatch i:nth-child(3) {
-  width: 45%;
-  opacity: 0.35;
-}
-
-.swatch-system {
-  background: linear-gradient(90deg, #f6f7f9 50%, #111318 50%);
-  color: #2f6bed;
-}
-
-.swatch-light {
-  background: #ffffff;
-  color: #2f6bed;
-}
-
-.swatch-dark {
-  background: #111318;
-  color: #7aa2ff;
-}
-
-.skin-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.skin-copy strong {
-  font-size: var(--fs-13);
-  font-weight: 500;
-}
-
-.skin-copy small {
+  grid-template-columns: 88px 90px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
   font-size: var(--fs-11);
+}
+
+.fact > span:first-child {
   color: var(--text-3);
 }
 
-@media (max-width: 520px) {
-  .skin-options {
-    grid-template-columns: 1fr;
-  }
+.fact b {
+  font-weight: 500;
+  color: var(--passed);
+}
+
+.fact b.bad {
+  color: var(--failed);
+}
+
+.detail {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  margin-top: 8px;
+}
+
+.themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.theme {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 5px;
+  align-items: center;
+  color: var(--text-2);
+  font-size: var(--fs-11);
+}
+
+.theme small {
+  grid-column: 2;
+  color: var(--text-3);
+  font-size: var(--fs-10);
+}
+
+.section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tab {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-10);
+}
+
+.tab.on {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.config-collapsed .ui-help {
+  margin-bottom: 7px;
+}
+
+.config-text {
+  min-height: 130px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+  line-height: 1.5;
+}
+
+.field {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  color: var(--text-3);
+  font-size: var(--fs-10);
+}
+
+.backup-result {
+  margin-top: 6px;
+}
+
+.rule-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.rule-pick {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-11);
+  min-width: 0;
+}
+
+.rule-pick small {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+}
+
+.rule-pick .bound {
+  color: var(--accent);
+}
+
+.rule-detail {
+  padding: 6px 0;
+}
+
+.gh-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gh-field {
+  min-width: 120px;
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.file-line {
+  font-size: var(--fs-10);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 520px) {
+  .settings {
+    padding: var(--space-3);
+  }
+
   .fact {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "label status"
-      "value value"
-      "hint hint";
-    row-gap: 3px;
+    grid-template-columns: 70px 76px minmax(0, 1fr);
   }
 }
 </style>

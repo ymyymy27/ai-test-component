@@ -37,29 +37,63 @@ media/
 
 ## 命令
 
+扩展自身注册三个命令：
+
 | 命令 | 作用 |
 | --- | --- |
 | `aitest.openPanel` | 打开测试面板 |
 | `aitest.checkEnvironment` | 打开面板并运行 `doctor` |
 | `aitest.runStatus` | 打开面板并查看当前项目最近一次运行 |
 
-面板经由扩展白名单调用 `project.*`、`task.*`、`plan.*`、`run.*`、`analysis.run`、`issue.list`、`report.*` 与 `doctor`；其余命令不暴露。`run.start` 只有在面板确认页点击“开始测试”时才带 `--confirm`；其他命令即使请求确认也不会带上。
+### 面板命令白名单
+
+面板只能调用 `src/extension.ts` 中 `PANEL_COMMANDS` 白名单内的命令；白名单之外的命令不会从面板转发。新增命令先在 `PANEL_COMMANDS` 显式放行。
+
+| 分组 | 白名单命令 |
+| --- | --- |
+| 环境 | `doctor` |
+| 项目 | `project.add`、`project.config`、`project.list`、`project.show` |
+| 任务与模块 | `task.add`、`task.list`、`task.show`、`task.suggest`、`task.update`、`module.suggest`、`module.add` |
+| 交付与模板 | `delivery.draft`、`delivery.save`、`template.list`、`template.apply` |
+| 计划与运行 | `plan.generate`、`plan.show`、`run.start`、`run.status`、`run.list`、`run.cancel`、`run.manual`、`analysis.run` |
+| 证据 | `evidence.list`、`evidence.add` |
+| 规则 | `rules.save`、`rules.list`、`rules.show`、`rules.import`、`rules.export`、`rules.bind` |
+| GitHub 与链路 | `github.read`、`link.import`、`link.assert` |
+| 问题 | `issue.list`、`issue.show`、`issue.update`、`issue.close` |
+| 报告 | `report.generate`、`report.show`、`report.list`、`report.export`、`report.opinion` |
+| 备份 | `backup.create`、`backup.restore` |
+
+`rules.save`、`rules.import`、`rules.export` 与 `link.assert` 虽已放行，但面板没有完整 UI：设置页的“项目规则”只列出、查看和绑定规则；`link.import` 在报告文档里提供“导入调用链日志”；`evidence.add` 在证据查看器里提供“补充证据”。
+
+`run.start` 只有在执行前确认区点击“开始测试”时才带 `--confirm`；其他命令即使请求确认也不会带上。
+
+已知缺口：面板 `api/commands.ts` 还调用了 `delivery.show` 与 `plan.update`，但这两条命令不在当前白名单，计划文档里的交付读取/保存会在 Trae 中收到 `COMMAND_NOT_ALLOWED`；在补齐白名单和真实宿主回归前，不要把这部分当成已验证。
 
 ## 构建与测试
 
 ```bash
 npm ci
-npm test
+npm test               # 48 项 bridge/runtime 与扩展接线测试
 npm run build          # 先打 wheel、构建 panel/，再复制到 media/ 并打包扩展入口
 npm run build:wheel    # 只重建 media/runtime 的 aitest wheel 与依赖 wheel
 npm run build:panel    # 只重建面板产物
 npm run package        # 生成 dist/aitest-trae.vsix（含 media/runtime wheel）
+```
 
 面板资源 URL 会带 `index.html` 内容哈希查询串；重新打包同一扩展版本后，宿主不会命中旧 webview 缓存。
-```
+
+安装 VSIX：在 Trae 扩展视图的“...”菜单选择“从 VSIX 安装…”，选中 `dist/aitest-trae.vsix`；安装后从活动栏“AI 测试”或命令面板打开。当前版本 0.5.0。
 
 `npm run build` 需要仓库根目录 `panel/` 的依赖已安装（`cd panel && npm install`）。面板构建失败时不会覆盖 `media/panel`。
 
 `npm run build:wheel` 用 `uv build --wheel` 打 aitest wheel（没有 uv 时回退 `python -m build --wheel`，需要 `build` 包），再从 PyPI 为 CPython 3.11/3.12/3.13 win_amd64 下载 `pyproject.toml` 里的运行依赖 wheel（需要网络）。离线构建可设 `AITEST_RUNTIME_SKIP_DEPS=1`，但生成的 VSIX 无法在干净机器上离线安装，脚本会明确警告。`AITEST_BUILD_PYTHON` 可指定下载依赖用的解释器。
 
 `npm test` 只使用假子进程与假下载器验证 bridge/runtime 与扩展接线，不启动真实 Trae、不联网、不下载真实便携 Python。真实 Trae 中的安装、面板交互、真实 GitHub 下载与完整业务闭环仍需单独验收，未验证项不写成通过。
+
+## 真实 Trae 证据
+
+- [2026-11-17-trae-panel](../../tests/acceptance/p1/evidence/2026-11-17-trae-panel/README.md)：旧构建，含 P1-AC02 目标选择与主路径。
+- [2026-11-17-trae-panel-v2](../../tests/acceptance/p1/evidence/2026-11-17-trae-panel-v2/README.md)：重排后的最新构建，补充 result、adjust-scope、report、plan-doc、history、issues、settings 页面证据，不新增 AC 结论。
+- [2026-11-17-panel-ledger](../../tests/acceptance/p1/evidence/2026-11-17-panel-ledger/README.md)：仅 Chromium 静态界面回归，不是真实 Trae 证据。
+
+这些材料证明 0.5.0 在本机 Trae CN 1.107.1 中可加载、生成计划、运行并展示结果；不替代完整宿主闭环、试点项目、真实 GitHub 账号成功路径、真实宿主备份恢复、干净机器便携运行时或平台对拍。

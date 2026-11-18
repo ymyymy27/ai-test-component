@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
 import re
-import secrets
 import shutil
 import subprocess
 import sys
@@ -271,6 +271,37 @@ def _config_problems(ws: Workspace) -> list[dict[str, str]]:
     return problems
 
 
+def _reference_problems(ws: Workspace) -> list[str]:
+    missing: set[str] = set()
+    for project in ws.list_projects():
+        runs_dir = ws.project_dir(project.project_id) / "runs"
+        if not runs_dir.is_dir():
+            continue
+        for path in sorted(runs_dir.glob("*/run.json")):
+            try:
+                data = read_json(path)
+            except AiTestError:
+                continue
+            refs = data.get("evidence_refs")
+            run_refs: list[str] = (
+                [item for item in refs if isinstance(item, str)]
+                if isinstance(refs, list)
+                else []
+            )
+            cases = data.get("cases")
+            for case in cases if isinstance(cases, list) else []:
+                if isinstance(case, dict):
+                    case_refs = case.get("evidence_refs")
+                    if isinstance(case_refs, list):
+                        run_refs.extend(
+                            item for item in case_refs if isinstance(item, str)
+                        )
+            for ref in run_refs:
+                if ref and not (path.parent / ref).is_file():
+                    missing.add(f"{path.parent.name}:{ref}")
+    return sorted(missing)
+
+
 def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     meta = ws.init()
@@ -294,6 +325,7 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
     github = _github_fact(gh_path, repo)
     proxy = _proxy_fact()
     config_problems = _config_problems(ws)
+    reference_problems = _reference_problems(ws)
     repairs: list[dict[str, Any]] = []
     if not writable:
         repairs.append(
@@ -363,45 +395,47 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
             )
     done: list[str] = []
     if _as_bool(payload.get("repair")):
-        for name in ("projects", "requests", "backups", "actions"):
-            directory = ws.root / name
-            directory.mkdir(parents=True, exist_ok=True)
-            done.append(f"ensure:{name}")
-            _doctor_log(ws, {"at": iso_now(), "action": f"ensure:{name}", "ok": True})
-        cache = ws.root / ".cache"
-        if cache.is_dir():
-            shutil.rmtree(cache, ignore_errors=True)
-            done.append("clear:cache")
-            _doctor_log(ws, {"at": iso_now(), "action": "clear:cache", "ok": True})
-        for problem in config_problems:
-            if problem["kind"] != "secret_field":
-                continue
-            path = _config_path(ws, problem["project_id"])
-            try:
-                data = _strip_secret_fields(read_json(path))
-                write_json(path, data)
-            except (AiTestError, OSError):
-                done.append("strip:secrets:failed")
-                _doctor_log(
-                    ws,
-                    {
-                        "at": iso_now(),
-                        "action": "strip:secrets",
-                        "project_id": problem["project_id"],
-                        "ok": False,
-                    },
-                )
-            else:
-                done.append("strip:secrets")
-                _doctor_log(
-                    ws,
-                    {
-                        "at": iso_now(),
-                        "action": "strip:secrets",
-                        "project_id": problem["project_id"],
-                        "ok": True,
-                    },
-                )
+        with ws.lock():
+            for name in ("projects", "requests", "backups", "actions"):
+                directory = ws.root / name
+                directory.mkdir(parents=True, exist_ok=True)
+                done.append(f"ensure:{name}")
+                _doctor_log(ws, {"at": iso_now(), "action": f"ensure:{name}", "ok": True})
+            cache = ws.root / ".cache"
+            if cache.is_dir():
+                shutil.rmtree(cache, ignore_errors=True)
+                done.append("clear:cache")
+                _doctor_log(ws, {"at": iso_now(), "action": "clear:cache", "ok": True})
+            for problem in config_problems:
+                if problem["kind"] != "secret_field":
+                    continue
+                path = _config_path(ws, problem["project_id"])
+                try:
+                    data = _strip_secret_fields(read_json(path))
+                    write_json(path, data)
+                except (AiTestError, OSError):
+                    done.append("strip:secrets:failed")
+                    _doctor_log(
+                        ws,
+                        {
+                            "at": iso_now(),
+                            "action": "strip:secrets",
+                            "project_id": problem["project_id"],
+                            "ok": False,
+                        },
+                    )
+                else:
+                    done.append("strip:secrets")
+                    _doctor_log(
+                        ws,
+                        {
+                            "at": iso_now(),
+                            "action": "strip:secrets",
+                            "project_id": problem["project_id"],
+                            "ok": True,
+                        },
+                    )
+
     facts: dict[str, Any] = {
         "workspace": {
             "ok": writable,
@@ -420,6 +454,10 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
         "project_config": {
             "ok": not config_problems,
             "problems": config_problems,
+        },
+        "references": {
+            "ok": not reference_problems,
+            "missing": reference_problems,
         },
         "repairs": repairs,
         "repairs_done": done,
@@ -452,7 +490,12 @@ def cmd_project_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         raise invalid_path(f"目录不可写：{root}")
     existing = ws.find_by_root(str(root))
     if existing is not None:
-        return {"project_id": existing.project_id, "revision": existing.revision, "existing": True}
+        return {
+            "project_id": existing.project_id,
+            "revision": existing.revision,
+            "modules": [module.model_dump(mode="json") for module in existing.modules],
+            "existing": True,
+        }
     overlap = ws.find_overlapping(str(root))
     if overlap:
         raise invalid_request(
@@ -467,14 +510,25 @@ def cmd_project_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         goal=redact(_text(payload, "goal"), secrets),
     )
     ws.save_project(project)
-    return {"project_id": project.project_id, "revision": project.revision, "existing": False}
+    return {
+        "project_id": project.project_id,
+        "revision": project.revision,
+        "modules": [],
+        "existing": False,
+    }
 
 
 def cmd_project_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del payload, confirm
     return {
         "projects": [
-            {"project_id": p.project_id, "name": p.name, "root": p.root, "revision": p.revision}
+            {
+                "project_id": p.project_id,
+                "name": p.name,
+                "root": p.root,
+                "revision": p.revision,
+                "updated_at": p.updated_at,
+            }
             for p in ws.list_projects()
         ]
     }
@@ -483,7 +537,12 @@ def cmd_project_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 def cmd_project_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    return {"project": project.model_dump(mode="json")}
+    return {
+        "project": project.model_dump(mode="json"),
+        "modules": [module.model_dump(mode="json") for module in project.modules],
+        "binding": {"root": project.root},
+        "gaps": [],
+    }
 
 
 def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -625,6 +684,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
         merged[section] = _merge_config(
             current if isinstance(current, dict) else {}, value
         )
+    merged["schema_version"] = 1
     write_json(path, merged)
     return {"config": _whitelisted_config(merged)}
 
@@ -808,7 +868,11 @@ def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
             "ai_generated": False,
         }
     enriched = [
-        {**candidate, "intent": infer_task_intent(candidate["title"])}
+        {
+            **candidate,
+            "intent": infer_task_intent(candidate["title"]),
+            "source": candidate.get("source") or "ai",
+        }
         for candidate in candidates
     ]
     return {
@@ -958,7 +1022,18 @@ def cmd_task_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
 
 def cmd_task_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
-    return {"task": _task(ws, payload).model_dump(mode="json")}
+    task = _task(ws, payload)
+    plans_dir = ws.project_dir(task.project_id) / "plans"
+    plans: list[str] = []
+    if plans_dir.is_dir():
+        for path in sorted(plans_dir.glob("*.json")):
+            try:
+                plan = read_model(path, Plan)
+            except AiTestError:
+                continue
+            if plan.task_id == task.task_id:
+                plans.append(plan.plan_id)
+    return {"task": task.model_dump(mode="json"), "plans": plans}
 
 
 def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -1308,19 +1383,32 @@ MUTATING = {
 }
 
 
-def request_cache_path(ws: Workspace, request_id: str) -> Path:
-    safe = "".join(ch for ch in request_id if ch.isalnum() or ch in "-_")[:80]
-    if not safe:
-        safe = secrets.token_hex(8)
-    return ws.root / "requests" / f"{safe}.json"
+def request_cache_path(
+    ws: Workspace, request_id: str, command: str = "", payload: object = None
+) -> Path:
+    material = json.dumps(
+        {"request_id": request_id, "command": command, "payload": payload},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+    return ws.root / "requests" / f"{digest}.json"
 
 
-def cached_result(ws: Workspace, request_id: str) -> dict[str, Any] | None:
-    path = request_cache_path(ws, request_id)
+def cached_result(
+    ws: Workspace, request_id: str, command: str = "", payload: object = None
+) -> dict[str, Any] | None:
+    path = request_cache_path(ws, request_id, command, payload)
     if not path.is_file():
         return None
     return read_json(path)
 
 
-def store_result(ws: Workspace, request_id: str, result: dict[str, Any]) -> None:
-    write_json(request_cache_path(ws, request_id), result)
+def store_result(
+    ws: Workspace,
+    request_id: str,
+    result: dict[str, Any],
+    command: str = "",
+    payload: object = None,
+) -> None:
+    write_json(request_cache_path(ws, request_id, command, payload), result)

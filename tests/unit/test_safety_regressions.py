@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -10,18 +11,23 @@ from typing import Any
 import pytest
 
 from aitest.cli import main
+from aitest.commands import _reference_problems
 from aitest.core.expectations import ensure_publishable
 from aitest.core.manual import aggregate_manual
 from aitest.core.verdict import coverage, verdict
+from aitest.errors import AiTestError
+from aitest.integration_commands import cmd_link_assert
 from aitest.models import (
     Case,
     ManualStep,
     Plan,
+    Project,
     Run,
     RunCase,
     Scope,
 )
 from aitest.security import is_secret_field, redact_bytes
+from aitest.storage.workspace import Workspace
 
 
 def _plan(cases: list[Case], selected: list[str], applicable: int) -> Plan:
@@ -283,3 +289,242 @@ def test_known_secret_is_redacted_before_task_and_plan_are_written(
             if secret in text:
                 leaks.append(str(path))
     assert leaks == []
+
+
+def test_link_assert_requires_an_imported_node_and_persists_assertion(tmp_path: Path) -> None:
+    ws = Workspace(tmp_path / "ws")
+    ws.init()
+    ws.save_project(Project(project_id="proj_1", name="p", root=str(tmp_path)))
+    run_dir = ws.project_dir("proj_1") / "runs" / "run_1"
+    run_dir.mkdir(parents=True)
+    (run_dir / "link.json").write_text(
+        json.dumps({"nodes": [{"node_id": "log:1"}], "assertions": []}),
+        encoding="utf-8",
+    )
+
+    result = cmd_link_assert(
+        ws,
+        {
+            "project_id": "proj_1",
+            "run_id": "run_1",
+            "node_id": "log:1",
+            "expected": "a",
+            "actual": "a",
+        },
+        False,
+    )
+    assert result == {"result": "passed"}
+    stored = json.loads((run_dir / "link.json").read_text(encoding="utf-8"))
+    assert stored["assertions"] == [
+        {"node_id": "log:1", "expected": "a", "actual": "a", "result": "passed"}
+    ]
+
+    with pytest.raises(AiTestError):
+        cmd_link_assert(
+            ws,
+            {
+                "project_id": "proj_1",
+                "run_id": "run_1",
+                "node_id": "missing",
+                "expected": "a",
+                "actual": "a",
+            },
+            False,
+        )
+
+
+def test_doctor_reports_missing_evidence_references(tmp_path: Path) -> None:
+    ws = Workspace(tmp_path / "ws")
+    ws.init()
+    ws.save_project(Project(project_id="proj_1", name="p", root=str(tmp_path)))
+    run_dir = ws.project_dir("proj_1") / "runs" / "run_1"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "run_1",
+                "plan_id": "plan_1",
+                "project_id": "proj_1",
+                "scope": {"acceptance_item_ids": []},
+                "evidence_refs": ["evidence/missing.log"],
+                "cases": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert _reference_problems(ws) == ["run_1:evidence/missing.log"]
+
+
+def test_one_case_can_count_for_multiple_acceptance_items() -> None:
+    case = Case(
+        case_id="c1",
+        acceptance_item_id="a",
+        acceptance_item_ids=["b"],
+        layer="L2",
+        expected="预期",
+        expectation_verified=True,
+    )
+    plan = _plan([case], ["a", "b"], 2)
+    run = _run([RunCase(case_id="c1", result="passed")])
+
+    assert verdict(plan, run) == "passed"
+    counts = coverage(plan, run)
+    assert counts["selected"] == 2
+    assert counts["covered"] == 2
+    assert counts["passed"] == 2
+
+
+def test_l1_failure_cannot_be_hidden_by_passing_cases() -> None:
+    plan = _plan([_case("c1", "a")], ["a"], 1)
+    run = _run([RunCase(case_id="c1", result="passed")])
+    run.l1 = {"build": {"ok": False}, "entries": [], "cancelled": False}
+    assert verdict(plan, run) == "failed"
+
+
+def test_cancelled_l1_is_incomplete() -> None:
+    plan = _plan([_case("c1", "a")], ["a"], 1)
+    run = _run([RunCase(case_id="c1", result="passed")])
+    run.l1 = {"build": {"ok": True}, "entries": [], "cancelled": True}
+    assert verdict(plan, run) == "incomplete"
+
+
+def test_dead_worker_pid_is_stale_immediately() -> None:
+    from datetime import datetime
+
+    from aitest.runtime_commands import _heartbeat_stale
+
+    run = _run([RunCase(case_id="c1", result="not_run")])
+    run.status = "running"
+    run.pid = 999_999_999
+    run.pid_created_at = 1.0
+    run.heartbeat_at = datetime.now().astimezone().isoformat()
+    assert _heartbeat_stale(run) is True
+
+
+def test_request_cache_key_is_bound_to_command_and_payload(tmp_path: Path) -> None:
+    from aitest.commands import request_cache_path
+
+    ws = Workspace(tmp_path / "ws")
+    first = request_cache_path(ws, "same-id", "task.add", {"title": "a"})
+    second = request_cache_path(ws, "same-id", "plan.generate", {"title": "a"})
+    third = request_cache_path(ws, "same-id", "task.add", {"title": "b"})
+    assert first != second
+    assert first != third
+
+
+def test_smoke_with_active_items_cannot_start_empty_scope() -> None:
+    from aitest.models import AcceptanceItem, Task
+    from aitest.runtime_commands import _ensure_plan_coverage
+
+    task = Task(
+        task_id="task_1",
+        project_id="proj_1",
+        title="快速检查",
+        intent="smoke",
+        acceptance_items=[
+            AcceptanceItem(item_id="a", text="有验收项", status="active")
+        ],
+    )
+    plan = _plan([], [], 1)
+    with pytest.raises(AiTestError) as excinfo:
+        _ensure_plan_coverage(plan, task)
+    assert excinfo.value.info.code == "SCOPE_EMPTY"
+
+
+def test_redact_bytes_handles_utf16_and_token_values() -> None:
+    text = '{"access_token": "glpat-abcdefghijklmnop1234", "name": "测试"}'
+    data = text.encode("utf-16")
+    redacted = redact_bytes(data, [])
+    assert "glpat-" not in redacted.decode("utf-16")
+    assert "测试" in redacted.decode("utf-16")
+
+
+def test_zip_restore_rejects_non_canonical_member_paths() -> None:
+    from aitest.runtime_commands import _check_zip_member
+
+    assert _check_zip_member("workspace.json") == "workspace.json"
+    with pytest.raises(AiTestError):
+        _check_zip_member("./workspace.json")
+    with pytest.raises(AiTestError):
+        _check_zip_member("../escape.json")
+
+
+def test_run_env_strips_secret_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from aitest.worker import _run_env
+
+    monkeypatch.setenv("AITEST_MODEL_KEY", "sk-secret-value-1234567890")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_secret_value_1234567890")
+    package_src = str(Path(__file__).resolve().parents[2] / "src")
+    monkeypatch.setenv("PYTHONPATH", package_src + os.pathsep + str(tmp_path))
+    env = _run_env(tmp_path, None, "run_1")
+    assert "AITEST_MODEL_KEY" not in env
+    assert "GITHUB_TOKEN" not in env
+    assert str(Path(__file__).resolve().parents[2] / "src") not in env.get("PYTHONPATH", "")
+
+
+def test_worker_boot_failure_sets_execution_error(tmp_path: Path) -> None:
+    from aitest.storage.files import write_model
+    from aitest.worker import main as worker_main
+
+    ws = Workspace(tmp_path / "ws")
+    project_id = "proj_boot"
+    run_id = "run_boot"
+    run_dir = ws.project_dir(project_id) / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    write_model(
+        run_dir / "run.json",
+        Run(
+            run_id=run_id,
+            plan_id="plan_missing",
+            project_id=project_id,
+            scope=Scope(),
+            status="running",
+        ),
+    )
+    code = worker_main(
+        ["--workspace", str(ws.root), "--project", project_id, "--run", run_id]
+    )
+    assert code == 1
+    failed = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert failed["status"] == "execution_error"
+    assert (run_dir / "worker-error.txt").is_file()
+
+
+def test_analysis_store_merges_current_run_and_rejects_outside_refs(tmp_path: Path) -> None:
+    from aitest.core.analysis import _store
+    from aitest.models import Analysis
+    from aitest.storage.files import read_model, write_model
+
+    ws = Workspace(tmp_path / "ws")
+    project_id = "proj_analysis"
+    run_dir = ws.project_dir(project_id) / "runs" / "run_analysis"
+    run_dir.mkdir(parents=True)
+    write_model(
+        run_dir / "run.json",
+        Run(
+            run_id="run_analysis",
+            plan_id="plan_1",
+            project_id=project_id,
+            scope=Scope(),
+            status="completed",
+            evidence_refs=["evidence/ok.log"],
+        ),
+    )
+    # Another writer adds a manual result after the analysis snapshot was read.
+    current = read_model(run_dir / "run.json", Run)
+    current.evidence_refs.append("evidence/late.log")
+    write_model(run_dir / "run.json", current)
+    _store(
+        ws,
+        project_id,
+        run_dir,
+        Analysis(
+            status="generated",
+            observed="ok",
+            evidence_refs=["evidence/ok.log", "evidence/late.log", "../escape.log"],
+        ),
+    )
+    saved = read_model(run_dir / "run.json", Run)
+    assert saved.evidence_refs == ["evidence/ok.log", "evidence/late.log"]
+    assert saved.analysis[-1].evidence_refs == ["evidence/ok.log", "evidence/late.log"]
