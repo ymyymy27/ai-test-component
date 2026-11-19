@@ -18,6 +18,7 @@ import type {
   PlanDetail,
   Project,
   ProjectConfig,
+  ProjectSnapshot,
   ProjectSummary,
   Rule,
   RuleSummary,
@@ -48,6 +49,10 @@ export const api = {
 
   showProject(projectId: string): Promise<{ project: Project; modules?: Module[]; binding?: Record<string, unknown>; gaps?: unknown[] }> {
     return callHost("project.show", { project_id: projectId });
+  },
+
+  projectSnapshot(projectId: string): Promise<ProjectSnapshot> {
+    return callHost("project.snapshot", { project_id: projectId });
   },
 
   updateProject(

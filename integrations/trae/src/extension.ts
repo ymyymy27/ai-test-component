@@ -38,6 +38,7 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "project.config",
   "project.list",
   "project.map",
+  "project.snapshot",
   "project.map.refresh",
   "project.show",
   "project.update",

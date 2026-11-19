@@ -569,3 +569,21 @@ export interface Opinion {
   at: string;
   text: string;
 }
+
+export interface ProjectSnapshot {
+  project: Project;
+  modules: Module[];
+  map: Record<string, unknown> | null;
+  map_stale: boolean;
+  config: ProjectConfig;
+  rules: Rule[];
+  tasks: Array<{
+    task: Task;
+    plans: PlanDetail[];
+    delivery: Delivery | null;
+  }>;
+  runs: RunDetail[];
+  evidence: Record<string, EvidenceItem[]>;
+  reports: Report[];
+  issues: Issue[];
+}

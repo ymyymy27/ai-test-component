@@ -1,0 +1,14 @@
+{
+  "snapshot_seconds": 0.5,
+  "tasks": 8,
+  "plans": 6,
+  "runs": 6,
+  "issues": 6,
+  "reports": 3,
+  "rules": 0,
+  "old_cli_calls_estimate": 50,
+  "new_cli_calls": 1,
+  "host_e2e_seconds_before": 128,
+  "host_e2e_seconds_after": 39.4,
+  "note": "old flow measured from earlier 2.1m run; new host E2E 39.4s"
+}

@@ -14,6 +14,7 @@
 - `concurrency/`、`concurrency2/`：两个运行同时启动，均通过；`workspace-integrity.json` 记录工作区完整；
 - `long-run.json`：唯一请求 ID 连续 10 次运行，全部完成，约 6.4 KB/次；
 - `key-rotation.json`：临时 env key 降级、恢复正式 key 后生成 5 条候选；
+- `performance.json`：真实 Trae 工作区快照 0.5s，旧加载约 50 次 CLI → 1 次；宿主 E2E 2.1m → 39.4s；
 - `faildemo/`：故意失败，产品判 failed；
 - `missingdep/`：依赖不存在，产品判 blocked；
 - `slow_cancel/`：取消后 cancelled + blocked；

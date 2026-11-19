@@ -64,10 +64,6 @@ function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-function compact<T>(values: Array<T | null | undefined>): T[] {
-  return values.filter((value): value is T => value !== null && value !== undefined);
-}
-
 function hostTaskItems(task: TaskDto | null | undefined): AcceptanceItem[] {
   if (!task) {
     return [];
@@ -145,56 +141,10 @@ export class HostRepository implements ProjectRepository {
   }
 
   private async loadProject(projectId: string): Promise<Project | null> {
-    const show = await this.client.showProject(projectId);
-    const [mapData, configData, rulesData, tasksData, runsData, issuesData] = await Promise.all([
-      this.client.getProjectMap(projectId).catch(() => ({ map: null })),
-      this.client.getProjectConfig(projectId).catch(() => ({ config: {} })),
-      this.client.listRules(projectId).catch(() => ({ rules: [] })),
-      this.client.listTasks(projectId),
-      this.client.listRuns(projectId, 50).catch(() => ({ runs: [] })),
-      this.client.listIssues(projectId).catch(() => ({ issues: [] })),
-    ]);
-    const rules = compact(
-      await Promise.all(
-        rulesData.rules.map((summary) =>
-          this.client
-            .showRule(projectId, summary.rules_version_id)
-            .then((result) => result.rule)
-            .catch(() => null),
-        ),
-      ),
-    );
-    const taskBundles = await Promise.all(
-      tasksData.tasks.map(async (summary) => {
-        const shown = await this.client.showTask(projectId, summary.task_id);
-        const planIds = shown.plans ?? [];
-        const plans = compact(
-          await Promise.all(
-            planIds.map((planId) =>
-              this.client
-                .showPlan(projectId, planId)
-                .then((detail) => detail)
-                .catch(() => null),
-            ),
-          ),
-        );
-        const delivery = await this.client
-          .showDelivery(projectId, summary.task_id)
-          .then((result) => result.delivery)
-          .catch(() => null);
-        return { task: shown.task, plans, delivery };
-      }),
-    );
-    const runDetails = compact(
-      await Promise.all(
-        runsData.runs.map((summary) =>
-          this.client
-            .runStatus(projectId, summary.run_id)
-            .then((detail) => detail)
-            .catch(() => null),
-        ),
-      ),
-    );
+    // One CLI process builds the whole read model. Calling task.show/plan.show/
+    // evidence.list/showReport per entity made navigation take seconds.
+    const snapshot = await this.client.projectSnapshot(projectId);
+    const runDetails = snapshot.runs;
     const taskRuns = new Map<string, RunDetail[]>();
     runDetails.forEach((detail) => {
       if (detail.run.kind === "project_check") {
@@ -208,54 +158,29 @@ export class HostRepository implements ProjectRepository {
       list.push(detail);
       taskRuns.set(taskId, list);
     });
-    const evidence = new Map<string, EvidenceRef[]>();
-    await Promise.all(
-      runDetails.map(async (detail) => {
-        const data = await this.client
-          .listEvidence(projectId, detail.run.run_id)
-          .catch(() => ({ evidence: [] }));
-        evidence.set(detail.run.run_id, data.evidence.map(mapEvidence));
-      }),
-    );
-    const reports = compact(
-      await Promise.all(
-        runDetails.map((detail) =>
-          detail.run.latest_report_id
-            ? this.client
-                .showReport(projectId, detail.run.latest_report_id)
-                .then((result) => result.report)
-                .catch(() => null)
-            : null,
-        ),
-      ),
-    );
-    const issues = compact(
-      await Promise.all(
-        issuesData.issues.map((summary) =>
-          this.client
-            .showIssue(projectId, summary.issue_id)
-            .then((result) => result.issue)
-            .catch(() => null),
-        ),
-      ),
+    const evidence = new Map<string, EvidenceRef[]>(
+      Object.entries(snapshot.evidence).map(([runId, items]) => [
+        runId,
+        items.map(mapEvidence),
+      ]),
     );
     const runDetailMap = new Map<string, RunDetail>(
       runDetails.map((detail) => [detail.run.run_id, detail]),
     );
     const project = mapProject({
-      project: show.project,
-      modules: show.modules ?? show.project.modules ?? [],
-      map: mapData.map,
-      mapStale: "stale" in mapData ? Boolean(mapData.stale) : false,
+      project: snapshot.project,
+      modules: snapshot.modules,
+      map: snapshot.map,
+      mapStale: snapshot.map_stale,
       mapStaleReason: "",
-      config: configData.config,
-      rules,
-      tasks: taskBundles.map((bundle) => ({
+      config: snapshot.config,
+      rules: snapshot.rules,
+      tasks: snapshot.tasks.map((bundle) => ({
         ...bundle,
         runs: taskRuns.get(bundle.task.task_id) ?? [],
       })),
-      reports,
-      issues,
+      reports: snapshot.reports,
+      issues: snapshot.issues,
       runDetails: runDetailMap,
       evidence,
       sidecar: this.sidecar,

@@ -26,6 +26,14 @@ from aitest.commands import (
     _require,
     _task,
     _text,
+    cmd_delivery_show,
+    cmd_project_config,
+    cmd_project_map,
+    cmd_project_show,
+    cmd_rules_list,
+    cmd_rules_show,
+    cmd_task_list,
+    cmd_task_show,
 )
 from aitest.config import github_token, known_secret_values, model_key
 from aitest.core.analysis import analyze_run
@@ -761,6 +769,97 @@ def _expectation_feedback(items: list[AcceptanceItem], cases: list[Case]) -> str
     ]
     lines.extend(f"- {item.item_id}：{item.text}" for item in items)
     return "\n".join(lines)
+
+
+def cmd_project_snapshot(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Return the panel's full read-only project view in one CLI process."""
+    del confirm
+    project = _project(ws, payload)
+    base: dict[str, Any] = {"project_id": project.project_id}
+    show = cmd_project_show(ws, base, False)
+    map_data = cmd_project_map(ws, base, False)
+    config_data = cmd_project_config(ws, base, False)
+    rule_rows = cmd_rules_list(ws, base, False).get("rules", [])
+    rules: list[dict[str, Any]] = []
+    for row in rule_rows:
+        rule_id = str(row.get("rules_version_id") or "")
+        if not rule_id:
+            continue
+        try:
+            rules.append(
+                cmd_rules_show(ws, {**base, "rules_version_id": rule_id}, False)["rule"]
+            )
+        except AiTestError:
+            continue
+    tasks: list[dict[str, Any]] = []
+    for summary in cmd_task_list(ws, base, False).get("tasks", []):
+        task_id = str(summary.get("task_id") or "")
+        if not task_id:
+            continue
+        try:
+            shown = cmd_task_show(ws, {**base, "task_id": task_id}, False)
+        except AiTestError:
+            continue
+        plans: list[dict[str, Any]] = []
+        for plan_id in shown.get("plans", []):
+            try:
+                plans.append(cmd_plan_show(ws, {**base, "plan_id": plan_id}, False))
+            except AiTestError:
+                continue
+        delivery = cmd_delivery_show(ws, {**base, "task_id": task_id}, False).get(
+            "delivery"
+        )
+        tasks.append({"task": shown["task"], "plans": plans, "delivery": delivery})
+
+    runs: list[dict[str, Any]] = []
+    evidence: dict[str, list[dict[str, Any]]] = {}
+    reports: list[dict[str, Any]] = []
+    for summary in cmd_run_list(ws, base, False).get("runs", []):
+        run_id = str(summary.get("run_id") or "")
+        if not run_id:
+            continue
+        try:
+            detail = cmd_run_status(ws, {**base, "run_id": run_id}, False)
+        except AiTestError:
+            continue
+        runs.append(detail)
+        evidence[run_id] = cmd_evidence_list(
+            ws, {**base, "run_id": run_id}, False
+        ).get("evidence", [])
+        report_id = str(detail.get("run", {}).get("latest_report_id") or "")
+        if report_id:
+            try:
+                reports.append(
+                    cmd_report_show(ws, {**base, "report_id": report_id}, False)["report"]
+                )
+            except AiTestError:
+                continue
+
+    issues: list[dict[str, Any]] = []
+    for summary in cmd_issue_list(ws, base, False).get("issues", []):
+        issue_id = str(summary.get("issue_id") or "")
+        if not issue_id:
+            continue
+        try:
+            issues.append(
+                cmd_issue_show(ws, {**base, "issue_id": issue_id}, False)["issue"]
+            )
+        except AiTestError:
+            continue
+
+    return {
+        "project": show["project"],
+        "modules": show.get("modules", []),
+        "map": map_data.get("map"),
+        "map_stale": bool(map_data.get("stale")),
+        "config": config_data.get("config", {}),
+        "rules": rules,
+        "tasks": tasks,
+        "runs": runs,
+        "evidence": evidence,
+        "reports": reports,
+        "issues": issues,
+    }
 
 
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -3069,6 +3168,7 @@ def cmd_analysis_run(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 
 REGISTRY.update(
     {
+        "project.snapshot": cmd_project_snapshot,
         "plan.generate": cmd_plan_generate,
         "plan.update": cmd_plan_update,
         "plan.show": cmd_plan_show,

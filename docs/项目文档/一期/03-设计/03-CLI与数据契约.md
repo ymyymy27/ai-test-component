@@ -153,6 +153,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `deps.to` 必须指向本次建议中的模块或已登记模块，否则返回 `MODEL_OUTPUT_INVALID`；模型不可用返回 `MODEL_UNAVAILABLE`。用户确认后逐条调用 `module.add` 写入。
 
+#### `project.snapshot`
+
+入参 `{"project_id": "proj_..."}`。只读，在一个 CLI 进程内返回面板所需的完整读模型：`project`、`modules`、`map`、`map_stale`、`config`、`rules`、`tasks`（含 plans/delivery）、`runs`（`run.status` 详情）、`evidence`（按 run_id）、`reports`（各运行最新报告）与 `issues`。用于避免面板逐实体启动 CLI；不改变任何记录，字段仍以各实体契约为准。
+
 #### `project.map` / `project.map.refresh`
 
 `project.map` 入参 `{"project_id": "proj_..."}`，读取当前项目测试地图；没有地图时返回 `{"map": null}`。

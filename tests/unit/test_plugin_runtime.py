@@ -539,3 +539,25 @@ def test_run_env_drops_inherited_pythonhome(
     assert env["VIRTUAL_ENV"] == str(tmp_path / ".venv")
     assert env["PATH"].startswith(str(python.parent))
     assert env["AITEST_RUN_ID"] == "run_envcheck"
+
+
+def test_project_snapshot_returns_read_model(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        _plan_payload(setup, "command: echo ok"),
+        capsys,
+    )["data"]
+    snapshot = call(
+        tmp_path,
+        "project.snapshot",
+        {"project_id": setup["project"]["project_id"]},
+        capsys,
+    )["data"]
+    assert snapshot["project"]["project_id"] == setup["project"]["project_id"]
+    assert len(snapshot["tasks"]) == 1
+    assert snapshot["tasks"][0]["task"]["task_id"] == setup["task"]["task_id"]
+    assert snapshot["tasks"][0]["plans"][0]["plan"]["plan_id"] == plan["plan_id"]
+    assert snapshot["runs"] == []
+    assert snapshot["issues"] == []
