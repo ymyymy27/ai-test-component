@@ -729,6 +729,30 @@ def _unverified_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[Ca
     return unverified
 
 
+def _project_import_warnings(cases: list[Case], project: Project) -> list[str]:
+    """Warn when a generated import uses the project name but no such module exists."""
+    root = Path(project.root)
+    detected = set(_detect_entry_modules(root))
+    names = {root.name, project.name}
+    warnings: list[str] = []
+    command_pattern = re.compile(r'\b(?:python|py)\s+-c\s+["\']([^"\']+)["\']')
+    import_pattern = re.compile(r"\b(?:import|from)\s+([A-Za-z_][A-Za-z0-9_.]*)")
+    for case in cases:
+        method = case.verify_method or ""
+        if not method.startswith("command:"):
+            continue
+        command = command_pattern.search(method[len("command:") :])
+        if command is None:
+            continue
+        for target in import_pattern.findall(command.group(1)):
+            top = target.split(".")[0]
+            if top in names and top not in detected:
+                warnings.append(
+                    f"{case.case_id}：导入模块 {top} 与项目名相同但未在入口中识别，请确认包名"
+                )
+    return warnings
+
+
 def _expectation_feedback(items: list[AcceptanceItem], cases: list[Case]) -> str:
     ids = "、".join(case.case_id for case in cases)
     lines = [
@@ -844,6 +868,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     secret_list = known_secret_values([load_project_config(ws, project.project_id)])
     _redact_cases(cases, secret_list)
     warnings = annotate_cases(cases, task.acceptance_items)
+    warnings.extend(_project_import_warnings(cases, project))
     plan = Plan(
         plan_id=new_id("plan"),
         task_id=task.task_id,

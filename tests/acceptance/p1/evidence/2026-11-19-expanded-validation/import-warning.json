@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "request_id": "warn",
+  "data": {
+    "plan_id": "plan_e5dcaee4c435",
+    "plan_no": 2,
+    "task_revision": 1,
+    "created_at": "2026-11-19T18:44:58+08:00",
+    "revision": 1,
+    "status": "published",
+    "intent": "business",
+    "source_signature": "e1e32dca28f912d88eb9081056a2d4d23582183cf4972aa1f114412b266ed5cc",
+    "scope": {
+      "preset": "selected",
+      "module_ids": [],
+      "acceptance_item_ids": [
+        "ai_ddda1123e311"
+      ],
+      "frozen_at": null,
+      "coverage": {
+        "selected": 1,
+        "applicable": 1
+      }
+    },
+    "coverage": {
+      "selected": 1,
+      "applicable": 1
+    },
+    "cases": 1,
+    "case_count": 1,
+    "ai_generated": false,
+    "dependencies": [],
+    "warnings": [
+      "case_d58a72d35afe：导入模块 samplemod 与项目名相同但未在入口中识别，请确认包名"
+    ],
+    "unverified_cases": []
+  }
+}

@@ -11,5 +11,5 @@
 - `missingdep/`：依赖不存在，产品判 blocked；
 - `slow_cancel/`：取消后 cancelled + blocked；
 - `backup-manifest.json`：32 文件、3 项目、含 evidence、无模型 key；
-- `delivery-show.json`、`no-model.json`、`link-import.json`、`link-assert.json`、`packaging-map.json`、`packaging-suggest.json`；
+- `delivery-show.json`、`no-model.json`、`link-import.json`、`link-assert.json`、`github-read.json`、`import-warning.json`、`packaging-map.json`、`packaging-suggest.json`；
 - `environment.json`：版本与 commit。

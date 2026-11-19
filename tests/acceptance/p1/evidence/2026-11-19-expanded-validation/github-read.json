@@ -1,0 +1,1099 @@
+{
+  "data": {
+    "account": "ymyymy27",
+    "branch": "main",
+    "change": {
+      "account": "ymyymy27",
+      "branch": "main",
+      "checks": [
+        {
+          "completed_at": "2026-11-19T06:19:51Z",
+          "conclusion": "success",
+          "name": "Comment on PR",
+          "started_at": "2026-11-19T06:19:44Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44471344510/job/135381314739"
+        },
+        {
+          "completed_at": "2026-11-18T22:32:53Z",
+          "conclusion": "success",
+          "name": "Comment on PR",
+          "started_at": "2026-11-18T22:32:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44412578911/job/135184352244"
+        },
+        {
+          "completed_at": "2026-11-18T21:26:50Z",
+          "conclusion": "skipped",
+          "name": "Comment on PR",
+          "started_at": "2026-11-18T21:26:57Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44401551631/job/135145682913"
+        },
+        {
+          "completed_at": "2026-11-18T20:12:01Z",
+          "conclusion": "success",
+          "name": "Comment on PR",
+          "started_at": "2026-11-18T20:11:54Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44388442036/job/135099267806"
+        },
+        {
+          "completed_at": "2026-11-18T20:07:43Z",
+          "conclusion": "success",
+          "name": "Comment on PR",
+          "started_at": "2026-11-18T20:07:38Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44387687977/job/135096596950"
+        },
+        {
+          "completed_at": "2026-11-18T19:52:02Z",
+          "conclusion": "success",
+          "name": "All pass",
+          "started_at": "2026-11-18T19:51:57Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135086518191"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:40Z",
+          "conclusion": "success",
+          "name": "Build sdist and wheel",
+          "started_at": "2026-11-18T19:48:29Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018585/job/135084055883"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:53Z",
+          "conclusion": "success",
+          "name": "macOS / pypy3.10",
+          "started_at": "2026-11-18T19:47:48Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562737"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:47Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.14",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562581"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:39Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.15t",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562519"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:37Z",
+          "conclusion": "success",
+          "name": "Ubuntu / pypy3.11",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562435"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:46Z",
+          "conclusion": "success",
+          "name": "Downstream pdm",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562410"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:10Z",
+          "conclusion": "success",
+          "name": "Downstream pip",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562309"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:37Z",
+          "conclusion": "success",
+          "name": "Windows / 3.15t",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562281"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:01Z",
+          "conclusion": "success",
+          "name": "Downstream cibuildwheel",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562259"
+        },
+        {
+          "completed_at": "2026-11-18T19:47:59Z",
+          "conclusion": "success",
+          "name": "Downstream twine",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562249"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:08Z",
+          "conclusion": "success",
+          "name": "Windows / 3.13",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562248"
+        },
+        {
+          "completed_at": "2026-11-18T19:50:56Z",
+          "conclusion": "success",
+          "name": "Downstream setuptools",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562240"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:51Z",
+          "conclusion": "success",
+          "name": "Windows / 3.11",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562201"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:04Z",
+          "conclusion": "success",
+          "name": "Downstream hatchling",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562186"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:51Z",
+          "conclusion": "success",
+          "name": "Windows / 3.14t",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562161"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:59Z",
+          "conclusion": "success",
+          "name": "macOS / 3.11",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562144"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:19Z",
+          "conclusion": "success",
+          "name": "Downstream pipenv",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562139"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:58Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.11.0",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562131"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:32Z",
+          "conclusion": "success",
+          "name": "Ubuntu / pypy3.10",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562110"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:03Z",
+          "conclusion": "success",
+          "name": "Windows / 3.12",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562106"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:20Z",
+          "conclusion": "success",
+          "name": "macOS / 3.13",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562105"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:59Z",
+          "conclusion": "success",
+          "name": "Windows / 3.15",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562098"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:04Z",
+          "conclusion": "success",
+          "name": "Windows / pypy3.10",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562095"
+        },
+        {
+          "completed_at": "2026-11-18T19:47:57Z",
+          "conclusion": "success",
+          "name": "Downstream dependency_groups",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562075"
+        },
+        {
+          "completed_at": "2026-11-18T19:51:00Z",
+          "conclusion": "success",
+          "name": "Windows / 3.10",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562071"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:07Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.14.0",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562051"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:01Z",
+          "conclusion": "success",
+          "name": "Downstream dep_logic",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562038"
+        },
+        {
+          "completed_at": "2026-11-18T19:51:51Z",
+          "conclusion": "success",
+          "name": "Downstream virtualenv",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562005"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:40Z",
+          "conclusion": "success",
+          "name": "Downstream build",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561994"
+        },
+        {
+          "completed_at": "2026-11-18T19:47:58Z",
+          "conclusion": "success",
+          "name": "Downstream pyproject_metadata",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561953"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:04Z",
+          "conclusion": "success",
+          "name": "Downstream packaging_legacy",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561945"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:30Z",
+          "conclusion": "success",
+          "name": "macOS / 3.12",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561941"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:19Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.12",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561936"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:31Z",
+          "conclusion": "success",
+          "name": "Downstream poetry_core",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561904"
+        },
+        {
+          "completed_at": "2026-11-18T19:51:33Z",
+          "conclusion": "success",
+          "name": "Downstream tox",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561893"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:50Z",
+          "conclusion": "success",
+          "name": "macOS / 3.14",
+          "started_at": "2026-11-18T19:47:48Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561891"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:34Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.12.0",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561881"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:48Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.15",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561874"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:27Z",
+          "conclusion": "success",
+          "name": "nox -s lint",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018585/job/135083561866"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:04Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.14t",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561854"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:08Z",
+          "conclusion": "success",
+          "name": "macOS / 3.13t",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561814"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:52Z",
+          "conclusion": "success",
+          "name": "Analyze (python)",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018322/job/135083561802"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:37Z",
+          "conclusion": "success",
+          "name": "macOS / 3.15",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561786"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:08Z",
+          "conclusion": "success",
+          "name": "Pickle test",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561764"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:28Z",
+          "conclusion": "success",
+          "name": "Windows / pypy3.11",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561754"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:18Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.13.0",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561752"
+        },
+        {
+          "completed_at": "2026-11-18T19:50:18Z",
+          "conclusion": "success",
+          "name": "macOS / 3.10",
+          "started_at": "2026-11-18T19:47:48Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561738"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:18Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.13",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561734"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:02Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.11",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561733"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:11Z",
+          "conclusion": "success",
+          "name": "macOS / 3.15t",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561715"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:29Z",
+          "conclusion": "success",
+          "name": "macOS / 3.14t",
+          "started_at": "2026-11-18T19:47:50Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561704"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:00Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.10",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561696"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:46Z",
+          "conclusion": "success",
+          "name": "Windows / 3.14",
+          "started_at": "2026-11-18T19:47:49Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561688"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:18Z",
+          "conclusion": "success",
+          "name": "Ubuntu / 3.13t",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561676"
+        },
+        {
+          "completed_at": "2026-11-18T19:49:57Z",
+          "conclusion": "success",
+          "name": "Property tests",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561674"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:47Z",
+          "conclusion": "success",
+          "name": "Alpine / musl",
+          "started_at": "2026-11-18T19:47:46Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561673"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:41Z",
+          "conclusion": "success",
+          "name": "macOS / pypy3.11",
+          "started_at": "2026-11-18T19:47:47Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561669"
+        },
+        {
+          "completed_at": "2026-11-18T19:48:01Z",
+          "conclusion": "success",
+          "name": "nox -s docs",
+          "started_at": "2026-11-18T19:47:45Z",
+          "status": "completed",
+          "url": "https://github.com/pypa/packaging/actions/runs/44384018430/job/135083560555"
+        }
+      ],
+      "commit": "f91ea7931fa551eb498ca2cdf5644dbbf20bcbc6",
+      "deployment": {
+        "environment": "",
+        "ref": "main",
+        "sha": "",
+        "unconfirmed": true
+      },
+      "fetched_at": "2026-11-19T10:43:31Z",
+      "files": [
+        "src/packaging/markers.py",
+        "src/packaging/requirements.py",
+        "tests/test_markers.py",
+        "tests/test_requirements.py"
+      ],
+      "host": "github.com",
+      "prs": [
+        {
+          "author": "r266-tech",
+          "base": "main",
+          "head": "codex/preserve-parse-error-construction",
+          "merged": true,
+          "number": 1554,
+          "state": "closed",
+          "title": "fix: defer formatting parse exception messages",
+          "updated_at": "2026-11-18T19:47:39Z",
+          "url": "https://github.com/pypa/packaging/pull/1554"
+        }
+      ],
+      "repo": "pypa/packaging"
+    },
+    "checks": [
+      {
+        "completed_at": "2026-11-19T06:19:51Z",
+        "conclusion": "success",
+        "name": "Comment on PR",
+        "started_at": "2026-11-19T06:19:44Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44471344510/job/135381314739"
+      },
+      {
+        "completed_at": "2026-11-18T22:32:53Z",
+        "conclusion": "success",
+        "name": "Comment on PR",
+        "started_at": "2026-11-18T22:32:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44412578911/job/135184352244"
+      },
+      {
+        "completed_at": "2026-11-18T21:26:50Z",
+        "conclusion": "skipped",
+        "name": "Comment on PR",
+        "started_at": "2026-11-18T21:26:57Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44401551631/job/135145682913"
+      },
+      {
+        "completed_at": "2026-11-18T20:12:01Z",
+        "conclusion": "success",
+        "name": "Comment on PR",
+        "started_at": "2026-11-18T20:11:54Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44388442036/job/135099267806"
+      },
+      {
+        "completed_at": "2026-11-18T20:07:43Z",
+        "conclusion": "success",
+        "name": "Comment on PR",
+        "started_at": "2026-11-18T20:07:38Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44387687977/job/135096596950"
+      },
+      {
+        "completed_at": "2026-11-18T19:52:02Z",
+        "conclusion": "success",
+        "name": "All pass",
+        "started_at": "2026-11-18T19:51:57Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135086518191"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:40Z",
+        "conclusion": "success",
+        "name": "Build sdist and wheel",
+        "started_at": "2026-11-18T19:48:29Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018585/job/135084055883"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:53Z",
+        "conclusion": "success",
+        "name": "macOS / pypy3.10",
+        "started_at": "2026-11-18T19:47:48Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562737"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:47Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.14",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562581"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:39Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.15t",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562519"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:37Z",
+        "conclusion": "success",
+        "name": "Ubuntu / pypy3.11",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562435"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:46Z",
+        "conclusion": "success",
+        "name": "Downstream pdm",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562410"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:10Z",
+        "conclusion": "success",
+        "name": "Downstream pip",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562309"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:37Z",
+        "conclusion": "success",
+        "name": "Windows / 3.15t",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562281"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:01Z",
+        "conclusion": "success",
+        "name": "Downstream cibuildwheel",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562259"
+      },
+      {
+        "completed_at": "2026-11-18T19:47:59Z",
+        "conclusion": "success",
+        "name": "Downstream twine",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562249"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:08Z",
+        "conclusion": "success",
+        "name": "Windows / 3.13",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562248"
+      },
+      {
+        "completed_at": "2026-11-18T19:50:56Z",
+        "conclusion": "success",
+        "name": "Downstream setuptools",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562240"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:51Z",
+        "conclusion": "success",
+        "name": "Windows / 3.11",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562201"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:04Z",
+        "conclusion": "success",
+        "name": "Downstream hatchling",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562186"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:51Z",
+        "conclusion": "success",
+        "name": "Windows / 3.14t",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562161"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:59Z",
+        "conclusion": "success",
+        "name": "macOS / 3.11",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562144"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:19Z",
+        "conclusion": "success",
+        "name": "Downstream pipenv",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562139"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:58Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.11.0",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562131"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:32Z",
+        "conclusion": "success",
+        "name": "Ubuntu / pypy3.10",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562110"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:03Z",
+        "conclusion": "success",
+        "name": "Windows / 3.12",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562106"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:20Z",
+        "conclusion": "success",
+        "name": "macOS / 3.13",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562105"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:59Z",
+        "conclusion": "success",
+        "name": "Windows / 3.15",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562098"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:04Z",
+        "conclusion": "success",
+        "name": "Windows / pypy3.10",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562095"
+      },
+      {
+        "completed_at": "2026-11-18T19:47:57Z",
+        "conclusion": "success",
+        "name": "Downstream dependency_groups",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562075"
+      },
+      {
+        "completed_at": "2026-11-18T19:51:00Z",
+        "conclusion": "success",
+        "name": "Windows / 3.10",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562071"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:07Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.14.0",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562051"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:01Z",
+        "conclusion": "success",
+        "name": "Downstream dep_logic",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562038"
+      },
+      {
+        "completed_at": "2026-11-18T19:51:51Z",
+        "conclusion": "success",
+        "name": "Downstream virtualenv",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083562005"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:40Z",
+        "conclusion": "success",
+        "name": "Downstream build",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561994"
+      },
+      {
+        "completed_at": "2026-11-18T19:47:58Z",
+        "conclusion": "success",
+        "name": "Downstream pyproject_metadata",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561953"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:04Z",
+        "conclusion": "success",
+        "name": "Downstream packaging_legacy",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561945"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:30Z",
+        "conclusion": "success",
+        "name": "macOS / 3.12",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561941"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:19Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.12",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561936"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:31Z",
+        "conclusion": "success",
+        "name": "Downstream poetry_core",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561904"
+      },
+      {
+        "completed_at": "2026-11-18T19:51:33Z",
+        "conclusion": "success",
+        "name": "Downstream tox",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561893"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:50Z",
+        "conclusion": "success",
+        "name": "macOS / 3.14",
+        "started_at": "2026-11-18T19:47:48Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561891"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:34Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.12.0",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561881"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:48Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.15",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561874"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:27Z",
+        "conclusion": "success",
+        "name": "nox -s lint",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018585/job/135083561866"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:04Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.14t",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561854"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:08Z",
+        "conclusion": "success",
+        "name": "macOS / 3.13t",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561814"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:52Z",
+        "conclusion": "success",
+        "name": "Analyze (python)",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018322/job/135083561802"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:37Z",
+        "conclusion": "success",
+        "name": "macOS / 3.15",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561786"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:08Z",
+        "conclusion": "success",
+        "name": "Pickle test",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561764"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:28Z",
+        "conclusion": "success",
+        "name": "Windows / pypy3.11",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561754"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:18Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.13.0",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561752"
+      },
+      {
+        "completed_at": "2026-11-18T19:50:18Z",
+        "conclusion": "success",
+        "name": "macOS / 3.10",
+        "started_at": "2026-11-18T19:47:48Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561738"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:18Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.13",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561734"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:02Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.11",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561733"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:11Z",
+        "conclusion": "success",
+        "name": "macOS / 3.15t",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561715"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:29Z",
+        "conclusion": "success",
+        "name": "macOS / 3.14t",
+        "started_at": "2026-11-18T19:47:50Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561704"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:00Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.10",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561696"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:46Z",
+        "conclusion": "success",
+        "name": "Windows / 3.14",
+        "started_at": "2026-11-18T19:47:49Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561688"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:18Z",
+        "conclusion": "success",
+        "name": "Ubuntu / 3.13t",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561676"
+      },
+      {
+        "completed_at": "2026-11-18T19:49:57Z",
+        "conclusion": "success",
+        "name": "Property tests",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561674"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:47Z",
+        "conclusion": "success",
+        "name": "Alpine / musl",
+        "started_at": "2026-11-18T19:47:46Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561673"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:41Z",
+        "conclusion": "success",
+        "name": "macOS / pypy3.11",
+        "started_at": "2026-11-18T19:47:47Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018340/job/135083561669"
+      },
+      {
+        "completed_at": "2026-11-18T19:48:01Z",
+        "conclusion": "success",
+        "name": "nox -s docs",
+        "started_at": "2026-11-18T19:47:45Z",
+        "status": "completed",
+        "url": "https://github.com/pypa/packaging/actions/runs/44384018430/job/135083560555"
+      }
+    ],
+    "commit": "f91ea7931fa551eb498ca2cdf5644dbbf20bcbc6",
+    "deployment": {
+      "environment": "",
+      "ref": "main",
+      "sha": "",
+      "unconfirmed": true
+    },
+    "fetched_at": "2026-11-19T10:43:31Z",
+    "files": [
+      "src/packaging/markers.py",
+      "src/packaging/requirements.py",
+      "tests/test_markers.py",
+      "tests/test_requirements.py"
+    ],
+    "host": "github.com",
+    "path": "projects/proj_72f174c5b334/github/f91ea7931fa551eb498ca2cdf5644dbbf20bcbc6.json",
+    "prs": [
+      {
+        "author": "r266-tech",
+        "base": "main",
+        "head": "codex/preserve-parse-error-construction",
+        "merged": true,
+        "number": 1554,
+        "state": "closed",
+        "title": "fix: defer formatting parse exception messages",
+        "updated_at": "2026-11-18T19:47:39Z",
+        "url": "https://github.com/pypa/packaging/pull/1554"
+      }
+    ],
+    "repo": "pypa/packaging"
+  },
+  "ok": true,
+  "request_id": "gh"
+}

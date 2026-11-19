@@ -790,3 +790,26 @@ def test_generated_cases_retry_once_with_correction_to_quote_items(
     assert len(client.contexts) == 2
     assert "correction" in client.contexts[1]
     assert "下单后列表出现订单" in client.contexts[1]["correction"]
+
+
+def test_project_name_import_warning_is_non_blocking(tmp_path: Path) -> None:
+    from aitest.models import Case, Project
+    from aitest.runtime_commands import _project_import_warnings
+
+    root = tmp_path / "samplemod"
+    (root / "sample").mkdir(parents=True)
+    (root / "sample" / "__init__.py").write_text("", encoding="utf-8")
+    project = Project(project_id="proj_x", name="samplemod", root=str(root))
+    case = Case(
+        case_id="case_x",
+        acceptance_item_id="ai_x",
+        layer="L1",
+        expected="import ok",
+        expectation_source="import ok",
+        preconditions=["project readable"],
+        verify_method='command: python -c "import samplemod"',
+    )
+    warnings = _project_import_warnings([case], project)
+    assert len(warnings) == 1
+    assert "samplemod" in warnings[0]
+    assert "请确认包名" in warnings[0]
