@@ -68,6 +68,10 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
   await page.waitForURL(/\/plan/);
   await page.locator("#confirm-execution").focus();
   await page.keyboard.press("Space");
+  if ((await page.locator("#confirm-warnings").count()) > 0) {
+    await page.locator("#confirm-warnings").focus();
+    await page.keyboard.press("Space");
+  }
   await page.getByRole("button", { name: "开始测试" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/result/, { timeout: 15_000 });

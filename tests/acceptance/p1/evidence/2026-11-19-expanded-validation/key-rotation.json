@@ -1,0 +1,9 @@
+{
+  "rotated_key_call_ok": true,
+  "rotated_candidates": 0,
+  "rotated_degraded": true,
+  "restored_key_call_ok": true,
+  "restored_candidates": 5,
+  "backup_contains_model_key": false,
+  "notes": "rotation via AITEST_MODEL_KEY env; next CLI call picks it up; invalid key degrades to fallback, then restored key generates candidates"
+}

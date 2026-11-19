@@ -144,5 +144,43 @@
     "both_passed": true,
     "workspace_projects": 9,
     "workspace_runs": 10
+  },
+  "django": {
+    "project_id": "proj_b8ee7701cef0",
+    "run_id": "run_dfb2b8a55f66",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "baseline": "1 passed"
+  },
+  "vite_build": {
+    "project_id": "proj_19927109aa09",
+    "run_id": "run_7e4f0833037b",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "baseline": "vite build ok"
+  },
+  "long_run": {
+    "runs_total": 13,
+    "new_unique_runs": 10,
+    "all_completed": true,
+    "bytes_before": 22085,
+    "bytes_after": 86080,
+    "bytes_per_run": 6399.5,
+    "workspace_integrity": true,
+    "note": "10 次 run.start 使用唯一 request_id；同一 request_id 会按幂等缓存复用同一 run"
   }
 }

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 import { expect } from "@playwright/test";
 
-import { test } from "./fixtures";
+import { confirmPlan, test } from "./fixtures";
 
 test.describe.configure({ timeout: 300_000 });
 
@@ -149,7 +149,7 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
     await page.waitForURL(/\/plan/, { timeout: 180_000 });
     await expect(page.locator(".plan-summary")).toContainText("本次");
 
-    await page.locator("#confirm-execution").check();
+    await confirmPlan(page);
     await page.getByRole("button", { name: "开始测试" }).click();
     await page.waitForURL(/\/result/, { timeout: 240_000 });
     await expect(page.locator(".result-verdict")).toBeVisible();

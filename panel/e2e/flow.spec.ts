@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { createProject, createTaskFromCandidate, test } from "./fixtures";
+import { confirmPlan, createProject, createTaskFromCandidate, test } from "./fixtures";
 
 test("候选目标可以按预计范围直接生成计划", async ({ page }) => {
   const projectId = await createProject(page, "自动计划验证", "D:/work/flow-auto");
@@ -40,7 +40,7 @@ test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → �
   await expect(page.locator(".plan-summary")).toContainText("本次 1 项 / 共 4 项");
   const start = page.getByRole("button", { name: "开始测试" });
   await expect(start).toBeDisabled();
-  await page.locator("#confirm-execution").check();
+  await confirmPlan(page);
   await expect(start).toBeEnabled();
   await start.click();
 

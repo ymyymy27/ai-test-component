@@ -1,0 +1,65 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_a517e4612bcc-0.log",
+            "evidence/case_a517e4612bcc-1.log"
+          ],
+          "finished_at": "2026-11-19T21:38:59+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T21:38:59+08:00"
+        }
+      ],
+      "case_id": "case_a517e4612bcc",
+      "evidence_refs": [
+        "evidence/case_a517e4612bcc-0.log",
+        "evidence/case_a517e4612bcc-1.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "3ae86f176397dfa457f4a196b6eb6b2da21fdd322611a1a3d5e8249919ab2d1b",
+  "confirmation_id": "conf_b1cbce58aa69",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T21:38:58+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_dfb2b8a55f66_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/case_a517e4612bcc-0.log",
+    "evidence/case_a517e4612bcc-1.log"
+  ],
+  "heartbeat_at": "2026-11-19T21:38:59+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_cdada801fc4b",
+  "media_bytes": 170,
+  "mock_judgement": [],
+  "pid": 15416,
+  "pid_created_at": 1795095538.3875885,
+  "plan_id": "plan_8e957caf879f",
+  "project_id": "proj_b8ee7701cef0",
+  "request_ids": [],
+  "run_id": "run_dfb2b8a55f66",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_cb33cca4a826"
+    ],
+    "frozen_at": "2026-11-19T21:38:58+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T21:38:58+08:00",
+  "status": "completed"
+}

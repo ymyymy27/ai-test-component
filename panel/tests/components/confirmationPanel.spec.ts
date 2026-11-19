@@ -20,6 +20,7 @@ describe("ConfirmationPanel", () => {
         project: seeded.project,
         environment: buildEnvironmentChecks(),
         checked: false,
+        warningsAcknowledged: false,
         busy: false,
         startDisabled: false,
       },
@@ -46,6 +47,7 @@ describe("ConfirmationPanel", () => {
           project: value.project,
           environment: buildEnvironmentChecks(),
           checked: false,
+          warningsAcknowledged: false,
           busy: false,
           startDisabled: true,
           },
@@ -53,5 +55,29 @@ describe("ConfirmationPanel", () => {
       expect(wrapper.text()).toContain("契约变化");
       expect(wrapper.get("#confirm-execution").attributes("disabled")).toBeDefined();
     });
+  });
+
+  it("requires acknowledging plan warnings before execution", async () => {
+    const seeded = await seedPlannedTask(["01"]);
+    const plan = currentPlan(seeded.task);
+    if (!plan) {
+      throw new Error("plan missing");
+    }
+    const withWarnings = { ...plan, warnings: ["case_x：请确认包名"] };
+    const wrapper = mount(ConfirmationPanel, {
+      props: {
+        plan: withWarnings,
+        task: seeded.task,
+        project: seeded.project,
+        environment: buildEnvironmentChecks(),
+        checked: false,
+        warningsAcknowledged: false,
+        busy: false,
+        startDisabled: false,
+      },
+    });
+    expect(wrapper.text()).toContain("请确认包名");
+    await wrapper.get("#confirm-warnings").setValue(true);
+    expect(wrapper.emitted("update:warningsAcknowledged")?.[0]).toEqual([true]);
   });
 });

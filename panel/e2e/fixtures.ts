@@ -44,10 +44,18 @@ export async function createTaskFromCandidate(page: Page, candidateIndex = 0): P
   await page.waitForURL(/\/scope/);
 }
 
+export async function confirmPlan(page: Page): Promise<void> {
+  await page.locator("#confirm-execution").check();
+  const warnings = page.locator("#confirm-warnings");
+  if ((await warnings.count()) > 0) {
+    await warnings.check();
+  }
+}
+
 export async function startRun(page: Page): Promise<void> {
   await page.getByRole("button", { name: "生成计划" }).click();
   await page.waitForURL(/\/plan/);
-  await page.locator("#confirm-execution").check();
+  await confirmPlan(page);
   await page.getByRole("button", { name: "开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 15_000 });
 }

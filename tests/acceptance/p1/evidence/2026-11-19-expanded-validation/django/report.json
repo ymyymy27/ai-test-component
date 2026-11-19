@@ -1,0 +1,110 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_cb33cca4a826",
+      "acceptance_item_ids": [
+        "ai_cb33cca4a826"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_a517e4612bcc-0.log",
+            "evidence/case_a517e4612bcc-1.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_a517e4612bcc",
+      "evidence_refs": [
+        "evidence/case_a517e4612bcc-0.log",
+        "evidence/case_a517e4612bcc-1.log"
+      ],
+      "expectation_verified": true,
+      "expected": "Django manage.py test 通过",
+      "layer": "L1",
+      "result": "passed",
+      "title": "django test",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 67,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_a517e4612bcc-0.log",
+      "sha256": "06a7d2f05e7f2c4a4c6418acc6185ffac99f30903f0d4db1a05bca2e002fc00e"
+    },
+    {
+      "bytes": 103,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_a517e4612bcc-1.log",
+      "sha256": "1a52ff93b2b7c8bc576900f70c9062f5baedb573cf55507ec33070c999cd9b12"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_a517e4612bcc-0.log",
+    "evidence/case_a517e4612bcc-1.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T21:39:00+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_a517e4612bcc"
+      ],
+      "item_id": "ai_cb33cca4a826",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "Django manage.py test 通过"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": false,
+  "report_id": "rep_cdada801fc4b",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_dfb2b8a55f66",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 1，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

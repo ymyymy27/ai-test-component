@@ -25,12 +25,21 @@ const task = computed<Task | null>(
 const plan = computed<Plan | null>(() => (task.value ? readCurrentPlan(task.value) : null));
 const planLedgerRef = ref<InstanceType<typeof PlanLedger> | null>(null);
 const checked = ref(false);
+const warningsAcknowledged = ref(false);
 const busy = computed(
   () => workspace.busyKey(`start:${taskId.value}`) || workspace.busyKey(`revise:${taskId.value}`),
 );
 const stale = computed(() => Boolean(plan.value?.stale));
+const hasWarnings = computed(() => (plan.value?.warnings.length ?? 0) > 0);
 const startDisabled = computed(
   () => !plan.value || stale.value || plan.value.cases.length === 0 || busy.value,
+);
+const canStart = computed(
+  () =>
+    Boolean(plan.value) &&
+    !startDisabled.value &&
+    checked.value &&
+    (!hasWarnings.value || warningsAcknowledged.value),
 );
 const items = computed(() =>
   (plan.value?.scope.acceptanceItemIds ?? []).map((itemId) => {
@@ -56,11 +65,12 @@ watch(
   () => plan.value?.id,
   () => {
     checked.value = false;
+    warningsAcknowledged.value = false;
   },
 );
 
 async function start(): Promise<void> {
-  if (!plan.value || !checked.value || startDisabled.value) {
+  if (!plan.value || !canStart.value) {
     return;
   }
   try {
@@ -221,9 +231,11 @@ onBeforeUnmount(() => {
       :project="project"
       :environment="workspace.environment"
       :checked="checked"
+      :warnings-acknowledged="warningsAcknowledged"
       :busy="busy"
       :start-disabled="startDisabled"
       @update:checked="checked = $event"
+      @update:warnings-acknowledged="warningsAcknowledged = $event"
       @start="start"
     />
 
@@ -240,7 +252,7 @@ onBeforeUnmount(() => {
           <button
             class="btn btn-primary"
             type="button"
-            :disabled="!checked || startDisabled"
+            :disabled="!canStart"
             :aria-busy="busy"
             @click="start"
           >

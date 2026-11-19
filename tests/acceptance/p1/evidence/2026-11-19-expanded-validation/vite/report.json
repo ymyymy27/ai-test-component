@@ -1,0 +1,100 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_7c8d2c77abaa",
+      "acceptance_item_ids": [
+        "ai_7c8d2c77abaa"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_6bf5985ea610-0.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_6bf5985ea610",
+      "evidence_refs": [
+        "evidence/case_6bf5985ea610-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "Vite 生产构建通过并生成 dist",
+      "layer": "L1",
+      "result": "passed",
+      "title": "vite build",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 455,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_6bf5985ea610-0.log",
+      "sha256": "5ee84672152a3018ba4bd132d1452644a4ec5aa009a717196763d8e9a94d0a5f"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_6bf5985ea610-0.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T21:39:36+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_6bf5985ea610"
+      ],
+      "item_id": "ai_7c8d2c77abaa",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "Vite 生产构建通过并生成 dist"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": false,
+  "report_id": "rep_91ddfa7e5146",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_7e4f0833037b",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 1，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

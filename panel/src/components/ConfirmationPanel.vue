@@ -10,12 +10,14 @@ const props = defineProps<{
   project: Project;
   environment: EnvironmentCheck[];
   checked: boolean;
+  warningsAcknowledged: boolean;
   busy: boolean;
   startDisabled: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:checked": [value: boolean];
+  "update:warningsAcknowledged": [value: boolean];
   start: [];
 }>();
 
@@ -36,6 +38,13 @@ function toggle(event: Event): void {
   const target = event.target;
   if (target instanceof HTMLInputElement) {
     emit("update:checked", target.checked);
+  }
+}
+
+function toggleWarnings(event: Event): void {
+  const target = event.target;
+  if (target instanceof HTMLInputElement) {
+    emit("update:warningsAcknowledged", target.checked);
   }
 }
 </script>
@@ -77,5 +86,20 @@ function toggle(event: Event): void {
       />
       <span>我已确认本次范围、依赖和副作用，同意开始测试。</span>
     </label>
+    <template v-if="plan.warnings.length">
+      <ul class="list-plain confirm-warnings">
+        <li v-for="warning in plan.warnings" :key="warning">{{ warning }}</li>
+      </ul>
+      <label class="checkline" for="confirm-warnings">
+        <input
+          id="confirm-warnings"
+          type="checkbox"
+          :checked="warningsAcknowledged"
+          :disabled="startDisabled"
+          @change="toggleWarnings"
+        />
+        <span>我已逐条查看以上 {{ plan.warnings.length }} 条计划警告。</span>
+      </label>
+    </template>
   </section>
 </template>

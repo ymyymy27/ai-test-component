@@ -1,0 +1,10 @@
+{
+  "runs_total": 13,
+  "new_unique_runs": 10,
+  "all_completed": true,
+  "bytes_before": 22085,
+  "bytes_after": 86080,
+  "bytes_per_run": 6399.5,
+  "workspace_integrity": true,
+  "note": "10 次 run.start 使用唯一 request_id；同一 request_id 会按幂等缓存复用同一 run"
+}

@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { createProject, createTaskFromCandidate, startRun, test } from "./fixtures";
+import { confirmPlan, createProject, createTaskFromCandidate, startRun, test } from "./fixtures";
 
 test("失败用例自动归并问题，重跑通过后关闭门禁生效", async ({ page }) => {
   const projectId = await createProject(page, "失败流程", "D:/work/flow-failure");
@@ -29,7 +29,7 @@ test("失败用例自动归并问题，重跑通过后关闭门禁生效", async
 
   await page.getByRole("button", { name: "去重跑这一项" }).click();
   await page.waitForURL(/\/plan/);
-  await page.locator("#confirm-execution").check();
+  await confirmPlan(page);
   await page.getByRole("button", { name: "开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 15_000 });
   await expect(page.locator(".result-verdict")).toHaveText("没测完");
