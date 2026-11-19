@@ -13,7 +13,7 @@ import {
   parseLineList,
   validateProjectConfig,
 } from "@/domain/validation";
-import type { ProjectConfig, RuleVersion } from "@/domain/types";
+import type { GithubSnapshot, ProjectConfig, RuleVersion } from "@/domain/types";
 import { downloadText } from "@/services/exportService";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -83,6 +83,17 @@ const boundRule = computed(
   () => project.value?.rules.find((rule) => rule.id === project.value?.rulesVersionId) ?? null,
 );
 
+const githubForm = ref({
+  repo: "",
+  branch: "main",
+  commit: "",
+  files: "",
+  checks: "",
+  account: "",
+});
+const githubError = ref("");
+const busyGithub = computed(() => workspace.busyKey(`github:${projectId.value}`));
+
 const backupBusy = ref(false);
 const restoreBusy = ref(false);
 const restoreInput = ref<HTMLInputElement | null>(null);
@@ -100,6 +111,14 @@ watch(
     configDraft.value = mergeConfig(defaultConfig(), current.config);
     advanced.value = formatJson(configDraft.value);
     ruleForm.value = { name: "", version: "", steps: "", aiRules: "", evidence: "" };
+    githubForm.value = {
+      repo: current.github?.repo ?? "",
+      branch: current.github?.branch ?? "main",
+      commit: current.github?.commit ?? "",
+      files: current.github?.files.join("\n") ?? "",
+      checks: current.github?.checks.join("\n") ?? "",
+      account: current.github?.account ?? "",
+    };
   },
   { immediate: true },
 );
@@ -251,6 +270,52 @@ async function onRuleFile(event: Event): Promise<void> {
   }
 }
 
+async function saveGithubSnapshot(): Promise<void> {
+  if (!githubForm.value.repo.trim() || !githubForm.value.commit.trim()) {
+    githubError.value = "填写仓库与提交号后再保存缓存快照。";
+    return;
+  }
+  githubError.value = "";
+  const snapshot: GithubSnapshot = {
+    repo: githubForm.value.repo.trim(),
+    branch: githubForm.value.branch.trim() || "main",
+    commit: githubForm.value.commit.trim(),
+    files: parseLineList(githubForm.value.files),
+    prs: [],
+    checks: parseLineList(githubForm.value.checks),
+    deployment: "",
+    account: githubForm.value.account.trim(),
+    host: "github.com",
+    fetchedAt: new Date().toISOString(),
+    cached: true,
+    unavailableReason: "",
+  };
+  try {
+    await workspace.saveGithubSnapshot(projectId.value, snapshot);
+    ui.showToast("GitHub 缓存快照已保存；报告会标“未确认最新”。", "success");
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function clearGithubSnapshot(): Promise<void> {
+  const answer = await ui.askConfirm({
+    title: "清除 GitHub 缓存快照？",
+    body: "清除后设置页显示未连接状态；不会影响本地测试、证据与报告。",
+    confirmLabel: "清除快照",
+    tone: "danger",
+  });
+  if (answer === null) {
+    return;
+  }
+  try {
+    await workspace.saveGithubSnapshot(projectId.value, null);
+    ui.showToast("GitHub 缓存快照已清除。", "success");
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function createBackup(): Promise<void> {
   backupBusy.value = true;
   try {
@@ -284,8 +349,8 @@ async function onRestoreFile(event: Event): Promise<void> {
   }
   restoreBusy.value = true;
   try {
-    const text = await file.text();
-    await workspace.restoreBackup(text);
+    const data = await file.arrayBuffer();
+    await workspace.restoreBackup(data);
   } catch {
     // store 已提示。
   } finally {
@@ -666,21 +731,97 @@ async function clearData(): Promise<void> {
             </div>
           </div>
           <div v-if="project.github" class="surface-strip">
-            <p class="doc-p">
-              <strong>{{ project.github.repo }}</strong> · {{ project.github.commit }} ·
-              {{ project.github.branch }}
-            </p>
+            <div class="row-between">
+              <p class="doc-p">
+                <strong>{{ project.github.repo }}</strong> · {{ project.github.commit }} ·
+                {{ project.github.branch }}
+              </p>
+              <span class="badge is-warn">缓存快照，未确认最新</span>
+            </div>
             <p class="doc-note">
-              读取于 {{ project.github.fetchedAt }} ·
-              {{ project.github.cached ? "缓存快照，未确认最新" : "最新读取" }}
+              登记于 {{ new Date(project.github.fetchedAt).toLocaleString("zh-CN") }}
+              <template v-if="project.github.account"> · {{ project.github.account }}</template>
             </p>
             <p class="doc-note mono">{{ project.github.files.join(" · ") || "没有文件列表" }}</p>
+            <p v-if="project.github.checks.length" class="doc-note">
+              检查：{{ project.github.checks.join(" · ") }}
+            </p>
+            <button
+              class="btn btn-sm"
+              type="button"
+              :disabled="busyGithub"
+              @click="clearGithubSnapshot"
+            >
+              清除缓存快照
+            </button>
           </div>
           <EmptyState
             v-else
             title="未连接 GitHub"
-            text="只读提交、PR、检查与部署不可用；本地测试、证据与报告不受影响。接入宿主后再读取，不使用演示快照。"
+            text="只读提交、PR、检查与部署不可用；本地测试、证据与报告不受影响。可以手动登记缓存快照，或接入宿主后读取。"
           />
+          <details class="link-tools" :open="!project.github">
+            <summary>{{ project.github ? "更新缓存快照" : "登记缓存快照" }}</summary>
+            <form class="settings-form" novalidate @submit.prevent="saveGithubSnapshot">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="github-repo">仓库</label>
+                  <input
+                    id="github-repo"
+                    v-model="githubForm.repo"
+                    type="text"
+                    placeholder="owner/name"
+                  />
+                </div>
+                <div class="field">
+                  <label for="github-branch">分支</label>
+                  <input
+                    id="github-branch"
+                    v-model="githubForm.branch"
+                    type="text"
+                    placeholder="main"
+                  />
+                </div>
+                <div class="field">
+                  <label for="github-commit">提交</label>
+                  <input
+                    id="github-commit"
+                    v-model="githubForm.commit"
+                    type="text"
+                    placeholder="abc123"
+                  />
+                </div>
+                <div class="field">
+                  <label for="github-account">账号 <span class="optional">选填</span></label>
+                  <input id="github-account" v-model="githubForm.account" type="text" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="github-files">文件 <span class="optional">一行一条</span></label>
+                  <textarea id="github-files" v-model="githubForm.files" rows="3" />
+                </div>
+                <div class="field">
+                  <label for="github-checks">检查 <span class="optional">一行一条</span></label>
+                  <textarea id="github-checks" v-model="githubForm.checks" rows="3" />
+                </div>
+              </div>
+              <p v-if="githubError" class="field-error" role="alert">{{ githubError }}</p>
+              <p class="field-hint">
+                这是手动登记的缓存快照，不代表 GitHub 最新状态；报告会明确标注“未确认最新”。
+              </p>
+              <div class="form-actions">
+                <button
+                  class="btn btn-primary"
+                  type="submit"
+                  :disabled="busyGithub"
+                  :aria-busy="busyGithub"
+                >
+                  {{ busyGithub ? "正在保存…" : "保存缓存快照" }}
+                </button>
+              </div>
+            </form>
+          </details>
         </section>
 
         <section
@@ -769,7 +910,7 @@ async function clearData(): Promise<void> {
             <div>
               <h2 class="settings-title">备份</h2>
               <p class="settings-desc">
-                本地 JSON 备份包含业务记录，不包含证据正文；恢复会替换当前本地数据。
+                ZIP 备份包含业务记录，不包含证据正文；恢复会替换当前本地数据。
               </p>
             </div>
           </div>
@@ -796,10 +937,10 @@ async function clearData(): Promise<void> {
               ref="restoreInput"
               class="visually-hidden"
               type="file"
-              accept="application/json,.json"
+              accept=".zip,application/zip,application/json,.json"
               @change="onRestoreFile"
             />
-            <span class="backup-meta">本地 JSON · 不打包证据 · 真实 ZIP 备份仍由 CLI 完成</span>
+            <span class="backup-meta">本地 ZIP · 不打包证据 · 真实 CLI 备份仍由命令行完成</span>
           </div>
           <div class="backup-row">
             <button class="btn btn-sm btn-danger" type="button" @click="clearData">

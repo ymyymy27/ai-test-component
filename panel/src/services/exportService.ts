@@ -182,6 +182,25 @@ export async function exportMetrics(
   };
 }
 
+export function downloadBytes(filename: string, bytes: Uint8Array, mime: string): void {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
+    return;
+  }
+  const buffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+  const blob = new Blob([buffer], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 export function downloadText(filename: string, text: string, mime: string): void {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
     return;

@@ -43,7 +43,7 @@ import type {
   TaskPatch,
 } from "@/repositories/ProjectRepository";
 import { buildEnvironmentChecks } from "@/services/environmentService";
-import { downloadText } from "@/services/exportService";
+import { downloadBytes, downloadText } from "@/services/exportService";
 import { simulateOutcome } from "@/services/execution";
 import { RunSimulator } from "@/services/runSimulator";
 import { useUiStore } from "./ui";
@@ -294,6 +294,17 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       const project = await repo().updateProject(projectId, patch);
       replaceProject(project);
       return project;
+    });
+  }
+
+  async function setFeatureIgnored(
+    projectId: string,
+    featureName: string,
+    ignored: boolean,
+  ): Promise<void> {
+    await withBusy(`map:${projectId}`, async () => {
+      await repo().setFeatureIgnored(projectId, featureName, ignored);
+      await refreshProject(projectId);
     });
   }
 
@@ -647,6 +658,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
+  async function saveGithubSnapshot(
+    projectId: string,
+    snapshot: Parameters<ProjectRepository["saveGithubSnapshot"]>[1],
+  ): Promise<void> {
+    await withBusy(`github:${projectId}`, async () => {
+      await repo().saveGithubSnapshot(projectId, snapshot);
+      await refreshProject(projectId);
+    });
+  }
+
   async function addModule(projectId: string, input: ModuleInput): Promise<void> {
     await withBusy(`module:${projectId}`, async () => {
       await repo().addModule(projectId, input);
@@ -714,16 +735,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function backup(): Promise<void> {
     const payload = await repo().backup();
-    downloadText(payload.result.filename, payload.json, "application/json");
+    downloadBytes(payload.result.filename, payload.data, "application/zip");
     useUiStore().showToast(
       `已导出备份：${payload.result.projects} 个项目，${payload.result.bytes} 字节。`,
       "success",
     );
   }
 
-  async function restoreBackup(json: string): Promise<void> {
+  async function restoreBackup(data: string | ArrayBuffer): Promise<void> {
     return withBusy("restore", async () => {
-      const restored = await repo().restore(json);
+      const restored = await repo().restore(data);
       projects.value = restored;
       currentProjectId.value = restored[0]?.id ?? null;
       initialized.value = false;
@@ -778,6 +799,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     setCurrentProject,
     createProject,
     updateProject,
+    setFeatureIgnored,
     ensureDraft,
     createTask,
     updateTask,
@@ -803,6 +825,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     saveRule,
     bindRule,
     saveConfig,
+    saveGithubSnapshot,
     addModule,
     updateModule,
     importLink,

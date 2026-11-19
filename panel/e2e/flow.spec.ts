@@ -53,3 +53,15 @@ test("概览不出现目标输入，当前任务条只在有任务时出现", as
   await page.goto(`/projects/${projectId}/overview`);
   await expect(page.locator(".current-task-strip")).toContainText("验证 概览验证");
 });
+
+test("项目理解可以忽略和恢复业务功能", async ({ page }) => {
+  await createProject(page, "理解验证", "D:/work/flow-map");
+  await expect(page.locator(".project-map-stats")).toContainText("3 个业务功能");
+  await page.getByRole("button", { name: "忽略业务功能 启动与主流程" }).click();
+  await expect(page.locator(".project-map-stats")).toContainText("2 个业务功能");
+  const ignored = page.locator(".project-map-details").filter({ hasText: "已忽略 1 个" });
+  await expect(ignored).toBeVisible();
+  await ignored.locator("summary").click();
+  await ignored.getByRole("button", { name: "恢复" }).click();
+  await expect(page.locator(".project-map-stats")).toContainText("3 个业务功能");
+});

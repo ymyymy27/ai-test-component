@@ -35,13 +35,19 @@ const emit = defineEmits<{
   analyze: [];
   addModule: [];
   editModule: [module: Module];
+  toggleFeature: [featureName: string, ignored: boolean];
 }>();
 
 const tasks = computed(() => props.project.tasks.filter((task) => task.stage !== "fresh"));
 const draft = computed(() => props.project.tasks.find((task) => task.stage === "fresh") ?? null);
 const runs = computed(() => allRuns(props.project));
 const issues = computed(() => selectOpenIssues(props.project));
-const features = computed(() => props.project.map?.features ?? []);
+const allFeatures = computed(() => props.project.map?.features ?? []);
+const ignoredFeatures = computed(() => props.project.map?.ignoredFeatures ?? []);
+const ignoredSet = computed(() => new Set(ignoredFeatures.value));
+const features = computed(() =>
+  allFeatures.value.filter((feature) => !ignoredSet.value.has(feature.name)),
+);
 const catalogCount = computed(
   () => props.project.catalog.filter((item) => item.observable && item.status === "active").length,
 );
@@ -77,6 +83,10 @@ function openTaskById(taskId: string): void {
   if (taskId) {
     emit("openTask", taskId);
   }
+}
+
+function toggleFeature(name: string, ignored: boolean): void {
+  emit("toggleFeature", name, ignored);
 }
 </script>
 
@@ -158,13 +168,15 @@ function openTaskById(taskId: string): void {
         <ProjectMap
           :map="project.map"
           :modules="project.modules"
-          :features="features"
+          :features="allFeatures"
+          :ignored-features="ignoredFeatures"
           :catalog-count="catalogCount"
           :analyzing="analyzing"
           :busy="analyzingBusy"
           @analyze="emit('analyze')"
           @add-module="emit('addModule')"
           @edit-module="emit('editModule', $event)"
+          @toggle-feature="toggleFeature"
         />
 
         <section class="section">

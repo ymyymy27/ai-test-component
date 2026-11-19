@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { buildProjectAnalysis } from "@/domain/analysis";
 import { issueCloseGate, sideEffectsFor } from "@/domain/derive";
 import type { EvidenceRef } from "@/domain/types";
 import { LocalStorageRepository } from "@/repositories/LocalStorageRepository";
@@ -137,13 +138,48 @@ describe("LocalStorageRepository", () => {
     expect(project?.reports.filter((report) => report.runId === updated.id).length).toBe(2);
   });
 
+  it("ignores a business feature and preserves the choice across reanalysis", async () => {
+    const seeded = await seedProject("D:/work/ignore", "忽略验证");
+    const updated = await seeded.repo.setFeatureIgnored(seeded.projectId, "数据写入与查询", true);
+    expect(updated.map?.ignoredFeatures).toContain("数据写入与查询");
+    const analysis = buildProjectAnalysis(updated);
+    const refreshed = await seeded.repo.saveAnalysis(seeded.projectId, analysis);
+    expect(refreshed.map?.ignoredFeatures).toContain("数据写入与查询");
+    const restored = await seeded.repo.setFeatureIgnored(seeded.projectId, "数据写入与查询", false);
+    expect(restored.map?.ignoredFeatures).not.toContain("数据写入与查询");
+  });
+
+  it("stores and clears a manually registered GitHub cache snapshot", async () => {
+    const seeded = await seedProject("D:/work/github", "GitHub 验证");
+    const snapshot = {
+      repo: "team/service",
+      branch: "main",
+      commit: "abc123",
+      files: ["src/main.py"],
+      prs: [],
+      checks: ["CI / pytest"],
+      deployment: "",
+      account: "tester",
+      host: "github.com",
+      fetchedAt: new Date().toISOString(),
+      cached: true,
+      unavailableReason: "",
+    };
+    const saved = await seeded.repo.saveGithubSnapshot(seeded.projectId, snapshot);
+    expect(saved.github?.commit).toBe("abc123");
+    expect(saved.github?.cached).toBe(true);
+    const cleared = await seeded.repo.saveGithubSnapshot(seeded.projectId, null);
+    expect(cleared.github).toBeNull();
+  });
+
   it("backs up, clears and restores the workspace", async () => {
     const seeded = await seedProject("D:/work/backup", "备份项目");
     const payload = await seeded.repo.backup();
     expect(payload.result.projects).toBe(1);
     await seeded.repo.clear();
     expect(await seeded.repo.listProjects()).toHaveLength(0);
-    await seeded.repo.restore(payload.json);
+    expect(payload.result.format).toBe("zip");
+    await seeded.repo.restore(payload.data);
     expect(await seeded.repo.listProjects()).toHaveLength(1);
   });
 

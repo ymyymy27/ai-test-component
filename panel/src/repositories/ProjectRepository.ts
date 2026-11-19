@@ -7,6 +7,7 @@ import type {
   EnvironmentCheck,
   EvidenceRef,
   ExportResult,
+  GithubSnapshot,
   Issue,
   IssueDisposition,
   IssueStatus,
@@ -136,7 +137,7 @@ export interface LinkAssertInput {
 }
 
 export interface BackupPayload {
-  json: string;
+  data: Uint8Array;
   result: BackupResult;
 }
 
@@ -149,6 +150,7 @@ export interface ProjectRepository {
     patch: Partial<Pick<Project, "name" | "goal" | "archived">>,
   ): Promise<Project>;
   saveAnalysis(projectId: string, analysis: ProjectAnalysis): Promise<Project>;
+  setFeatureIgnored(projectId: string, featureName: string, ignored: boolean): Promise<Project>;
   beginAnalysis(projectId: string): Promise<Project>;
   failAnalysis(projectId: string, message: string): Promise<Project>;
 
@@ -202,6 +204,7 @@ export interface ProjectRepository {
   saveRule(projectId: string, input: RuleInput): Promise<RuleVersion>;
   bindRule(projectId: string, ruleId: string): Promise<Project>;
   saveConfig(projectId: string, config: ProjectConfig): Promise<Project>;
+  saveGithubSnapshot(projectId: string, snapshot: GithubSnapshot | null): Promise<Project>;
   addModule(projectId: string, input: ModuleInput): Promise<Module>;
   updateModule(projectId: string, moduleId: string, patch: Partial<ModuleInput>): Promise<Module>;
 
@@ -211,7 +214,7 @@ export interface ProjectRepository {
   recordQuickCheck(projectId: string, quick: QuickCheck): Promise<Project>;
 
   backup(): Promise<BackupPayload>;
-  restore(json: string): Promise<Project[]>;
+  restore(data: string | Uint8Array | ArrayBuffer): Promise<Project[]>;
   clear(): Promise<void>;
   getLastProjectId(): Promise<string | null>;
   setLastProjectId(projectId: string): Promise<void>;

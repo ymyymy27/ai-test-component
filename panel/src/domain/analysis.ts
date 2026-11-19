@@ -194,6 +194,7 @@ export function buildProjectAnalysis(
     sourceCommit: "local",
     generatedAt: isoNow(),
     features,
+    ignoredFeatures: [],
     unknowns: [
       {
         id: newId("unk"),

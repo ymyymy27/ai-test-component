@@ -1,4 +1,10 @@
-import { createRouter, createWebHistory, type RouteLocationNormalized } from "vue-router";
+import {
+  createRouter,
+  createWebHashHistory,
+  createWebHistory,
+  type RouteLocationNormalized,
+  type RouterHistory,
+} from "vue-router";
 
 import { findTask, runningTask } from "@/domain/derive";
 import { useUiStore } from "@/stores/ui";
@@ -12,8 +18,18 @@ function taskIdOf(to: RouteLocationNormalized): string {
   return String(to.params.taskId ?? "");
 }
 
+function createHistory(): RouterHistory {
+  if (typeof window === "undefined") {
+    return createWebHistory("/");
+  }
+  // Web 预览使用 history；webview/file 需要 hash 才能在刷新时重新打开同一个入口文档。
+  const webview =
+    window.location.protocol === "vscode-webview:" || window.location.protocol === "file:";
+  return webview ? createWebHashHistory() : createWebHistory("/");
+}
+
 const router = createRouter({
-  history: createWebHistory("/"),
+  history: createHistory(),
   routes: [
     {
       path: "/",

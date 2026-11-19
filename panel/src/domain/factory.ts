@@ -138,7 +138,10 @@ export function confirmDraftTask(
   draft: Task,
   input: { goal: string; candidate: Candidate | null },
 ): Task {
-  const catalog = project.catalog.map((item) => ({ ...item }));
+  const ignored = new Set(project.map?.ignoredFeatures ?? []);
+  const catalog = project.catalog
+    .filter((item) => !ignored.has(item.featureName))
+    .map((item) => ({ ...item }));
   const observable = catalog.filter((item) => item.observable && item.status === "active");
   const recommended = input.candidate
     ? observable

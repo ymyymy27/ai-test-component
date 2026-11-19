@@ -1,3 +1,4 @@
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { applyTemplate as applyTemplateResult, type ProjectAnalysis } from "@/domain/analysis";
 import {
   confirmationFingerprint,
@@ -36,6 +37,7 @@ import type {
   Delivery,
   EvidenceRef,
   ExportResult,
+  GithubSnapshot,
   Issue,
   LinkAssertion,
   LinkData,
@@ -408,6 +410,7 @@ export class LocalStorageRepository implements ProjectRepository {
       project.map = {
         ...analysis.map,
         revision: (project.map?.revision ?? 0) + 1,
+        ignoredFeatures: project.map?.ignoredFeatures ?? [],
         stale: false,
         staleReason: "",
       };
@@ -416,6 +419,26 @@ export class LocalStorageRepository implements ProjectRepository {
       project.analysisStatus = "ready";
       project.analysisStartedAt = "";
       project.analysisError = "";
+      return project;
+    });
+  }
+
+  async setFeatureIgnored(
+    projectId: string,
+    featureName: string,
+    ignored: boolean,
+  ): Promise<Project> {
+    return this.mutate(projectId, (project) => {
+      if (!project.map) {
+        throw new RepositoryError("NOT_FOUND", "项目地图还没有生成。", "先分析项目。");
+      }
+      const set = new Set(project.map.ignoredFeatures);
+      if (ignored) {
+        set.add(featureName);
+      } else {
+        set.delete(featureName);
+      }
+      project.map.ignoredFeatures = [...set];
       return project;
     });
   }
@@ -1112,6 +1135,13 @@ export class LocalStorageRepository implements ProjectRepository {
     });
   }
 
+  async saveGithubSnapshot(projectId: string, snapshot: GithubSnapshot | null): Promise<Project> {
+    return this.mutate(projectId, (project) => {
+      project.github = snapshot ? clone(snapshot) : null;
+      return project;
+    });
+  }
+
   async addModule(projectId: string, input: ModuleInput): Promise<Module> {
     return this.mutate(projectId, (project) => {
       if (!input.name.trim()) {
@@ -1236,21 +1266,58 @@ export class LocalStorageRepository implements ProjectRepository {
   async backup(): Promise<BackupPayload> {
     const envelope = this.read();
     const json = JSON.stringify(envelope, null, 2);
+    const manifest = {
+      schema_version: 1,
+      format: "aitest.panel.backup",
+      created_at: isoNow(),
+      projects: envelope.projects.length,
+      includes_evidence: false,
+    };
+    const data = zipSync({
+      "workspace.json": strToU8(json),
+      "manifest.json": strToU8(JSON.stringify(manifest, null, 2)),
+    });
     const result: BackupResult = {
-      filename: `aitest-backup-${new Date().toISOString().slice(0, 10)}.json`,
-      bytes: new TextEncoder().encode(json).length,
+      filename: `aitest-backup-${new Date().toISOString().slice(0, 10)}.zip`,
+      bytes: data.length,
       projects: envelope.projects.length,
       includesEvidence: false,
+      format: "zip",
     };
-    return { json, result };
+    return { data, result };
   }
 
-  async restore(json: string): Promise<Project[]> {
+  async restore(data: string | Uint8Array | ArrayBuffer): Promise<Project[]> {
+    let raw = "";
+    if (typeof data === "string") {
+      raw = data;
+    } else {
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+      const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+      if (isZip) {
+        try {
+          const files = unzipSync(bytes);
+          const workspace = files["workspace.json"];
+          if (!workspace) {
+            throw new Error("missing workspace.json");
+          }
+          raw = strFromU8(workspace);
+        } catch {
+          throw new RepositoryError(
+            "FORMAT",
+            "备份 ZIP 无法读取或缺少 workspace.json。",
+            "换一个备份文件。",
+          );
+        }
+      } else {
+        raw = new TextDecoder().decode(bytes);
+      }
+    }
     let parsed: unknown;
     try {
-      parsed = JSON.parse(json) as unknown;
+      parsed = JSON.parse(raw) as unknown;
     } catch {
-      throw new RepositoryError("FORMAT", "备份文件不是合法 JSON。", "换一个备份文件。");
+      throw new RepositoryError("FORMAT", "备份文件不是合法 JSON 或 ZIP。", "换一个备份文件。");
     }
     const envelope = assertEnvelope(parsed);
     this.write(envelope);

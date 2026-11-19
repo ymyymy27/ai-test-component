@@ -31,6 +31,17 @@ test("设置保存项目资料、运行配置、规则、主题与备份", async
   await page.getByRole("button", { name: "保存运行配置" }).click();
   await expect(page.locator(".toast")).toContainText("运行配置已保存");
 
+  await page.fill("#github-repo", "team/service");
+  await page.fill("#github-commit", "abc123");
+  await page.fill("#github-files", "src/main.py");
+  await page.fill("#github-checks", "CI / pytest");
+  await page.getByRole("button", { name: "保存缓存快照" }).click();
+  await expect(page.locator("#settings-github")).toContainText("缓存快照，未确认最新");
+  await expect(page.locator("#settings-github")).toContainText("team/service");
+  await page.getByRole("button", { name: "清除缓存快照" }).click();
+  await page.locator(".dialog-confirm").click();
+  await expect(page.locator("#settings-github")).toContainText("未连接 GitHub");
+
   await page.fill("#rule-name", "接口检查");
   await page.fill("#rule-version", "2");
   await page.fill("#rule-steps", "按接口契约执行检查。");
@@ -55,14 +66,14 @@ test("设置保存项目资料、运行配置、规则、主题与备份", async
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "创建备份" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/aitest-backup-.*\.json/);
+  expect(download.suggestedFilename()).toMatch(/aitest-backup-.*\.zip/);
   await expect(page.locator(".toast")).toContainText("已导出备份");
 
   const path = await download.path();
   if (!path) {
     throw new Error("backup path missing");
   }
-  await page.setInputFiles('input[type="file"][accept="application/json,.json"]', path);
+  await page.setInputFiles('input[type="file"][accept*="zip"]', path);
   await expect(page.locator("#confirm-dialog-title")).toBeVisible();
   await page.locator(".dialog-confirm").click();
   await expect(page.locator(".toast")).toContainText("备份已恢复");

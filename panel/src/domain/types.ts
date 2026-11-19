@@ -61,6 +61,7 @@ export interface ProjectMap {
   sourceCommit: string;
   generatedAt: string;
   features: Feature[];
+  ignoredFeatures: string[];
   unknowns: UnknownArea[];
   stale: boolean;
   staleReason: string;
@@ -605,4 +606,5 @@ export interface BackupResult {
   bytes: number;
   projects: number;
   includesEvidence: boolean;
+  format: "zip" | "json";
 }

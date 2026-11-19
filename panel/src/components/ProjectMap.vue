@@ -8,6 +8,7 @@ const props = defineProps<{
   map: ProjectMap | null;
   modules: Module[];
   features: Feature[];
+  ignoredFeatures: string[];
   catalogCount: number;
   analyzing: boolean;
   busy: boolean;
@@ -17,9 +18,17 @@ const emit = defineEmits<{
   analyze: [];
   addModule: [];
   editModule: [module: Module];
+  toggleFeature: [featureName: string, ignored: boolean];
 }>();
 
-const visibleFeatures = computed(() => props.features.slice(0, 4));
+const ignoredSet = computed(() => new Set(props.ignoredFeatures));
+const activeFeatures = computed(() =>
+  props.features.filter((feature) => !ignoredSet.value.has(feature.name)),
+);
+const visibleFeatures = computed(() => activeFeatures.value.slice(0, 4));
+const ignoredRows = computed(() =>
+  props.features.filter((feature) => ignoredSet.value.has(feature.name)),
+);
 const unknowns = computed(() => props.map?.unknowns ?? []);
 </script>
 
@@ -32,7 +41,7 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
       </button>
     </div>
     <p class="project-map-stats">
-      <strong class="num">{{ features.length }}</strong> 个业务功能 ·
+      <strong class="num">{{ activeFeatures.length }}</strong> 个业务功能 ·
       <strong class="num">{{ catalogCount }}</strong> 个可测项
     </p>
     <p v-if="map?.stale" class="notice is-warn">
@@ -51,11 +60,48 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
               ? "把握中"
               : "把握低"
         }}</em>
+        <button
+          class="link-btn"
+          type="button"
+          :disabled="busy"
+          :aria-label="`忽略业务功能 ${feature.name}`"
+          @click="emit('toggleFeature', feature.name, true)"
+        >
+          忽略
+        </button>
       </div>
     </div>
     <p v-else class="doc-note">
-      {{ analyzing ? "正在识别业务功能…" : "还没有识别到业务功能；可以改用目标测试。" }}
+      {{
+        analyzing
+          ? "正在识别业务功能…"
+          : activeFeatures.length === 0 && ignoredRows.length > 0
+            ? "当前业务功能都被忽略了；可以从已忽略列表恢复。"
+            : "还没有识别到业务功能；可以改用目标测试。"
+      }}
     </p>
+
+    <details v-if="ignoredRows.length" class="project-map-details">
+      <summary>
+        <span>已忽略 {{ ignoredRows.length }} 个</span>
+        <span class="muted">不进入新任务范围</span>
+      </summary>
+      <div class="project-map-list">
+        <div v-for="feature in ignoredRows" :key="feature.id" class="project-map-row">
+          <span>{{ feature.name }}</span>
+          <small>{{ feature.modules.join(" · ") }}</small>
+          <span class="muted">已忽略</span>
+          <button
+            class="link-btn"
+            type="button"
+            :disabled="busy"
+            @click="emit('toggleFeature', feature.name, false)"
+          >
+            恢复
+          </button>
+        </div>
+      </div>
+    </details>
 
     <details class="project-map-details">
       <summary>
@@ -69,6 +115,7 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
         <div v-for="module in modules" :key="module.id" class="project-map-row">
           <span>{{ module.name }}</span>
           <small>{{ module.responsibility || "责任未填写" }}</small>
+          <em>{{ module.status }}</em>
           <button class="link-btn" type="button" @click="emit('editModule', module)">编辑</button>
         </div>
       </div>

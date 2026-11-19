@@ -77,6 +77,17 @@ function editModule(module: Module): void {
   moduleOpen.value = true;
 }
 
+async function toggleFeature(featureName: string, ignored: boolean): Promise<void> {
+  if (!projectId.value) {
+    return;
+  }
+  try {
+    await workspace.setFeatureIgnored(projectId.value, featureName, ignored);
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Promise<void> {
   if (!projectId.value) {
     return;
@@ -120,6 +131,7 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
       @analyze="analyze"
       @add-module="addModule"
       @edit-module="editModule"
+      @toggle-feature="toggleFeature"
     />
     <ModuleEditorDialog v-model="moduleOpen" :module="editingModule" @save="saveModule" />
   </div>
