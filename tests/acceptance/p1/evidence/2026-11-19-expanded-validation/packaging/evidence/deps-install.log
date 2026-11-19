@@ -1,0 +1,7 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Requirement already satisfied: pytest in E:\aitest-validation\packaging\.venv\Lib\site-packages (9.2.0)
+Requirement already satisfied: colorama>=0.4 in E:\aitest-validation\packaging\.venv\Lib\site-packages (from pytest) (0.4.6)
+Requirement already satisfied: iniconfig>=2 in E:\aitest-validation\packaging\.venv\Lib\site-packages (from pytest) (2.3.1)
+Requirement already satisfied: packaging>=24 in E:\aitest-validation\packaging\.venv\Lib\site-packages (from pytest) (26.3)
+Requirement already satisfied: pluggy<2,>=1.6 in E:\aitest-validation\packaging\.venv\Lib\site-packages (from pytest) (1.7.0)
+Requirement already satisfied: pygments>=2.15 in E:\aitest-validation\packaging\.venv\Lib\site-packages (from pytest) (2.21.0)

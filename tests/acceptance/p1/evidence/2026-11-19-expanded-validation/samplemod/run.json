@@ -1,0 +1,89 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_d927ad787112-0.log"
+          ],
+          "finished_at": "2026-11-19T18:16:10+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T18:16:10+08:00"
+        }
+      ],
+      "case_id": "case_d927ad787112",
+      "evidence_refs": [
+        "evidence/case_d927ad787112-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "78bb13eebe6989eeab0faa57258678b0a431ba7b453197aefe73de6f1a521fc1",
+  "confirmation_id": "conf_55f5bf108e59",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T18:16:10+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_9eac822a937f_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/case_d927ad787112-0.log"
+  ],
+  "heartbeat_at": "2026-11-19T18:16:10+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_45e32a257baf",
+  "media_bytes": 9,
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "tests/context.py",
+        "tests/test_advanced.py",
+        "tests/test_basic.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "context",
+      "read_files": [
+        "Makefile",
+        "docs/Makefile",
+        "docs/conf.py",
+        "docs/make.bat",
+        "requirements.txt",
+        "sample/__init__.py",
+        "sample/core.py",
+        "sample/helpers.py",
+        "setup.py",
+        "tests/__init__.py",
+        "tests/context.py",
+        "tests/test_advanced.py",
+        "tests/test_basic.py"
+      ],
+      "reason": "tests/context.py 是仓库内真实存在的本地测试辅助模块，通过 sys.path 插入项目根目录后导入 sample 包；tests/test_advanced.py 与 tests/test_basic.py 均以 `from .context import sample` 真实导入它，无任何 mock 或替换逻辑。"
+    }
+  ],
+  "pid": 47592,
+  "pid_created_at": 1795083370.2351315,
+  "plan_id": "plan_51c863cb3370",
+  "project_id": "proj_bab10574af11",
+  "request_ids": [],
+  "run_id": "run_9eac822a937f",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_ddda1123e311"
+    ],
+    "frozen_at": "2026-11-19T18:16:10+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T18:16:10+08:00",
+  "status": "completed"
+}

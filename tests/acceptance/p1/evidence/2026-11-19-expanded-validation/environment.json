@@ -1,0 +1,28 @@
+{
+  "python": "3.11.9",
+  "pytest": "pytest 9.0.3",
+  "projects": {
+    "samplemod": {
+      "repo": "https://github.com/kennethreitz/samplemod",
+      "layout": "root",
+      "commit": "d469f2f5e0a472be2c7d95ff90ed46e975810dc8",
+      "baseline": "2 passed"
+    },
+    "faildemo": {
+      "layout": "root-local",
+      "baseline": "1 failed"
+    },
+    "missingdep": {
+      "layout": "root-local",
+      "baseline": "dependency missing"
+    },
+    "packaging": {
+      "repo": "https://github.com/pypa/packaging",
+      "layout": "src",
+      "commit": "f91ea7931fa551eb498ca2cdf5644dbbf20bcbc6",
+      "baseline": "64636 passed, 4 skipped"
+    }
+  },
+  "trae": "Trae CN 3.4.22",
+  "model": "DeepSeek real API (key stored only in user config)"
+}

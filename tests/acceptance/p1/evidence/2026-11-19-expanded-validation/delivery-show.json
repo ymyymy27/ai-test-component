@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "request_id": "ev",
+  "data": {
+    "delivery": {
+      "schema_version": 1,
+      "delivery_id": "dlv_d88153ccf1de",
+      "task_id": "task_7ca08f45c8b2",
+      "done": [
+        "基础导入验证"
+      ],
+      "not_done": [
+        "未覆盖性能"
+      ],
+      "changed_modules": [],
+      "interface_changes": [],
+      "run_commands": [
+        "python -c \"import sample\""
+      ],
+      "test_data": "",
+      "dependencies": [],
+      "mocks": [],
+      "self_test_evidence": [],
+      "commit": "abc123",
+      "complete": true,
+      "revision": 1
+    }
+  }
+}

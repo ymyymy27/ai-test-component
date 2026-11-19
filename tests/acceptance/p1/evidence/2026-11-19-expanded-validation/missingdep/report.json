@@ -1,0 +1,132 @@
+{
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "依赖 definitely-missing-aitest-pkg==9.9.9 在配置的包源中不存在或版本不可用，导致安装失败",
+          "confidence": "high"
+        },
+        {
+          "cause": "包源/网络或私有仓库认证配置问题，导致无法拉取该依赖",
+          "confidence": "medium"
+        },
+        {
+          "cause": "依赖声明本身为占位/错误包名（名称含 missing 字样），属于测试配置错误",
+          "confidence": "medium"
+        }
+      ],
+      "evidence_refs": [
+        "evidence/deps-install.log"
+      ],
+      "generated_at": "2026-11-19T18:16:27+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "读取 evidence/deps-install.log，提取具体错误信息与退出码",
+        "确认依赖 definitely-missing-aitest-pkg==9.9.9 是否为有效包名，若为占位则修正依赖清单",
+        "检查包源配置与网络连通性，重试依赖安装",
+        "依赖安装成功后重新执行用例 case_d941d34150c4"
+      ],
+      "observed": "运行 run_688e703f99f1 状态为 completed，但唯一用例 case_d941d34150c4 结果为 blocked，尝试 1 次即 blocked，消息为“依赖安装失败”；dependency_install_ok 为 false，依赖列表包含 definitely-missing-aitest-pkg==9.9.9；service_started 为 false，media_bytes 为 0，无请求记录；证据引用为 evidence/deps-install.log，但 evidence 数组为空，未提供日志内容。",
+      "reason": "",
+      "status": "generated",
+      "unverified": [
+        "evidence/deps-install.log 的实际内容未提供，无法确认失败的具体错误码与阶段（解析、下载还是构建）",
+        "未验证运行环境是否配置了可用的包索引或私有源",
+        "未验证该依赖是否为有意注入的负向测试用例"
+      ]
+    }
+  ],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_1e8273bf18f6",
+      "acceptance_item_ids": [
+        "ai_1e8273bf18f6"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "依赖安装失败",
+          "result": "blocked"
+        }
+      ],
+      "case_id": "case_d941d34150c4",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "app 可以导入并返回 ok",
+      "layer": "L1",
+      "result": "blocked",
+      "title": "missingdep 检查",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本次运行未完成：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 1。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 1,
+    "passed": 0,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 265,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/deps-install.log",
+      "sha256": "d4f727d901f68669d38b3969fc038c282bb787479ecaf71469ecdbe6e888821d"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/deps-install.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T18:16:29+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_d941d34150c4"
+      ],
+      "item_id": "ai_1e8273bf18f6",
+      "module_id": null,
+      "result": "blocked",
+      "selected": true,
+      "text": "app 可以导入并返回 ok"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "incomplete",
+  "real_chain": false,
+  "report_id": "rep_2aba97145393",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_688e703f99f1",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "测试结果状态为 incomplete。覆盖情况：selected 1，applicable 1，covered 1，passed 0，failed 0，incomplete 1。uncovered_items 为空，failed_cases 为 0。",
+  "summary_source": "ai",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

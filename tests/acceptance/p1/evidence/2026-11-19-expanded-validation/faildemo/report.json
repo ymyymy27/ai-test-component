@@ -1,0 +1,146 @@
+{
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "add 函数实现错误（例如误用减法或符号处理错误），导致 add(2, 3) 返回 -1",
+          "confidence": "high"
+        },
+        {
+          "cause": "被测代码版本与测试期望不一致（代码未更新或加载了错误的模块）",
+          "confidence": "low"
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_00c712eae1f4-0.log"
+      ],
+      "generated_at": "2026-11-19T18:16:18+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "查看 calculator 模块中 add 的实现并修正逻辑",
+        "在本地复现 add(2, 3) 并确认返回 5",
+        "重新运行该测试用例验证修复"
+      ],
+      "observed": "测试用例 case_00c712eae1f4 在首次尝试即失败；tests/test_calculator.py::test_add 断言 add(2, 3) == 5 失败，实际返回 -1；运行状态为 completed，但该 case 结果为 failed。",
+      "reason": "",
+      "status": "generated",
+      "unverified": [
+        "add 函数的具体实现代码未在证据中提供，无法确认错误来源",
+        "未验证是否存在多个 add 定义或导入路径冲突",
+        "未验证测试环境与依赖是否影响结果"
+      ]
+    }
+  ],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_c173f2a0ac0b",
+      "acceptance_item_ids": [
+        "ai_c173f2a0ac0b"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_00c712eae1f4-0.log"
+          ],
+          "message": "",
+          "result": "failed"
+        }
+      ],
+      "case_id": "case_00c712eae1f4",
+      "evidence_refs": [
+        "evidence/case_00c712eae1f4-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "add(2, 3) 返回 5，全部测试通过",
+      "layer": "L1",
+      "result": "failed",
+      "title": "faildemo 检查",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围存在失败：已选 1/1，未覆盖 0，失败 1，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 1,
+    "incomplete": 0,
+    "passed": 0,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 561,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_00c712eae1f4-0.log",
+      "sha256": "6975fb76c2bf11359692a3b3a4918db11ec04d3885389281342af485d3b4e98b"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_00c712eae1f4-0.log"
+  ],
+  "failure_occurrences": 1,
+  "generated_at": "2026-11-19T18:16:20+08:00",
+  "github": null,
+  "issue_count": 1,
+  "issues": [
+    {
+      "actual": "test_add 断言失败：add(2, 3) 返回 -1，assert -1 == 5，1 failed",
+      "disposition": null,
+      "expected": "add(2, 3) 返回 5，全部测试通过",
+      "issue_id": "issue_c9de661d7102",
+      "occurrences": 1,
+      "reason": "",
+      "run_occurrences": 1,
+      "severity": "P2",
+      "status": "pending",
+      "steps": [],
+      "title": "faildemo 检查",
+      "unstable": false
+    }
+  ],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_00c712eae1f4"
+      ],
+      "item_id": "ai_c173f2a0ac0b",
+      "module_id": null,
+      "result": "failed",
+      "selected": true,
+      "text": "add(2, 3) 返回 5，全部测试通过"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "failed",
+  "real_chain": false,
+  "report_id": "rep_43ec3ff64667",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_c2278711973e",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 0，失败 1，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

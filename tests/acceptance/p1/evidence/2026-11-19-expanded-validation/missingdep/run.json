@@ -1,0 +1,96 @@
+{
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "依赖 definitely-missing-aitest-pkg==9.9.9 在配置的包源中不存在或版本不可用，导致安装失败",
+          "confidence": "high"
+        },
+        {
+          "cause": "包源/网络或私有仓库认证配置问题，导致无法拉取该依赖",
+          "confidence": "medium"
+        },
+        {
+          "cause": "依赖声明本身为占位/错误包名（名称含 missing 字样），属于测试配置错误",
+          "confidence": "medium"
+        }
+      ],
+      "evidence_refs": [
+        "evidence/deps-install.log"
+      ],
+      "generated_at": "2026-11-19T18:16:27+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "读取 evidence/deps-install.log，提取具体错误信息与退出码",
+        "确认依赖 definitely-missing-aitest-pkg==9.9.9 是否为有效包名，若为占位则修正依赖清单",
+        "检查包源配置与网络连通性，重试依赖安装",
+        "依赖安装成功后重新执行用例 case_d941d34150c4"
+      ],
+      "observed": "运行 run_688e703f99f1 状态为 completed，但唯一用例 case_d941d34150c4 结果为 blocked，尝试 1 次即 blocked，消息为“依赖安装失败”；dependency_install_ok 为 false，依赖列表包含 definitely-missing-aitest-pkg==9.9.9；service_started 为 false，media_bytes 为 0，无请求记录；证据引用为 evidence/deps-install.log，但 evidence 数组为空，未提供日志内容。",
+      "reason": "",
+      "status": "generated",
+      "unverified": [
+        "evidence/deps-install.log 的实际内容未提供，无法确认失败的具体错误码与阶段（解析、下载还是构建）",
+        "未验证运行环境是否配置了可用的包索引或私有源",
+        "未验证该依赖是否为有意注入的负向测试用例"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "",
+          "message": "依赖安装失败",
+          "result": "blocked",
+          "started_at": ""
+        }
+      ],
+      "case_id": "case_d941d34150c4",
+      "evidence_refs": [],
+      "result": "blocked"
+    }
+  ],
+  "confirmation_fingerprint": "81ccb5f6508f0150cb28c29f7aceb2cd3844c88f9b1775be2f8f7a7b2ee3d557",
+  "confirmation_id": "conf_457c0b38cdee",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T18:16:22+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_688e703f99f1_",
+  "dependencies": [
+    "definitely-missing-aitest-pkg==9.9.9"
+  ],
+  "dependency_install_ok": false,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/deps-install.log"
+  ],
+  "heartbeat_at": "2026-11-19T18:16:24+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_2aba97145393",
+  "media_bytes": 0,
+  "mock_judgement": [],
+  "pid": 44492,
+  "pid_created_at": 1795083382.9926713,
+  "plan_id": "plan_6a96050267c7",
+  "project_id": "proj_b16eee909597",
+  "request_ids": [],
+  "run_id": "run_688e703f99f1",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_1e8273bf18f6"
+    ],
+    "frozen_at": "2026-11-19T18:16:22+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T18:16:22+08:00",
+  "status": "completed"
+}

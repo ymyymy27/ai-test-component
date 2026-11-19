@@ -1,0 +1,112 @@
+{
+  "ok": true,
+  "request_id": "ev",
+  "data": {
+    "candidates": [
+      {
+        "title": "版本解析与比较（PEP 440）",
+        "reason": "README 明确将版本处理列为核心功能，历史任务已涉及 Version 解析与比较，是库中最基础且被广泛依赖的行为，回归风险高。",
+        "scope_preview": {
+          "business_functions": [
+            "Version 字符串解析",
+            "版本比较与排序",
+            "预发布/开发版本/本地版本标识处理",
+            "版本规范化与字符串输出"
+          ],
+          "acceptance_items_estimate": 4
+        },
+        "uncertainties": [
+          "历史任务仅标注（1），不清楚已覆盖的边界用例范围",
+          "是否包含 epoch、post、dev 组合的极端用例",
+          "对非法版本字符串的异常类型与消息是否有明确约定"
+        ],
+        "intent": "business",
+        "source": "ai"
+      },
+      {
+        "title": "Specifier 与 SpecifierSet 匹配",
+        "reason": "README 将 specifiers 列为独立功能，且与版本处理强耦合，是依赖解析与安装判定的关键路径。",
+        "scope_preview": {
+          "business_functions": [
+            "单个 specifier 解析与匹配",
+            "SpecifierSet 组合匹配",
+            "预发布版本包含规则",
+            "任意版本通配符与排除"
+          ],
+          "acceptance_items_estimate": 4
+        },
+        "uncertainties": [
+          "预发布版本在 SpecifierSet 中的默认包含/排除策略是否需重点验证",
+          "与 Version 比较语义的一致性边界",
+          "空 SpecifierSet 与非法操作符的错误处理"
+        ],
+        "intent": "business",
+        "source": "ai"
+      },
+      {
+        "title": "Markers 环境标记解析与求值",
+        "reason": "README 将 markers 列为独立功能，涉及环境变量求值与布尔表达式，逻辑复杂且易受运行环境影响。",
+        "scope_preview": {
+          "business_functions": [
+            "marker 表达式解析",
+            "基于环境字典的求值",
+            "and/or/括号组合逻辑",
+            "extra 与未知变量处理"
+          ],
+          "acceptance_items_estimate": 3
+        },
+        "uncertainties": [
+          "求值时环境来源（默认环境 vs 显式传入）的约定",
+          "未知 marker 变量应报错还是视为空",
+          "字符串比较与版本比较在 marker 中的区分规则"
+        ],
+        "intent": "business",
+        "source": "ai"
+      },
+      {
+        "title": "Requirements 解析",
+        "reason": "README 将 requirements 列为独立功能，依赖 markers、specifiers 与直接 URL 辅助，是组合型高风险模块。",
+        "scope_preview": {
+          "business_functions": [
+            "需求字符串解析",
+            "名称/扩展/说明符/标记拆分",
+            "直接 URL 需求解析",
+            "非法需求字符串错误处理"
+          ],
+          "acceptance_items_estimate": 3
+        },
+        "uncertainties": [
+          "是否覆盖带 extras 与 URL 组合的复杂需求",
+          "对 PEP 508 边界语法的容错程度",
+          "错误消息与异常类型是否有稳定契约"
+        ],
+        "intent": "business",
+        "source": "ai"
+      },
+      {
+        "title": "Tags 与 Metadata 处理",
+        "reason": "README 将 tags 与 metadata 列为独立功能，tags 涉及平台/解释器组合生成，metadata 涉及字段校验，二者均为下游工具依赖。",
+        "scope_preview": {
+          "business_functions": [
+            "兼容标签生成与排序",
+            "标签解析",
+            "metadata 字段解析与校验",
+            "metadata 版本兼容处理"
+          ],
+          "acceptance_items_estimate": 3
+        },
+        "uncertainties": [
+          "目标平台与解释器矩阵的覆盖范围",
+          "metadata 校验的严格程度与已知宽松点",
+          "是否需覆盖多 Python 版本（3.10–3.15）差异"
+        ],
+        "intent": "business",
+        "source": "ai"
+      }
+    ],
+    "fallback": "验证项目能否启动并跑通主流程",
+    "intent": "smoke",
+    "fallback_intent": "smoke",
+    "ai_generated": true
+  }
+}

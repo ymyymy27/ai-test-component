@@ -1,0 +1,91 @@
+{
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "运行被外部主动取消（用户或 CLI 中断），导致执行中的命令被终止并标记为 blocked",
+          "confidence": "high"
+        },
+        {
+          "cause": "命令在启动瞬间即被取消，可能因前置条件未满足或环境未就绪而快速失败",
+          "confidence": "low"
+        },
+        {
+          "cause": "用例执行依赖的服务未启动，命令无法运行",
+          "confidence": "unknown"
+        }
+      ],
+      "evidence_refs": [],
+      "generated_at": "2026-11-19T18:17:49+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "查阅运行日志与 CLI 操作记录，确认取消来源与时间点",
+        "检查 case_83c439de27e3 对应的命令定义与执行阶段",
+        "确认服务启动与依赖安装是否为本用例的前置条件",
+        "在环境就绪后重新触发运行并采集 evidence_refs"
+      ],
+      "observed": "运行 run_b810bd3356a5 状态为 cancelled；唯一用例 case_83c439de27e3 第 1 次尝试结果为 blocked，消息为 command cancelled，开始与结束时间同为 2026-11-19T18:17:46+08:00；evidence_refs 为空；服务未启动（service_started=false）；无依赖安装记录（dependency_install_ok=null）；运行在确认后约 3 秒被取消。",
+      "reason": "",
+      "status": "generated",
+      "unverified": [
+        "取消操作的具体来源（用户手动中断、超时机制还是上游调度取消）尚未确认",
+        "被取消的具体命令内容及其执行阶段未知",
+        "是否存在环境或依赖缺失导致命令无法启动",
+        "blocked 结果是否仅为取消的副作用而非真实失败"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T18:17:46+08:00",
+          "message": "command cancelled",
+          "result": "blocked",
+          "started_at": "2026-11-19T18:17:46+08:00"
+        }
+      ],
+      "case_id": "case_83c439de27e3",
+      "evidence_refs": [],
+      "result": "blocked"
+    }
+  ],
+  "confirmation_fingerprint": "96dd901d953a9fe88b0302b2ef26fd526041c31e0fed291b5873e26c9df3cc21",
+  "confirmation_id": "conf_4ee0bb4698a1",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T18:17:43+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_b810bd3356a5_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [],
+  "heartbeat_at": "2026-11-19T18:17:46+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_cc211092b434",
+  "media_bytes": 0,
+  "mock_judgement": [],
+  "pid": 43896,
+  "pid_created_at": 1795083463.779625,
+  "plan_id": "plan_0577d5c8f079",
+  "project_id": "proj_78f5da45a179",
+  "request_ids": [],
+  "run_id": "run_b810bd3356a5",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_1a37759a3334"
+    ],
+    "frozen_at": "2026-11-19T18:17:43+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T18:17:43+08:00",
+  "status": "cancelled"
+}

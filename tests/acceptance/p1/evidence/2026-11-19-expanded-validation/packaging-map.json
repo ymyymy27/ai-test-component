@@ -1,0 +1,224 @@
+{
+  "ok": true,
+  "request_id": "ev",
+  "data": {
+    "map": {
+      "business_functions": [
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "version"
+          ],
+          "name": "版本处理",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "版本解析与比较（PEP 440）"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst",
+            "tests/property/test_specifier_fast_match.py"
+          ],
+          "modules": [
+            "specifiers"
+          ],
+          "name": "版本约束符",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "约束符匹配逻辑"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "markers"
+          ],
+          "name": "环境标记",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "标记表达式解析与求值"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "licenses"
+          ],
+          "name": "许可证处理",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "许可证表达式解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "requirements"
+          ],
+          "name": "依赖需求",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "需求字符串解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "metadata"
+          ],
+          "name": "元数据处理",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "包元数据解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "tags"
+          ],
+          "name": "标签",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "平台兼容标签生成（PEP 425）"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "lockfiles"
+          ],
+          "name": "锁文件",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "pylock 锁文件解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "direct_url"
+          ],
+          "name": "直接 URL 辅助",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "直接 URL 解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "dependency_groups"
+          ],
+          "name": "依赖组",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "依赖组解析"
+          ]
+        },
+        {
+          "confidence": "medium",
+          "entry_points": [],
+          "evidence": [
+            "README.rst"
+          ],
+          "modules": [
+            "utils"
+          ],
+          "name": "工具函数",
+          "test_commands": [
+            "python -m pytest"
+          ],
+          "testable_items": [
+            "通用工具函数"
+          ]
+        }
+      ],
+      "config_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "generated_at": "2026-11-19T18:18:59+08:00",
+      "model": "deepseek-chat",
+      "project_id": "proj_72f174c5b334",
+      "project_revision": 1,
+      "schema_version": 1,
+      "source_commit": "f91ea7931fa551eb498ca2cdf5644dbbf20bcbc6",
+      "unknowns": [
+        {
+          "area": "各业务功能对应的具体模块文件路径",
+          "reason": "项目事实未登记模块，README 仅列出功能名称，未给出源码路径"
+        },
+        {
+          "area": "各业务功能的独立入口点",
+          "reason": "项目为库，未提供 CLI 或服务入口，结构化事实中 services 为空"
+        },
+        {
+          "area": "冒烟测试命令",
+          "reason": "结构化事实中 smoke_command 为空"
+        },
+        {
+          "area": "各业务功能的针对性测试命令",
+          "reason": "仅提供全局测试命令 python -m pytest，未给出按功能划分的测试命令"
+        }
+      ]
+    },
+    "stale": false
+  }
+}

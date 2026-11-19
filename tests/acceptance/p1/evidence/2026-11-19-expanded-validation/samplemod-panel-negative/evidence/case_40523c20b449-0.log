@@ -1,0 +1,4 @@
+tests/test_advanced.py::AdvancedTestSuite::test_thoughts
+tests/test_basic.py::BasicTestSuite::test_absolute_truth_and_meaning
+
+2 tests collected in 0.01s

@@ -1,0 +1,127 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_ddda1123e311",
+      "acceptance_item_ids": [
+        "ai_ddda1123e311"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_d927ad787112-0.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_d927ad787112",
+      "evidence_refs": [
+        "evidence/case_d927ad787112-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "sample.core.get_hmm 返回 hmmm...，sample.hmm() 返回 None",
+      "layer": "L1",
+      "result": "passed",
+      "title": "samplemod 检查",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 9,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_d927ad787112-0.log",
+      "sha256": "4e2a2ac24e71f5a626d67e1419e7490e48746f206f5c1def4b63611dbcded74e"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_d927ad787112-0.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T18:16:12+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_d927ad787112"
+      ],
+      "item_id": "ai_ddda1123e311",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "sample.core.get_hmm 返回 hmmm...，sample.hmm() 返回 None"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "tests/context.py",
+        "tests/test_advanced.py",
+        "tests/test_basic.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "context",
+      "read_files": [
+        "Makefile",
+        "docs/Makefile",
+        "docs/conf.py",
+        "docs/make.bat",
+        "requirements.txt",
+        "sample/__init__.py",
+        "sample/core.py",
+        "sample/helpers.py",
+        "setup.py",
+        "tests/__init__.py",
+        "tests/context.py",
+        "tests/test_advanced.py",
+        "tests/test_basic.py"
+      ],
+      "reason": "tests/context.py 是仓库内真实存在的本地测试辅助模块，通过 sys.path 插入项目根目录后导入 sample 包；tests/test_advanced.py 与 tests/test_basic.py 均以 `from .context import sample` 真实导入它，无任何 mock 或替换逻辑。"
+    }
+  ],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": true,
+  "report_id": "rep_45e32a257baf",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_9eac822a937f",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 1，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

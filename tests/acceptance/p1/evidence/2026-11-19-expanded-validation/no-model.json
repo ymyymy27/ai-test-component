@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "request_id": "ev",
+  "error": {
+    "code": "MODEL_UNAVAILABLE",
+    "message": "未配置模型，无法生成计划",
+    "next_step": "配置模型密钥，或在 payload 提供 cases"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "root_layout_samplemod": {
+    "project_id": "proj_bab10574af11",
+    "task_id": "task_7ca08f45c8b2",
+    "plan_id": "plan_51c863cb3370",
+    "run_id": "run_9eac822a937f",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "report_id": "rep_45e32a257baf"
+  },
+  "failing_project": {
+    "project_id": "proj_4ea561d8b454",
+    "task_id": "task_431c8b2a775c",
+    "plan_id": "plan_49915cf9fc49",
+    "run_id": "run_c2278711973e",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 0,
+      "failed": 1,
+      "incomplete": 0
+    },
+    "report_id": "rep_43ec3ff64667"
+  },
+  "missing_dependency": {
+    "project_id": "proj_b16eee909597",
+    "task_id": "task_0dd62b701ea7",
+    "plan_id": "plan_6a96050267c7",
+    "run_id": "run_688e703f99f1",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 0,
+      "failed": 0,
+      "incomplete": 1
+    },
+    "report_id": "rep_2aba97145393"
+  },
+  "backup_restore": {
+    "create_ok": true,
+    "restore_ok": true,
+    "restore_error": null,
+    "workspace_json": true,
+    "project_files": 3
+  },
+  "node_project_jsdemo": {
+    "project_id": "proj_a4e492cc7e69",
+    "task_id": "",
+    "plan_id": "",
+    "run_id": "run_120503066b45",
+    "status": "completed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "report_id": "rep_e6603dd7498c"
+  },
+  "cancel_slowdemo": {
+    "project_id": "proj_78f5da45a179",
+    "run_id": "run_b810bd3356a5",
+    "status": "cancelled",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 0,
+      "failed": 0,
+      "incomplete": 1
+    }
+  },
+  "no_model": {
+    "error": "MODEL_UNAVAILABLE"
+  },
+  "link_import_assert": {
+    "nodes": 2,
+    "assert": "passed"
+  },
+  "packaging": {
+    "project_id": "proj_72f174c5b334",
+    "run_id": "run_5e6c91bf2729",
+    "report_id": "rep_79f8b34ee190",
+    "counts": {
+      "selected": 2,
+      "applicable": 2,
+      "covered": 2,
+      "passed": 2,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "baseline": "64636 passed, 4 skipped"
+  }
+}
