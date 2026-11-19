@@ -368,8 +368,10 @@
   }
 
   function modal(title, body, footer = "") {
-    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-action="modal-close"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title">${title}</h2><button class="modal-close" data-action="modal-close" aria-label="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-foot">${footer}</div>` : ""}</section></div>`;
-    $(".modal").addEventListener("click", (event) => event.stopPropagation());
+    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title">${title}</h2><button class="modal-close" data-action="modal-close" aria-label="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-foot">${footer}</div>` : ""}</section></div>`;
+    $(".modal-backdrop").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) closeModal();
+    });
   }
 
   function reportModal() {
