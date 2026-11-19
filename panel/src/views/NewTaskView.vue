@@ -145,9 +145,7 @@ async function createFromCandidateAndPlan(): Promise<void> {
       <span class="spinner" aria-hidden="true"></span>
       <span class="candidate-brief-main">
         <span class="analysis-strip-title">AI 分析中</span>
-        <span class="analysis-strip-text">
-          正在整理模块、业务功能与目标候选。分析完成后才能创建带验收项的任务；快速检查不受影响。
-        </span>
+        <span class="analysis-strip-text">正在整理模块、功能与目标候选。</span>
       </span>
     </div>
     <div v-else-if="project.analysisStatus === 'failed'" class="notice is-warn" role="alert">

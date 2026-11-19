@@ -18,7 +18,7 @@ const emit = defineEmits<{
   <section class="candidate-section" aria-labelledby="candidate-title">
     <div class="section-head">
       <span id="candidate-title" class="section-title">或者从目标候选开始</span>
-      <span class="section-note">依据本地分析；不声称来自真实提交或问题</span>
+      <span class="section-note">基于当前项目分析</span>
     </div>
     <div
       v-if="candidates.length"
@@ -47,7 +47,7 @@ const emit = defineEmits<{
     </div>
     <p v-else class="doc-note">还没有生成候选；可以直接在上方写一句目标。</p>
     <div class="candidate-foot">
-      <p class="field-hint">候选只提供建议；确认后会创建任务与验收项。首个任务同时写入项目目标。</p>
+      <p class="field-hint">确认后创建任务与验收项。</p>
       <div class="form-actions">
         <button
           class="btn"

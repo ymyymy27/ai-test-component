@@ -29,9 +29,9 @@ const guidance = computed(() => {
     return "先处理失败项；修复后可只重跑未通过项，或调整范围后重新生成计划。";
   }
   if (props.run.verdict === "passed") {
-    return "本次范围通过。可以查看报告、导出，或再次运行确认稳定性。";
+    return "";
   }
-  return "还有未完成项。建议补齐检查条件后重跑，报告会保留这次的分母。";
+  return "补齐检查条件后重跑；报告会保留这次的分母。";
 });
 </script>
 
@@ -70,7 +70,7 @@ const guidance = computed(() => {
     @select="emit('select', $event)"
   />
   <p class="guidance">{{ conclusion }}</p>
-  <p class="guidance muted">{{ guidance }}</p>
+  <p v-if="guidance" class="guidance muted">{{ guidance }}</p>
   <div v-if="run.status === 'cancelled'" class="notice is-old">
     <span>这次运行已取消，已完成的结果仍然有效；停止时正在执行的检查按阻塞记录。</span>
   </div>

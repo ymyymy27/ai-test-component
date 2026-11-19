@@ -52,6 +52,6 @@ describe("GoalComposer", () => {
     });
     const primary = wrapper.get("button.btn-primary");
     expect(primary.attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("分析完成后才能创建");
+    expect(wrapper.text()).toContain("分析完成后可创建带验收项的任务");
   });
 });

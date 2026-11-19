@@ -199,6 +199,10 @@ export class HostRepository implements ProjectRepository {
     return project;
   }
 
+  async pickDirectory(): Promise<string | null> {
+    return this.client.pickDirectory();
+  }
+
   async createProject(input: CreateProjectInput): Promise<Project> {
     const created = await this.client.addProject(input.root, input.name);
     this.sidecar.setAnalysis(created.project_id, {

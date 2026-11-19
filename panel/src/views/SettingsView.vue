@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, nextTick, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
@@ -145,12 +145,14 @@ function setSectionRef(id: string, element: Element | ComponentPublicInstance | 
 
 function jump(id: string): void {
   activeSection.value = id;
-  const element = sectionRefs.get(id);
-  if (!element) {
-    return;
-  }
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  void nextTick(() => {
+    const element = sectionRefs.get(id);
+    if (!element) {
+      return;
+    }
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  });
 }
 
 async function saveProfile(): Promise<void> {
@@ -409,9 +411,9 @@ async function clearData(): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="设置"
+      kicker="项目"
       title="设置"
-      :subtitle="`${project.name} · 环境、规则、配置与本机工作空间`"
+      :subtitle="`${project.name} · 环境、规则与运行配置`"
     >
       <template #actions>
         <button
@@ -429,6 +431,7 @@ async function clearData(): Promise<void> {
       <div class="settings-content">
         <section
           :ref="(el) => setSectionRef('settings-profile', el)"
+          v-show="activeSection === 'settings-profile'"
           class="settings-section"
           id="settings-profile"
         >
@@ -436,7 +439,7 @@ async function clearData(): Promise<void> {
             <div>
               <h2 class="settings-title">项目资料</h2>
               <p class="settings-desc">
-                只改显示名称与项目目标；目录是登记时确定的，不在这里改写。
+                名称与目标可改；目录登记后固定。
               </p>
             </div>
           </div>
@@ -485,6 +488,7 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-config', el)"
+          v-show="activeSection === 'settings-config'"
           class="settings-section"
           id="settings-config"
         >
@@ -492,7 +496,7 @@ async function clearData(): Promise<void> {
             <div>
               <h2 class="settings-title">运行配置</h2>
               <p class="settings-desc">
-                保存服务、项目级检查、运行器、证据、链路与数据边界配置；拒绝凭据字段。
+                服务、项目级检查、运行器、证据与链路；不接受凭据字段。
               </p>
             </div>
           </div>
@@ -609,13 +613,14 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-environment', el)"
+          v-show="activeSection === 'settings-environment'"
           class="settings-section"
           id="settings-environment"
         >
           <div class="settings-head">
             <div>
               <h2 class="settings-title">环境自检</h2>
-              <p class="settings-desc">缺失项不扩散到全部能力；本地记录、证据与报告仍可用。</p>
+              <p class="settings-desc">缺失只影响对应能力，本地记录与报告仍可用。</p>
             </div>
             <button class="btn btn-sm" type="button" @click="workspace.refreshEnvironment()">
               重新检查
@@ -642,6 +647,7 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-rules', el)"
+          v-show="activeSection === 'settings-rules'"
           class="settings-section"
           id="settings-rules"
         >
@@ -649,7 +655,7 @@ async function clearData(): Promise<void> {
             <div>
               <h2 class="settings-title">项目规则</h2>
               <p class="settings-desc">
-                规则有版本；新计划引用当前绑定版本，旧运行保留自己的规则版本。
+                新计划用绑定版本；旧运行保留旧版本。
               </p>
             </div>
             <button class="btn btn-sm" type="button" @click="openRuleImport">导入规则文件</button>
@@ -745,13 +751,14 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-github', el)"
+          v-show="activeSection === 'settings-github'"
           class="settings-section"
           id="settings-github"
         >
           <div class="settings-head">
             <div>
               <h2 class="settings-title">GitHub 变更</h2>
-              <p class="settings-desc">只读提交与检查；读取失败时不会用缓存冒充最新。</p>
+              <p class="settings-desc">只读提交与检查；缓存不冒充最新。</p>
             </div>
           </div>
           <div v-if="project.github" class="surface-strip">
@@ -879,13 +886,14 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-boundary', el)"
+          v-show="activeSection === 'settings-boundary'"
           class="settings-section"
           id="settings-boundary"
         >
           <div class="settings-head">
             <div>
               <h2 class="settings-title">数据边界</h2>
-              <p class="settings-desc">这些是本机数据的边界规则，不会改动被测仓库。</p>
+              <p class="settings-desc">约束本机数据，不改被测仓库。</p>
             </div>
           </div>
           <div class="boundary-list">
@@ -914,13 +922,14 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-appearance', el)"
+          v-show="activeSection === 'settings-appearance'"
           class="settings-section"
           id="settings-appearance"
         >
           <div class="settings-head">
             <div>
               <h2 class="settings-title">外观</h2>
-              <p class="settings-desc">明暗两套主题共用同一结构；默认跟随系统。</p>
+              <p class="settings-desc">明暗共用同一结构，默认跟随系统。</p>
             </div>
           </div>
           <div class="theme-group" role="group" aria-label="外观主题">
@@ -956,6 +965,7 @@ async function clearData(): Promise<void> {
 
         <section
           :ref="(el) => setSectionRef('settings-backup', el)"
+          v-show="activeSection === 'settings-backup'"
           class="settings-section"
           id="settings-backup"
         >

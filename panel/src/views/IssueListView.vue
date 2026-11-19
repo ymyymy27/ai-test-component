@@ -90,8 +90,8 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="问题"
-      title="问题"
+      kicker="项目"
+      title="问题清单"
       :subtitle="`${project.name} · ${counts.all ?? 0} 个问题 · 关闭必须绑定新运行`"
     >
       <template #actions>

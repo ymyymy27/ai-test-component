@@ -154,6 +154,8 @@ export interface ProjectRepository {
   listProjects(): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
   createProject(input: CreateProjectInput): Promise<Project>;
+  /** 宿主支持时弹出原生目录选择器；浏览器模式返回 null。 */
+  pickDirectory?(): Promise<string | null>;
   updateProject(
     projectId: string,
     patch: Partial<Pick<Project, "name" | "goal" | "archived">>,

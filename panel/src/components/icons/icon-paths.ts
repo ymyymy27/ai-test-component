@@ -21,7 +21,8 @@ export type IconName =
   | "lock"
   | "copy"
   | "shield"
-  | "history";
+  | "history"
+  | "more";
 
 export const ICONS: Record<IconName, string[]> = {
   menu: ["M3 4.5h10M3 8h10M3 11.5h10"],
@@ -50,5 +51,6 @@ export const ICONS: Record<IconName, string[]> = {
   lock: ["M4.5 7.5h7v5h-7z", "M6 7.5V5.5a2 2 0 014 0v2"],
   copy: ["M5.5 5.5h7v7h-7z", "M3.5 10.5v-7h7"],
   shield: ["M8 2.5l4.5 2v4c0 2.5-2 4-4.5 5-2.5-1-4.5-2.5-4.5-5v-4z"],
+  more: ["M3.5 8h.01M8 8h.01M12.5 8h.01"],
   history: ["M8 2.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11z", "M8 5v3.3l2 1.2", "M2.5 5.5H5V3"],
 };

@@ -24,6 +24,7 @@ export interface HostBridge {
   setState(state: unknown): void;
   getContext?(): unknown;
   openPath?(path: string): Promise<HostCallResult<boolean>>;
+  pickDirectory?(): Promise<HostCallResult<string>>;
 }
 
 export interface HostContext {
@@ -96,6 +97,19 @@ export function readHostContext(): HostContext | null {
   } catch {
     return null;
   }
+}
+
+/** 让宿主弹出目录选择器；取消时返回 null。 */
+export async function pickHostDirectory(): Promise<string | null> {
+  const host = hostBridge();
+  if (host === null || typeof host.pickDirectory !== "function") {
+    return null;
+  }
+  const result = await host.pickDirectory();
+  if (!result.ok) {
+    throw new HostError(result.error);
+  }
+  return result.data.trim() || null;
 }
 
 /** 让宿主用系统程序打开一个已保存的证据文件。 */

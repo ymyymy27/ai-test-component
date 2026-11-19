@@ -337,6 +337,14 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
+  async function pickDirectory(): Promise<string | null> {
+    const pick = repo().pickDirectory;
+    if (!pick) {
+      return null;
+    }
+    return pick.call(repo());
+  }
+
   async function createTask(projectId: string, input: CreateTaskInput): Promise<Task> {
     return withBusy(`create-task:${projectId}`, async () => {
       const task = await repo().createTask(projectId, input);
@@ -1009,6 +1017,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     updateProject,
     setFeatureIgnored,
     ensureDraft,
+    pickDirectory,
     createTask,
     updateTask,
     selectScope,

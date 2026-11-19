@@ -79,8 +79,7 @@ function onKeydown(event: KeyboardEvent): void {
         @keydown="onKeydown"
       />
       <span id="goal-hint" class="field-hint">
-        直接输入目标会按目标创建任务；也可以先让面板分析项目，再从候选开始。Ctrl / Cmd + Enter
-        开始。
+        输入目标后创建任务。Ctrl / Cmd + Enter 开始。
       </span>
       <span v-if="error" id="goal-error" class="field-error" role="alert">{{ error }}</span>
     </label>
@@ -107,8 +106,6 @@ function onKeydown(event: KeyboardEvent): void {
         快速检查 L1
       </button>
     </div>
-    <p v-if="!ready" class="field-hint">
-      分析完成后才能创建带验收项的任务；快速检查不依赖验收项，可以先做。
-    </p>
+    <p v-if="!ready" class="field-hint">分析完成后可创建带验收项的任务。</p>
   </section>
 </template>

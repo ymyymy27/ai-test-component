@@ -20,6 +20,7 @@ test("跳转链接、aria-current 和主内容焦点可用", async ({ page }) =>
 test("确认对话框 Esc 关闭并返回触发按钮", async ({ page }) => {
   const projectId = await createAndRun(page, "对话框验证", "D:/work/flow-dialog");
   await page.goto(`/projects/${projectId}/settings`);
+  await page.locator(".settings-index").getByRole("button", { name: "备份" }).click();
   const trigger = page.getByRole("button", { name: "清空本地数据" });
   await trigger.click();
   const dialog = page.locator("#confirm-dialog-title");

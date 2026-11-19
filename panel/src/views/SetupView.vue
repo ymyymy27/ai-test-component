@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
+import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { validateProjectForm, type ProjectFormErrors } from "@/domain/validation";
 import { useUiStore } from "@/stores/ui";
@@ -17,6 +18,7 @@ const name = ref("");
 const errors = ref<ProjectFormErrors>({});
 const rootInput = ref<HTMLInputElement | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);
+const picking = ref(false);
 
 const busy = computed(() => workspace.busyKey("create-project"));
 const currentProject = computed(() => workspace.currentProject);
@@ -40,6 +42,24 @@ function clearError(field: keyof ProjectFormErrors): void {
     return;
   }
   errors.value = { ...errors.value, [field]: undefined };
+}
+
+async function chooseDirectory(): Promise<void> {
+  if (picking.value) {
+    return;
+  }
+  picking.value = true;
+  try {
+    const path = await workspace.pickDirectory();
+    if (path) {
+      root.value = path;
+      clearError("root");
+    }
+  } catch {
+    // 宿主不可用时保留手动输入。
+  } finally {
+    picking.value = false;
+  }
 }
 
 async function submit(): Promise<void> {
@@ -82,9 +102,7 @@ async function clearAndRetry(): Promise<void> {
       kicker="建立项目"
       title="建立项目"
       :subtitle="
-        currentProject
-          ? '再登记一个本地目录；不会影响当前项目的数据。'
-          : '先把一个本地目录登记为项目，再从项目概览开始。'
+        currentProject ? '登记另一个本地目录。' : '选择一个本地目录作为测试项目。'
       "
     />
 
@@ -100,22 +118,32 @@ async function clearAndRetry(): Promise<void> {
       <form class="setup-form" novalidate @submit.prevent="submit">
         <div class="field" :class="{ 'has-error': errors.root }">
           <label for="setup-root">项目目录</label>
-          <input
-            id="setup-root"
-            ref="rootInput"
-            v-model="root"
-            name="root"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="D:\work\service 或 /home/me/service"
-            :aria-invalid="errors.root ? 'true' : undefined"
-            aria-describedby="setup-root-hint setup-root-error"
-            @input="clearError('root')"
-          />
-          <p id="setup-root-hint" class="field-hint">
-            绝对路径。浏览器环境请手动输入；宿主支持目录选择时会由宿主提供。
-          </p>
+          <div class="input-with-button">
+            <input
+              id="setup-root"
+              ref="rootInput"
+              v-model="root"
+              name="root"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="D:\work\service"
+              :aria-invalid="errors.root ? 'true' : undefined"
+              aria-describedby="setup-root-hint setup-root-error"
+              @input="clearError('root')"
+            />
+            <button
+              v-if="workspace.mode === 'host'"
+              class="btn btn-sm"
+              type="button"
+              :disabled="picking"
+              @click="chooseDirectory"
+            >
+              <Icon name="folder" :size="14" />
+              {{ picking ? "选择中…" : "选择目录" }}
+            </button>
+          </div>
+          <p id="setup-root-hint" class="field-hint">输入绝对路径，或从本机选择目录。</p>
           <p v-if="errors.root" id="setup-root-error" class="field-error" role="alert">
             {{ errors.root }}
           </p>
@@ -141,9 +169,7 @@ async function clearAndRetry(): Promise<void> {
           </p>
         </div>
 
-        <p class="setup-note">
-          项目目标不在这里手填。登记后会整理目标候选；确认目标后才创建第一个任务。
-        </p>
+        <p class="setup-note">登记后先确认目标，再创建任务。</p>
 
         <div class="setup-actions">
           <button class="btn btn-primary" type="submit" :disabled="busy" :aria-busy="busy">
@@ -157,30 +183,16 @@ async function clearAndRetry(): Promise<void> {
             取消
           </RouterLink>
         </div>
-        <p class="setup-note">
-          当前面板不读取磁盘。分析由本地规则完成，模块、业务功能与候选会明确标注来源。
-        </p>
       </form>
 
       <aside class="setup-aside" aria-label="登记之后会发生什么">
-        <h2>登记之后</h2>
+        <h2>登记后</h2>
         <ol class="setup-steps">
-          <li><span class="num">01</span>整理启动入口与目录结构</li>
-          <li><span class="num">02</span>识别模块、业务功能与可测项</li>
-          <li><span class="num">03</span>给出项目目标候选与未知项</li>
-          <li><span class="num">04</span>进入概览；确认目标后才创建任务</li>
+          <li><span class="num">01</span>读取入口与目录结构</li>
+          <li><span class="num">02</span>整理功能、可测项与未知项</li>
+          <li><span class="num">03</span>生成目标候选，确认后创建任务</li>
         </ol>
-        <div class="setup-contract">
-          <strong>不会自动发生</strong>
-          <ul>
-            <li>不会创建任务或运行测试。</li>
-            <li>不会写入被测仓库。</li>
-            <li>运行前仍要人工确认计划、依赖与副作用。</li>
-          </ul>
-        </div>
-        <p class="setup-note">
-          团队内部使用：项目记录、证据与报告留在本机工作空间，不上传、不外发。
-        </p>
+        <p class="setup-note">不会创建任务、不会写入被测仓库；运行前仍需人工确认。</p>
       </aside>
     </div>
   </div>

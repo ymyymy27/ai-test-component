@@ -132,9 +132,7 @@ function toggleFeature(name: string, ignored: boolean): void {
       <span class="spinner" aria-hidden="true"></span>
       <span class="candidate-brief-main">
         <span class="analysis-strip-title">AI 分析中</span>
-        <span class="analysis-strip-text">
-          正在整理启动入口、模块、业务功能与目标候选；不会创建任务，也不会自动运行测试。
-        </span>
+        <span class="analysis-strip-text">正在整理入口、模块、功能与目标候选。</span>
       </span>
     </div>
     <div v-else-if="analysisError" class="notice is-warn" role="alert">

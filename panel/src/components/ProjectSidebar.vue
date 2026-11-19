@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { projectStatus } from "@/domain/derive";
 import { stageLabel } from "@/domain/stateMachine";
@@ -20,12 +20,14 @@ const emit = defineEmits<{
   newTask: [projectId: string];
   addProject: [];
   openSettings: [projectId: string];
+  openTaskDetails: [projectId: string, taskId: string];
   close: [];
 }>();
 
 const query = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
+const menuTaskId = ref<string | null>(null);
 
 const currentProject = computed(
   () => props.projects.find((project) => project.id === props.currentProjectId) ?? null,
@@ -57,6 +59,7 @@ function selectProject(projectId: string): void {
 }
 
 function selectTask(taskId: string): void {
+  menuTaskId.value = null;
   if (!props.currentProjectId) {
     return;
   }
@@ -65,6 +68,27 @@ function selectTask(taskId: string): void {
   }
   emit("selectTask", props.currentProjectId, taskId);
 }
+
+function toggleTaskMenu(taskId: string, event: MouseEvent): void {
+  event.stopPropagation();
+  menuTaskId.value = menuTaskId.value === taskId ? null : taskId;
+}
+
+function openTaskDetails(projectId: string, taskId: string): void {
+  menuTaskId.value = null;
+  emit("openTaskDetails", projectId, taskId);
+}
+
+function closeMenuOnOutside(event: MouseEvent): void {
+  const target = event.target;
+  if (target instanceof Element && target.closest(".side-task-row")) {
+    return;
+  }
+  menuTaskId.value = null;
+}
+
+onMounted(() => document.addEventListener("click", closeMenuOnOutside));
+onBeforeUnmount(() => document.removeEventListener("click", closeMenuOnOutside));
 
 function focusSearch(): void {
   searchInput.value?.focus();
@@ -133,6 +157,18 @@ defineExpose({ focusSearch, focusClose });
           class="side-task-list"
           aria-label="当前项目的任务"
         >
+          <div class="side-task-head">
+            <span>任务</span>
+            <button
+              class="side-add"
+              type="button"
+              :disabled="Boolean(runningTaskId)"
+              @click="emit('newTask', project.id)"
+            >
+              <Icon name="plus" :size="12" />
+              新建
+            </button>
+          </div>
           <button
             v-if="draft"
             class="side-task"
@@ -146,26 +182,53 @@ defineExpose({ focusSearch, focusClose });
               <span class="side-task-meta">继续确认</span>
             </span>
           </button>
-          <button
+          <div
             v-for="task in tasks"
             :key="task.id"
-            class="side-task"
+            class="side-task-row"
             :class="{
               'is-active': task.id === currentTaskId,
               'is-disabled': Boolean(runningTaskId && runningTaskId !== task.id),
             }"
-            type="button"
-            :aria-current="task.id === currentTaskId ? 'page' : undefined"
-            :disabled="Boolean(runningTaskId && runningTaskId !== task.id)"
-            @click="selectTask(task.id)"
           >
-            <span class="side-task-main">
-              <span class="side-task-title">{{ task.title }}</span>
-              <span class="side-task-meta">{{ stageLabel(task.stage) }}</span>
-            </span>
-          </button>
+            <button
+              class="side-task"
+              :class="{ 'is-active': task.id === currentTaskId }"
+              type="button"
+              :aria-current="task.id === currentTaskId ? 'page' : undefined"
+              :disabled="Boolean(runningTaskId && runningTaskId !== task.id)"
+              @click="selectTask(task.id)"
+            >
+              <span class="side-task-main">
+                <span class="side-task-title">{{ task.title }}</span>
+                <span class="side-task-meta">{{ stageLabel(task.stage) }}</span>
+              </span>
+            </button>
+            <button
+              class="side-task-more"
+              type="button"
+              aria-label="任务操作"
+              aria-haspopup="menu"
+              :aria-expanded="menuTaskId === task.id"
+              @click.stop="toggleTaskMenu(task.id, $event)"
+            >
+              <Icon name="more" :size="14" />
+            </button>
+            <div v-if="menuTaskId === task.id" class="side-task-menu" role="menu">
+              <button type="button" role="menuitem" @click="selectTask(task.id)">
+                打开任务
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                @click="openTaskDetails(project.id, task.id)"
+              >
+                任务资料
+              </button>
+            </div>
+          </div>
           <p v-if="tasks.length === 0 && !draft" class="side-empty">
-            还没有任务。从概览新建，或先从右侧开始。
+            还没有任务。点“新建”开始。
           </p>
         </div>
       </div>

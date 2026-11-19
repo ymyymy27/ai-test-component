@@ -218,7 +218,7 @@ onMounted(async () => {
     <PageHeader
       kicker="本次范围"
       :title="task.title"
-      subtitle="选本次范围；范围决定报告的分母，也决定新计划覆盖哪些验收项。"
+      subtitle="范围决定报告分母与新计划覆盖的验收项。"
     >
       <template #actions>
         <button

@@ -95,6 +95,16 @@ async function selectTask(projectIdValue: string, taskId: string): Promise<void>
   }
 }
 
+async function openTaskDetails(projectIdValue: string, taskId: string): Promise<void> {
+  try {
+    await workspace.setActiveTask(projectIdValue, taskId);
+    ui.closeSidebar();
+    await router.push(`/projects/${projectIdValue}/tasks/${taskId}/details`);
+  } catch {
+    // store 已提示错误。
+  }
+}
+
 async function newTask(projectIdValue: string): Promise<void> {
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/tasks/new`);
@@ -197,6 +207,7 @@ onBeforeUnmount(() => {
       @new-task="newTask"
       @add-project="addProject"
       @open-settings="openSettings"
+      @open-task-details="openTaskDetails"
       @close="closeSidebar"
     />
     <button

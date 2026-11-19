@@ -555,6 +555,13 @@ const BRIDGE_SCRIPT = `(function () {
         api.postMessage({ type: "openPath", id: id, path: path });
       });
     },
+    pickDirectory: function () {
+      var id = "pick-" + (++seq);
+      return new Promise(function (resolve) {
+        pending.set(id, { resolve: resolve });
+        api.postMessage({ type: "pickDirectory", id: id });
+      });
+    },
     getState: function () { return api.getState(); },
     setState: function (state) { api.setState(state); },
     getContext: function () { return context; }
@@ -605,6 +612,38 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
       await webview.postMessage(item);
     }
     queued = [];
+    return;
+  }
+  if (message["type"] === "pickDirectory") {
+    const id = typeof message["id"] === "string" ? message["id"] : "";
+    if (!id) {
+      return;
+    }
+    try {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: "选择项目目录",
+      });
+      await webview.postMessage({
+        type: "result",
+        id,
+        ok: true,
+        data: picked?.[0]?.fsPath ?? "",
+      });
+    } catch {
+      await webview.postMessage({
+        type: "result",
+        id,
+        ok: false,
+        error: {
+          code: "HOST_CALL_FAILED",
+          message: "无法打开目录选择器",
+          next_step: "手动输入项目绝对路径",
+        },
+      });
+    }
     return;
   }
   if (message["type"] === "openPath") {

@@ -1,5 +1,5 @@
 /** 有类型的业务调用。每个方法对应一条 CLI 命令，字段名与契约一致。 */
-import { callHost } from "./bridge";
+import { callHost, pickHostDirectory } from "./bridge";
 import type {
   AddTaskResult,
   BackupResult,
@@ -35,6 +35,10 @@ import type {
 } from "./dto";
 
 export const api = {
+  pickDirectory(): Promise<string | null> {
+    return pickHostDirectory();
+  },
+
   doctor(repair = false): Promise<DoctorFacts> {
     return callHost<DoctorFacts>("doctor", repair ? { repair: true } : {});
   },

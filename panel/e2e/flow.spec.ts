@@ -26,6 +26,18 @@ test("调整范围后取消调整返回计划页", async ({ page }) => {
   await expect(page.locator(".plan-summary")).toBeVisible();
 });
 
+test("侧边栏可以新建任务并打开任务资料", async ({ page }) => {
+  const projectId = await createProject(page, "侧边栏验证", "D:/work/flow-sidebar");
+  await createTaskFromCandidate(page, 0);
+  await page.goto(`/projects/${projectId}/overview`);
+  await page.locator(".side-task-more").first().click();
+  await page.getByRole("menuitem", { name: "任务资料" }).click();
+  await page.waitForURL(/\/details/);
+  await page.goto(`/projects/${projectId}/overview`);
+  await page.locator(".side-add").click();
+  await page.waitForURL(/\/tasks\/new/);
+});
+
 test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
   const projectId = await createProject(page, "流程验证", "D:/work/flow-a");
   await expect(page.locator(".stats-bar")).toContainText("业务功能");
