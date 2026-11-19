@@ -477,6 +477,16 @@ def test_run_env_strips_secret_environment(monkeypatch: pytest.MonkeyPatch, tmp_
     assert str(Path(__file__).resolve().parents[2] / "src") not in env.get("PYTHONPATH", "")
 
 
+def test_run_env_adds_project_src_layout(tmp_path: Path) -> None:
+    from aitest.worker import _run_env
+
+    (tmp_path / "src").mkdir()
+    env = _run_env(tmp_path, None, "run_src")
+    paths = env.get("PYTHONPATH", "").split(os.pathsep)
+    assert str((tmp_path / "src").resolve()) in paths
+    assert str(tmp_path.resolve()) in paths
+
+
 def test_worker_boot_failure_sets_execution_error(tmp_path: Path) -> None:
     from aitest.storage.files import write_model
     from aitest.worker import main as worker_main

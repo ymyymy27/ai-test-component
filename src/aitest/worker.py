@@ -99,19 +99,32 @@ def _venv_python(root: Path) -> Path | None:
 def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     env: dict[str, str] = {}
     package_root = Path(__file__).resolve().parents[1]
+    # src-layout projects (e.g. src/pkg) need their source root on PYTHONPATH;
+    # plain layouts need the project root. Keep the host package out of it.
+    extra_paths: list[str] = []
+    for candidate in (root / "src", root):
+        if candidate.is_dir() and candidate.resolve() != package_root:
+            value = str(candidate.resolve())
+            if value not in extra_paths:
+                extra_paths.append(value)
+    inherited_pythonpath: list[str] = []
     for key, value in os.environ.items():
         if is_secret_field(key):
             continue
         if key == "PYTHONPATH":
-            parts = [
+            inherited_pythonpath = [
                 item
                 for item in value.split(os.pathsep)
                 if item and Path(item).resolve() != package_root
             ]
-            if parts:
-                env[key] = os.pathsep.join(parts)
             continue
         env[key] = value
+    pythonpath: list[str] = []
+    for item in [*extra_paths, *inherited_pythonpath]:
+        if item and item not in pythonpath:
+            pythonpath.append(item)
+    if pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath)
     if python is not None:
         env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
         env["VIRTUAL_ENV"] = str(python.parent.parent)

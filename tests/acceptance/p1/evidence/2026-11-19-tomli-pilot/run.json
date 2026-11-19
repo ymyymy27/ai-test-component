@@ -1,0 +1,120 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T17:54:14+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T17:54:14+08:00"
+        }
+      ],
+      "case_id": "case_fd84889c6bd1",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T17:54:14+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T17:54:14+08:00"
+        }
+      ],
+      "case_id": "case_100f421c47c7",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T17:54:15+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T17:54:15+08:00"
+        }
+      ],
+      "case_id": "case_21f236df5a65",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T17:54:15+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T17:54:15+08:00"
+        }
+      ],
+      "case_id": "case_2b926decb2bb",
+      "evidence_refs": [],
+      "result": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "finished_at": "2026-11-19T17:54:15+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T17:54:15+08:00"
+        }
+      ],
+      "case_id": "case_05e18852c8e4",
+      "evidence_refs": [],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "cb6abe4332d562944e126ac6751296aab22cb13346d7fed83b390b7f01b2c0be",
+  "confirmation_id": "conf_e2281954967a",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T17:54:14+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_82a180f8f4f0_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [],
+  "heartbeat_at": "2026-11-19T17:54:15+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_633b7759ac67",
+  "media_bytes": 0,
+  "mock_judgement": [],
+  "pid": 37544,
+  "pid_created_at": 1795082054.1063073,
+  "plan_id": "plan_00c09a5259f1",
+  "project_id": "proj_640edce820e6",
+  "request_ids": [],
+  "run_id": "run_82a180f8f4f0",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_66ee59dc31a7",
+      "ai_8162c5bd20f0",
+      "ai_91d7e22e2c99",
+      "ai_05e614a07afc",
+      "ai_5ab13ca7e343"
+    ],
+    "frozen_at": "2026-11-19T17:54:14+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T17:54:14+08:00",
+  "status": "completed"
+}

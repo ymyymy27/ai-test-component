@@ -1,0 +1,14 @@
+{
+  "project": "tomli",
+  "repo": "https://github.com/hukkin/tomli",
+  "commit": "43a86ade8b795c6ef9b4ec53372a607cd1ed426f",
+  "python": "3.11.9",
+  "pytest": "pytest 9.0.3",
+  "baseline_command": "PYTHONPATH=src python -m pytest -q",
+  "baseline": "17 passed, 1 skipped, 744 subtests passed in 0.27s",
+  "run_id": "run_82a180f8f4f0",
+  "report_id": "rep_633b7759ac67",
+  "plan_id": "plan_00c09a5259f1",
+  "model_response": "deepseek-flash",
+  "task_id": "task_3d5f24ea1f6b"
+}

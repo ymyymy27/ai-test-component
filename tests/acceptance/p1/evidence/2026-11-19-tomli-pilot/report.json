@@ -1,0 +1,214 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_66ee59dc31a7",
+      "acceptance_item_ids": [
+        "ai_66ee59dc31a7"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_fd84889c6bd1",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "tomli.loads 返回 dict，键值正确",
+      "layer": "L2",
+      "result": "passed",
+      "title": "loads 解析 TOML 字符串得到字典",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_8162c5bd20f0",
+      "acceptance_item_ids": [
+        "ai_8162c5bd20f0"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_100f421c47c7",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "tomli.load 从二进制文件对象读取并返回正确 dict",
+      "layer": "L2",
+      "result": "passed",
+      "title": "load 解析 TOML 文件",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_91d7e22e2c99",
+      "acceptance_item_ids": [
+        "ai_91d7e22e2c99"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_21f236df5a65",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "tomli.loads 对无效输入抛出 tomli.TOMLDecodeError",
+      "layer": "L2",
+      "result": "passed",
+      "title": "无效 TOML 抛出 TOMLDecodeError",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_05e614a07afc",
+      "acceptance_item_ids": [
+        "ai_05e614a07afc"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_2b926decb2bb",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "parse_float=decimal.Decimal 时浮点值为 Decimal 且数值正确",
+      "layer": "L2",
+      "result": "passed",
+      "title": "浮点数解析为 decimal.Decimal",
+      "warnings": []
+    },
+    {
+      "acceptance_item_id": "ai_5ab13ca7e343",
+      "acceptance_item_ids": [
+        "ai_5ab13ca7e343"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_05e18852c8e4",
+      "evidence_refs": [],
+      "expectation_verified": true,
+      "expected": "字符串→str、整数→int、浮点→float、布尔→bool、日期时间→datetime 对象、数组→list、表→dict",
+      "layer": "L2",
+      "result": "passed",
+      "title": "TOML 类型映射到 Python 类型",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 5/5，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 5,
+    "covered": 5,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 5,
+    "selected": 5
+  },
+  "coverage": {
+    "applicable": 5,
+    "selected": 5
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [],
+  "evidence_refs": [],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T17:54:16+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_fd84889c6bd1"
+      ],
+      "item_id": "ai_66ee59dc31a7",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "解析 TOML 字符串"
+    },
+    {
+      "case_ids": [
+        "case_100f421c47c7"
+      ],
+      "item_id": "ai_8162c5bd20f0",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "解析 TOML 文件"
+    },
+    {
+      "case_ids": [
+        "case_21f236df5a65"
+      ],
+      "item_id": "ai_91d7e22e2c99",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "处理无效 TOML 并抛出异常"
+    },
+    {
+      "case_ids": [
+        "case_2b926decb2bb"
+      ],
+      "item_id": "ai_05e614a07afc",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "将 TOML 浮点数构造为 decimal.Decimal"
+    },
+    {
+      "case_ids": [
+        "case_05e18852c8e4"
+      ],
+      "item_id": "ai_5ab13ca7e343",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "TOML 类型到 Python 类型的映射"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 0,
+    "L2": 5,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": false,
+  "report_id": "rep_633b7759ac67",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_82a180f8f4f0",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 5/5，通过 5，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

@@ -1,0 +1,40 @@
+{
+  "files": [
+    {
+      "generated_at": "2026-11-19T17:54:14+08:00",
+      "model": "provided",
+      "name": "test_loads_string.py",
+      "secrets_redacted": false,
+      "sha256": "44525b5df027055f4602637f37b0fe765c1339683ab485c069ad8f960256d200"
+    },
+    {
+      "generated_at": "2026-11-19T17:54:14+08:00",
+      "model": "provided",
+      "name": "test_load_file.py",
+      "secrets_redacted": false,
+      "sha256": "6908c931e2d5c1e3824f269f7ca35c5d689ec6a9f91188f06340c8692a4c1d0c"
+    },
+    {
+      "generated_at": "2026-11-19T17:54:14+08:00",
+      "model": "provided",
+      "name": "test_invalid_toml.py",
+      "secrets_redacted": false,
+      "sha256": "80aeafd5f617c3d8155720731eedf0de7f379c6d2dac00cfd2efefec10158243"
+    },
+    {
+      "generated_at": "2026-11-19T17:54:14+08:00",
+      "model": "provided",
+      "name": "test_decimal_float.py",
+      "secrets_redacted": false,
+      "sha256": "c8a2c1135d2aa360b0da7086dbe24f570ae25444939340af9b55738f55d2d2f4"
+    },
+    {
+      "generated_at": "2026-11-19T17:54:14+08:00",
+      "model": "provided",
+      "name": "test_type_mapping.py",
+      "secrets_redacted": false,
+      "sha256": "72613e359ab0552318a16a3d269b03904919dfffcc508994bc9214ef84ee5bb0"
+    }
+  ],
+  "schema_version": 1
+}
