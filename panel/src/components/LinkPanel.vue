@@ -10,10 +10,12 @@ import StatusMark from "./StatusMark.vue";
 const props = defineProps<{
   link: LinkData | null;
   busy: boolean;
+  hostMode: boolean;
 }>();
 
 const emit = defineEmits<{
   load: [link: LinkData];
+  hostImport: [];
   assert: [input: LinkAssertInput];
 }>();
 
@@ -171,7 +173,15 @@ function assertNode(): void {
     </div>
     <p v-else class="doc-note">这次运行还没有导入链路。链路只提供定位与证据，不改变结论。</p>
 
-    <details class="link-tools">
+    <div v-if="hostMode" class="stack-sm">
+      <p class="doc-note">
+        宿主模式从项目配置中的日志和查询导入链路；面板不能自行生成链路事实。
+      </p>
+      <button class="btn btn-sm" type="button" :disabled="busy" @click="emit('hostImport')">
+        从项目配置导入链路
+      </button>
+    </div>
+    <details v-else class="link-tools">
       <summary>导入链路 JSON</summary>
       <div class="field">
         <label for="link-json">链路 JSON</label>

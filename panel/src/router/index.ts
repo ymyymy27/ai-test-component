@@ -23,8 +23,14 @@ function createHistory(): RouterHistory {
     return createWebHistory("/");
   }
   // Web 预览使用 history；webview/file 需要 hash 才能在刷新时重新打开同一个入口文档。
+  // 不同宿主 webview 的 location.protocol 可能是 vscode-webview: 或 https:，
+  // 因此同时用 acquireVsCodeApi 判断是否运行在宿主 webview 中。
+  const hostWebview =
+    typeof (window as { acquireVsCodeApi?: unknown }).acquireVsCodeApi === "function";
   const webview =
-    window.location.protocol === "vscode-webview:" || window.location.protocol === "file:";
+    window.location.protocol === "vscode-webview:" ||
+    window.location.protocol === "file:" ||
+    hostWebview;
   return webview ? createWebHashHistory() : createWebHistory("/");
 }
 
@@ -170,7 +176,7 @@ router.beforeEach(async (to) => {
     return { name: "not-found" };
   }
   if (store.currentProjectId !== projectId) {
-    store.setCurrentProject(projectId);
+    await store.setCurrentProject(projectId);
   }
   const activeRunTask = runningTask(project);
   if (activeRunTask && ["new-task", "quick-check"].includes(String(to.name))) {

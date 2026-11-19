@@ -6,7 +6,7 @@
  * - 所有业务数据由 `bridge.ts` 调 `python -m aitest.cli` 取回并原样转给面板。
  */
 import { appendFileSync, readFileSync } from "node:fs";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 
@@ -37,13 +37,17 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "project.add",
   "project.config",
   "project.list",
+  "project.map",
+  "project.map.refresh",
   "project.show",
+  "project.update",
   "task.add",
   "task.list",
   "task.show",
   "task.suggest",
   "module.suggest",
   "module.add",
+  "module.update",
   "task.update",
   "delivery.draft",
   "delivery.save",
@@ -54,6 +58,7 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "plan.show",
   "plan.update",
   "run.start",
+  "run.quick",
   "run.status",
   "run.list",
   "run.cancel",
@@ -70,6 +75,7 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "github.read",
   "link.import",
   "link.assert",
+  "issue.add",
   "issue.list",
   "issue.show",
   "issue.update",
@@ -84,10 +90,12 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /** 只有用户显式确认的命令才接受 `--confirm`。 */
-const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start"]);
+const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start", "run.quick"]);
 
 const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "run.start": 60_000,
+  "run.quick": 60_000,
+  "project.map.refresh": 120_000,
   "plan.generate": 120_000,
   "task.add": 120_000,
   "task.suggest": 60_000,
@@ -447,47 +455,55 @@ function attachWebview(
   webview: vscode.Webview,
 ): vscode.Disposable {
   const nonce = randomBytes(24).toString("hex");
-  webview.html = renderPanelHtml(context, webview, nonce);
+  webview.html = renderPanelHtml(context, nonce);
   return webview.onDidReceiveMessage((message: unknown) => {
     void handleMessage(message, webview);
   });
 }
 
-/** 加载共享面板构建产物，把资源地址改写为宿主 URI，并先注入 bridge。 */
+/** 加载共享面板构建产物，并把脚本与样式内联进宿主 HTML。 */
 function renderPanelHtml(
   context: vscode.ExtensionContext,
-  webview: vscode.Webview,
   nonce: string,
 ): string {
   try {
     const panelRoot = vscode.Uri.joinPath(context.extensionUri, "media", "panel");
     const template = readFileSync(vscode.Uri.joinPath(panelRoot, "index.html").fsPath, "utf8");
-    const base = webview.asWebviewUri(panelRoot).toString().replace(/\/+$/, "");
-    const assetVersion = createHash("sha1").update(template).digest("hex").slice(0, 12);
+    // 扩展构建产出单文件 panel.js / panel.css。Trae 的 webview 资源 URI 与
+    // cspSource 可能不同源，内联可避免 CSS/脚本被 CSP 或 URI 改写拦掉。
+    const script = readFileSync(vscode.Uri.joinPath(panelRoot, "panel.js").fsPath, "utf8")
+      .replace(/<\/script/gi, "<\\/script")
+      .split("<!--")
+      .join("<\\u0021--");
+    const style = readFileSync(vscode.Uri.joinPath(panelRoot, "panel.css").fsPath, "utf8");
     const csp = [
       "default-src 'none'",
-      `script-src 'nonce-${nonce}' ${webview.cspSource}`,
-      `style-src ${webview.cspSource} 'unsafe-inline'`,
-      `img-src ${webview.cspSource} data:`,
-      `font-src ${webview.cspSource}`,
+      `script-src 'nonce-${nonce}'`,
+      "style-src 'unsafe-inline'",
+      "img-src data:",
+      "font-src data:",
       "connect-src 'none'",
     ].join("; ");
     const html = template
-      .replace(/(?:\.\/|\/)assets\//g, `${base}/assets/`)
-      .replace(/(\/assets\/[^"'?#]+\.(?:js|css))/g, `$1?v=${assetVersion}`)
-      .replace(/<script /g, `<script nonce="${nonce}" `)
-      .replace(/ crossorigin/g, "");
-    return html.replace(
-      /<head>/i,
-      `<head>
+      .replace(/<script\b[^>]*\bsrc="[^"]*"[^>]*>\s*<\/script>/gi, "")
+      .replace(/<link\b[^>]*\bhref="[^"]*\.css"[^>]*>/gi, "")
+      .replace(
+        /<head>/i,
+        () => `<head>
     <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <style nonce="${nonce}">${style}</style>
     <script nonce="${nonce}">${BRIDGE_SCRIPT}</script>`,
-    );
+      )
+      .replace(
+        "</body>",
+        () => `<script nonce="${nonce}">${script}</script>\n  </body>`,
+      );
+    return html;
   } catch {
     return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
       <title>${PANEL_TITLE}</title></head><body>
-      <p>面板资源缺失：media/panel/index.html 未随扩展安装。请先运行 npm run build。</p></body></html>`;
+      <p>面板资源缺失：media/panel/panel.js 未随扩展安装。请先运行 npm run build。</p></body></html>`;
   }
 }
 
@@ -542,6 +558,18 @@ const BRIDGE_SCRIPT = `(function () {
     setState: function (state) { api.setState(state); },
     getContext: function () { return context; }
   };
+  function reportPanelError(kind, detail) {
+    try {
+      var text = detail && detail.message ? detail.message : detail;
+      api.postMessage({ type: "panel-error", kind: kind, message: String(text || "") });
+    } catch (ignored) {}
+  }
+  window.addEventListener("error", function (event) {
+    reportPanelError("error", event.error || event.message);
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    reportPanelError("rejection", event.reason);
+  });
   api.postMessage({ type: "ready" });
 })();`;
 
@@ -560,7 +588,16 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   if (!isRecord(message)) {
     return;
   }
+  if (message["type"] === "panel-error") {
+    logExt({
+      phase: "panel-error",
+      kind: message["kind"],
+      message: message["message"],
+    });
+    return;
+  }
   if (message["type"] === "ready") {
+    logExt({ phase: "ready" });
     panelReady = true;
     await postContext();
     for (const item of queued) {

@@ -77,7 +77,7 @@ function routeForTask(taskId: string): string {
 }
 
 async function selectProject(projectIdValue: string): Promise<void> {
-  workspace.setCurrentProject(projectIdValue);
+  await workspace.setCurrentProject(projectIdValue);
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/overview`);
 }

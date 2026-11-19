@@ -9,7 +9,7 @@ import ErrorState from "@/components/ErrorState.vue";
 import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import PlanLedger from "@/components/PlanLedger.vue";
-import { currentPlan as readCurrentPlan, taskContract, unselectedItems } from "@/domain/derive";
+import { currentPlan as readCurrentPlan, unselectedItems } from "@/domain/derive";
 import type { CaseResult, Plan, Task } from "@/domain/types";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -28,12 +28,7 @@ const checked = ref(false);
 const busy = computed(
   () => workspace.busyKey(`start:${taskId.value}`) || workspace.busyKey(`revise:${taskId.value}`),
 );
-const stale = computed(() =>
-  Boolean(
-    plan.value &&
-    (plan.value.stale || plan.value.taskContract !== taskContract(task.value as Task)),
-  ),
-);
+const stale = computed(() => Boolean(plan.value?.stale));
 const startDisabled = computed(
   () => !plan.value || stale.value || plan.value.cases.length === 0 || busy.value,
 );

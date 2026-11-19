@@ -281,6 +281,14 @@ function finishRunInPlace(
 }
 
 export class LocalStorageRepository implements ProjectRepository {
+  readonly mode = "local" as const;
+  readonly capabilities = {
+    hostGithub: false,
+    evidenceFiles: true,
+    browserBackup: true,
+    linkJson: true,
+  } as const;
+
   private readonly storage: Storage;
   private readonly key: string;
 

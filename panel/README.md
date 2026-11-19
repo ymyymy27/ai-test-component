@@ -15,7 +15,7 @@ pnpm exec playwright test
 ```
 
 - `pnpm build` 产出可直接由静态服务器托管的 `dist/`（history 路由需要 SPA fallback）。
-- `pnpm build:extension` 用相对 base 构建，供 Trae 扩展的 `integrations/trae/scripts/build-panel.mjs` 复制到 `media/panel`。
+- `pnpm build:extension` 产出单文件 `panel.js` / `panel.css`，由 Trae 扩展内联进 webview；`integrations/trae/scripts/build-panel.mjs` 负责复制到 `media/panel`，避免依赖宿主资源 URI 与 `cspSource` 同源。
 - 现有 CI 使用 npm：`package-lock.json` 一并保留；`pnpm-lock.yaml` 供本地与 pnpm 流程使用。
 
 ## 结构
@@ -25,7 +25,8 @@ panel/
 ├─ src/
 │  ├─ router/                  history 路由、项目/任务/阶段守卫、404
 │  ├─ domain/                  类型、状态机、派生、计划、运行、问题门禁、报告、分析
-│  ├─ repositories/            ProjectRepository 接口 + LocalStorageRepository
+│  ├─ repositories/            ProjectRepository + LocalStorageRepository + HostRepository
+│  ├─ host/                    宿主 DTO、bridge、命令封装、映射、sidecar、环境检查
 │  ├─ stores/                  workspace（领域状态）+ ui（抽屉/主题/Toast/确认）
 │  ├─ services/                分析、运行模拟、快速检查、环境、导出、证据摘要
 │  ├─ components/              外壳、侧栏、状态、台账、范围、确认、对话框
@@ -74,4 +75,4 @@ panel/
 - `tests/components/`：状态记号、目标输入、候选、范围刻度、确认、空/错/加载态。
 - `e2e/`：完整主流程、键盘主流程、失败→重跑→关闭门禁、快速检查隔离、直接刷新路由、320/768/1200 无横向滚动、抽屉 Esc/焦点、设置/ZIP 备份、GitHub 缓存快照、人工结果/证据、任务资料/模板、业务功能忽略/恢复。
 
-Web 预览使用 history 路由并依赖静态服务器 SPA fallback；webview/file 环境自动切换为 hash 路由，刷新可回到入口文档。Trae 真实 webview 仍需宿主回归。
+Web 预览使用 history 路由并依赖静态服务器 SPA fallback；宿主 webview（检测到 `acquireVsCodeApi`）和 `file:` 环境自动切换为 hash 路由。真实 Trae 3.4.22 侧边栏已验证渲染与真实 CLI 数据读取；webview 内刷新回退尚未单独实测。

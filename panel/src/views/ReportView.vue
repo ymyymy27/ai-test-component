@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
+import LoadingState from "@/components/LoadingState.vue";
 import LinkPanel from "@/components/LinkPanel.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import StatusMark from "@/components/StatusMark.vue";
@@ -52,6 +53,7 @@ const opinionBy = ref("本机用户");
 const opinionText = ref("");
 const opinionError = ref("");
 const exportResult = ref<ExportResult | null>(null);
+const loadingReport = ref(false);
 const linkBusy = computed(
   () =>
     Boolean(run.value) &&
@@ -71,6 +73,20 @@ const layers = computed(() => {
     label: LAYER_LABEL[layer],
     ...current.layers[layer],
   }));
+});
+
+onMounted(async () => {
+  if (!report.value) {
+    loadingReport.value = true;
+    try {
+      await workspace.loadReport(projectId.value, reportId.value);
+    } finally {
+      loadingReport.value = false;
+    }
+  }
+  if (report.value) {
+    await workspace.ensureReportVersions(projectId.value, report.value.runId);
+  }
 });
 
 watch(
@@ -142,6 +158,19 @@ async function importLink(link: LinkData): Promise<void> {
   }
 }
 
+async function importHostLink(): Promise<void> {
+  if (!report.value) {
+    return;
+  }
+  try {
+    await workspace.importHostLink(projectId.value, report.value.runId);
+    const next = await workspace.regenerateReport(projectId.value, report.value.runId);
+    await router.push(`/projects/${projectId.value}/reports/${next.id}`);
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function assertLink(input: LinkAssertInput): Promise<void> {
   if (!report.value) {
     return;
@@ -155,8 +184,19 @@ async function assertLink(input: LinkAssertInput): Promise<void> {
   }
 }
 
+async function openExport(): Promise<void> {
+  if (!exportResult.value?.path) {
+    return;
+  }
+  try {
+    await workspace.openHostPath(exportResult.value.path);
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function copyMarkdown(): Promise<void> {
-  if (!exportResult.value) {
+  if (!exportResult.value?.markdown) {
     return;
   }
   try {
@@ -176,7 +216,10 @@ function bytesText(bytes: number): string {
 </script>
 
 <template>
-  <div v-if="!report || !task" class="page">
+  <div v-if="loadingReport" class="page">
+    <LoadingState text="正在读取报告…" />
+  </div>
+  <div v-else-if="!report || !task" class="page">
     <ErrorState
       title="报告不存在"
       text="这个报告可能已被移除；回到历史或结果页重新打开。"
@@ -250,7 +293,11 @@ function bytesText(bytes: number): string {
         </div>
       </div>
       <p class="doc-note">
-        结论与计数由运行记录派生；AI 摘要只写事实，不改变结论。本地模拟运行不代表真实 CLI 验收结论。
+        {{
+          workspace.mode === "host"
+            ? "结论与计数由 CLI 运行记录派生；面板不重算结论，AI 摘要只写事实。"
+            : "结论与计数由运行记录派生；AI 摘要只写事实，不改变结论。本地模拟运行不代表真实 CLI 验收结论。"
+        }}
       </p>
     </section>
 
@@ -439,7 +486,9 @@ function bytesText(bytes: number): string {
         v-if="run"
         :link="report.link"
         :busy="linkBusy"
+        :host-mode="workspace.mode === 'host'"
         @load="importLink"
+        @host-import="importHostLink"
         @assert="assertLink"
       />
       <p v-else class="doc-note">运行记录不存在，无法导入链路。</p>
@@ -597,7 +646,11 @@ function bytesText(bytes: number): string {
           <dd class="mono">{{ exportResult.sha256 }}</dd>
         </div>
       </dl>
-      <details class="unselected-block">
+      <div v-if="exportResult.path" class="notice">
+        <span class="mono">{{ exportResult.path }}</span>
+        <button class="link-btn" type="button" @click="openExport">用系统程序打开</button>
+      </div>
+      <details v-else class="unselected-block">
         <summary>Markdown 预览</summary>
         <textarea class="markdown-preview" readonly :value="exportResult.markdown" />
         <div class="form-actions">

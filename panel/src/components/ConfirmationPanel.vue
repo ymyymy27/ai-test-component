@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { sideEffectsFor, taskContract } from "@/domain/derive";
+import { sideEffectsFor } from "@/domain/derive";
 import type { EnvironmentCheck, Plan, Project, Task } from "@/domain/types";
 
 const props = defineProps<{
@@ -30,9 +30,7 @@ const environmentLine = computed(() => {
     .map((check) => `${check.name}：${check.value}`)
     .join(" · ");
 });
-const stale = computed(
-  () => props.plan.stale || props.plan.taskContract !== taskContract(props.task),
-);
+const stale = computed(() => props.plan.stale);
 
 function toggle(event: Event): void {
   const target = event.target;

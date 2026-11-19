@@ -1,0 +1,1106 @@
+import type {
+  AcceptanceItem,
+  Candidate,
+  CaseResult,
+  Counts,
+  Delivery,
+  EvidenceRef,
+  FailureAnalysis,
+  Feature,
+  GithubSnapshot,
+  Issue,
+  IssueOccurrence,
+  LinkData,
+  LinkNode,
+  Module,
+  Plan,
+  PlanCase,
+  Project,
+  ProjectCheck,
+  ProjectConfig,
+  ProjectMap,
+  QuickCheck,
+  Report,
+  ReportCaseDetail,
+  ReportItemDetail,
+  RuleVersion,
+  Run,
+  RunCase,
+  RunItem,
+  Task,
+  TemplateResult,
+  UnknownArea,
+} from "@/domain/types";
+import { hashText, isoNow } from "@/domain/ids";
+import type {
+  Delivery as DeliveryDto,
+  EvidenceItem,
+  Issue as IssueDto,
+  LinkLocation,
+  Module as ModuleDto,
+  PlanCase as PlanCaseDto,
+  PlanDetail,
+  Project as ProjectDto,
+  ProjectConfig as ProjectConfigDto,
+  Report as ReportDto,
+  Rule as RuleDto,
+  RunCase as RunCaseDto,
+  RunDetail,
+  Task as TaskDto,
+  TemplateResult as TemplateResultDto,
+} from "./dto";
+import type { HostSidecar } from "./sidecar";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function str(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function num(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function bool(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function strList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function records(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function asCaseResult(value: unknown, fallback: CaseResult = "not_run"): CaseResult {
+  const allowed: CaseResult[] = [
+    "passed",
+    "failed",
+    "blocked",
+    "error",
+    "not_run",
+    "manual_pending",
+  ];
+  return allowed.includes(value as CaseResult) ? (value as CaseResult) : fallback;
+}
+
+function asLayer(value: unknown): "L1" | "L2" | "L3" {
+  return value === "L1" || value === "L3" ? value : "L2";
+}
+
+function asConfidence(value: unknown): "high" | "medium" | "low" {
+  return value === "high" || value === "low" ? value : "medium";
+}
+
+export function mapModule(dto: ModuleDto): Module {
+  return {
+    id: dto.module_id,
+    name: dto.name,
+    responsibility: dto.responsibility ?? "",
+    owner: dto.owner ?? "",
+    status: dto.status ?? "开发中",
+    dependencies: (dto.deps ?? []).map((dep) => ({
+      to: dep.to,
+      type: dep.type,
+      note: dep.note ?? "",
+    })),
+  };
+}
+
+export function mapConfig(raw: ProjectConfigDto): ProjectConfig {
+  const l1 = isRecord(raw.l1) ? raw.l1 : {};
+  const services = isRecord(raw.services) ? raw.services : {};
+  const runners = isRecord(raw.runners) ? raw.runners : {};
+  const evidence = isRecord(raw.evidence) ? raw.evidence : {};
+  const link = isRecord(raw.link) ? raw.link : {};
+  const data = isRecord(raw.data) ? raw.data : {};
+  const model = isRecord(raw.model) ? raw.model : {};
+  return {
+    model: { ...model, name: str(model.name ?? model.model) },
+    services: {
+      ...services,
+      healthUrl: str(services.healthUrl ?? services.health ?? services.health_url),
+      baseUrl: str(services.baseUrl ?? services.base ?? services.base_url),
+    },
+    l1: {
+      build: str(l1.build),
+      entry: Array.isArray(l1.entry) ? l1.entry.filter((item) => typeof item === "string").join(", ") : str(l1.entry),
+      smokeCommand: str(l1.smokeCommand ?? l1.smoke_command),
+    },
+    runners: { ...runners, test: str(runners.test), build: str(runners.build) },
+    evidence: {
+      ...evidence,
+      singleFileMb: num(evidence.singleFileMb ?? evidence.max_file_mb, 20),
+      mediaMb: num(evidence.mediaMb ?? evidence.media_total_mb, 500),
+      video: bool(evidence.video),
+    },
+    link: { ...link, logPath: str(link.logPath ?? link.log_path), query: str(link.query) },
+    data: {
+      ...data,
+      cleanupCommand: str(data.cleanupCommand ?? data.cleanup_command),
+      dataPrefix: str(data.dataPrefix ?? data.data_prefix),
+    },
+  };
+}
+
+export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
+  const l1 = config.l1 ?? {};
+  return {
+    model: config.model ? { ...config.model } : {},
+    services: config.services ? { ...config.services } : {},
+    l1: {
+      build: l1.build ?? "",
+      entry: (l1.entry ?? "")
+        .split(/[,，\n]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+      smoke_command: l1.smokeCommand ?? "",
+    },
+    runners: config.runners ? { ...config.runners } : {},
+    evidence: config.evidence ? { ...config.evidence } : {},
+    link: config.link ? { ...config.link } : {},
+    data: config.data ? { ...config.data } : {},
+  };
+}
+
+export function mapRule(dto: RuleDto): RuleVersion {
+  return {
+    id: dto.rules_version_id,
+    projectId: dto.project_id,
+    name: dto.name,
+    version: dto.version,
+    stepsMd: dto.steps_md,
+    aiRules: [...dto.ai_rules],
+    evidenceRequirements: [...dto.evidence_requirements],
+    revision: dto.revision,
+    createdAt: isoNow(),
+  };
+}
+
+export function mapDelivery(dto: DeliveryDto): Delivery {
+  return {
+    id: dto.delivery_id,
+    taskId: dto.task_id,
+    done: [...dto.done],
+    notDone: [...dto.not_done],
+    changedModules: [...dto.changed_modules],
+    interfaceChanges: [...dto.interface_changes],
+    runCommands: [...dto.run_commands],
+    testData: dto.test_data,
+    dependencies: [...dto.dependencies],
+    mocks: [...dto.mocks],
+    selfTestEvidence: [...dto.self_test_evidence],
+    commit: dto.commit,
+    complete: dto.complete,
+    revision: dto.revision,
+    updatedAt: isoNow(),
+  };
+}
+
+export function mapEvidence(dto: EvidenceItem): EvidenceRef {
+  const name = dto.name ?? dto.ref.split("/").pop() ?? dto.ref;
+  return {
+    id: dto.ref,
+    name,
+    mediaType: dto.media_type ?? name.split(".").pop()?.toUpperCase() ?? "FILE",
+    bytes: dto.bytes,
+    sha256: dto.sha256 ?? "",
+    note: dto.note ?? "",
+    missing: !dto.exists,
+    truncated: Boolean(dto.truncated),
+    addedAt: isoNow(),
+    sourcePath: dto.path ?? dto.ref,
+  };
+}
+
+function mapFeatures(raw: Record<string, unknown> | null, projectId: string): Feature[] {
+  if (!raw) {
+    return [];
+  }
+  return records(raw.business_functions).map((feature, index) => ({
+    id: `feat_${projectId.slice(-6)}_${index}`,
+    name: str(feature.name, `业务功能 ${index + 1}`),
+    modules: strList(feature.modules),
+    entryPoints: strList(feature.entry_points),
+    testCommands: strList(feature.test_commands),
+    testableItems: strList(feature.testable_items),
+    evidence: strList(feature.evidence),
+    confidence: asConfidence(feature.confidence),
+  }));
+}
+
+function mapUnknowns(raw: Record<string, unknown> | null): UnknownArea[] {
+  if (!raw) {
+    return [];
+  }
+  return records(raw.unknowns).map((unknown, index) => ({
+    id: `unk_${index}`,
+    area: str(unknown.area, `未知项 ${index + 1}`),
+    reason: str(unknown.reason),
+  }));
+}
+
+function mapCatalog(
+  features: Feature[],
+  tasks: Array<{ task: TaskDto }>,
+  projectId: string,
+): AcceptanceItem[] {
+  const items: AcceptanceItem[] = [];
+  features.forEach((feature) => {
+    feature.testableItems.forEach((text) => {
+      items.push({
+        id: `ai_catalog_${projectId.slice(-6)}_${items.length}`,
+        no: String(items.length + 1).padStart(2, "0"),
+        text,
+        observable: true,
+        status: "active",
+        source: `项目地图 · ${feature.name}`,
+        moduleId: null,
+        moduleName: feature.modules[0] ?? "未归类",
+        featureName: feature.name,
+      });
+    });
+  });
+  if (items.length === 0) {
+    const seen = new Set<string>();
+    tasks.forEach(({ task }) => {
+      task.acceptance_items.forEach((item) => {
+        if (seen.has(item.text)) {
+          return;
+        }
+        seen.add(item.text);
+        items.push({
+          id: `ai_catalog_${projectId.slice(-6)}_${items.length}`,
+          no: String(items.length + 1).padStart(2, "0"),
+          text: item.text,
+          observable: item.observable,
+          status: item.status,
+          source: item.source ?? "历史任务",
+          moduleId: item.module_id ?? null,
+          moduleName: "未归类",
+          featureName: "历史任务",
+        });
+      });
+    });
+  }
+  return items;
+}
+
+export function mapProjectMap(
+  raw: Record<string, unknown> | null,
+  projectId: string,
+  sidecar: HostSidecar,
+  stale = false,
+  staleReason = "",
+): ProjectMap | null {
+  if (!raw) {
+    return null;
+  }
+  return {
+    revision: num(raw.revision, 1),
+    sourceCommit: str(raw.source_commit, "unknown"),
+    generatedAt: str(raw.generated_at, isoNow()),
+    features: mapFeatures(raw, projectId),
+    ignoredFeatures: [...(sidecar.ignored[projectId] ?? [])],
+    unknowns: mapUnknowns(raw),
+    stale,
+    staleReason,
+  };
+}
+
+function mapAcceptanceItem(
+  item: TaskDto["acceptance_items"][number],
+  index: number,
+  modules: Module[],
+  features: Feature[],
+): AcceptanceItem {
+  const module = modules.find((entry) => entry.id === item.module_id) ?? null;
+  const feature = features.find((entry) => entry.testableItems.includes(item.text)) ?? null;
+  return {
+    id: item.item_id,
+    no: String(index + 1).padStart(2, "0"),
+    text: item.text,
+    observable: item.observable,
+    status: item.status,
+    source: item.source ?? "",
+    moduleId: item.module_id ?? null,
+    moduleName: module?.name ?? "未归类",
+    featureName: feature?.name ?? "未归类",
+  };
+}
+
+
+export function mapPlanCase(dto: PlanCaseDto): PlanCase {
+  return {
+    id: dto.case_id,
+    itemId: dto.acceptance_item_id ?? dto.acceptance_item_ids?.[0] ?? "",
+    extraItemIds: dto.acceptance_item_ids ?? [],
+    layer: dto.layer,
+    title: dto.title || dto.expected,
+    preconditions: dto.preconditions ?? [],
+    steps: dto.steps ?? [],
+    expected: dto.expected,
+    expectationSource: dto.expectation_source ?? "",
+    expectationVerified: dto.expectation_verified !== false,
+    verifyMethod: dto.verify_method ?? "",
+    dependencies: dto.dependencies ?? [],
+    mockAllowed: dto.mock_allowed !== false,
+    importance: dto.importance ?? "medium",
+    dependsOn: dto.depends_on ?? null,
+    scriptName: dto.script_name ?? null,
+    scriptContent: dto.script_content ?? null,
+    manual:
+      dto.layer === "L3" &&
+      (!dto.verify_method || dto.verify_method.trim() === "" || dto.verify_method.startsWith("manual:")),
+  };
+}
+
+export function mapTemplateResult(dto: TemplateResultDto): TemplateResult {
+  return {
+    templateId: dto.template_id,
+    name: dto.name,
+    version: dto.version,
+    appliedAt: dto.applied_at,
+    items: dto.items.map((item) => ({
+      id: item.item_id,
+      layer: asLayer(item.layer),
+      objective: item.objective,
+      disposition: item.disposition,
+      reason: item.reason,
+    })),
+    summary: dto.summary,
+  };
+}
+
+export function mapPlan(
+  detail: PlanDetail,
+  projectId: string,
+  taskId: string,
+  sidecar: HostSidecar,
+): Plan {
+  const dto = detail.plan;
+  const selected = dto.scope.acceptance_item_ids ?? [];
+  const applicable = detail.coverage?.applicable ?? dto.applicable_count ?? selected.length;
+  return {
+    id: dto.plan_id,
+    projectId,
+    taskId,
+    no: dto.plan_no ?? 1,
+    revision: dto.revision,
+    status: dto.status,
+    taskRevision: dto.task_revision ?? 1,
+    taskContract: dto.task_contract ?? "",
+    createdAt: dto.created_at ?? isoNow(),
+    scope: {
+      preset: dto.scope.preset,
+      moduleIds: dto.scope.module_ids ?? [],
+      acceptanceItemIds: selected,
+      coverage: { selected: selected.length, applicable },
+    },
+    applicableCount: applicable,
+    rulesVersionId: dto.rules_version_id ?? null,
+    cases: dto.cases.map(mapPlanCase),
+    templates: (dto.templates ?? []).map(mapTemplateResult),
+    unselectedByModule: (dto.unselected_by_module ?? []).map((entry) => ({
+      moduleId: entry.module_id ?? "",
+      moduleName: entry.module_name,
+      count: entry.count,
+    })),
+    warnings: dto.warnings ?? [],
+    sourceSignature: dto.source_signature ?? "",
+    confirmation: sidecar.confirmations[dto.plan_id] ?? null,
+    stale: Boolean(detail.stale),
+    staleReason: detail.stale_reason ?? "",
+  };
+}
+
+function mapCounts(raw: Record<string, number> | undefined, fallback: Counts): Counts {
+  if (!raw) {
+    return fallback;
+  }
+  return {
+    selected: num(raw.selected, fallback.selected),
+    applicable: num(raw.applicable, fallback.applicable),
+    covered: num(raw.covered, fallback.covered),
+    passed: num(raw.passed, fallback.passed),
+    failed: num(raw.failed, fallback.failed),
+    incomplete: num(raw.incomplete, fallback.incomplete),
+  };
+}
+
+function mapProjectChecks(raw: unknown): ProjectCheck[] {
+  if (Array.isArray(raw)) {
+    return records(raw).map((check, index) => ({
+      key: str(check.key ?? check.name, `check_${index}`),
+      name: str(check.name ?? check.key, `检查 ${index + 1}`),
+      method: str(check.method ?? check.command ?? check.detail),
+      result: asCaseResult(check.result ?? check.status, "not_run"),
+      detail: str(check.detail ?? check.message ?? ""),
+      time: str(check.time ?? check.at ?? ""),
+    }));
+  }
+  if (!isRecord(raw)) {
+    return [];
+  }
+  if (Array.isArray(raw.checks)) {
+    return mapProjectChecks(raw.checks);
+  }
+  const checks: ProjectCheck[] = [];
+  if (isRecord(raw.build)) {
+    const build = raw.build;
+    checks.push({
+      key: "build",
+      name: "构建",
+      method: "项目级构建",
+      result: build.ok === true ? "passed" : "failed",
+      detail: build.ok === true ? "退出码 0" : `退出码 ${String(build.exit_code ?? "未知")}`,
+      time: "",
+    });
+  }
+  if (Array.isArray(raw.entries)) {
+    records(raw.entries).forEach((entry, index) => {
+      checks.push({
+        key: `entry_${index}`,
+        name: `启动入口${entry.module ? ` · ${String(entry.module)}` : ""}`,
+        method: entry.module ? `导入 ${String(entry.module)}` : "入口导入",
+        result: entry.ok === true ? "passed" : "failed",
+        detail: entry.ok === true ? "入口可加载" : "入口加载失败",
+        time: "",
+      });
+    });
+  }
+  return checks;
+}
+
+function mapLink(raw: LinkLocation | null, runId: string): LinkData | null {
+  if (!raw) {
+    return null;
+  }
+  const nodes: LinkNode[] = [
+    ...raw.upstream,
+    ...(raw.first_anomaly ? [raw.first_anomaly] : []),
+    ...raw.downstream,
+  ].map((node) => ({
+    id: node.node_id,
+    name: node.type ? `${node.type} ${node.node_id}` : node.node_id,
+    state:
+      node.status === "passed" ||
+      node.status === "failed" ||
+      node.status === "blocked" ||
+      node.status === "not_run"
+        ? node.status
+        : "gap",
+    detail: node.message ?? "",
+    evidenceRef: node.evidence_ref ?? "",
+  }));
+  return {
+    nodes,
+    assertions: [],
+    gaps: nodes
+      .filter((node) => node.state === "gap")
+      .map((node) => ({ nodeId: node.id, reason: node.detail || "链路缺口" })),
+    location: raw.location.known
+      ? { known: true, path: raw.location.path, line: raw.location.line, reason: "" }
+      : { known: false, path: "", line: 0, reason: raw.location.reason },
+    unknown: raw.first_anomaly
+      ? `首个异常节点：${raw.first_anomaly.node_id}（运行 ${runId}）`
+      : "",
+  };
+}
+
+function mapRunCase(
+  dto: RunCaseDto,
+  planCase: PlanCase | null,
+  evidence: EvidenceRef[],
+): RunCase {
+  const lastAttempt = dto.attempts[dto.attempts.length - 1];
+  const refs = new Set([...(dto.evidence_refs ?? []), ...(lastAttempt?.evidence_refs ?? [])]);
+  return {
+    id: dto.case_id,
+    caseId: dto.case_id,
+    itemId: planCase?.itemId ?? "",
+    title: planCase?.title ?? dto.case_id,
+    method: planCase?.verifyMethod ?? "",
+    layer: planCase?.layer ?? "L2",
+    expected: planCase?.expected ?? "",
+    expectationVerified: planCase?.expectationVerified ?? true,
+    dependsOn: planCase?.dependsOn ?? null,
+    actual: lastAttempt?.message ?? "",
+    result: dto.result,
+    evidence: evidence.filter((entry) => refs.has(entry.id) || refs.has(entry.name)),
+    message: lastAttempt?.message ?? "",
+    errorType: "",
+    stackKey: "",
+    attempts: dto.attempts.length,
+    manualSteps: dto.attempts.map((attempt, index) => ({
+      step: `第 ${index + 1} 次尝试`,
+      result: attempt.result === "passed" ? "passed" : "failed",
+      note: attempt.message ?? "",
+      at: attempt.finished_at ?? attempt.started_at ?? "",
+    })),
+  };
+}
+
+export function mapRun(
+  detail: RunDetail,
+  taskItems: AcceptanceItem[],
+  evidence: EvidenceRef[],
+): Run {
+  const dto = detail.run;
+  const plan = detail.plan ?? null;
+  const runCasePlan = new Map<string, PlanCase>();
+  (plan?.cases ?? []).forEach((testCase) => runCasePlan.set(testCase.case_id, mapPlanCase(testCase)));
+  const cases = dto.cases.map((testCase) =>
+    mapRunCase(testCase, runCasePlan.get(testCase.case_id) ?? null, evidence),
+  );
+  const outcomes = new Map<string, CaseResult>();
+  (detail.item_outcomes ?? []).forEach((entry) => outcomes.set(entry.item_id, entry.result));
+  const selectedIds = dto.scope.acceptance_item_ids ?? [];
+  const counts = mapCounts(detail.counts ?? undefined, {
+    selected: selectedIds.length,
+    applicable: detail.counts?.applicable ?? selectedIds.length,
+    covered: 0,
+    passed: 0,
+    failed: 0,
+    incomplete: selectedIds.length,
+  });
+  const items: RunItem[] = selectedIds.map((itemId) => {
+    const item = taskItems.find((entry) => entry.id === itemId);
+    return {
+      itemId,
+      no: item?.no ?? "",
+      text: item?.text ?? itemId,
+      module: item?.moduleName ?? "",
+      feature: item?.featureName ?? "",
+      outcome: outcomes.get(itemId) ?? "not_run",
+      caseIds: cases.filter((testCase) => testCase.itemId === itemId).map((testCase) => testCase.id),
+    };
+  });
+  const started = new Date(dto.started_at).getTime();
+  const elapsedSeconds = num(dto.elapsed_seconds);
+  const elapsedMs = dto.status === "running" ? Math.max(0, Date.now() - started) : elapsedSeconds * 1000;
+  return {
+    id: dto.run_id,
+    projectId: dto.project_id,
+    taskId: detail.task?.task_id ?? plan?.task_id ?? "",
+    planId: dto.plan_id,
+    kind: dto.kind ?? "task",
+    status: dto.status,
+    startedAt: dto.started_at,
+    finishedAt:
+      dto.status === "running"
+        ? ""
+        : new Date(started + elapsedSeconds * 1000).toISOString(),
+    elapsedMs,
+    confirmedBy: dto.confirmed_by ?? "",
+    confirmationId: dto.confirmation_id ?? "",
+    confirmationFingerprint: dto.confirmation_fingerprint ?? "",
+    scope: {
+      preset: dto.scope.preset,
+      moduleIds: dto.scope.module_ids ?? [],
+      acceptanceItemIds: selectedIds,
+      coverage: { selected: counts.selected, applicable: counts.applicable },
+    },
+    cases,
+    l1: mapProjectChecks(detail.l1),
+    items,
+    evidence,
+    link: mapLink(detail.link ?? null, dto.run_id),
+    verdict: detail.outcome ?? "incomplete",
+    counts,
+    conclusion: "",
+    reportIds: dto.latest_report_id ? [dto.latest_report_id] : [],
+    currentCaseId: dto.current_case_id ?? "",
+    simulated: false,
+    heartbeatAt: dto.heartbeat_at ?? dto.started_at,
+    cancelRequested: dto.status === "cancelled",
+  };
+}
+
+function layerCounts(cases: Array<{ layer: "L1" | "L2" | "L3"; result: CaseResult }>): Report["layers"] {
+  const result = {
+    L1: { total: 0, passed: 0, failed: 0, incomplete: 0 },
+    L2: { total: 0, passed: 0, failed: 0, incomplete: 0 },
+    L3: { total: 0, passed: 0, failed: 0, incomplete: 0 },
+  };
+  cases.forEach((testCase) => {
+    const layer = testCase.layer;
+    result[layer].total += 1;
+    if (testCase.result === "passed") {
+      result[layer].passed += 1;
+    } else if (testCase.result === "failed") {
+      result[layer].failed += 1;
+    } else {
+      result[layer].incomplete += 1;
+    }
+  });
+  return result;
+}
+
+function mapAnalysis(raw: Record<string, unknown>[]): FailureAnalysis {
+  const first = raw[0];
+  if (!first) {
+    return {
+      status: "not_generated",
+      reason: "no_failures",
+      observed: "",
+      evidenceRefs: [],
+      candidateCauses: [],
+      unverified: [],
+      nextSteps: [],
+    };
+  }
+  return {
+    status: first.status === "invalid" ? "invalid" : "generated",
+    reason: (first.reason as FailureAnalysis["reason"]) ?? "",
+    observed: str(first.observed),
+    evidenceRefs: strList(first.evidence_refs),
+    candidateCauses: records(first.candidate_causes).map((cause) => ({
+      cause: str(cause.cause),
+      confidence: asConfidence(cause.confidence),
+    })),
+    unverified: strList(first.unverified),
+    nextSteps: strList(first.next_steps),
+  };
+}
+
+export function mapReport(
+  dto: ReportDto,
+  projectId: string,
+  taskId: string,
+  plan: Plan | null,
+  run: Run | null,
+  evidence: EvidenceRef[],
+  rulesLabel: string,
+): Report {
+  const itemDetails: ReportItemDetail[] = records(dto.item_details).map((item) => {
+    const itemId = str(item.item_id);
+    const runItem = run?.items.find((entry) => entry.itemId === itemId);
+    return {
+      itemId,
+      no: runItem?.no ?? str(item.no ?? item.item_id),
+      text: str(item.text),
+      outcome: asCaseResult(item.result ?? item.outcome),
+      caseIds: strList(item.case_ids),
+    };
+  });
+  const caseDetails: ReportCaseDetail[] = records(dto.case_details).map((testCase) => {
+    const caseId = str(testCase.case_id);
+    const planCase = plan?.cases.find((entry) => entry.id === caseId) ?? null;
+    const refs = strList(testCase.evidence_refs);
+    return {
+      caseId,
+      itemId: str(testCase.acceptance_item_id),
+      itemNo:
+        itemDetails.find((item) => item.itemId === str(testCase.acceptance_item_id))?.no ?? "",
+      title: str(testCase.title, caseId),
+      method: planCase?.verifyMethod ?? "",
+      expected: str(testCase.expected),
+      actual:
+        str(records(testCase.attempts)[records(testCase.attempts).length - 1]?.message) ||
+        (str(testCase.result) === "passed" ? "通过" : "未记录"),
+      result: asCaseResult(testCase.result),
+      evidence: evidence.filter((entry) => refs.includes(entry.id) || refs.includes(entry.name)),
+      analysis: null,
+    };
+  });
+  const caseLayers = layerCounts(
+    records(dto.case_details).map((testCase) => ({
+      layer: asLayer(testCase.layer),
+      result: asCaseResult(testCase.result),
+    })),
+  );
+  const counts = mapCounts(dto.counts, {
+    selected: num(dto.coverage.selected),
+    applicable: num(dto.coverage.applicable),
+    covered: 0,
+    passed: 0,
+    failed: 0,
+    incomplete: 0,
+  });
+  const mockRecords = records(dto.mock_judgement);
+  const mock = {
+    real: mockRecords.filter((entry) => entry.result === "real").length,
+    mock: mockRecords.filter((entry) => entry.result === "mock").length,
+    mixed: mockRecords.filter((entry) => entry.result === "mixed").length,
+    unknown: mockRecords.filter((entry) => entry.result === "unknown").length,
+    note: mockRecords.length
+      ? "Mock 真实性由后端判定；含模拟或无法判断的用例不能获得真实链路通过。"
+      : "本次没有 Mock 判定记录；未产生真实链路通过结论。",
+    refs: [],
+  };
+  return {
+    id: dto.report_id,
+    projectId,
+    taskId,
+    runId: dto.run_id,
+    version: dto.revision,
+    generatedAt: dto.generated_at ?? isoNow(),
+    verdict: dto.outcome,
+    counts,
+    conclusion: dto.conclusion,
+    coverage: {
+      selected: num(dto.coverage.selected),
+      applicable: num(dto.coverage.applicable),
+      covered: counts.covered,
+      unselected: Math.max(0, num(dto.coverage.applicable) - num(dto.coverage.selected)),
+    },
+    itemDetails,
+    caseDetails,
+    l1: mapProjectChecks(dto.l1),
+    layers: caseLayers,
+    issues: records(dto.issues)
+      .map((issue) => str(issue.issue_id))
+      .filter(Boolean),
+    mock,
+    analysis: mapAnalysis(records(dto.analysis)),
+    link: run?.link ?? null,
+    templates: records(dto.templates).map((template) =>
+      mapTemplateResult(template as unknown as TemplateResultDto),
+    ),
+    modules: strList(dto.changed_modules).map((name) => ({ name, count: 0 })),
+    unmapped: strList(dto.unmapped_files),
+    uncoveredItems: strList(dto.uncovered_items),
+    unverifiedItems: strList(dto.unverified_items),
+    evidenceIndex: evidence,
+    source: {
+      runTime: run?.startedAt ?? "",
+      planLabel: plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划快照缺失",
+      rulesLabel,
+      commit: dto.source_commit ?? "未记录",
+      model: str((dto.environment.model as unknown) ?? "未记录"),
+      github: dto.github ? "已读取 GitHub 快照" : "未连接",
+    },
+    summary: dto.summary ?? "",
+    opinion: dto.opinion ?? null,
+    status: "final",
+  };
+}
+
+export function mapIssue(
+  dto: IssueDto,
+  projectId: string,
+  runs: Map<string, RunDetail>,
+): Issue {
+  const latest = [...dto.occurrences].sort((first, second) => second.at.localeCompare(first.at))[0];
+  const detail = latest ? runs.get(latest.run_id) : undefined;
+  const planCase = detail?.plan?.cases.find((testCase) => testCase.case_id === latest?.case_id);
+  const occurrences: IssueOccurrence[] = dto.occurrences.map((occurrence, index) => ({
+    runId: occurrence.run_id,
+    caseId: occurrence.case_id,
+    time: occurrence.at,
+    result: index === dto.occurrences.length - 1 ? asCaseResult(dto.last_result) : "not_run",
+    note: "",
+    evidenceRefs: occurrence.evidence_refs ?? [],
+  }));
+  const evidenceRefs = [...new Set(dto.occurrences.flatMap((entry) => entry.evidence_refs ?? []))];
+  return {
+    id: dto.issue_id,
+    projectId,
+    taskId: detail?.task?.task_id ?? detail?.plan?.task_id ?? "",
+    planId: detail?.plan?.plan_id ?? "",
+    runId: latest?.run_id ?? "",
+    itemId: planCase?.acceptance_item_id ?? "",
+    caseId: latest?.case_id ?? "",
+    signature: dto.signature,
+    title: dto.title,
+    expected: dto.expected,
+    actual: dto.actual,
+    steps: dto.steps ?? [],
+    severity: dto.severity,
+    status: dto.status,
+    disposition: dto.disposition ?? null,
+    reason: dto.reason,
+    fixVersion: dto.fix_version ?? "",
+    source: dto.occurrences.length ? "auto" : "manual",
+    occurrences,
+    evidenceRefs,
+    verificationRunId: dto.verification_run_id,
+    unstable: dto.unstable,
+    createdAt: dto.occurrences[0]?.at ?? isoNow(),
+    updatedAt: latest?.at ?? isoNow(),
+  };
+}
+
+export function mapTask(
+  task: TaskDto,
+  plans: Plan[],
+  runs: Run[],
+  delivery: Delivery | null,
+  modules: Module[],
+  features: Feature[],
+  sidecar: HostSidecar,
+): Task {
+  const sortedPlans = [...plans].sort((first, second) => {
+    const no = second.no - first.no;
+    return no !== 0 ? no : second.revision - first.revision;
+  });
+  const sortedRuns = [...runs].sort((first, second) =>
+    second.startedAt.localeCompare(first.startedAt),
+  );
+  const acceptanceItems = task.acceptance_items.map((item, index) =>
+    mapAcceptanceItem(item, index, modules, features),
+  );
+  const applicable = acceptanceItems
+    .filter((item) => item.observable && item.status === "active")
+    .map((item) => item.id);
+  const latestPlan = sortedPlans[0] ?? null;
+  const latestRun = sortedRuns[0] ?? null;
+  const override = sidecar.stage[task.task_id];
+  let stage: Task["stage"] = "scope";
+  if (override) {
+    stage = "scope";
+  } else if (sortedRuns.some((run) => run.status === "running")) {
+    stage = "running";
+  } else if (!latestPlan) {
+    stage = "scope";
+  } else if (!latestRun) {
+    stage = "planned";
+  } else if (latestPlan.createdAt > latestRun.startedAt) {
+    stage = "planned";
+  } else {
+    stage = "result";
+  }
+  const selected = sidecar.scopes[task.task_id] ?? latestPlan?.scope.acceptanceItemIds ?? applicable;
+  return {
+    id: task.task_id,
+    projectId: task.project_id,
+    title: task.title,
+    goal: task.goal ?? "",
+    intent: task.intent ?? "business",
+    origin: task.origin ?? "manual",
+    sourceMapRevision: task.source_map_revision ?? 0,
+    scope: task.scope ?? "",
+    inputs: task.inputs ?? "",
+    outputs: task.outputs ?? "",
+    preconditions: task.preconditions ?? [],
+    executor: task.executor ?? "",
+    reviewer: task.reviewer ?? "",
+    acceptanceItems,
+    recommendedItemIds: sidecar.recommended[task.task_id] ?? selected,
+    selectedItemIds: selected.filter((id) => applicable.includes(id)),
+    stage,
+    previousStage: override?.previousStage ?? null,
+    revision: task.revision,
+    createdAt: latestPlan?.createdAt ?? latestRun?.startedAt ?? isoNow(),
+    updatedAt: latestRun?.startedAt ?? latestPlan?.createdAt ?? isoNow(),
+    plans: sortedPlans,
+    currentPlanId: latestPlan?.id ?? null,
+    runs: sortedRuns,
+    currentRunId: latestRun?.id ?? null,
+    delivery,
+    templates: sidecar.templates[task.task_id] ?? latestPlan?.templates ?? [],
+  };
+}
+
+export interface RawTaskBundle {
+  task: TaskDto;
+  plans: PlanDetail[];
+  runs: RunDetail[];
+  delivery: DeliveryDto | null;
+}
+
+export function mapProject(input: {
+  project: ProjectDto;
+  modules: ModuleDto[];
+  map: Record<string, unknown> | null;
+  mapStale: boolean;
+  mapStaleReason: string;
+  config: ProjectConfigDto;
+  rules: RuleDto[];
+  tasks: RawTaskBundle[];
+  reports: ReportDto[];
+  issues: IssueDto[];
+  runDetails: Map<string, RunDetail>;
+  evidence: Map<string, EvidenceRef[]>;
+  sidecar: HostSidecar;
+}): Project {
+  const { project, sidecar } = input;
+  const modules = input.modules.map(mapModule);
+  const projectMap = mapProjectMap(
+    input.map,
+    project.project_id,
+    sidecar,
+    input.mapStale,
+    input.mapStaleReason,
+  );
+  const features = projectMap?.features ?? [];
+  const catalog = mapCatalog(features, input.tasks, project.project_id);
+  const tasks = input.tasks.map((bundle) => {
+    const plans = bundle.plans.map((detail) =>
+      mapPlan(detail, project.project_id, bundle.task.task_id, sidecar),
+    );
+    const taskItems = bundle.task.acceptance_items.map((item, index) =>
+      mapAcceptanceItem(item, index, modules, features),
+    );
+    const runs = bundle.runs.map((detail) =>
+      mapRun(detail, taskItems, input.evidence.get(detail.run.run_id) ?? []),
+    );
+    return mapTask(
+      bundle.task,
+      plans,
+      runs,
+      bundle.delivery ? mapDelivery(bundle.delivery) : null,
+      modules,
+      features,
+      sidecar,
+    );
+  });
+  const planByRun = new Map<string, Plan>();
+  tasks.forEach((task) =>
+    task.plans.forEach((plan) => planByRun.set(plan.id, plan)),
+  );
+  const runById = new Map<string, Run>();
+  tasks.forEach((task) => task.runs.forEach((run) => runById.set(run.id, run)));
+  const reports = input.reports.map((dto) => {
+    const run = runById.get(dto.run_id) ?? null;
+    const plan = run ? (planByRun.get(run.planId) ?? null) : null;
+    const taskId = run?.taskId ?? "";
+    const rule = input.rules.find((entry) => entry.rules_version_id === dto.rules_version_id);
+    return mapReport(
+      dto,
+      project.project_id,
+      taskId,
+      plan,
+      run,
+      input.evidence.get(dto.run_id) ?? [],
+      rule ? `${rule.name} v${rule.version}` : "未绑定规则",
+    );
+  });
+  tasks.forEach((task) =>
+    task.runs.forEach((run) => {
+      const report = reports.find((entry) => entry.runId === run.id);
+      if (report) {
+        run.conclusion = report.conclusion;
+      }
+    }),
+  );
+  const issues = input.issues.map((dto) =>
+    mapIssue(dto, project.project_id, input.runDetails),
+  );
+  const activeTaskId =
+    sidecar.activeTask[project.project_id] ?? tasks[0]?.id ?? null;
+  const analysis = sidecar.analysis[project.project_id];
+  return {
+    id: project.project_id,
+    name: project.name,
+    root: project.root,
+    goal: project.goal ?? "",
+    createdAt: project.updated_at ?? isoNow(),
+    updatedAt: project.updated_at ?? isoNow(),
+    analysisStatus: analysis?.status ?? "ready",
+    analysisStartedAt: "",
+    analysisError: analysis?.error ?? "",
+    candidates: analysis?.candidates ?? [],
+    modules,
+    map: projectMap,
+    catalog,
+    tasks,
+    activeTaskId,
+    rules: input.rules.map(mapRule),
+    rulesVersionId: project.rules_version_id ?? null,
+    config: mapConfig(input.config),
+    github: sidecar.github[project.project_id] ?? null,
+    quickChecks: sidecar.quickChecks[project.project_id] ?? [],
+    issues,
+    reports,
+    archived: false,
+  };
+}
+
+export function mapProjectSummary(
+  dto: { project_id: string; name: string; root: string; updated_at?: string; revision?: number },
+  sidecar: HostSidecar,
+): Project {
+  return {
+    id: dto.project_id,
+    name: dto.name,
+    root: dto.root,
+    goal: "",
+    createdAt: dto.updated_at ?? isoNow(),
+    updatedAt: dto.updated_at ?? isoNow(),
+    analysisStatus: sidecar.analysis[dto.project_id]?.status ?? "ready",
+    analysisStartedAt: "",
+    analysisError: "",
+    candidates: sidecar.analysis[dto.project_id]?.candidates ?? [],
+    modules: [],
+    map: null,
+    catalog: [],
+    tasks: [],
+    activeTaskId: null,
+    rules: [],
+    rulesVersionId: null,
+    config: {},
+    github: sidecar.github[dto.project_id] ?? null,
+    quickChecks: sidecar.quickChecks[dto.project_id] ?? [],
+    issues: [],
+    reports: [],
+    archived: false,
+  };
+}
+
+export function mapCandidate(
+  dto: {
+    title: string;
+    reason?: string;
+    source?: string;
+    intent?: "smoke" | "business";
+    scope_preview?: { business_functions?: string[]; acceptance_items_estimate?: number };
+    uncertainties?: string[];
+  },
+  projectId: string,
+  index: number,
+): Candidate {
+  const features = dto.scope_preview?.business_functions ?? [];
+  const count = dto.scope_preview?.acceptance_items_estimate ?? 0;
+  return {
+    id: `cand_${projectId.slice(-6)}_${index}_${hashText(dto.title).slice(0, 6)}`,
+    title: dto.title,
+    reason: dto.reason ?? "模型未提供依据",
+    source: dto.source ?? "AI",
+    intent: dto.intent ?? "business",
+    featureNames: features,
+    itemCount: count,
+    estimatedScope: `${features.join("、") || "待分析"} · 约 ${count} 项`,
+    unknown: (dto.uncertainties ?? []).join("；") || "无",
+  };
+}
+
+export function mapQuickCheck(
+  run: RunDetail,
+  projectId: string,
+): QuickCheck {
+  const dto = run.run;
+  const checks = mapProjectChecks(run.l1);
+  return {
+    id: dto.run_id,
+    projectId,
+    startedAt: dto.started_at,
+    finishedAt: dto.status === "running" ? "" : (dto.heartbeat_at ?? dto.started_at),
+    status: dto.status === "running" ? "running" : "completed",
+    confirmedBy: dto.confirmed_by ?? "本机用户",
+    checks,
+    simulated: false,
+  };
+}
+
+export function mapGithub(dto: Record<string, unknown>): GithubSnapshot {
+  const change = isRecord(dto.change) ? dto.change : dto;
+  return {
+    repo: str(change.repo),
+    branch: str(change.branch, "main"),
+    commit: str(change.commit),
+    files: strList(change.files),
+    prs: records(change.prs).map((pr) => str(pr.number ?? pr.title)),
+    checks: records(change.checks).map((check) => str(check.name ?? check.conclusion)),
+    deployment: change.deployment ? JSON.stringify(change.deployment) : "",
+    account: str(change.account),
+    host: str(change.host, "github.com"),
+    fetchedAt: str(change.fetched_at, isoNow()),
+    cached: str(dto.cached ?? "") === "true" ? true : false,
+    unavailableReason: "",
+  };
+}

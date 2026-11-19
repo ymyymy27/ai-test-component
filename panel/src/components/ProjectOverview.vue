@@ -16,6 +16,7 @@ import CurrentTaskStrip from "./CurrentTaskStrip.vue";
 import Icon from "./Icon.vue";
 import ProjectMap from "./ProjectMap.vue";
 import ProjectStats from "./ProjectStats.vue";
+import { useWorkspaceStore } from "@/stores/workspace";
 
 const props = defineProps<{
   project: Project;
@@ -23,6 +24,8 @@ const props = defineProps<{
   analysisError: string;
   analyzingBusy: boolean;
 }>();
+
+const workspace = useWorkspaceStore();
 
 const emit = defineEmits<{
   newTask: [];
@@ -230,7 +233,7 @@ function toggleFeature(name: string, ignored: boolean): void {
         </div>
         <div class="info-cell">
           <dt>工作空间</dt>
-          <dd>浏览器本地存储 · 不写入被测仓库</dd>
+          <dd>{{ workspace.mode === "host" ? "宿主 CLI 工作空间 · 面板不直接写业务文件" : "浏览器本地存储 · 不写入被测仓库" }}</dd>
         </div>
       </dl>
     </section>

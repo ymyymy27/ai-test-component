@@ -20,7 +20,7 @@ const outcomes = computed<Record<string, CaseResult>>(() => {
   });
   return map;
 });
-const conclusion = computed(() => conclusionForRun(props.run));
+const conclusion = computed(() => props.run.conclusion || conclusionForRun(props.run));
 const unselected = computed(() =>
   Math.max(0, props.run.counts.applicable - props.run.counts.selected),
 );

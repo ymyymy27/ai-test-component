@@ -426,6 +426,7 @@ export function buildRun(
     evidence: [],
     link: null,
     verdict: "not_applicable",
+    conclusion: "",
     counts: {
       selected: plan.scope.acceptanceItemIds.length,
       applicable: plan.applicableCount,

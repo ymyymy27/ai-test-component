@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import CaseLedger from "@/components/CaseLedger.vue";
@@ -70,9 +70,31 @@ const latestReport = computed(() => reports.value[0] ?? null);
 const unselected = computed(() =>
   task.value && run.value ? unselectedItems(task.value, run.value.scope.acceptanceItemIds) : [],
 );
+const supportsEvidence = computed(() => workspace.capabilities.evidenceFiles);
 const manualBusy = computed(() =>
   manualCase.value ? workspace.busyKey(`manual:${manualCase.value.id}`) : false,
 );
+let disposed = false;
+
+// 宿主 worker 在运行状态结束后才异步构建报告；结果页短暂轮询版本列表。
+async function loadReportsUntilReady(): Promise<void> {
+  for (let attempt = 0; attempt < 30 && !disposed; attempt += 1) {
+    if (!run.value || reports.value.length > 0) {
+      return;
+    }
+    try {
+      await workspace.ensureReportVersions(projectId.value, run.value.id);
+    } catch {
+      // 报告拉取失败不阻塞结果页；下一轮重试。
+    }
+    if (reports.value.length > 0) {
+      return;
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2000);
+    });
+  }
+}
 
 onMounted(async () => {
   if (task.value && workspace.currentTask?.id !== taskId.value) {
@@ -82,6 +104,11 @@ onMounted(async () => {
       // store 已提示。
     }
   }
+  void loadReportsUntilReady();
+});
+
+onBeforeUnmount(() => {
+  disposed = true;
 });
 
 function openManual(testCaseId: string): void {
@@ -275,7 +302,10 @@ function rerunLabel(): string {
         </button>
       </div>
       <span class="section-note">按最差结果排序 · 编号为验收项序号</span>
-      <button class="link-btn" type="button" @click="openEvidence">补充证据</button>
+      <button v-if="supportsEvidence" class="link-btn" type="button" @click="openEvidence">
+        补充证据
+      </button>
+      <span v-else class="section-note">宿主模式证据由 CLI 追加</span>
     </div>
 
     <CaseLedger
@@ -323,9 +353,11 @@ function rerunLabel(): string {
       v-model="manualOpen"
       :test-case="manualCase"
       :busy="manualBusy"
+      :allow-files="supportsEvidence"
       @save="saveManual"
     />
     <EvidenceDialog
+      v-if="supportsEvidence"
       v-model="evidenceOpen"
       :cases="run.cases"
       :default-case-id="evidenceCaseId"

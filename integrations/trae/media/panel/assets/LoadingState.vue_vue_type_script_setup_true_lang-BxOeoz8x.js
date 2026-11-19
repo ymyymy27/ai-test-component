@@ -1,1 +1,0 @@
-import{d as s,g as n,c as o,h as e,t as r}from"./index-DVb2cxSn.js";const i={class:"loading-state",role:"status","aria-live":"polite","aria-busy":"true"},d=s({__name:"LoadingState",props:{text:{default:"正在加载…"}},setup(a){return(l,t)=>(n(),o("div",i,[t[0]||(t[0]=e("span",{class:"spinner","aria-hidden":"true"},null,-1)),e("span",null,r(a.text),1)]))}});export{d as _};

@@ -48,7 +48,7 @@ describe("ConfirmationPanel", () => {
           checked: false,
           busy: false,
           startDisabled: true,
-        },
+          },
       });
       expect(wrapper.text()).toContain("契约变化");
       expect(wrapper.get("#confirm-execution").attributes("disabled")).toBeDefined();

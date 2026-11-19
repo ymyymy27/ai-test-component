@@ -189,7 +189,7 @@ test("activation registers only the three commands and the sidebar view", () => 
   assert.equal(state.viewProvider.options.webviewOptions.retainContextWhenHidden, true);
 });
 
-test("openPanel loads the shared panel build with CSP, nonce and injected bridge", () => {
+test("openPanel inlines the shared panel build with CSP, nonce and injected bridge", () => {
   state.commands.get("aitest.openPanel")();
   assert.equal(state.panels.length, 1);
   const webview = state.panels[0].webview;
@@ -197,16 +197,23 @@ test("openPanel loads the shared panel build with CSP, nonce and injected bridge
   assert.equal(state.panelOptions.localResourceRoots.length, 1);
   assert.equal(webview.html.includes("AI 辅助测试"), true);
   assert.equal(webview.html.includes("{{"), false);
-  assert.match(webview.html, /nonce-[a-f0-9]{48}/);
+  assert.match(webview.html, /script-src 'nonce-[a-f0-9]{48}'/);
+  assert.match(webview.html, /<style nonce="[a-f0-9]{48}">/);
+  assert.match(webview.html, /<script nonce="[a-f0-9]{48}">/);
   assert.equal(webview.html.includes("Content-Security-Policy"), true);
   assert.equal(webview.html.includes("window.aitestHost"), true);
   assert.equal(webview.html.includes("acquireVsCodeApi"), true);
   assert.equal(webview.html.includes("getContext"), true);
   assert.equal(webview.html.includes(" crossorigin"), false);
-  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.js\?v=[a-f0-9]{12}/);
-  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.css\?v=[a-f0-9]{12}/);
+  assert.equal(webview.html.includes('src="./panel.js"'), false);
+  assert.equal(webview.html.includes('href="./panel.css"'), false);
   assert.equal(webview.html.includes("panel.html"), false);
   assert.equal(webview.html.includes("pipe"), false);
+  const inlineScripts = [
+    ...webview.html.matchAll(/<script nonce="[a-f0-9]{48}">([\s\S]*?)<\/script>/g),
+  ].map((match) => match[1]);
+  assert.ok(inlineScripts.length >= 2);
+  assert.doesNotThrow(() => new Function(inlineScripts[inlineScripts.length - 1]));
 });
 
 test("ready publishes settings context and checkEnvironment runs doctor", async () => {

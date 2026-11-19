@@ -136,12 +136,21 @@ export interface LinkAssertInput {
   operator: string;
 }
 
+export interface RepositoryCapabilities {
+  hostGithub: boolean;
+  evidenceFiles: boolean;
+  browserBackup: boolean;
+  linkJson: boolean;
+}
+
 export interface BackupPayload {
   data: Uint8Array;
   result: BackupResult;
 }
 
 export interface ProjectRepository {
+  readonly mode: "local" | "host";
+  readonly capabilities: RepositoryCapabilities;
   listProjects(): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
   createProject(input: CreateProjectInput): Promise<Project>;
@@ -212,6 +221,12 @@ export interface ProjectRepository {
   assertLink(projectId: string, runId: string, input: LinkAssertInput): Promise<LinkAssertion>;
 
   recordQuickCheck(projectId: string, quick: QuickCheck): Promise<Project>;
+
+  getRun?(projectId: string, runId: string): Promise<Run | null>;
+  runQuickCheck?(projectId: string): Promise<QuickCheck>;
+  readGithub?(projectId: string, repo: string, ref: string): Promise<GithubSnapshot>;
+  listReports?(projectId: string, runId: string): Promise<Report[]>;
+  getReport?(projectId: string, reportId: string): Promise<Report | null>;
 
   backup(): Promise<BackupPayload>;
   restore(data: string | Uint8Array | ArrayBuffer): Promise<Project[]>;

@@ -8,6 +8,7 @@ import { fileToEvidence } from "@/services/evidenceFiles";
 const props = defineProps<{
   testCase: RunCase | null;
   busy: boolean;
+  allowFiles: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -133,13 +134,16 @@ function onDialogClick(event: MouseEvent): void {
         />
         <p v-if="error" id="manual-error" class="field-error" role="alert">{{ error }}</p>
       </div>
-      <div class="field">
+      <div v-if="allowFiles" class="field">
         <label for="manual-files">证据文件 <span class="optional">可选</span></label>
         <input id="manual-files" type="file" multiple @change="onFiles" />
         <p v-if="files.length" class="field-hint">
           已选 {{ files.length }} 个文件；只登记文件名、大小与摘要，不读取正文。
         </p>
       </div>
+      <p v-else class="field-hint">
+        宿主模式的证据需要绝对文件路径；请在 CLI 执行 evidence.add，或在证据列表中使用已有引用。
+      </p>
       <footer class="dialog-actions">
         <button class="btn" type="button" @click="close">取消</button>
         <button

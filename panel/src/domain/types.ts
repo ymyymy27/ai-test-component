@@ -331,6 +331,7 @@ export interface Run {
   link: LinkData | null;
   verdict: Verdict;
   counts: Counts;
+  conclusion: string;
   reportIds: string[];
   currentCaseId: string;
   simulated: boolean;
@@ -599,6 +600,7 @@ export interface ExportResult {
   lines: number;
   sha256: string;
   markdown: string;
+  path?: string;
 }
 
 export interface BackupResult {
@@ -606,5 +608,6 @@ export interface BackupResult {
   bytes: number;
   projects: number;
   includesEvidence: boolean;
-  format: "zip" | "json";
+  format: "zip" | "json" | "cli";
+  path?: string;
 }

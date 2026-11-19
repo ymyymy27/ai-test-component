@@ -93,6 +93,10 @@ const githubForm = ref({
 });
 const githubError = ref("");
 const busyGithub = computed(() => workspace.busyKey(`github:${projectId.value}`));
+const githubReadRepo = ref("");
+const githubReadRef = ref("main");
+const githubReadError = ref("");
+const busyGithubRead = computed(() => workspace.busyKey(`github-read:${projectId.value}`));
 
 const backupBusy = ref(false);
 const restoreBusy = ref(false);
@@ -119,6 +123,8 @@ watch(
       checks: current.github?.checks.join("\n") ?? "",
       account: current.github?.account ?? "",
     };
+    githubReadRepo.value = current.github?.repo ?? "";
+    githubReadRef.value = current.github?.branch ?? "main";
   },
   { immediate: true },
 );
@@ -267,6 +273,24 @@ async function onRuleFile(event: Event): Promise<void> {
     ui.showToast("读取规则文件失败。", "error");
   } finally {
     target.value = "";
+  }
+}
+
+async function readGithub(): Promise<void> {
+  if (!githubReadRepo.value.trim()) {
+    githubReadError.value = "填写仓库后再读取。";
+    return;
+  }
+  githubReadError.value = "";
+  try {
+    await workspace.readGithub(
+      projectId.value,
+      githubReadRepo.value.trim(),
+      githubReadRef.value.trim() || "main",
+    );
+    ui.showToast("GitHub 变更已读取。", "success");
+  } catch {
+    // store 已提示。
   }
 }
 
@@ -479,11 +503,11 @@ async function clearData(): Promise<void> {
                 id="config-build"
                 v-model="configDraft.l1.build"
                 type="text"
-                placeholder="留空时自动检测"
+                placeholder="例如 app, src.main"
               />
             </div>
             <div class="field">
-              <label for="config-entry">入口命令</label>
+              <label for="config-entry">入口模块 <span class="optional">逗号分隔</span></label>
               <input
                 id="config-entry"
                 v-model="configDraft.l1.entry"
@@ -736,10 +760,12 @@ async function clearData(): Promise<void> {
                 <strong>{{ project.github.repo }}</strong> · {{ project.github.commit }} ·
                 {{ project.github.branch }}
               </p>
-              <span class="badge is-warn">缓存快照，未确认最新</span>
+              <span class="badge" :class="project.github.cached ? 'is-warn' : 'is-pass'">
+                {{ project.github.cached ? "缓存快照，未确认最新" : "最新读取" }}
+              </span>
             </div>
             <p class="doc-note">
-              登记于 {{ new Date(project.github.fetchedAt).toLocaleString("zh-CN") }}
+              读取于 {{ new Date(project.github.fetchedAt).toLocaleString("zh-CN") }}
               <template v-if="project.github.account"> · {{ project.github.account }}</template>
             </p>
             <p class="doc-note mono">{{ project.github.files.join(" · ") || "没有文件列表" }}</p>
@@ -758,9 +784,36 @@ async function clearData(): Promise<void> {
           <EmptyState
             v-else
             title="未连接 GitHub"
-            text="只读提交、PR、检查与部署不可用；本地测试、证据与报告不受影响。可以手动登记缓存快照，或接入宿主后读取。"
+            :text="
+              workspace.mode === 'host'
+                ? '输入仓库与分支后读取；读取失败不会用缓存冒充最新。'
+                : '只读提交、PR、检查与部署不可用；本地测试、证据与报告不受影响。可以手动登记缓存快照，或接入宿主后读取。'
+            "
           />
-          <details class="link-tools" :open="!project.github">
+          <form
+            v-if="workspace.mode === 'host'"
+            class="settings-form github-read-form"
+            novalidate
+            @submit.prevent="readGithub"
+          >
+            <div class="form-grid">
+              <div class="field">
+                <label for="github-read-repo">仓库</label>
+                <input id="github-read-repo" v-model="githubReadRepo" type="text" placeholder="owner/name" />
+              </div>
+              <div class="field">
+                <label for="github-read-ref">分支或引用</label>
+                <input id="github-read-ref" v-model="githubReadRef" type="text" placeholder="main" />
+              </div>
+            </div>
+            <p v-if="githubReadError" class="field-error" role="alert">{{ githubReadError }}</p>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit" :disabled="busyGithubRead" :aria-busy="busyGithubRead">
+                {{ busyGithubRead ? "正在读取…" : "读取 GitHub" }}
+              </button>
+            </div>
+          </form>
+          <details v-if="workspace.mode !== 'host'" class="link-tools" :open="!project.github">
             <summary>{{ project.github ? "更新缓存快照" : "登记缓存快照" }}</summary>
             <form class="settings-form" novalidate @submit.prevent="saveGithubSnapshot">
               <div class="form-grid">
@@ -910,7 +963,11 @@ async function clearData(): Promise<void> {
             <div>
               <h2 class="settings-title">备份</h2>
               <p class="settings-desc">
-                ZIP 备份包含业务记录，不包含证据正文；恢复会替换当前本地数据。
+                {{
+                  workspace.capabilities.browserBackup
+                    ? "ZIP 备份包含业务记录，不包含证据正文；恢复会替换当前本地数据。"
+                    : "创建备份会写入宿主工作空间；恢复与清理由 CLI 完成。"
+                }}
               </p>
             </div>
           </div>
@@ -924,25 +981,33 @@ async function clearData(): Promise<void> {
             >
               {{ backupBusy ? "正在创建…" : "创建备份" }}
             </button>
-            <button
-              class="btn btn-sm"
-              type="button"
-              :disabled="restoreBusy"
-              :aria-busy="restoreBusy"
-              @click="openRestore"
-            >
-              {{ restoreBusy ? "正在恢复…" : "从备份恢复" }}
-            </button>
-            <input
-              ref="restoreInput"
-              class="visually-hidden"
-              type="file"
-              accept=".zip,application/zip,application/json,.json"
-              @change="onRestoreFile"
-            />
-            <span class="backup-meta">本地 ZIP · 不打包证据 · 真实 CLI 备份仍由命令行完成</span>
+            <template v-if="workspace.capabilities.browserBackup">
+              <button
+                class="btn btn-sm"
+                type="button"
+                :disabled="restoreBusy"
+                :aria-busy="restoreBusy"
+                @click="openRestore"
+              >
+                {{ restoreBusy ? "正在恢复…" : "从备份恢复" }}
+              </button>
+              <input
+                ref="restoreInput"
+                class="visually-hidden"
+                type="file"
+                accept=".zip,application/zip,application/json,.json"
+                @change="onRestoreFile"
+              />
+            </template>
+            <span class="backup-meta">
+              {{
+                workspace.capabilities.browserBackup
+                  ? "本地 ZIP · 不打包证据 · 真实 CLI 备份仍由命令行完成"
+                  : "备份写入宿主工作空间；恢复与清理由 CLI 完成"
+              }}
+            </span>
           </div>
-          <div class="backup-row">
+          <div v-if="workspace.capabilities.browserBackup" class="backup-row">
             <button class="btn btn-sm btn-danger" type="button" @click="clearData">
               清空本地数据
             </button>
@@ -951,7 +1016,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <p class="doc-note">
-          工作空间位于浏览器本地存储，项目仓库内不留插件数据。凭据不写入配置、日志、报告或导出。
+          {{
+            workspace.mode === "host"
+              ? "工作空间由宿主 CLI 管理；面板不直接写业务文件。凭据不写入配置、日志、报告或导出。"
+              : "工作空间位于浏览器本地存储，项目仓库内不留插件数据。凭据不写入配置、日志、报告或导出。"
+          }}
         </p>
       </div>
     </div>

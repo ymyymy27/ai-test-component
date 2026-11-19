@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "build:extension": "vue-tsc --noEmit && vite build --base=./",
+    "build:extension": "vue-tsc --noEmit && vite build --mode extension",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
