@@ -444,6 +444,21 @@
       case "issue-detail": issueModal(element.dataset.issueId); break;
       case "evidence-detail": evidenceModal(element.dataset.evidence); break;
       case "issue-tab": state.issueTab = element.dataset.tab; route(); break;
+      case "new-issue": modal("新建问题", `<label class="fact" style="display:block"><span class="muted">问题标题</span><input id="new-issue-title" class="input" style="width:100%;margin-top:6px" placeholder="例如：启动失败时没有给出端口冲突原因"></label><label class="fact" style="display:block"><span class="muted">严重度</span><select id="new-issue-severity" class="input" style="width:100%;margin-top:6px"><option value="high">高</option><option value="medium" selected>中</option><option value="low">低</option></select></label><label class="fact" style="display:block"><span class="muted">预期 / 实际</span><textarea id="new-issue-detail" class="input" style="width:100%;margin-top:6px;min-height:80px" placeholder="说明预期行为与实际结果"></textarea></label>`, `${button("取消", "modal-close")}${button("保存问题草稿", "save-issue", "primary")}`); break;
+      case "save-issue": {
+        const title = $("#new-issue-title")?.value.trim() || "未命名问题";
+        const severity = $("#new-issue-severity")?.value || "medium";
+        const detail = $("#new-issue-detail")?.value.trim() || "待补充预期与实际";
+        ISSUES.unshift({issue_id:`issue_demo${ISSUES.length + 1}`,signature:"manual/new",title,severity,status:"open",revision:1,fix_version:"",verification_run_id:"",occurrences:1,latest_at:"2026-11-19 现在",expected:detail,actual:"待记录"});
+        closeModal(); route(); showToast("已创建问题草稿（演示数据）"); break;
+      }
+      case "close-issue": modal("复测通过并关闭", '<div class="callout">关闭问题必须绑定新的验证运行中的通过结果。演示原型不会写入真实数据。</div><label class="fact" style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="close-issue-check" type="checkbox"><span>我已核对复测运行和通过证据。</span></label>', `${button("取消", "modal-close")}${button("确认关闭", "close-issue-confirm", "primary")}`); break;
+      case "close-issue-confirm": {
+        if (!$("#close-issue-check")?.checked) { showToast("请先勾选核对确认"); return; }
+        const issue = ISSUES.find((item) => item.status !== "closed");
+        if (issue) { issue.status = "closed"; issue.revision += 1; }
+        closeModal(); route(); showToast("问题已标记为关闭（演示数据）"); break;
+      }
       case "issue-transition": closeModal(); showToast("演示原型：等待绑定新的验证运行"); break;
       case "new-task": modal("新建任务", '<label class="fact" style="display:block"><span class="muted">任务名称</span><input class="input" style="width:100%;margin-top:6px" placeholder="例如：构建与最小启动验证"></label><label class="fact" style="display:block"><span class="muted">验证意图</span><textarea class="input" style="width:100%;margin-top:6px;min-height:80px" placeholder="说明要验证的行为"></textarea></label>', `${button("取消", "modal-close")}${button("保存草稿", "save-task", "primary")}`); break;
       case "save-task": closeModal(); showToast("演示原型：任务草稿未提交后端"); break;
