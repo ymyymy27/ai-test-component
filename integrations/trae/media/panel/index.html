@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AI 辅助测试</title>
+  <link rel="stylesheet" href="./assets/styles.css?v=20261119-1">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="#/work" aria-label="AI 辅助测试">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">AI 辅助测试</span>
+      </a>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <div class="project-switch">
+        <button class="project-switch-btn" id="project-switch-btn" type="button" aria-haspopup="true" aria-expanded="false">
+          <span id="current-project">选择项目</span>
+          <span class="caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="menu" id="project-menu" hidden></div>
+      </div>
+      <div class="topbar-right">
+        <span class="demo-badge" title="页面使用演示数据，未连接后端">演示数据</span>
+        <span class="env-indicator"><span class="dot idle" id="env-dot" aria-hidden="true"></span><span id="env-state">环境未检测</span></span>
+        <span class="topbar-meta mono" id="workspace-meta">ws_demo01</span>
+        <a class="topbar-link" href="#/settings">设置</a>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="sidebar">
+        <nav class="nav" aria-label="主导航">
+          <div class="nav-label">测试</div>
+          <a class="nav-item" href="#/work" data-nav="work"><span>测试工作</span></a>
+          <a class="nav-item" href="#/ledger" data-nav="ledger"><span>测试台账</span></a>
+          <div class="nav-label">记录</div>
+          <a class="nav-item" href="#/issues" data-nav="issues"><span>问题</span><span class="nav-count warn" id="nav-issue-count">0</span></a>
+          <a class="nav-item" href="#/history" data-nav="history"><span>历史</span><span class="nav-count" id="nav-history-count">0</span></a>
+          <div class="nav-label">系统</div>
+          <a class="nav-item" href="#/settings" data-nav="settings"><span>设置</span></a>
+        </nav>
+        <div class="sidebar-foot">
+          <div class="foot-label">工作空间</div>
+          <div class="foot-path mono" id="workspace-path" title="%APPDATA%\aitest\workspaces\demo">%APPDATA%\aitest\workspaces\demo</div>
+          <div class="foot-meta">本地 JSON 存储 · 未连接后端</div>
+        </div>
+      </aside>
+
+      <main class="main" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./assets/app.js?v=20261119-1"></script>
+</body>
+</html>
