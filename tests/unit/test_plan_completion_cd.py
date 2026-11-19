@@ -298,6 +298,7 @@ def test_backup_manifest_records_sha256_and_restore_reports_missing_evidence(
     data = restored["data"]
     assert data["verified"] is True
     assert data["missing_evidence"] == ["evidence/run.log"]
+    assert data["evidence_included"] is False
     assert "db:req-1:1" not in data["missing_evidence"]
     assert "证据未包含" in data["notes"]
 
@@ -338,6 +339,7 @@ def test_backup_restore_with_evidence_reports_no_missing_refs(
         capsys,
     )
     assert restored["ok"] is True, restored
+    assert restored["data"]["evidence_included"] is True
     assert restored["data"]["missing_evidence"] == []
     assert restored["data"]["notes"] == ""
 

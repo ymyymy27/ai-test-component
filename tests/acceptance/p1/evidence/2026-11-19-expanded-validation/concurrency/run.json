@@ -1,0 +1,62 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_1e150af99358-0.log"
+          ],
+          "finished_at": "2026-11-19T19:31:26+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T19:31:26+08:00"
+        }
+      ],
+      "case_id": "case_1e150af99358",
+      "evidence_refs": [
+        "evidence/case_1e150af99358-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "077c5a867aaf11c022cfe221bd1f637a2200401e407edd40c9a6d6b688c457d9",
+  "confirmation_id": "conf_08831167cca9",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T19:31:04+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_e5414f169237_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/case_1e150af99358-0.log"
+  ],
+  "heartbeat_at": "2026-11-19T19:31:26+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_303547418bee",
+  "media_bytes": 101,
+  "mock_judgement": [],
+  "pid": 39340,
+  "pid_created_at": 1795087864.720108,
+  "plan_id": "plan_a20137ecb0e0",
+  "project_id": "proj_78f5da45a179",
+  "request_ids": [],
+  "run_id": "run_e5414f169237",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_07de7a4d457b"
+    ],
+    "frozen_at": "2026-11-19T19:31:04+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T19:31:04+08:00",
+  "status": "completed"
+}

@@ -1,0 +1,131 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_848bc25ff4d3",
+      "acceptance_item_ids": [
+        "ai_848bc25ff4d3"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_c25934df725c-0.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_c25934df725c",
+      "evidence_refs": [
+        "evidence/case_c25934df725c-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "Flask tutorial 全部测试通过",
+      "layer": "L1",
+      "result": "passed",
+      "title": "pytest",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 101,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_c25934df725c-0.log",
+      "sha256": "cc362b0f61bf8b6c4d07789b13df5b3c47feecb4c4e7f795bdf32a5edb136386"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_c25934df725c-0.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T19:30:28+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_c25934df725c"
+      ],
+      "item_id": "ai_848bc25ff4d3",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "Flask tutorial 全部测试通过"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "pyproject.toml",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "tests/test_auth.py",
+        "tests/test_factory.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "flask",
+      "read_files": [
+        ".ws-smoke/workspace.json",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "flaskr/schema.sql",
+        "pyproject.toml",
+        "tests/conftest.py",
+        "tests/data.sql",
+        "tests/test_auth.py",
+        "tests/test_blog.py",
+        "tests/test_db.py",
+        "tests/test_factory.py"
+      ],
+      "reason": "pyproject.toml 的 [project].dependencies 明确声明 flask；flaskr/__init__.py、auth.py、blog.py、db.py 及测试均直接 import flask 模块，属于真实运行时依赖，无 mock 迹象。"
+    }
+  ],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": true,
+  "report_id": "rep_52dcc98dbf3c",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_a9111f0b2b55",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次范围 1/1，通过 1，失败 0，阻塞或未完成 0，未覆盖验收项 0。",
+  "summary_source": "fallback",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}

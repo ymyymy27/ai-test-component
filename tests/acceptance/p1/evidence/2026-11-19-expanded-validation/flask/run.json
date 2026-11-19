@@ -1,0 +1,93 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_c25934df725c-0.log"
+          ],
+          "finished_at": "2026-11-19T19:30:26+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T19:30:26+08:00"
+        }
+      ],
+      "case_id": "case_c25934df725c",
+      "evidence_refs": [
+        "evidence/case_c25934df725c-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "9c43b5ca1bf237e222a192766a1e604d0771f186abeb2fe5d79c4dbbe561df1d",
+  "confirmation_id": "conf_6e156d444296",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T19:30:23+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_a9111f0b2b55_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/case_c25934df725c-0.log"
+  ],
+  "heartbeat_at": "2026-11-19T19:30:26+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_52dcc98dbf3c",
+  "media_bytes": 101,
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "pyproject.toml",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "tests/test_auth.py",
+        "tests/test_factory.py"
+      ],
+      "kind": "real",
+      "limit_reached": false,
+      "name": "flask",
+      "read_files": [
+        ".ws-smoke/workspace.json",
+        "flaskr/__init__.py",
+        "flaskr/auth.py",
+        "flaskr/blog.py",
+        "flaskr/db.py",
+        "flaskr/schema.sql",
+        "pyproject.toml",
+        "tests/conftest.py",
+        "tests/data.sql",
+        "tests/test_auth.py",
+        "tests/test_blog.py",
+        "tests/test_db.py",
+        "tests/test_factory.py"
+      ],
+      "reason": "pyproject.toml 的 [project].dependencies 明确声明 flask；flaskr/__init__.py、auth.py、blog.py、db.py 及测试均直接 import flask 模块，属于真实运行时依赖，无 mock 迹象。"
+    }
+  ],
+  "pid": 47396,
+  "pid_created_at": 1795087823.4062972,
+  "plan_id": "plan_ed8f0f1e704f",
+  "project_id": "proj_b2748460a5f1",
+  "request_ids": [],
+  "run_id": "run_a9111f0b2b55",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_848bc25ff4d3"
+    ],
+    "frozen_at": "2026-11-19T19:30:23+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T19:30:23+08:00",
+  "status": "completed"
+}

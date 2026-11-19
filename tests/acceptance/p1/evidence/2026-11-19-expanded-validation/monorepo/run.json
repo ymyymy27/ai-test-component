@@ -1,0 +1,62 @@
+{
+  "analysis": [],
+  "cases": [
+    {
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_0bf3db9a8392-0.log"
+          ],
+          "finished_at": "2026-11-19T19:30:42+08:00",
+          "message": "",
+          "result": "passed",
+          "started_at": "2026-11-19T19:30:42+08:00"
+        }
+      ],
+      "case_id": "case_0bf3db9a8392",
+      "evidence_refs": [
+        "evidence/case_0bf3db9a8392-0.log"
+      ],
+      "result": "passed"
+    }
+  ],
+  "confirmation_fingerprint": "304107e57cd5695e158755dd2d5a532ff545167518354930a8c2c7e5b8881be1",
+  "confirmation_id": "conf_d5157693d94a",
+  "confirmation_reused": false,
+  "confirmed_at": "2026-11-19T19:30:42+08:00",
+  "confirmed_by": "cli",
+  "current_case_id": "",
+  "data_prefix": "aitest_run_11ccbe0f23e9_",
+  "dependencies": [],
+  "dependency_install_ok": null,
+  "evidence_notes": {},
+  "evidence_refs": [
+    "evidence/case_0bf3db9a8392-0.log"
+  ],
+  "heartbeat_at": "2026-11-19T19:30:42+08:00",
+  "kind": "task",
+  "l1": null,
+  "latest_report_id": "rep_6cfcf30923e1",
+  "media_bytes": 44,
+  "mock_judgement": [],
+  "pid": 37856,
+  "pid_created_at": 1795087842.0666692,
+  "plan_id": "plan_67496c984cd3",
+  "project_id": "proj_2ccbc6b80f7c",
+  "request_ids": [],
+  "run_id": "run_11ccbe0f23e9",
+  "schema_version": 1,
+  "scope": {
+    "acceptance_item_ids": [
+      "ai_e2032f08095f"
+    ],
+    "frozen_at": "2026-11-19T19:30:42+08:00",
+    "module_ids": [],
+    "preset": "selected"
+  },
+  "service_name": "",
+  "service_started": false,
+  "started_at": "2026-11-19T19:30:42+08:00",
+  "status": "completed"
+}

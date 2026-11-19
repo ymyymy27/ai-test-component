@@ -2917,6 +2917,11 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
                 raise _invalid_backup("备份解压后体积超过上限，拒绝恢复")
             members[normalized] = member
         files, hashes = _zip_manifest(archive)
+        try:
+            manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise _invalid_backup("备份 manifest 无法读取") from exc
+        evidence_included = bool(manifest.get("includes_evidence"))
         if set(members) - {"manifest.json"} != set(files):
             raise _invalid_backup("备份 manifest 与 zip 内容不一致")
         for name in files:
@@ -2936,11 +2941,17 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             shutil.rmtree(temp_target, ignore_errors=True)
             raise _invalid_backup(f"恢复失败：{exc}") from exc
     missing = _missing_evidence(target)
-    notes = f"证据未包含：{len(missing)} 个引用在恢复目录中不存在" if missing else ""
+    if missing and evidence_included:
+        notes = f"证据未包含：{len(missing)} 个引用在恢复目录中不存在"
+    elif missing:
+        notes = f"证据未包含（备份创建时选择不包含）：{len(missing)} 个证据引用在恢复后不可用"
+    else:
+        notes = ""
     return {
         "target": str(target),
         "files": len(files),
         "verified": True,
+        "evidence_included": evidence_included,
         "missing_evidence": missing,
         "notes": notes,
     }

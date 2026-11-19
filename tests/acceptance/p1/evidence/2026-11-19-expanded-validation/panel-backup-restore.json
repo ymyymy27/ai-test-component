@@ -1,0 +1,11 @@
+{
+  "restore_ok": true,
+  "files": 184,
+  "verified": true,
+  "evidence_included": false,
+  "missing_evidence_count": 61,
+  "notes": "证据未包含（备份创建时选择不包含）：61 个证据引用在恢复后不可用",
+  "target": "E:\\aitest-validation\\panel-backup-restored3",
+  "workspace_json": true,
+  "projects": 5
+}

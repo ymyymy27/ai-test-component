@@ -1,0 +1,100 @@
+{
+  "analysis": [],
+  "case_details": [
+    {
+      "acceptance_item_id": "ai_07de7a4d457b",
+      "acceptance_item_ids": [
+        "ai_07de7a4d457b"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_refs": [
+            "evidence/case_1e150af99358-0.log"
+          ],
+          "message": "",
+          "result": "passed"
+        }
+      ],
+      "case_id": "case_1e150af99358",
+      "evidence_refs": [
+        "evidence/case_1e150af99358-0.log"
+      ],
+      "expectation_verified": true,
+      "expected": "slowdemo_concurrent 慢测试通过",
+      "layer": "L1",
+      "result": "passed",
+      "title": "slow",
+      "warnings": []
+    }
+  ],
+  "changed_modules": [],
+  "conclusion": "本范围通过：已选 1/1，未覆盖 0，失败 0，阻塞或未完成 0。",
+  "counts": {
+    "applicable": 1,
+    "covered": 1,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 1,
+    "selected": 1
+  },
+  "coverage": {
+    "applicable": 1,
+    "selected": 1
+  },
+  "environment": {
+    "python": "3.11.9",
+    "services": []
+  },
+  "evidence_index": [
+    {
+      "bytes": 101,
+      "exists": true,
+      "media_type": "application/octet-stream",
+      "ref": "evidence/case_1e150af99358-0.log",
+      "sha256": "2e6b8b2651c3962b19107fd8684c21b32d2f269f29a25dd1c3c6c083da23befe"
+    }
+  ],
+  "evidence_refs": [
+    "evidence/case_1e150af99358-0.log"
+  ],
+  "failure_occurrences": 0,
+  "generated_at": "2026-11-19T19:31:27+08:00",
+  "github": null,
+  "issue_count": 0,
+  "issues": [],
+  "item_details": [
+    {
+      "case_ids": [
+        "case_1e150af99358"
+      ],
+      "item_id": "ai_07de7a4d457b",
+      "module_id": null,
+      "result": "passed",
+      "selected": true,
+      "text": "slowdemo_concurrent 慢测试通过"
+    }
+  ],
+  "l1": null,
+  "layers": {
+    "L1": 1,
+    "L2": 0,
+    "L3": 0
+  },
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "passed",
+  "real_chain": false,
+  "report_id": "rep_303547418bee",
+  "revision": 1,
+  "rules_version_id": null,
+  "run_id": "run_e5414f169237",
+  "schema_version": 1,
+  "source_commit": null,
+  "summary": "本次测试结果：outcome 为 passed；覆盖统计为 selected 1、applicable 1、covered 1、passed 1、failed 0、incomplete 0；uncovered_items 为空；failed_cases 为 0。",
+  "summary_source": "ai",
+  "templates": [],
+  "uncovered_items": [],
+  "unmapped_files": [],
+  "unverified_items": []
+}
