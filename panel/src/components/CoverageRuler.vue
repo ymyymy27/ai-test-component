@@ -41,7 +41,7 @@ function labelFor(status: CaseResult | "unselected"): string {
 </script>
 
 <template>
-  <div class="coverage">
+  <div v-if="items.length >= 3" class="coverage">
     <div class="ruler" role="list" aria-label="验收项覆盖">
       <button
         v-for="item in items"

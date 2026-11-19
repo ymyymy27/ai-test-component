@@ -5,6 +5,14 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{ jump: [id: string] }>();
+
+function jump(id: string, event: MouseEvent): void {
+  const target = event.currentTarget;
+  if (target instanceof HTMLElement) {
+    target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
+  emit("jump", id);
+}
 </script>
 
 <template>
@@ -15,7 +23,7 @@ const emit = defineEmits<{ jump: [id: string] }>();
       type="button"
       :class="{ 'is-active': active === section.id }"
       :aria-current="active === section.id ? 'location' : undefined"
-      @click="emit('jump', section.id)"
+      @click="jump(section.id, $event)"
     >
       {{ section.label }}
     </button>

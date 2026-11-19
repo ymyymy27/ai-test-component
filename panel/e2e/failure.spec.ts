@@ -7,7 +7,7 @@ test("失败用例自动归并问题，重跑通过后关闭门禁生效", async
   await createTaskFromCandidate(page, 2);
   await startRun(page);
 
-  await expect(page.locator(".result-verdict")).toHaveText("没通过");
+  await expect(page.locator(".result-verdict")).toHaveText("失败");
   await expect(page.locator(".case-message").first()).toContainText("断言失败");
 
   await page.goto(`/projects/${projectId}/issues`);
@@ -32,7 +32,7 @@ test("失败用例自动归并问题，重跑通过后关闭门禁生效", async
   await confirmPlan(page);
   await page.getByRole("button", { name: "开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 15_000 });
-  await expect(page.locator(".result-verdict")).toHaveText("没测完");
+  await expect(page.locator(".result-verdict")).toHaveText("未完成");
 
   await page.goto(`/projects/${projectId}/issues`);
   await expect(page.locator(".issue-row")).toHaveCount(1);

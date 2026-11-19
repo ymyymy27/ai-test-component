@@ -563,8 +563,8 @@ export const useWorkspaceStore = defineStore("workspace", () => {
                 run.verdict === "passed"
                   ? "通过"
                   : run.verdict === "failed"
-                    ? "没通过"
-                    : "没测完"
+                    ? "失败"
+                    : "未完成"
               }。`,
               run.verdict === "passed" ? "success" : "info",
             );

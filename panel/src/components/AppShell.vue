@@ -25,6 +25,20 @@ const task = computed(() => workspace.currentTask);
 const sectionTitle = computed(() =>
   typeof route.meta.title === "string" ? route.meta.title : "AI 测试",
 );
+const currentSection = computed(() => {
+  const name = String(route.name ?? "");
+  if (name === "overview") return "overview";
+  if (name === "issues" || name === "issue-detail") return "issues";
+  if (name === "history") return "history";
+  if (name === "settings") return "settings";
+  return "";
+});
+const backRoute = computed(() => {
+  if (!project.value) {
+    return null;
+  }
+  return taskRoute.value ?? `/projects/${project.value.id}/overview`;
+});
 const missingCount = computed(() => missingEnvironmentCount(workspace.environment));
 const taskRoute = computed(() => {
   const current = task.value;
@@ -77,6 +91,14 @@ function routeForTask(taskId: string): string {
     default:
       return `/projects/${id}/overview`;
   }
+}
+
+async function openProjectSection(
+  projectIdValue: string,
+  section: "overview" | "issues" | "history",
+): Promise<void> {
+  ui.closeSidebar();
+  await router.push(`/projects/${projectIdValue}/${section}`);
 }
 
 async function selectProject(projectIdValue: string): Promise<void> {
@@ -201,8 +223,12 @@ onBeforeUnmount(() => {
       :current-project-id="workspace.currentProjectId"
       :current-task-id="workspace.currentTask?.id ?? null"
       :running-task-id="workspace.runningTask?.id ?? null"
+      :section="currentSection"
       :open="ui.sidebarOpen"
       @select-project="selectProject"
+      @open-overview="(id) => openProjectSection(id, 'overview')"
+      @open-issues="(id) => openProjectSection(id, 'issues')"
+      @open-history="(id) => openProjectSection(id, 'history')"
       @select-task="selectTask"
       @new-task="newTask"
       @add-project="addProject"
@@ -225,6 +251,7 @@ onBeforeUnmount(() => {
         :project-name="projectName"
         :task-title="taskTitle"
         :task-route="taskRoute"
+        :back-route="backRoute"
         :section-title="sectionTitle"
         :missing-count="missingCount"
         :sidebar-open="ui.sidebarOpen"

@@ -323,7 +323,7 @@ function deliveryComplete(): boolean {
 
     <section class="section">
       <div class="section-head">
-        <h2 class="settings-title">基本信息</h2>
+        <h2 class="section-title-lg">基本信息</h2>
         <span class="section-note">只改标题、目标、执行人、评审人不会使计划过期</span>
       </div>
       <form class="settings-form" novalidate @submit.prevent="saveBasic">
@@ -412,7 +412,7 @@ function deliveryComplete(): boolean {
 
     <section class="section">
       <div class="section-head">
-        <h2 class="settings-title">验收项</h2>
+        <h2 class="section-title-lg">验收项</h2>
         <span class="section-note">改文本、可观察性、所属模块或意图会使计划过期</span>
       </div>
       <div class="acceptance-editor">
@@ -474,7 +474,7 @@ function deliveryComplete(): boolean {
 
     <section class="section">
       <div class="section-head">
-        <h2 class="settings-title">交付说明</h2>
+        <h2 class="section-title-lg">交付说明</h2>
         <span class="badge" :class="deliveryComplete() ? 'is-pass' : 'is-warn'">
           {{ deliveryComplete() ? "已完成" : "交付信息不完整" }}
         </span>
@@ -587,7 +587,7 @@ function deliveryComplete(): boolean {
 
     <section class="section">
       <div class="section-head">
-        <h2 class="settings-title">检查模板</h2>
+        <h2 class="section-title-lg">检查模板</h2>
         <span class="section-note">不进入必测分母，不改写验收项</span>
       </div>
       <div class="template-grid">

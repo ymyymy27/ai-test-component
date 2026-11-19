@@ -9,6 +9,7 @@ defineProps<{
   projectName: string;
   taskTitle: string;
   taskRoute: string | null;
+  backRoute: string | null;
   sectionTitle: string;
   missingCount: number;
   sidebarOpen: boolean;
@@ -49,15 +50,30 @@ defineExpose({ focusToggle, isEnvButtonTarget });
 
     <nav class="breadcrumb" aria-label="当前位置">
       <template v-if="projectId">
-        <RouterLink :to="`/projects/${projectId}/overview`" aria-current-value="false">{{
-          projectName
-        }}</RouterLink>
+        <RouterLink
+          v-if="backRoute"
+          class="breadcrumb-back"
+          :to="backRoute"
+          aria-label="返回上一级"
+        >
+          返回
+        </RouterLink>
+        <RouterLink
+          class="breadcrumb-project"
+          :to="`/projects/${projectId}/overview`"
+          aria-current-value="false"
+          >{{ projectName }}</RouterLink
+        >
         <span class="breadcrumb-separator" aria-hidden="true">/</span>
         <template v-if="taskTitle">
-          <RouterLink v-if="taskRoute" :to="taskRoute" aria-current-value="false">{{
-            taskTitle
-          }}</RouterLink>
-          <span v-else>{{ taskTitle }}</span>
+          <RouterLink
+            v-if="taskRoute"
+            class="breadcrumb-task"
+            :to="taskRoute"
+            aria-current-value="false"
+            >{{ taskTitle }}</RouterLink
+          >
+          <span v-else class="breadcrumb-task">{{ taskTitle }}</span>
           <span class="breadcrumb-separator" aria-hidden="true">/</span>
         </template>
         <span class="breadcrumb-current" aria-current="page">{{ sectionTitle }}</span>

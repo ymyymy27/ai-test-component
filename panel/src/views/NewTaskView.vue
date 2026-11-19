@@ -132,7 +132,7 @@ async function createFromCandidateAndPlan(): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="新建任务"
+      kicker="任务"
       title="新建任务"
       :subtitle="
         firstTask

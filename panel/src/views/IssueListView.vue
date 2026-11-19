@@ -122,15 +122,14 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
     </EmptyState>
 
     <template v-else>
-      <div class="tabs" role="tablist" aria-label="按状态筛选问题">
+      <div class="tabs" role="group" aria-label="按状态筛选问题">
         <button
           v-for="item in statuses"
           :key="item"
           class="tab"
           :class="{ 'is-active': status === item }"
           type="button"
-          role="tab"
-          :aria-selected="status === item"
+          :aria-pressed="status === item"
           @click="status = item"
         >
           {{ item === "all" ? "全部" : ISSUE_STATUS_LABEL[item] }}
@@ -152,7 +151,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
             <option value="recent">按最近发生</option>
           </select>
         </label>
-        <label class="scope-filter">
+        <label class="scope-filter scope-filter-search">
           <span>搜索</span>
           <input
             v-model="query"

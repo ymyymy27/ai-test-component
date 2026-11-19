@@ -30,6 +30,13 @@ test("侧边栏可以新建任务并打开任务资料", async ({ page }) => {
   const projectId = await createProject(page, "侧边栏验证", "D:/work/flow-sidebar");
   await createTaskFromCandidate(page, 0);
   await page.goto(`/projects/${projectId}/overview`);
+  await page.locator(".side-nav").getByRole("button", { name: /^问题/ }).click();
+  await page.waitForURL(/\/issues$/);
+  await page.locator(".side-nav").getByRole("button", { name: /^记录/ }).click();
+  await page.waitForURL(/\/history$/);
+  await page.locator(".side-nav").getByRole("button", { name: "设置" }).click();
+  await page.waitForURL(/\/settings$/);
+  await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-task-more").first().click();
   await page.getByRole("menuitem", { name: "任务资料" }).click();
   await page.waitForURL(/\/details/);
@@ -65,6 +72,7 @@ test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → �
   await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
   await page.waitForURL(/\/reports\//);
   await expect(page.locator("h1").first()).toHaveText("测试报告");
+  await expect(page.getByRole("button", { name: "返回运行结果" })).toBeVisible();
   await expect(page.locator(".result-verdict")).toHaveText("通过");
   await expect(page.getByRole("heading", { name: "范围与覆盖" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "项目级检查" })).toBeVisible();

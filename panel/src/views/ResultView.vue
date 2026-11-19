@@ -337,14 +337,6 @@ function rerunLabel(): string {
         <div class="actionbar-actions">
           <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>
           <button class="btn" type="button" @click="rerun">{{ rerunLabel() }}</button>
-          <button
-            v-if="latestReport"
-            class="btn btn-primary"
-            type="button"
-            @click="router.push(`/projects/${projectId}/reports/${latestReport.id}`)"
-          >
-            查看报告
-          </button>
         </div>
       </div>
     </div>

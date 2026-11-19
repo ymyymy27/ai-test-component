@@ -52,7 +52,7 @@ const rows = computed(() =>
       <span class="badge" :class="row.issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
         {{ ISSUE_STATUS_LABEL[row.issue.status] }}
       </span>
-      <Icon name="chevron-right" :size="13" />
+      <Icon class="issue-chevron" name="chevron-right" :size="13" />
     </button>
   </div>
   <p v-else class="doc-note">没有符合筛选条件的问题。</p>

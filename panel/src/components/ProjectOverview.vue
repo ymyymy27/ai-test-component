@@ -98,12 +98,15 @@ function toggleFeature(name: string, ignored: boolean): void {
     <header class="page-head">
       <div class="page-head-main">
         <span class="page-kicker">项目概览</span>
-        <h1 class="page-title">
-          <span class="side-status-dot" :class="`is-${status.tone}`" aria-hidden="true"></span>
-          {{ project.name }}
-          <span class="current-task-state">{{ status.label }}</span>
-        </h1>
-        <p class="page-subtitle mono">{{ project.root }}</p>
+        <h1 class="page-title">{{ project.name }}</h1>
+        <p class="page-subtitle">
+          <span class="current-task-state">
+            <span class="side-status-dot" :class="`is-${status.tone}`" aria-hidden="true"></span>
+            {{ status.label }}
+          </span>
+          <span class="muted"> · </span>
+          <span class="mono">{{ project.root }}</span>
+        </p>
       </div>
       <div class="page-actions">
         <button
@@ -207,7 +210,7 @@ function toggleFeature(name: string, ignored: boolean): void {
               <span class="badge" :class="issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
                 {{ ISSUE_STATUS_LABEL[issue.status] }}
               </span>
-              <Icon name="chevron-right" :size="13" />
+              <Icon class="issue-chevron" name="chevron-right" :size="13" />
             </button>
           </div>
           <p v-else class="doc-note">当前没有未关闭问题。</p>
@@ -217,10 +220,6 @@ function toggleFeature(name: string, ignored: boolean): void {
 
     <section class="section overview-info">
       <dl class="info-grid">
-        <div class="info-cell">
-          <dt>项目目录</dt>
-          <dd class="mono">{{ project.root }}</dd>
-        </div>
         <div class="info-cell">
           <dt>项目目标</dt>
           <dd>{{ project.goal || "还没有填写" }}</dd>

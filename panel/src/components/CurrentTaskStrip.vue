@@ -25,8 +25,8 @@ const state = computed(() => {
     return run.value.verdict === "passed"
       ? "通过"
       : run.value.verdict === "failed"
-        ? "没通过"
-        : "没测完";
+        ? "失败"
+        : "未完成";
   }
   return stageLabel(props.task.stage);
 });

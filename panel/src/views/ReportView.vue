@@ -9,7 +9,6 @@ import PageHeader from "@/components/PageHeader.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import StatusText from "@/components/StatusText.vue";
 import {
-  ANALYSIS_REASON_TEXT,
   ISSUE_STATUS_LABEL,
   LAYER_LABEL,
   TEMPLATE_DISPOSITION_LABEL,
@@ -229,11 +228,19 @@ function bytesText(bytes: number): string {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="测试报告"
+      kicker="报告"
       title="测试报告"
       :subtitle="`${project?.name ?? ''} · ${task.title} · 第 ${report.version} 版 · ${new Date(report.generatedAt).toLocaleString('zh-CN')}`"
     >
       <template #actions>
+        <button
+          v-if="run && task"
+          class="btn btn-sm"
+          type="button"
+          @click="router.push(`/projects/${projectId}/tasks/${task.id}/result`)"
+        >
+          返回运行结果
+        </button>
         <button
           class="btn btn-sm"
           type="button"
@@ -268,6 +275,7 @@ function bytesText(bytes: number): string {
       <span>正在查看旧版本：内容只读，结论与计数保留当时结果。</span>
     </div>
 
+    <section class="report-group" aria-label="结论与验收">
     <section class="section">
       <div class="result-head">
         <div>
@@ -302,7 +310,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">范围与覆盖</h2>
+      <h2 class="section-title-lg">范围与覆盖</h2>
       <dl class="info-grid plan-facts">
         <div class="info-cell">
           <dt>本次范围</dt>
@@ -361,7 +369,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">项目级检查</h2>
+      <h2 class="section-title-lg">项目级检查</h2>
       <div class="check-list">
         <div v-for="check in report.l1" :key="check.key" class="check-row">
           <StatusMark :result="check.result" />
@@ -374,7 +382,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">分层计数</h2>
+      <h2 class="section-title-lg">分层计数</h2>
       <div class="table-wrap">
         <table class="table">
           <thead>
@@ -400,7 +408,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">用例明细</h2>
+      <h2 class="section-title-lg">用例明细</h2>
       <div v-if="report.caseDetails.length" class="table-wrap">
         <table class="table">
           <thead>
@@ -432,8 +440,8 @@ function bytesText(bytes: number): string {
       <p v-else class="doc-note">这一版没有保留用例明细。</p>
     </section>
 
-    <section class="section">
-      <h2 class="settings-title">问题</h2>
+    <section v-if="issues.length" class="section">
+      <h2 class="section-title-lg">问题</h2>
       <div v-if="issues.length" class="list-plain">
         <p v-for="issue in issues" :key="issue.id">
           <button
@@ -446,143 +454,10 @@ function bytesText(bytes: number): string {
           <span class="muted"> · {{ ISSUE_STATUS_LABEL[issue.status] }}</span>
         </p>
       </div>
-      <p v-else class="doc-note">本次没有归并问题。</p>
     </section>
 
     <section class="section">
-      <h2 class="settings-title">模拟数据判断</h2>
-      <p class="doc-p">
-        真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合 {{ report.mock.mixed }} ·
-        无法判断 {{ report.mock.unknown }}。{{ report.mock.note }}
-      </p>
-      <p class="doc-note">
-        含模拟或无法判断依赖的用例，不能获得“真实链路通过”。该判断不可手工修改。
-      </p>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <h2 class="settings-title">失败分析</h2>
-        <span class="badge is-neutral">本地分析 · 不改变结论</span>
-      </div>
-      <template v-if="report.analysis.status === 'generated'">
-        <p class="doc-p">{{ report.analysis.observed }}</p>
-        <ul class="list-plain">
-          <li v-for="cause in report.analysis.candidateCauses" :key="cause.cause">
-            候选原因（把握：{{ cause.confidence }}）：{{ cause.cause }}
-          </li>
-          <li v-for="item in report.analysis.unverified" :key="item">未验证：{{ item }}</li>
-          <li v-for="item in report.analysis.nextSteps" :key="item">下一步：{{ item }}</li>
-        </ul>
-      </template>
-      <p v-else class="doc-note">
-        {{ ANALYSIS_REASON_TEXT[report.analysis.reason] || "分析未生成。" }}
-      </p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">调用链</h2>
-      <LinkPanel
-        v-if="run"
-        :link="report.link"
-        :busy="linkBusy"
-        :host-mode="workspace.mode === 'host'"
-        @load="importLink"
-        @host-import="importHostLink"
-        @assert="assertLink"
-      />
-      <p v-else class="doc-note">运行记录不存在，无法导入链路。</p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">检查模板</h2>
-      <div v-if="report.templates.length" class="stack">
-        <div v-for="template in report.templates" :key="template.templateId">
-          <p class="doc-p">
-            <strong>{{ template.name }} v{{ template.version }}</strong> · 适用
-            {{ template.summary.applicable }} · 不适用 {{ template.summary.not_applicable }} ·
-            不支持 {{ template.summary.unsupported }} · 无法判断 {{ template.summary.unknown }}
-          </p>
-          <ul class="list-plain">
-            <li v-for="item in template.items" :key="item.id">
-              {{ item.objective }} · {{ TEMPLATE_DISPOSITION_LABEL[item.disposition] }} ·
-              {{ item.reason }}
-            </li>
-          </ul>
-        </div>
-      </div>
-      <p v-else class="doc-note">这次运行没有应用检查模板。</p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">涉及模块与文件</h2>
-      <div v-if="report.modules.length" class="list-plain">
-        <p v-for="module in report.modules" :key="module.name">
-          {{ module.name }} · {{ module.count }} 条检查
-        </p>
-      </div>
-      <p v-else class="doc-note">本次没有映射到模块。</p>
-      <p v-if="report.unmapped.length" class="doc-note mono">
-        未映射文件：{{ report.unmapped.join("、") }}
-      </p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">证据索引</h2>
-      <div v-if="report.evidenceIndex.length" class="evidence-list">
-        <div v-for="evidence in report.evidenceIndex" :key="evidence.id" class="evidence-item">
-          <span aria-hidden="true">•</span>
-          <span>
-            <span class="evidence-name">{{ evidence.name }}</span>
-            <span class="evidence-meta">
-              {{ evidence.mediaType }} · {{ evidence.bytes }} 字节 · {{ evidence.sha256 }}
-              <template v-if="evidence.note"> · {{ evidence.note }}</template>
-            </span>
-          </span>
-          <span
-            class="badge"
-            :class="evidence.missing ? 'is-fail' : evidence.truncated ? 'is-warn' : 'is-neutral'"
-          >
-            {{ evidence.missing ? "已缺失" : evidence.truncated ? "已截断" : "已登记" }}
-          </span>
-        </div>
-      </div>
-      <p v-else class="doc-note">本次没有证据索引。</p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">来源与环境</h2>
-      <dl class="info-grid">
-        <div class="info-cell">
-          <dt>计划</dt>
-          <dd>{{ report.source.planLabel }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>规则版本</dt>
-          <dd>{{ report.source.rulesLabel }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>源码提交</dt>
-          <dd>{{ report.source.commit }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>模型</dt>
-          <dd>{{ report.source.model }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>GitHub</dt>
-          <dd>{{ report.source.github }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>报告版本</dt>
-          <dd>第 {{ report.version }} 版</dd>
-        </div>
-      </dl>
-      <p class="doc-note">环境与来源只作为报告上下文，不改变结论。</p>
-    </section>
-
-    <section class="section">
-      <h2 class="settings-title">验收意见</h2>
+      <h2 class="section-title-lg">验收意见</h2>
       <div v-if="report.opinion" class="notice">
         <span
           ><strong>{{ report.opinion.by }}</strong> · {{ report.opinion.at }} ·
@@ -619,6 +494,141 @@ function bytesText(bytes: number): string {
       <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
     </section>
 
+    </section>
+
+    <details class="report-details">
+      <summary>
+        <span>运行明细</span>
+        <span class="section-note">模拟判断、分析、链路、模板、证据与来源</span>
+      </summary>
+    <section class="section">
+      <h2 class="section-title-lg">模拟数据判断</h2>
+      <p class="doc-p">
+        真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合 {{ report.mock.mixed }} ·
+        无法判断 {{ report.mock.unknown }}。{{ report.mock.note }}
+      </p>
+      <p class="doc-note">
+        含模拟或无法判断依赖的用例，不能获得“真实链路通过”。该判断不可手工修改。
+      </p>
+    </section>
+
+    <section v-if="report.analysis.status === 'generated'" class="section">
+      <div class="section-head">
+        <h2 class="section-title-lg">失败分析</h2>
+        <span class="badge is-neutral">本地分析 · 不改变结论</span>
+      </div>
+      <template v-if="report.analysis.status === 'generated'">
+        <p class="doc-p">{{ report.analysis.observed }}</p>
+        <ul class="list-plain">
+          <li v-for="cause in report.analysis.candidateCauses" :key="cause.cause">
+            候选原因（把握：{{ cause.confidence }}）：{{ cause.cause }}
+          </li>
+          <li v-for="item in report.analysis.unverified" :key="item">未验证：{{ item }}</li>
+          <li v-for="item in report.analysis.nextSteps" :key="item">下一步：{{ item }}</li>
+        </ul>
+      </template>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title-lg">调用链</h2>
+      <LinkPanel
+        v-if="run"
+        :link="report.link"
+        :busy="linkBusy"
+        :host-mode="workspace.mode === 'host'"
+        @load="importLink"
+        @host-import="importHostLink"
+        @assert="assertLink"
+      />
+      <p v-else class="doc-note">运行记录不存在，无法导入链路。</p>
+    </section>
+
+    <section v-if="report.templates.length" class="section">
+      <h2 class="section-title-lg">检查模板</h2>
+      <div v-if="report.templates.length" class="stack">
+        <div v-for="template in report.templates" :key="template.templateId">
+          <p class="doc-p">
+            <strong>{{ template.name }} v{{ template.version }}</strong> · 适用
+            {{ template.summary.applicable }} · 不适用 {{ template.summary.not_applicable }} ·
+            不支持 {{ template.summary.unsupported }} · 无法判断 {{ template.summary.unknown }}
+          </p>
+          <ul class="list-plain">
+            <li v-for="item in template.items" :key="item.id">
+              {{ item.objective }} · {{ TEMPLATE_DISPOSITION_LABEL[item.disposition] }} ·
+              {{ item.reason }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="report.modules.length || report.unmapped.length" class="section">
+      <h2 class="section-title-lg">涉及模块与文件</h2>
+      <div v-if="report.modules.length" class="list-plain">
+        <p v-for="module in report.modules" :key="module.name">
+          {{ module.name }} · {{ module.count }} 条检查
+        </p>
+      </div>
+      <p v-if="report.unmapped.length" class="doc-note mono">
+        未映射文件：{{ report.unmapped.join("、") }}
+      </p>
+    </section>
+
+    <section v-if="report.evidenceIndex.length" class="section">
+      <h2 class="section-title-lg">证据索引</h2>
+      <div v-if="report.evidenceIndex.length" class="evidence-list">
+        <div v-for="evidence in report.evidenceIndex" :key="evidence.id" class="evidence-item">
+          <span aria-hidden="true">•</span>
+          <span>
+            <span class="evidence-name">{{ evidence.name }}</span>
+            <span class="evidence-meta">
+              {{ evidence.mediaType }} · {{ evidence.bytes }} 字节 · {{ evidence.sha256 }}
+              <template v-if="evidence.note"> · {{ evidence.note }}</template>
+            </span>
+          </span>
+          <span
+            class="badge"
+            :class="evidence.missing ? 'is-fail' : evidence.truncated ? 'is-warn' : 'is-neutral'"
+          >
+            {{ evidence.missing ? "已缺失" : evidence.truncated ? "已截断" : "已登记" }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title-lg">来源与环境</h2>
+      <dl class="info-grid">
+        <div class="info-cell">
+          <dt>计划</dt>
+          <dd>{{ report.source.planLabel }}</dd>
+        </div>
+        <div class="info-cell">
+          <dt>规则版本</dt>
+          <dd>{{ report.source.rulesLabel }}</dd>
+        </div>
+        <div class="info-cell">
+          <dt>源码提交</dt>
+          <dd>{{ report.source.commit }}</dd>
+        </div>
+        <div class="info-cell">
+          <dt>模型</dt>
+          <dd>{{ report.source.model }}</dd>
+        </div>
+        <div class="info-cell">
+          <dt>GitHub</dt>
+          <dd>{{ report.source.github }}</dd>
+        </div>
+        <div class="info-cell">
+          <dt>报告版本</dt>
+          <dd>第 {{ report.version }} 版</dd>
+        </div>
+      </dl>
+      <p class="doc-note">环境与来源只作为报告上下文，不改变结论。</p>
+    </section>
+
+    </details>
+
     <section class="section">
       <details class="unselected-block">
         <summary>AI 摘要 · 不改变结论</summary>
@@ -627,7 +637,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section v-if="exportResult" class="section">
-      <h2 class="settings-title">导出结果</h2>
+      <h2 class="section-title-lg">导出结果</h2>
       <dl class="info-grid">
         <div class="info-cell">
           <dt>文件</dt>

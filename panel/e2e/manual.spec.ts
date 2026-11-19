@@ -7,7 +7,7 @@ test("记录人工结果并补充证据会更新报告版本", async ({ page }) 
   await createTaskFromCandidate(page, 2);
   await startRun(page);
 
-  await expect(page.locator(".result-verdict")).toHaveText("没通过");
+  await expect(page.locator(".result-verdict")).toHaveText("失败");
   const manualCard = page.locator(".case-block").filter({ hasText: "人工确认错误提示可读" });
   await expect(manualCard).toContainText("待人工");
   await manualCard.getByRole("button", { name: "记录人工结果" }).click();

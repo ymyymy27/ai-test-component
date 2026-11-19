@@ -21,9 +21,9 @@ export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   passed: "通过",
-  failed: "没通过",
-  incomplete: "没测完",
-  not_applicable: "这次不用测",
+  failed: "失败",
+  incomplete: "未完成",
+  not_applicable: "不适用",
 };
 
 export const RESULT_LABEL: Record<CaseResult, string> = {

@@ -11,7 +11,7 @@
 
   --ink: #1b201c;
   --ink-2: #4e574f;
-  --ink-3: #68736a;
+  --ink-3: #5b665e;
   --ink-disabled: #98a19a;
 
   --line: #d8ded8;
@@ -44,8 +44,8 @@
   --font-num: "Bahnschrift", "Cascadia Mono", "Consolas", monospace;
   --font-mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
 
-  --text-10: 10px;
-  --text-11: 11px;
+  --text-10: 12px;
+  --text-11: 12px;
   --text-12: 12px;
   --text-13: 13px;
   --text-14: 14px;
@@ -105,7 +105,7 @@
 
   --ink: #e7ece7;
   --ink-2: #adb8ae;
-  --ink-3: #7e8b80;
+  --ink-3: #96a298;
   --ink-disabled: #5b655e;
 
   --line: #2b342d;

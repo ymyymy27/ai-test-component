@@ -129,6 +129,13 @@ function openReport(target: Run | null): void {
       :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${issue.occurrences.length} 次 · 最近 ${new Date(issue.updatedAt).toLocaleString('zh-CN')}`"
     >
       <template #actions>
+        <button
+          class="btn btn-sm"
+          type="button"
+          @click="router.push(`/projects/${projectId}/issues`)"
+        >
+          全部问题
+        </button>
         <span v-if="issue.unstable" class="badge is-warn">疑似不稳定</span>
         <button class="btn btn-sm" type="button" @click="statusOpen = true">更新状态</button>
         <button
@@ -180,7 +187,7 @@ function openReport(target: Run | null): void {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">预期与实际</h2>
+      <h2 class="section-title-lg">预期与实际</h2>
       <div class="case-compare">
         <div class="case-col">
           <span class="case-label">预期</span>
@@ -191,7 +198,7 @@ function openReport(target: Run | null): void {
           <span class="case-value is-bad">{{ issue.actual }}</span>
         </div>
       </div>
-      <h2 class="settings-title related-title">复现步骤</h2>
+      <h2 class="section-title-lg related-title">复现步骤</h2>
       <ol class="list-plain">
         <li v-for="(step, index) in issue.steps" :key="index">
           {{ String(index + 1).padStart(2, "0") }} {{ step }}
@@ -200,8 +207,8 @@ function openReport(target: Run | null): void {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">发生记录</h2>
-      <div class="table-wrap">
+      <h2 class="section-title-lg">发生记录</h2>
+      <div v-if="issue.occurrences.length" class="table-wrap">
         <table class="table">
           <thead>
             <tr>
@@ -229,7 +236,7 @@ function openReport(target: Run | null): void {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">处置</h2>
+      <h2 class="section-title-lg">处置</h2>
       <p class="doc-p">
         {{ issue.disposition ? DISPOSITION_LABEL[issue.disposition] : "尚未处置" }}
         <template v-if="issue.reason"> · 理由：{{ issue.reason }}</template>
@@ -241,7 +248,7 @@ function openReport(target: Run | null): void {
     </section>
 
     <section class="section">
-      <h2 class="settings-title">证据</h2>
+      <h2 class="section-title-lg">证据</h2>
       <div v-if="issue.evidenceRefs.length" class="evidence-row">
         <span v-for="name in issue.evidenceRefs" :key="name" class="evidence-chip">
           {{ name }}
@@ -251,7 +258,7 @@ function openReport(target: Run | null): void {
     </section>
 
     <section v-if="issue.status === 'retest'" class="section">
-      <h2 class="settings-title">关闭问题</h2>
+      <h2 class="section-title-lg">关闭问题</h2>
       <p class="doc-p">
         关闭必须绑定一次新运行：运行要包含该用例、有效结果为通过，并且有证据；问题发生时的运行不能复用。
       </p>

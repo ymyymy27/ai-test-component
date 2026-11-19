@@ -47,10 +47,10 @@ const emit = defineEmits<{
     </div>
     <p v-else class="doc-note">还没有生成候选；可以直接在上方写一句目标。</p>
     <div class="candidate-foot">
-      <p class="field-hint">确认后创建任务与验收项。</p>
+      <p class="field-hint">创建后先确认范围；也可按预计范围直接生成计划。</p>
       <div class="form-actions">
         <button
-          class="btn"
+          class="btn btn-primary"
           type="button"
           :disabled="!selectedId || busy"
           :aria-busy="busy"
@@ -59,7 +59,7 @@ const emit = defineEmits<{
           {{ busy ? "正在创建任务…" : "用选中候选创建任务" }}
         </button>
         <button
-          class="btn btn-primary"
+          class="btn"
           type="button"
           :disabled="!selectedId || busy"
           :aria-busy="busy"

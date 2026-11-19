@@ -22,6 +22,7 @@ pnpm exec playwright test
 
 ```text
 panel/
+├─ DESIGN.md                 视觉与交互契约（token 以 src/styles/tokens.css 为准）
 ├─ src/
 │  ├─ router/                  history 路由、项目/任务/阶段守卫、404
 │  ├─ domain/                  类型、状态机、派生、计划、运行、问题门禁、报告、分析
@@ -31,7 +32,7 @@ panel/
 │  ├─ services/                分析、运行模拟、快速检查、环境、导出、证据摘要
 │  ├─ components/              外壳、侧栏、状态、台账、范围、确认、对话框
 │  ├─ views/                   概览、任务、资料、范围、计划、运行、结果、报告、问题、历史、设置
-│  └─ styles/                  DESIGN.md token、基础、布局、组件、动效
+│  └─ styles/                  设计 token、基础、布局、组件、动效
 ├─ tests/                      Vitest：领域、仓储、组件
 └─ e2e/                        Playwright：主流程、门禁、路由、响应式、设置
 ```

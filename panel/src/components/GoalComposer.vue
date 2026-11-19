@@ -79,7 +79,7 @@ function onKeydown(event: KeyboardEvent): void {
         @keydown="onKeydown"
       />
       <span id="goal-hint" class="field-hint">
-        输入目标后创建任务。Ctrl / Cmd + Enter 开始。
+        写目标后创建任务，下一步选范围。Ctrl / Cmd + Enter 开始。
       </span>
       <span v-if="error" id="goal-error" class="field-error" role="alert">{{ error }}</span>
     </label>
@@ -91,10 +91,10 @@ function onKeydown(event: KeyboardEvent): void {
         :aria-busy="busy"
         @click="start"
       >
-        {{ busy ? "正在提取验收项…" : "开始测试" }}
+        {{ busy ? "正在提取验收项…" : "创建任务并选范围" }}
       </button>
       <button
-        class="btn"
+        class="btn btn-ghost"
         type="button"
         :disabled="disabled"
         :aria-busy="analysisBusy"
@@ -103,7 +103,7 @@ function onKeydown(event: KeyboardEvent): void {
         {{ analysisBusy ? "分析中…" : "帮我分析项目" }}
       </button>
       <button class="btn btn-ghost" type="button" :disabled="busy" @click="emit('quickCheck')">
-        快速检查 L1
+        快速检查（项目级）
       </button>
     </div>
     <p v-if="!ready" class="field-hint">分析完成后可创建带验收项的任务。</p>

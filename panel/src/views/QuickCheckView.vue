@@ -84,7 +84,7 @@ async function start(): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="快速检查"
+      kicker="项目"
       :title="'快速检查'"
       :subtitle="`${project.name} · 项目级检查 · 不进入验收项覆盖`"
     />

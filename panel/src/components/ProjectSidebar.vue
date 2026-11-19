@@ -11,11 +11,15 @@ const props = defineProps<{
   currentProjectId: string | null;
   currentTaskId: string | null;
   runningTaskId: string | null;
+  section: string;
   open: boolean;
 }>();
 
 const emit = defineEmits<{
   selectProject: [projectId: string];
+  openOverview: [projectId: string];
+  openIssues: [projectId: string];
+  openHistory: [projectId: string];
   selectTask: [projectId: string, taskId: string];
   newTask: [projectId: string];
   addProject: [];
@@ -48,6 +52,13 @@ const tasks = computed(() =>
 );
 const draft = computed(
   () => currentProject.value?.tasks.find((task) => task.stage === "fresh") ?? null,
+);
+const openIssueCount = computed(
+  () => currentProject.value?.issues.filter((issue) => issue.status !== "closed").length ?? 0,
+);
+const runCount = computed(
+  () =>
+    currentProject.value?.tasks.reduce((total, task) => total + task.runs.length, 0) ?? 0,
 );
 
 function toneFor(project: Project): string {
@@ -152,6 +163,46 @@ defineExpose({ focusSearch, focusClose });
             <span class="side-project-meta">{{ projectStatus(project).label }}</span>
           </span>
         </button>
+        <nav
+          v-if="project.id === currentProjectId"
+          class="side-nav"
+          aria-label="项目分区"
+        >
+          <button
+            type="button"
+            :class="{ 'is-active': section === 'overview' }"
+            :aria-current="section === 'overview' ? 'page' : undefined"
+            @click="emit('openOverview', project.id)"
+          >
+            概览
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': section === 'issues' }"
+            :aria-current="section === 'issues' ? 'page' : undefined"
+            @click="emit('openIssues', project.id)"
+          >
+            问题
+            <span v-if="openIssueCount" class="side-nav-count">{{ openIssueCount }}</span>
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': section === 'history' }"
+            :aria-current="section === 'history' ? 'page' : undefined"
+            @click="emit('openHistory', project.id)"
+          >
+            记录
+            <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': section === 'settings' }"
+            :aria-current="section === 'settings' ? 'page' : undefined"
+            @click="emit('openSettings', project.id)"
+          >
+            设置
+          </button>
+        </nav>
         <div
           v-if="project.id === currentProjectId"
           class="side-task-list"
@@ -238,15 +289,6 @@ defineExpose({ focusSearch, focusClose });
       <button class="btn btn-ghost btn-sm" type="button" @click="emit('addProject')">
         <Icon name="plus" :size="14" />
         建立项目
-      </button>
-      <button
-        v-if="currentProject"
-        class="btn btn-ghost btn-sm"
-        type="button"
-        @click="emit('openSettings', currentProject.id)"
-      >
-        <Icon name="settings" :size="14" />
-        项目设置
       </button>
     </div>
   </aside>
