@@ -45,6 +45,13 @@ _OUTCOME_LABEL = {
     "not_applicable": "本次范围不适用",
 }
 
+_PROJECT_CHECK_LABEL = {
+    "passed": "项目级检查通过",
+    "failed": "项目级检查存在失败",
+    "incomplete": "项目级检查未完成",
+    "not_applicable": "没有执行项目级检查",
+}
+
 
 def _issues_summary(
     ws: Workspace, project_id: str, run: Run
@@ -403,7 +410,12 @@ def _summary(
     counts: dict[str, int],
     uncovered: list[str],
     client: ModelClient | None,
+    *,
+    kind: str = "task",
 ) -> tuple[str, Literal["ai", "fallback"]]:
+    if kind == "project_check":
+        label = _PROJECT_CHECK_LABEL.get(outcome, outcome)
+        return f"{label}。", "fallback"
     ai_summary: str | None = None
     if client is not None:
         ai_summary = summarize_report(
@@ -425,7 +437,11 @@ def _summary(
     )
 
 
-def _conclusion(outcome: str, counts: dict[str, int], uncovered: list[str]) -> str:
+def _conclusion(
+    outcome: str, counts: dict[str, int], uncovered: list[str], *, kind: str = "task"
+) -> str:
+    if kind == "project_check":
+        return f"{_PROJECT_CHECK_LABEL.get(outcome, outcome)}。"
     return (
         f"{_OUTCOME_LABEL.get(outcome, outcome)}："
         f"已选 {counts.get('selected', 0)}/{counts.get('applicable', 0)}，"
@@ -473,14 +489,14 @@ def build_report(
     real_chain = bool(mock_judgement) and all(
         item.get("kind") == "real" for item in mock_judgement
     )
-    summary, summary_source = _summary(outcome, counts, uncovered, client)
+    summary, summary_source = _summary(outcome, counts, uncovered, client, kind=run.kind)
     issues, issue_count, failure_occurrences = _issues_summary(ws, project.project_id, run)
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
         generated_at=iso_now(),
         outcome=outcome,
-        conclusion=_conclusion(outcome, counts, uncovered),
+        conclusion=_conclusion(outcome, counts, uncovered, kind=run.kind),
         counts=counts,
         coverage={"selected": counts["selected"], "applicable": counts["applicable"]},
         changed_modules=changed_modules,

@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 27 条 AC：27 条 `verified`、0 条 `not_verified`、0 条 `untested`；
+- 32 条 AC：32 条 `verified`、0 条 `not_verified`、0 条 `untested`；
 - 2026-11-16 先按当前代码重跑 26 条场景（[G3 批次](evidence/2026-11-16-g3-rerun/README.md)），随后补齐 P1-AC04/06/07/12 的行为并用真实 CLI/模型/Playwright 重跑（[G3b 批次](evidence/2026-11-16-g3b/README.md)）；
 - 2026-11-18 用当前代码重跑 P1-AC09（[批次](evidence/2026-11-18-ac09-current/README.md)）；P1-AC12 改由真实模型生成 Playwright 脚本并执行（[批次](evidence/2026-11-18-ac12-ai-current/README.md)）；
 - 每条 `verified` 都登记 `owner`、`verified_at` 与 `artifact_versions`；`baseline_commit` 记录登记所依据的提交；

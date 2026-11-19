@@ -1,0 +1,21 @@
+{
+  "path": "C:\\Users\\y'm'y\\AppData\\Roaming\\aitest\\workspaces\\trae\\exports\\rep_1dcbcd4af67d.md",
+  "bytes": 5846,
+  "lines": 125,
+  "sha256": "a19c0894ccb05a7e2bcb603c37844d40a610457c39ddb440de3dcfea230c6eff",
+  "has_credential_words": false,
+  "head": [
+    "# 测试报告 rep_1dcbcd4af67d",
+    "",
+    "## 结论",
+    "本次运行未完成：已选 6/11，未覆盖 5，失败 0，阻塞或未完成 4。",
+    "",
+    "- 结论值：incomplete",
+    "- 运行：run_8f01a8e801df",
+    "- 范围：6/11",
+    "- 未覆盖：5",
+    "- 失败：0",
+    "- 源码提交：未记录",
+    "- 规则版本：未记录"
+  ]
+}

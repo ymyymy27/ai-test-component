@@ -1,7 +1,7 @@
 # CLI 与数据契约（一期）
 
 > 状态：2026-11-17 设计基线（D2）。实现依据：[轻量 Trae 插件修改计划](../../../修改日志/ymy/2026-11-16-轻量Trae插件重构计划.md)；需求见[需求规格](../02-需求/02-需求规格.md)。
-> 本册定义命令、字段、状态与错误码；扩展与 Python 都按本册实现，不另造第二套。当前注册 54 条命令（第 4 节）。
+> 本册定义命令、字段、状态与错误码；扩展与 Python 都按本册实现，不另造第二套。当前注册 57 条命令（第 4 节）。
 
 ## 1 通用约定
 
@@ -153,6 +153,25 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `deps.to` 必须指向本次建议中的模块或已登记模块，否则返回 `MODEL_OUTPUT_INVALID`；模型不可用返回 `MODEL_UNAVAILABLE`。用户确认后逐条调用 `module.add` 写入。
 
+#### `project.map` / `project.map.refresh`
+
+`project.map` 入参 `{"project_id": "proj_..."}`，读取当前项目测试地图；没有地图时返回 `{"map": null}`。
+
+`project.map.refresh` 入参 `{"project_id": "proj_..."}`，AI 读取项目代码、README、路由、测试入口和配置，生成或刷新测试地图。返回：
+
+```json
+{"map": {"schema_version": 1, "revision": 3, "source_commit": "abc123", "generated_at": "...", "business_functions": [{"name": "下单", "modules": ["order", "stock"], "entry_points": ["POST /orders"], "test_commands": ["pytest tests/order"], "testable_items": ["下单后订单出现"], "evidence": ["README.md", "routes.py:42"], "confidence": "high"}], "unknowns": [{"area": "支付回调", "reason": "没有入口或测试"}]}}
+```
+
+规则：
+
+- 业务功能是第一层，模块是第二层；模块可以出现在多个业务功能下；
+- `confidence` 只能是 `high / medium / low`；`low` 或无法判断的内容必须进入 `unknowns`；
+- 地图按项目修订、源码提交和项目配置缓存；这些变化后 `project.map` 返回 `stale: true`；
+- 地图是 AI 分析结果，不是项目全部业务功能的证明；用户可编辑、合并、忽略；
+- AI 不可用返回 `MODEL_UNAVAILABLE`，不覆盖旧地图；项目信号不足返回空功能列表和原因；
+- 地图不写入被测仓库。
+
 ### 4.2 目标与任务
 
 #### `task.suggest`
@@ -162,10 +181,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 返回：
 
 ```json
-{"candidates": [{"title": "验证订单创建流程", "reason": "order 模块近三次提交", "source": "git", "intent": "business"}], "fallback": "验证项目能否启动并跑通主流程", "intent": "smoke", "fallback_intent": "smoke"}
+{"candidates": [{"title": "验证订单创建流程", "reason": "order 模块近三次提交", "source": "git", "intent": "business", "scope_preview": {"business_functions": ["下单"], "acceptance_items_estimate": 3}, "uncertainties": ["库存扣减是否在本次范围"]}], "fallback": "验证项目能否启动并跑通主流程", "intent": "smoke", "fallback_intent": "smoke"}
 ```
 
-无信号时 `candidates` 为空、只给 `fallback`；AI 不可用时返回 `ok: true` 并标 `ai_generated: false`。通用目标（`fallback`）的 `intent` 为 `smoke`。
+无信号时 `candidates` 为空、只给 `fallback`；AI 不可用时返回 `ok: true` 并标 `ai_generated: false`。通用目标（`fallback`）的 `intent` 为 `smoke`。候选必须带 `scope_preview` 和 `uncertainties`，让用户选目标前看到预计范围。
 
 #### `task.add`
 
@@ -181,6 +200,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   "executor": "李四",
   "reviewer": "王五",
   "intent": "business",
+  "origin": "goal",
+  "source_map_revision": 3,
   "acceptance_items": [
     {"text": "下单后订单列表出现该订单", "observable": true, "source": "任务描述"},
     {"text": "系统要稳定", "observable": false, "source": "任务描述"}
@@ -190,7 +211,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 返回：`{"task_id": "task_...", "revision": 1, "intent": "business", "acceptance_items": [{"item_id": "ai_...", "status": "active|pending", "observable": true}]}`。
 
-`intent` 可选，取值 `smoke|business`，默认按 `goal` 推断：只含“能否启动/跑通主流程”等泛化目标且无具体业务词时为 `smoke`，否则 `business`。`observable=false` 的项标 `pending`，不进入范围。AI 提取出的泛化描述（如“项目能够启动”“主流程能够跑通”）自动标 `observable=false` 并转 `pending`；没有可观察项时任务照常保存，验收项列表为空。
+`intent` 可选，取值 `smoke|business`，默认按 `goal` 推断：只含“能否启动/跑通主流程”等泛化目标且无具体业务词时为 `smoke`，否则 `business`。`origin` 可选，取值 `goal|range`：按目标测试传 `goal`，按范围测试传 `range`；`source_map_revision` 记录范围来自哪一版项目地图。`observable=false` 的项标 `pending`，不进入范围。AI 提取出的泛化描述（如“项目能够启动”“主流程能够跑通”）自动标 `observable=false` 并转 `pending`；没有可观察项时任务照常保存，验收项列表为空。
 
 #### `task.update` / `task.list` / `task.show`
 
@@ -306,6 +327,27 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 ### 4.6 执行
 
+#### `run.quick`
+
+```json
+{"project_id": "proj_...", "confirmed_by": "cli"}
+```
+
+用于项目级快速检查：不建任务、不选验收项，只执行项目级 L1（构建、入口、最小测试）。必须有人确认（`--confirm` 或可复用确认记录）；运行仍受同一项目单运行限制。
+
+返回：
+
+```json
+{"run_id": "run_...", "status": "running", "kind": "project_check", "scope": {"selected": 0, "applicable": 0}}
+```
+
+规则：
+
+- 运行的 `kind` 为 `project_check`；没有任务快照，`run.status` 的 `task` 为 `null`、`task_snapshot=false`；
+- 计划快照只含 L1 用例，不生成验收项；报告显示 `0/0` 与 L1 结果，不把项目检查算成验收项通过；
+- 快速检查失败仍可执行；结论只按 L1 与运行状态收敛；
+- `run.quick` 不能指定验收项、不能附加业务用例；需要业务用例时走 `run.start`。
+
 #### `run.start`
 
 ```json
@@ -330,7 +372,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 #### `run.status` / `run.list`
 
 - `status` 入参 `{"run_id"}`。顶层字段：
-  - `run`：完整运行记录，含 `current_case_id`、`confirmation_id`、`latest_report_id`、`cases`、`evidence_refs`、`analysis`；
+  - `run`：完整运行记录，含 `kind`、`current_case_id`、`confirmation_id`、`latest_report_id`、`cases`、`evidence_refs`、`analysis`；
   - `plan`：运行目录里的计划快照；
   - `task`：运行启动时的任务快照；`task_snapshot` 在旧运行没有快照时为 `false`；
   - `outcome`、`counts`（`selected/applicable/covered/passed/failed/incomplete`）；
@@ -339,7 +381,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   - `link`：运行目录已有 `link.json` 时为首错节点、上下游与位置（见 4.10），没有链路数据时为 `null`。
 
   报告 ID 不在顶层，读 `run.latest_report_id`；当前用例读 `run.current_case_id`。
-- `list` 入参 `{"project_id", "limit": 20}`，按时间倒序；每条返回 `run_id/status/started_at/heartbeat_at/elapsed_seconds/plan_id/plan_no/plan_revision/task_id/task_title/task_snapshot/outcome/counts/scope/latest_report_id`。
+- `list` 入参 `{"project_id", "limit": 20}`，按时间倒序；每条返回 `run_id/kind/status/started_at/heartbeat_at/elapsed_seconds/plan_id/plan_no/plan_revision/task_id/task_title/task_snapshot/outcome/counts/scope/latest_report_id`；`kind` 为 `task|project_check`。
 
 #### `run.cancel`
 
@@ -408,7 +450,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `report.export`
 
-入参 `{"report_id", "path": "/abs/report.md"}`；返回导出路径、字节数、sha256 与行数。导出的 Markdown 含结论、范围与覆盖、验收项主表、未覆盖/未验证、分层计数、项目级检查、用例明细、失败证据、涉及模块/未映射文件、AI 分析、问题、Mock 判定、模板处置，以及源码提交、规则版本、环境与 GitHub 快照。
+入参 `{"report_id", "path": "/abs/report.md"}`；返回导出路径、字节数、sha256 与行数。导出的 Markdown 含结论、范围与覆盖、验收项主表、未覆盖/未验证、分层计数、项目级检查、用例明细、失败证据、涉及模块/未映射文件、AI 分析、问题、Mock 判定、模板处置，以及源码提交、规则版本、环境与 GitHub 快照。导出格式只有 Markdown，不生成 ZIP，不打包证据文件；证据只写引用路径，导出前脱敏。
 
 #### `report.opinion`
 
@@ -536,10 +578,16 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `task.json`：
 
 ```json
-{"schema_version": 1, "task_id": "task_...", "project_id": "proj_...", "title": "", "goal": "", "intent": "business", "scope": "", "inputs": "", "outputs": "", "preconditions": [], "executor": "", "reviewer": "", "acceptance_items": [{"item_id": "ai_...", "text": "", "observable": true, "status": "active", "source": "", "module_id": null}], "revision": 1}
+{"schema_version": 1, "task_id": "task_...", "project_id": "proj_...", "title": "", "goal": "", "intent": "business", "origin": "goal", "source_map_revision": 3, "scope": "", "inputs": "", "outputs": "", "preconditions": [], "executor": "", "reviewer": "", "acceptance_items": [{"item_id": "ai_...", "text": "", "observable": true, "status": "active", "source": "", "module_id": null}], "revision": 1}
 ```
 
 示例是完整落盘字段；计划契约摘要只包含 `intent` 与 active 验收项的 `id/text/status/observable/module_id`，不包含 title/goal/executor/reviewer。
+
+`project-map.json`：
+
+```json
+{"schema_version": 1, "project_id": "proj_...", "revision": 3, "source_commit": "abc123", "generated_at": "...", "model": "deepseek-chat", "business_functions": [{"name": "下单", "modules": ["order", "stock"], "entry_points": ["POST /orders"], "test_commands": ["pytest tests/order"], "testable_items": ["下单后订单出现"], "evidence": ["README.md", "routes.py:42"], "confidence": "high"}], "unknowns": [{"area": "支付回调", "reason": "没有入口或测试"}]}
+```
 
 `plan.json`：
 
@@ -550,7 +598,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `run.json`：
 
 ```json
-{"schema_version": 1, "run_id": "run_...", "plan_id": "plan_...", "project_id": "proj_...", "scope": {"preset": "selected", "acceptance_item_ids": [], "frozen_at": "..."}, "confirmed_by": "", "confirmed_at": "...", "confirmation_id": "conf_...", "confirmation_fingerprint": "sha256", "confirmation_reused": false, "status": "running", "current_case_id": "", "pid": 1234, "started_at": "...", "heartbeat_at": "...", "latest_report_id": "", "cases": [], "evidence_refs": [], "analysis": []}
+{"schema_version": 1, "run_id": "run_...", "plan_id": "plan_...", "project_id": "proj_...", "kind": "task", "scope": {"preset": "selected", "acceptance_item_ids": [], "frozen_at": "..."}, "confirmed_by": "", "confirmed_at": "...", "confirmation_id": "conf_...", "confirmation_fingerprint": "sha256", "confirmation_reused": false, "status": "running", "current_case_id": "", "pid": 1234, "started_at": "...", "heartbeat_at": "...", "latest_report_id": "", "cases": [], "evidence_refs": [], "analysis": []}
 ```
 
 `issue.json`：
@@ -601,6 +649,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 └─ projects/<project_id>/
    ├─ project.json
    ├─ project.config.json
+   ├─ project-map.json                 AI 项目测试地图缓存
    ├─ tasks/<task_id>.json
    ├─ tasks/revisions/<task_id>/<revision>.json     任务旧修订
    ├─ deliveries/<task_id>.json
@@ -669,3 +718,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 16. `data.cleanup` 的清理命令必须含 `{run_id}` 或 `{data_prefix}`，非法 `run_id` 拒绝；`dry_run=false` 需要确认；
 17. `evidence.add` 只允许运行结束后补证；跨运行路径、重复文件名与超大文件按证据规则处理；
 18. 扩展白名单与 CLI 注册表一致：面板只能调用 `PANEL_COMMANDS` 中的命令，新增命令先同步扩展、测试与文档。
+19. `project.map` 无地图时返回 `null`；`project.map.refresh` 生成业务功能、模块、入口、未知项，不写被测仓库；项目修订/提交/配置变化后返回 `stale: true`；
+20. `run.quick` 不建任务、不选验收项，运行 `kind=project_check`，报告 `0/0`，L1 失败不改写为验收项通过；
+21. `task.suggest` 候选必须带 `scope_preview` 与 `uncertainties`；`task.add` 的 `origin` 只能是 `goal|range`；
+22. `run.status`/`run.list` 返回 `kind`；项目检查运行的 `task=null`、`task_snapshot=false`；
+23. `report.export` 只写 Markdown，不生成 ZIP、不打包证据；导出内容脱敏。

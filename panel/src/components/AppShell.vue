@@ -28,7 +28,7 @@ const sectionTitle = computed(() =>
 const missingCount = computed(() => missingEnvironmentCount(workspace.environment));
 const taskRoute = computed(() => {
   const current = task.value;
-  if (!current || !project.value) {
+  if (!current || !current.id || !project.value) {
     return null;
   }
   const projectId = project.value.id;
@@ -55,6 +55,9 @@ const projectName = computed(() => project.value?.name ?? "");
 const taskTitle = computed(() => (showTaskCrumb.value ? (task.value?.title ?? "") : ""));
 
 function routeForTask(taskId: string): string {
+  if (!taskId) {
+    return project.value ? `/projects/${project.value.id}/overview` : "/";
+  }
   const current = project.value?.tasks.find((entry) => entry.id === taskId);
   const id = project.value?.id;
   if (!current || !id) {

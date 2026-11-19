@@ -2,6 +2,30 @@ import { expect } from "@playwright/test";
 
 import { createProject, createTaskFromCandidate, test } from "./fixtures";
 
+test("候选目标可以按预计范围直接生成计划", async ({ page }) => {
+  const projectId = await createProject(page, "自动计划验证", "D:/work/flow-auto");
+  await page.getByRole("button", { name: "查看候选" }).click();
+  await page.waitForURL(/tasks\/new/);
+  await page.locator(".candidate").first().click();
+  await page.getByRole("button", { name: "按预计范围生成计划" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
+    timeout: 15000,
+  });
+  await expect(page.locator(".plan-summary")).toContainText("待执行");
+});
+
+test("调整范围后取消调整返回计划页", async ({ page }) => {
+  const projectId = await createProject(page, "取消调整验证", "D:/work/flow-cancel");
+  await createTaskFromCandidate(page, 0);
+  await page.getByRole("button", { name: "生成计划" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
+  await page.getByRole("button", { name: "调整范围" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/scope`));
+  await page.getByRole("button", { name: "取消调整", exact: true }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
+  await expect(page.locator(".plan-summary")).toBeVisible();
+});
+
 test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
   const projectId = await createProject(page, "流程验证", "D:/work/flow-a");
   await expect(page.locator(".stats-bar")).toContainText("业务功能");

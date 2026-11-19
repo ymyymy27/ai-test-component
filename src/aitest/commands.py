@@ -20,9 +20,10 @@ from aitest.config import known_secret_values, model_key_source
 from aitest.core.delivery import build_context as build_delivery_context
 from aitest.core.modules import build_context as build_module_context
 from aitest.core.modules import invalid_dependencies
+from aitest.core.project_context import build_project_context
 from aitest.core.templates import apply_template, list_templates, load_template
 from aitest.errors import AiTestError, invalid_path, invalid_request
-from aitest.model_config import build_client, build_user_client, load_project_config
+from aitest.model_config import build_client, build_user_client, load_project_config, model_settings
 from aitest.models import (
     AcceptanceItem,
     Delivery,
@@ -844,6 +845,87 @@ def _task_signal_context(ws: Workspace, project: Project) -> str:
     return text
 
 
+def _project_map_path(ws: Workspace, project_id: str) -> Path:
+    return ws.project_dir(project_id) / "project-map.json"
+
+
+def _git_head(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return completed.stdout.strip() if completed.returncode == 0 else ""
+
+
+def _map_config_hash(config: dict[str, Any]) -> str:
+    safe = redact_tree(config, known_secret_values([config]))
+    raw = json.dumps(safe, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _map_stale(ws: Workspace, project: Project, record: dict[str, Any]) -> bool:
+    config = load_project_config(ws, project.project_id)
+    return (
+        record.get("project_revision") != project.revision
+        or record.get("source_commit") != _git_head(Path(project.root))
+        or record.get("config_hash") != _map_config_hash(config)
+    )
+
+
+def cmd_project_map(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    path = _project_map_path(ws, project.project_id)
+    record = read_json(path) if path.is_file() else None
+    if not isinstance(record, dict):
+        return {"map": None, "stale": False}
+    return {"map": record, "stale": _map_stale(ws, project, record)}
+
+
+def _map_model_name(ws: Workspace, project_id: str) -> str:
+    return str(model_settings(ws, project_id)["name"])
+
+
+def cmd_project_map_refresh(
+    ws: Workspace, payload: Payload, confirm: bool
+) -> dict[str, Any]:
+    del confirm
+    project = _project(ws, payload)
+    client = build_client(ws, project.project_id)
+    if client is None:
+        raise AiTestError(
+            "MODEL_UNAVAILABLE",
+            "未配置模型，无法生成项目测试地图",
+            "配置模型密钥后重试",
+        )
+    config = load_project_config(ws, project.project_id)
+    context = _task_signal_context(ws, project)
+    context += "\n\n结构化项目事实：\n" + json.dumps(
+        build_project_context(Path(project.root), config),
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    result = redact_tree(client.project_map(context), known_secret_values([config]))
+    record = {
+        "schema_version": 1,
+        "project_id": project.project_id,
+        "project_revision": project.revision,
+        "source_commit": _git_head(Path(project.root)),
+        "config_hash": _map_config_hash(config),
+        "generated_at": iso_now(),
+        "model": _map_model_name(ws, project.project_id),
+        **result,
+    }
+    write_json(_project_map_path(ws, project.project_id), record)
+    return {"map": record, "stale": False}
+
+
 def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -968,12 +1050,23 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     for item in items:
         item.text = redact(item.text, secrets)
         item.source = redact(item.source, secrets)
+    origin_value = _text(payload, "origin", "manual")
+    if origin_value not in {"manual", "goal", "range"}:
+        raise invalid_request("origin 只能是 manual、goal 或 range")
+    origin = cast(Literal["manual", "goal", "range"], origin_value)
+    raw_map_revision = payload.get("source_map_revision", 0)
+    try:
+        map_revision = int(raw_map_revision)
+    except (TypeError, ValueError):
+        raise invalid_request("source_map_revision 必须是整数") from None
     task = Task(
         task_id=new_id("task"),
         project_id=project.project_id,
         title=redact(title, secrets),
         goal=redact(goal, secrets),
         intent=intent,
+        origin=origin,
+        source_map_revision=max(0, map_revision),
         scope=redact(_text(payload, "scope"), secrets),
         inputs=redact(_text(payload, "inputs"), secrets),
         outputs=redact(_text(payload, "outputs"), secrets),
@@ -987,6 +1080,7 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
         "task_id": task.task_id,
         "revision": task.revision,
         "intent": task.intent,
+        "origin": task.origin,
         "acceptance_items": [
             {
                 "item_id": i.item_id,
@@ -1350,6 +1444,8 @@ REGISTRY: dict[str, Handler] = {
     "module.list": cmd_module_list,
     "module.suggest": cmd_module_suggest,
     "task.suggest": cmd_task_suggest,
+    "project.map": cmd_project_map,
+    "project.map.refresh": cmd_project_map_refresh,
     "task.add": cmd_task_add,
     "task.update": cmd_task_update,
     "task.list": cmd_task_list,

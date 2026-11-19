@@ -114,9 +114,24 @@ def test_suggest_targets_returns_validated_items() -> None:
     with _serve(content) as base_url:
         targets = _client(base_url).suggest_targets("订单系统")
     assert targets == [
-        {"title": "登录", "reason": "核心路径"},
-        {"title": "支付", "reason": "高风险"},
-        {"title": "退款", "reason": "分支较多"},
+        {
+            "title": "登录",
+            "reason": "核心路径",
+            "scope_preview": {"business_functions": [], "acceptance_items_estimate": 0},
+            "uncertainties": [],
+        },
+        {
+            "title": "支付",
+            "reason": "高风险",
+            "scope_preview": {"business_functions": [], "acceptance_items_estimate": 0},
+            "uncertainties": [],
+        },
+        {
+            "title": "退款",
+            "reason": "分支较多",
+            "scope_preview": {"business_functions": [], "acceptance_items_estimate": 0},
+            "uncertainties": [],
+        },
     ]
 
 
@@ -132,6 +147,43 @@ def test_suggest_targets_rejects_wrong_count() -> None:
     )
     with _serve(content) as base_url, pytest.raises(AiTestError) as exc:
         _client(base_url).suggest_targets("订单系统")
+    _assert_error(exc, "MODEL_OUTPUT_INVALID")
+
+
+def test_project_map_returns_validated_business_functions() -> None:
+    content = json.dumps(
+        {
+            "business_functions": [
+                {
+                    "name": "下单",
+                    "modules": ["order", "stock"],
+                    "entry_points": ["POST /orders"],
+                    "test_commands": ["pytest tests/order"],
+                    "testable_items": ["下单后订单出现"],
+                    "evidence": ["README.md", "routes.py:42"],
+                    "confidence": "high",
+                },
+                {
+                    "name": "支付",
+                    "modules": [],
+                    "confidence": "unknown",
+                },
+            ],
+            "unknowns": [{"area": "支付回调", "reason": "没有入口"}],
+        },
+        ensure_ascii=False,
+    )
+    with _serve(content) as base_url:
+        result = _client(base_url).project_map("项目事实")
+    assert result["business_functions"][0]["name"] == "下单"
+    assert result["business_functions"][0]["confidence"] == "high"
+    assert result["business_functions"][1]["confidence"] == "low"
+    assert result["unknowns"] == [{"area": "支付回调", "reason": "没有入口"}]
+
+
+def test_project_map_rejects_missing_function_list() -> None:
+    with _serve('{"unknowns": []}') as base_url, pytest.raises(AiTestError) as exc:
+        _client(base_url).project_map("项目事实")
     _assert_error(exc, "MODEL_OUTPUT_INVALID")
 
 

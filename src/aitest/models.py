@@ -79,6 +79,8 @@ class Task(Model):
     title: str
     goal: str = ""
     intent: Literal["smoke", "business"] = "business"
+    origin: Literal["manual", "goal", "range"] = "manual"
+    source_map_revision: int = 0
     scope: str = ""
     inputs: str = ""
     outputs: str = ""
@@ -202,6 +204,7 @@ class Run(Model):
     run_id: str
     plan_id: str
     project_id: str
+    kind: Literal["task", "project_check"] = "task"
     scope: Scope
     confirmed_by: str = ""
     confirmed_at: str = ""

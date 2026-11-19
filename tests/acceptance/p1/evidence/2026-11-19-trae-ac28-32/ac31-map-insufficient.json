@@ -1,0 +1,74 @@
+{
+  "project": {
+    "ok": true,
+    "request_id": "ev",
+    "data": {
+      "project": {
+        "schema_version": 1,
+        "project_id": "proj_c4d6221257aa",
+        "name": "aitest-ac02-demo",
+        "root": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-ac02-demo",
+        "goal": "",
+        "modules": [],
+        "rules_version_id": null,
+        "revision": 1,
+        "updated_at": "2026-11-17T19:29:43+08:00"
+      },
+      "modules": [],
+      "binding": {
+        "root": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-ac02-demo"
+      },
+      "gaps": []
+    }
+  },
+  "map": {
+    "ok": true,
+    "request_id": "ev",
+    "data": {
+      "map": {
+        "business_functions": [
+          {
+            "confidence": "low",
+            "entry_points": [],
+            "evidence": [
+              "README.md",
+              "tests/"
+            ],
+            "modules": [],
+            "name": "订单小工具",
+            "test_commands": [],
+            "testable_items": [
+              "tests/ 目录下的测试内容"
+            ]
+          }
+        ],
+        "config_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "generated_at": "2026-11-19T16:32:18+08:00",
+        "model": "deepseek-chat",
+        "project_id": "proj_c4d6221257aa",
+        "project_revision": 1,
+        "schema_version": 1,
+        "source_commit": "",
+        "unknowns": [
+          {
+            "area": "业务功能与模块划分",
+            "reason": "README 仅说明是演示目标选择的本地小项目，未登记模块，无法确认具体业务功能"
+          },
+          {
+            "area": "入口点",
+            "reason": "项目事实中未提供任何入口或服务信息"
+          },
+          {
+            "area": "测试命令",
+            "reason": "existing_commands、test_commands、smoke_command、smallest_test 均为空，未声明框架"
+          },
+          {
+            "area": "可测内容细节",
+            "reason": "仅知存在 tests/ 目录，未提供测试文件或测试项"
+          }
+        ]
+      },
+      "stale": false
+    }
+  }
+}

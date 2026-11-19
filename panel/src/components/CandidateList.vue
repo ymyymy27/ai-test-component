@@ -10,6 +10,7 @@ defineProps<{
 const emit = defineEmits<{
   select: [candidateId: string];
   create: [];
+  createAndPlan: [];
 }>();
 </script>
 
@@ -47,15 +48,26 @@ const emit = defineEmits<{
     <p v-else class="doc-note">还没有生成候选；可以直接在上方写一句目标。</p>
     <div class="candidate-foot">
       <p class="field-hint">候选只提供建议；确认后会创建任务与验收项。首个任务同时写入项目目标。</p>
-      <button
-        class="btn"
-        type="button"
-        :disabled="!selectedId || busy"
-        :aria-busy="busy"
-        @click="emit('create')"
-      >
-        {{ busy ? "正在创建任务…" : "用选中候选创建任务" }}
-      </button>
+      <div class="form-actions">
+        <button
+          class="btn"
+          type="button"
+          :disabled="!selectedId || busy"
+          :aria-busy="busy"
+          @click="emit('create')"
+        >
+          {{ busy ? "正在创建任务…" : "用选中候选创建任务" }}
+        </button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="!selectedId || busy"
+          :aria-busy="busy"
+          @click="emit('createAndPlan')"
+        >
+          {{ busy ? "正在生成…" : "按预计范围生成计划" }}
+        </button>
+      </div>
     </div>
   </section>
 </template>

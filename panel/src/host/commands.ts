@@ -410,7 +410,7 @@ export const api = {
     projectId: string,
     reportId: string,
     path: string,
-  ): Promise<{ path: string; bytes: number }> {
+  ): Promise<{ path: string; bytes: number; lines: number; sha256: string }> {
     return callHost("report.export", { project_id: projectId, report_id: reportId, path });
   },
 

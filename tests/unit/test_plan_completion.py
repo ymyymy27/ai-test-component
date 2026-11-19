@@ -728,3 +728,65 @@ def test_generated_cases_keep_model_source_and_mark_unverified(
         "",
     ]
     assert not any(case["expectation_verified"] for case in shown["cases"])
+
+
+class _RetrySourceClient:
+    def __init__(self) -> None:
+        self.contexts: list[dict[str, Any]] = []
+
+    def generate_cases(
+        self,
+        task: dict[str, Any],
+        selected_items: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        del task
+        self.contexts.append(dict(context or {}))
+        retry = "correction" in (context or {})
+        return [
+            {
+                "acceptance_item_id": item["item_id"],
+                "layer": "L2",
+                "expected": "命令成功",
+                "expectation_source": (
+                    item["text"] if retry else "app/services.py:42"
+                ),
+                "preconditions": ["被测项目目录可访问"],
+                "verify_method": "command: echo ok",
+                "depends_on": [],
+            }
+            for item in selected_items
+        ]
+
+
+def test_generated_cases_retry_once_with_correction_to_quote_items(
+    tmp_path: Path, capsys: Capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        items=[
+            {"text": "下单后列表出现订单", "observable": True},
+            {"text": "库存扣减一次", "observable": True},
+        ],
+    )
+    client = _RetrySourceClient()
+    monkeypatch.setattr(
+        "aitest.runtime_commands.build_client",
+        lambda *args, **kwargs: client,
+    )
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "all_applicable"},
+        },
+        capsys,
+    )["data"]
+
+    assert plan["unverified_cases"] == []
+    assert len(client.contexts) == 2
+    assert "correction" in client.contexts[1]
+    assert "下单后列表出现订单" in client.contexts[1]["correction"]

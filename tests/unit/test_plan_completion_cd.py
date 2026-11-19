@@ -1492,3 +1492,148 @@ def test_run_cancel_stops_active_command_and_marks_remaining(
     )["data"]
     assert status["run"]["status"] == "cancelled"
     assert status["run"]["cases"][0]["result"] in {"blocked", "not_run"}
+
+
+# -- new entry flow ---------------------------------------------------------
+
+
+def test_run_quick_completes_without_task(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    _write_config(ws, project_id, _l1_config(_exit_command(0), []))
+
+    started = call(
+        tmp_path,
+        "run.quick",
+        {"project_id": project_id, "confirmed_by": "tester"},
+        capsys,
+        confirm=True,
+    )
+    assert started["ok"] is True, started
+    run_id = started["data"]["run_id"]
+    assert started["data"]["kind"] == "project_check"
+    status = _wait_completed(tmp_path, capsys, project_id, run_id)
+    run = status["data"]["run"]
+    assert run["kind"] == "project_check"
+    assert run["status"] == "completed"
+    assert run["l1"]["build"]["ok"] is True
+    assert status["data"]["task"] is None
+    assert status["data"]["task_snapshot"] is False
+    assert status["data"]["outcome"] == "passed"
+    assert status["data"]["counts"]["selected"] == 0
+    assert status["data"]["counts"]["applicable"] == 0
+    assert status["data"]["run"]["l1"]["build"]["exit_code"] == 0
+
+    listed = call(tmp_path, "run.list", {"project_id": project_id}, capsys)
+    assert listed["data"]["runs"][0]["kind"] == "project_check"
+    assert listed["data"]["runs"][0]["task_title"] == ""
+
+
+def test_project_map_missing_and_refresh_without_model(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+
+    missing = call(tmp_path, "project.map", {"project_id": project_id}, capsys)
+    assert missing["ok"] is True
+    assert missing["data"] == {"map": None, "stale": False}
+
+    refresh = call(tmp_path, "project.map.refresh", {"project_id": project_id}, capsys)
+    assert refresh["ok"] is False
+    assert refresh["error"]["code"] == "MODEL_UNAVAILABLE"
+
+
+def test_task_add_records_origin_and_map_revision(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    created = call(
+        tmp_path,
+        "task.add",
+        {
+            "project_id": project_id,
+            "title": "按范围测试",
+            "origin": "range",
+            "source_map_revision": 3,
+            "acceptance_items": [{"text": "能启动", "observable": True}],
+        },
+        capsys,
+    )
+    assert created["ok"] is True, created
+    assert created["data"]["origin"] == "range"
+    task_id = created["data"]["task_id"]
+    shown = call(tmp_path, "task.show", {"project_id": project_id, "task_id": task_id}, capsys)
+    task = shown["data"]["task"]
+    assert task["origin"] == "range"
+    assert task["source_map_revision"] == 3
+
+
+def test_run_quick_failure_sets_failed(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    _write_config(ws, project_id, _l1_config(_exit_command(3), []))
+
+    started = call(
+        tmp_path,
+        "run.quick",
+        {"project_id": project_id, "confirmed_by": "tester"},
+        capsys,
+        confirm=True,
+    )
+    run_id = started["data"]["run_id"]
+    status = _wait_completed(tmp_path, capsys, project_id, run_id)
+    assert status["data"]["outcome"] == "failed"
+    assert status["data"]["run"]["l1"]["build"]["exit_code"] == 3
+    assert status["data"]["task"] is None
+
+
+def test_project_map_refresh_records_map(
+    tmp_path: Path, capsys: Capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+
+    class _FakeClient:
+        def project_map(self, context: str) -> dict[str, Any]:
+            assert "结构化项目事实" in context
+            return {
+                "business_functions": [
+                    {
+                        "name": "下单",
+                        "modules": ["order"],
+                        "entry_points": ["POST /orders"],
+                        "test_commands": ["pytest"],
+                        "testable_items": ["订单出现"],
+                        "evidence": ["README.md"],
+                        "confidence": "high",
+                    }
+                ],
+                "unknowns": [{"area": "支付", "reason": "没有入口"}],
+            }
+
+    monkeypatch.setattr(
+        "aitest.commands.build_client", lambda workspace, pid: _FakeClient()
+    )
+    refreshed = call(
+        tmp_path, "project.map.refresh", {"project_id": project_id}, capsys
+    )
+    assert refreshed["ok"] is True, refreshed
+    assert refreshed["data"]["map"]["business_functions"][0]["name"] == "下单"
+    assert refreshed["data"]["map"]["unknowns"][0]["area"] == "支付"
+    read = call(tmp_path, "project.map", {"project_id": project_id}, capsys)
+    assert read["data"]["map"]["business_functions"][0]["name"] == "下单"
+    assert read["data"]["stale"] is False
+    call(
+        tmp_path,
+        "project.update",
+        {"project_id": project_id, "patch": {"goal": "更新目标"}},
+        capsys,
+    )
+    stale = call(tmp_path, "project.map", {"project_id": project_id}, capsys)
+    assert stale["data"]["stale"] is True

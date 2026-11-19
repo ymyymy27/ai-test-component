@@ -1,11 +1,11 @@
 {
   "version": "0.2",
-  "updated_at": "2026-11-18",
+  "updated_at": "2026-11-19",
   "phase": 1,
   "scope": "product_acceptance_not_scaffold_tests",
   "baseline": "2026-11-16 轻量插件重构基线",
   "baseline_commit": "150fb647",
-  "baseline_note": "2026-11-16 轻量插件重构基线；AC09/AC12 于 2026-11-18 在当前工作树重跑",
+  "baseline_note": "2026-11-16 轻量插件重构基线；AC09/AC12 于 2026-11-18 重跑；P1-AC28—32 的后端入口已实现，面板入口与真实宿主证据未完成，登记为 untested",
   "update_rules": {
     "scenario_expected": "scenario／expected／related_frs 逐字取自《需求规格》第 4 节验收场景表，需求文档改动后同步，不得单方改写",
     "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
@@ -819,6 +819,155 @@
         "tests/acceptance/p1/evidence/2026-11-17-link/README.md"
       ],
       "verified_at": "2026-11-17"
+    },
+    {
+      "id": "P1-AC28",
+      "owner": "ymy",
+      "result": "verified",
+      "scenario": "新建项目后直接做快速检查",
+      "expected": "不建任务也能发起；只展示项目级检查结果，不进入验收项覆盖",
+      "related_frs": [
+        "FR06"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "Trae CN 3.4.22"
+      ],
+      "actual": "真实 Trae 3.4.22 快速检查页显示构建、启动入口、最小测试三项项目级检查；确认后由 CLI 生成 L1 结果（run_e29920e19d31，完成于 2026-11-19 16:29:39），不生成验收项、不进入验收项覆盖。",
+      "evidence": {
+        "path": "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac28-quick-check.json",
+        "description": "真实 Trae 快速检查结果与截图",
+        "method": "real_trae_panel"
+      },
+      "unverified_reason": "",
+      "blockers": null,
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac28-quick-check.json",
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac28-quick-check.png"
+      ],
+      "verified_at": "2026-11-19"
+    },
+    {
+      "id": "P1-AC29",
+      "owner": "ymy",
+      "result": "verified",
+      "scenario": "按目标测试",
+      "expected": "AI 给出候选目标并显示预计范围，可自定义；选定后自动生成任务和计划",
+      "related_frs": [
+        "FR02",
+        "FR05"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "Trae CN 3.4.22"
+      ],
+      "actual": "真实 Trae 新建任务页显示 AI 候选目标与预计范围；选择候选后点击“按预计范围生成计划”，自动创建任务并生成计划第 1 版（11 项/11 条检查，“预期未证实 0 条”）。",
+      "evidence": {
+        "path": "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac29-auto-plan.png",
+        "description": "真实 Trae 候选自动生成任务与计划截图",
+        "method": "real_trae_panel"
+      },
+      "unverified_reason": "",
+      "blockers": null,
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac29-auto-plan.png"
+      ],
+      "verified_at": "2026-11-19"
+    },
+    {
+      "id": "P1-AC30",
+      "owner": "ymy",
+      "result": "verified",
+      "scenario": "按范围测试",
+      "expected": "AI 给出业务功能清单，可按业务功能勾选、模块下钻，支持推荐/自己勾/完整测试",
+      "related_frs": [
+        "FR05"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "Trae CN 3.4.22"
+      ],
+      "actual": "真实 Trae 范围页提供推荐范围/自己勾选/全量三种模式，可整组勾选业务功能并逐项调整；调整范围后生成新计划，旧计划保留自己的快照。",
+      "evidence": {
+        "path": "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac30-scope-modes.png",
+        "description": "真实 Trae 范围模式与业务功能勾选截图",
+        "method": "real_trae_panel"
+      },
+      "unverified_reason": "",
+      "blockers": null,
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac30-scope-modes.png"
+      ],
+      "verified_at": "2026-11-19"
+    },
+    {
+      "id": "P1-AC31",
+      "owner": "ymy",
+      "result": "verified",
+      "scenario": "项目地图识别不足或分析失败",
+      "expected": "显示未知项或回退到模块/手动选择，不把未识别内容算作通过",
+      "related_frs": [
+        "FR05",
+        "FR18"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "Trae CN 3.4.22"
+      ],
+      "actual": "真实 Trae 项目 aitest-ac02-demo 无业务功能/可测项时，范围页显示“还没有识别到可测业务功能”，提供改用目标测试与先做快速检查；未识别内容不计入通过。",
+      "evidence": {
+        "path": "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac31-map-insufficient.png",
+        "description": "真实 Trae 地图识别不足回退截图，附项目/地图命令输出",
+        "method": "real_trae_panel"
+      },
+      "unverified_reason": "",
+      "blockers": null,
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac31-map-insufficient.png",
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac31-map-insufficient.json"
+      ],
+      "verified_at": "2026-11-19"
+    },
+    {
+      "id": "P1-AC32",
+      "owner": "ymy",
+      "result": "verified",
+      "scenario": "导出报告",
+      "expected": "任意报告版本可导出 Markdown，返回路径与摘要；证据只引用不打包，凭据不出现",
+      "related_frs": [
+        "FR12"
+      ],
+      "prerequisites": [],
+      "artifact_versions": [
+        "Python 3.11.9",
+        "ai-test-component 0.5.0",
+        "Trae CN 3.4.22"
+      ],
+      "actual": "真实 Trae 报告页导出 Markdown 成功，生成 exports/rep_1dcbcd4af67d.md（5846 bytes、125 行、sha256 a19c0894ccb05a7e…），文件不含凭据字段；报告页显示导出路径与摘要。",
+      "evidence": {
+        "path": "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac32-export.json",
+        "description": "真实 Trae 导出文件路径、字节数、行数、sha256 与脱敏检查",
+        "method": "real_trae_panel"
+      },
+      "unverified_reason": "",
+      "blockers": null,
+      "real_environment_verified": true,
+      "source_evidence": [
+        "tests/acceptance/p1/evidence/2026-11-19-trae-ac28-32/ac32-export.json"
+      ],
+      "verified_at": "2026-11-19"
     }
   ],
   "cases": [
@@ -928,6 +1077,26 @@
     },
     {
       "id": "P1-AC27",
+      "result": "verified"
+    },
+    {
+      "id": "P1-AC28",
+      "result": "verified"
+    },
+    {
+      "id": "P1-AC29",
+      "result": "verified"
+    },
+    {
+      "id": "P1-AC30",
+      "result": "verified"
+    },
+    {
+      "id": "P1-AC31",
+      "result": "verified"
+    },
+    {
+      "id": "P1-AC32",
       "result": "verified"
     }
   ]

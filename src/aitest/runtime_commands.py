@@ -36,7 +36,7 @@ from aitest.core.evidence import (
     save_evidence,
     settings_from_config,
 )
-from aitest.core.expectations import annotate_cases, ensure_publishable
+from aitest.core.expectations import annotate_cases, ensure_publishable, expectation_matches
 from aitest.core.issues import add_issue
 from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
@@ -47,6 +47,7 @@ from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
 from aitest.model_config import build_client, load_project_config
 from aitest.models import (
+    AcceptanceItem,
     Attempt,
     Case,
     Confirmation,
@@ -709,6 +710,35 @@ def _plan_signature(
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _unverified_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[Case]:
+    """Return cases whose source does not cite every bound acceptance item."""
+    by_id = {item.item_id: item for item in items}
+    unverified: list[Case] = []
+    for case in cases:
+        ids = case_item_ids(case)
+        bound = [by_id.get(item_id) for item_id in ids]
+        if not ids or any(item is None for item in bound):
+            unverified.append(case)
+            continue
+        if not all(
+            expectation_matches(case.expectation_source, item)
+            for item in bound
+            if item is not None
+        ):
+            unverified.append(case)
+    return unverified
+
+
+def _expectation_feedback(items: list[AcceptanceItem], cases: list[Case]) -> str:
+    ids = "、".join(case.case_id for case in cases)
+    lines = [
+        f"以下用例的 expectation_source 不是验收项原文：{ids}。",
+        "请重新输出全部 cases，并把每条用例的 expectation_source 改成对应验收项 text 的逐字副本：",
+    ]
+    lines.extend(f"- {item.item_id}：{item.text}" for item in items)
+    return "\n".join(lines)
+
+
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     task = _task(ws, payload)
@@ -723,6 +753,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     scope.acceptance_item_ids = list(selected)
     context = _project_context(project, ws)
     raw_cases = payload.get("cases")
+    regenerate = None
     if not isinstance(raw_cases, list) or not raw_cases:
         if task.intent == "smoke":
             raw_cases = _smoke_cases(task, selected, context)
@@ -739,33 +770,42 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 for item in task.acceptance_items
                 if item.item_id in selected
             ]
-            raw_cases = []
-            for item in client.generate_cases(
-                task.model_dump(mode="json"), selected_items, context
-            ):
-                depends = item.get("depends_on")
-                first = depends[0] if isinstance(depends, list) and depends else None
-                raw_cases.append(
-                    {
-                        "acceptance_item_id": item["acceptance_item_id"],
-                        "acceptance_item_ids": item.get("acceptance_item_ids") or [],
-                        "layer": item["layer"],
-                        "title": item.get("title") or "",
-                        "expected": item["expected"],
-                        "expectation_source": item["expectation_source"],
-                        "preconditions": item.get("preconditions") or [],
-                        "steps": item.get("steps") or [],
-                        "dependencies": item.get("dependencies") or [],
-                        "mock_allowed": item.get("mock_allowed", True),
-                        "importance": item.get("importance") or "medium",
-                        "verify_method": _normalize_method(
-                            str(item["verify_method"]), item.get("script_name")
-                        ),
-                        "depends_on": first if first in {"build", "service"} else None,
-                        "script_name": item.get("script_name"),
-                        "script_content": item.get("script_content"),
-                    }
-                )
+
+            def _model_raw(feedback: str = "") -> list[dict[str, Any]]:
+                call_context = dict(context)
+                if feedback:
+                    call_context["correction"] = feedback
+                generated: list[dict[str, Any]] = []
+                for item in client.generate_cases(
+                    task.model_dump(mode="json"), selected_items, call_context
+                ):
+                    depends = item.get("depends_on")
+                    first = depends[0] if isinstance(depends, list) and depends else None
+                    generated.append(
+                        {
+                            "acceptance_item_id": item["acceptance_item_id"],
+                            "acceptance_item_ids": item.get("acceptance_item_ids") or [],
+                            "layer": item["layer"],
+                            "title": item.get("title") or "",
+                            "expected": item["expected"],
+                            "expectation_source": item["expectation_source"],
+                            "preconditions": item.get("preconditions") or [],
+                            "steps": item.get("steps") or [],
+                            "dependencies": item.get("dependencies") or [],
+                            "mock_allowed": item.get("mock_allowed", True),
+                            "importance": item.get("importance") or "medium",
+                            "verify_method": _normalize_method(
+                                str(item["verify_method"]), item.get("script_name")
+                            ),
+                            "depends_on": first if first in {"build", "service"} else None,
+                            "script_name": item.get("script_name"),
+                            "script_content": item.get("script_content"),
+                        }
+                    )
+                return generated
+
+            regenerate = _model_raw
+            raw_cases = _model_raw()
     cases = [
         Case.model_validate(item)
         for item in raw_cases
@@ -773,6 +813,23 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         or item.get("acceptance_item_id") in selected
         or item.get("acceptance_item_id") is None
     ]
+    generated_cases = not isinstance(payload.get("cases"), list) or not payload.get("cases")
+    if generated_cases and task.intent != "smoke" and regenerate is not None:
+        unverified = _unverified_cases(cases, task.acceptance_items)
+        if unverified:
+            # A paraphrase or file path is not a substitute for the item text.
+            # Ask the model once to quote the item verbatim; keep the warning if
+            # it still refuses instead of silently rewriting its source.
+            raw_cases = regenerate(
+                _expectation_feedback(task.acceptance_items, unverified)
+            )
+            cases = [
+                Case.model_validate(item)
+                for item in raw_cases
+                if not isinstance(item, dict)
+                or item.get("acceptance_item_id") in selected
+                or item.get("acceptance_item_id") is None
+            ]
     _validate_plan_cases(cases, task.intent, context)
     plan_preview = Plan(
         plan_id="preview",
@@ -1151,6 +1208,139 @@ def _save_evidence_file(
             "调整 project.config 的 evidence 设置，或只提交关键证据",
         )
     return ref
+
+
+def cmd_run_quick(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Run project-level L1 only; no task, no acceptance items, no plan scope."""
+    project = _project(ws, payload)
+    plan_id = new_id("plan")
+    run_id = new_id("run")
+    run_dir = _runs_dir(ws, project.project_id) / run_id
+    scope = Scope(preset="selected", acceptance_item_ids=[])
+    plan = Plan(
+        plan_id=plan_id,
+        task_id="",
+        plan_no=0,
+        revision=1,
+        scope=scope,
+        applicable_count=0,
+        cases=[],
+        status="published",
+        source_signature="",
+    )
+    environment = _environment_summary(ws, project.project_id)
+    credentials = _credential_summary()
+    side_effects = ["执行项目级检查"]
+    fingerprint = _confirmation_fingerprint(plan, [], environment, credentials, side_effects)
+    confirmed_by = _text(payload, "confirmed_by") or "cli"
+    try:
+        with ws.lock():
+            active = _active_run(ws, project.project_id)
+            if active is not None:
+                raise AiTestError(
+                    "RUN_ACTIVE",
+                    f"项目已有运行：{active.run_id}",
+                    "等待或取消现有运行后重试",
+                )
+            if not confirm:
+                raise AiTestError(
+                    "CONFIRMATION_REQUIRED", "缺少执行前确认", "在面板确认或加 --confirm"
+                )
+            confirmation = Confirmation(
+                confirmation_id=new_id("conf"),
+                project_id=project.project_id,
+                plan_id=plan_id,
+                plan_revision=1,
+                acceptance_item_ids=[],
+                environment=environment,
+                credentials=credentials,
+                side_effects=side_effects,
+                fingerprint=fingerprint,
+                confirmed_by=confirmed_by,
+                confirmed_at=iso_now(),
+                run_id=run_id,
+            )
+            run_dir.mkdir(parents=True, exist_ok=False)
+            write_model(
+                _confirmation_dir(ws, project.project_id)
+                / f"{confirmation.confirmation_id}.json",
+                confirmation,
+            )
+            write_model(run_dir / "plan.json", plan)
+            run = Run(
+                run_id=run_id,
+                plan_id=plan_id,
+                project_id=project.project_id,
+                kind="project_check",
+                scope=scope.model_copy(update={"frozen_at": iso_now()}),
+                confirmed_by=confirmed_by,
+                confirmed_at=confirmation.confirmed_at,
+                confirmation_id=confirmation.confirmation_id,
+                confirmation_fingerprint=fingerprint,
+                confirmation_reused=False,
+                status="running",
+                started_at=iso_now(),
+                heartbeat_at=iso_now(),
+                data_prefix=data_prefix(run_id),
+            )
+            write_model(run_dir / "run.json", run)
+    except AiTestError as exc:
+        if exc.info.code == "WORKSPACE_LOCKED":
+            active = _active_run(ws, project.project_id)
+            if active is not None:
+                raise AiTestError(
+                    "RUN_ACTIVE",
+                    f"项目已有运行：{active.run_id}",
+                    "等待或取消现有运行后重试",
+                ) from exc
+        raise
+    env = dict(os.environ)
+    package_root = str(Path(__file__).resolve().parents[1])
+    env["PYTHONPATH"] = package_root + os.pathsep + env.get("PYTHONPATH", "")
+    flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0
+    try:
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "aitest.worker",
+                "--workspace",
+                str(ws.root),
+                "--project",
+                project.project_id,
+                "--run",
+                run_id,
+            ],
+            env=env,
+            creationflags=flags,
+            close_fds=True,
+        )
+    except OSError as exc:
+        with ws.lock():
+            failed = read_model(run_dir / "run.json", Run)
+            failed.status = "execution_error"
+            failed.heartbeat_at = iso_now()
+            write_model(run_dir / "run.json", failed)
+        raise AiTestError(
+            "RUN_START_FAILED",
+            f"worker 启动失败：{exc}",
+            "检查 Python 解释器与运行目录权限后重试",
+        ) from exc
+    return {
+        "run_id": run_id,
+        "status": "running",
+        "kind": "project_check",
+        "scope": {"selected": 0, "applicable": 0},
+        "confirmation": {
+            "confirmation_id": confirmation.confirmation_id,
+            "confirmed_by": confirmed_by,
+            "confirmed_at": confirmation.confirmed_at,
+            "reused": False,
+            "fingerprint": fingerprint,
+            "plan_revision": 1,
+            "side_effects": side_effects,
+        },
+    }
 
 
 def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -1571,6 +1761,7 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
             runs.append(
                 {
                     "run_id": run.run_id,
+                    "kind": run.kind,
                     "status": run.status,
                     "started_at": run.started_at,
                     "heartbeat_at": run.heartbeat_at,
@@ -2847,6 +3038,7 @@ REGISTRY.update(
         "plan.show": cmd_plan_show,
         "plan.publish": cmd_plan_publish,
         "run.start": cmd_run_start,
+        "run.quick": cmd_run_quick,
         "run.status": cmd_run_status,
         "run.list": cmd_run_list,
         "run.cancel": cmd_run_cancel,
@@ -2871,10 +3063,12 @@ REGISTRY.update(
 )
 MUTATING.update(
     {
+        "project.map.refresh",
         "plan.generate",
         "plan.update",
         "plan.publish",
         "run.start",
+        "run.quick",
         "run.cancel",
         "run.manual",
         "evidence.add",

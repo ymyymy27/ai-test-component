@@ -50,7 +50,14 @@ onMounted(async () => {
   if (!project.value) {
     return;
   }
-  if (project.value.analysisStatus === "idle" || project.value.analysisStatus === "failed") {
+  const staleCandidates =
+    project.value.analysisStatus === "ready" && candidates.value.length === 0;
+  if (
+    !analysisBusy.value &&
+    (project.value.analysisStatus === "idle" ||
+      project.value.analysisStatus === "failed" ||
+      staleCandidates)
+  ) {
     try {
       await workspace.analyzeProject(projectId.value);
     } catch {
@@ -87,6 +94,27 @@ async function createFromCandidate(): Promise<void> {
       candidateId: candidate.id,
     });
     await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function createFromCandidateAndPlan(): Promise<void> {
+  const candidate = candidates.value.find((entry) => entry.id === selectedId.value);
+  if (!candidate) {
+    return;
+  }
+  try {
+    const task = await workspace.createTask(projectId.value, {
+      goal: candidate.title,
+      candidateId: candidate.id,
+    });
+    try {
+      await workspace.generatePlan(projectId.value, task.id);
+      await router.push(`/projects/${projectId.value}/tasks/${task.id}/plan`);
+    } catch {
+      await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
+    }
   } catch {
     // store 已提示。
   }
@@ -148,6 +176,7 @@ async function createFromCandidate(): Promise<void> {
       :busy="startBusy"
       @select="selectedId = $event"
       @create="createFromCandidate"
+      @create-and-plan="createFromCandidateAndPlan"
     />
 
     <div class="target-context">

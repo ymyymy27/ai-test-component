@@ -115,6 +115,11 @@ def _l1_outcome(run: Run) -> Literal["failed", "incomplete"] | None:
 
 
 def verdict(plan: Plan, run: Run) -> Verdict:
+    if run.kind == "project_check":
+        l1_result = _l1_outcome(run)
+        if l1_result is not None:
+            return l1_result
+        return "not_applicable" if run.l1 is None else "passed"
     outcomes = item_outcomes(plan, run)
     project_results = _project_results(plan, run)
     results = [*outcomes.values(), *project_results]

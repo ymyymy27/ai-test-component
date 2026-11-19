@@ -1,0 +1,182 @@
+{
+  "ok": true,
+  "request_id": "ev",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_e29920e19d31",
+      "plan_id": "plan_69c80bcb97da",
+      "project_id": "proj_18a87dace128",
+      "kind": "project_check",
+      "scope": {
+        "preset": "selected",
+        "module_ids": [],
+        "acceptance_item_ids": [],
+        "frozen_at": "2026-11-19T16:29:39+08:00"
+      },
+      "confirmed_by": "panel",
+      "confirmed_at": "2026-11-19T16:29:39+08:00",
+      "confirmation_id": "conf_8616c2e07c4e",
+      "confirmation_fingerprint": "809c79670c1b449ccd01f5329e54725f410051c33b7e11ddac90967c4fcfa134",
+      "confirmation_reused": false,
+      "status": "completed",
+      "current_case_id": "",
+      "pid": 46220,
+      "pid_created_at": 1795076979.201883,
+      "started_at": "2026-11-19T16:29:39+08:00",
+      "heartbeat_at": "2026-11-19T16:29:39+08:00",
+      "cases": [],
+      "evidence_refs": [],
+      "evidence_notes": {},
+      "analysis": [],
+      "mock_judgement": [
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "@",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "@playwright",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "@vue",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "api.example.com",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "app",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "esbuild",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "example",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "example.invalid",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "flaskr",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "github.com",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "mirror.invalid",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        },
+        {
+          "evidence_refs": [],
+          "kind": "unknown",
+          "limit_reached": false,
+          "name": "sample",
+          "read_files": [],
+          "reason": "未配置模型，真实性未判定"
+        }
+      ],
+      "service_started": false,
+      "service_name": "",
+      "l1": null,
+      "media_bytes": 0,
+      "data_prefix": "aitest_run_e29920e19d31_",
+      "dependencies": [],
+      "dependency_install_ok": null,
+      "request_ids": [],
+      "latest_report_id": "rep_d1db03abb8b4"
+    },
+    "plan": {
+      "schema_version": 1,
+      "plan_id": "plan_69c80bcb97da",
+      "task_id": "",
+      "plan_no": 0,
+      "task_revision": 0,
+      "task_contract": "",
+      "created_at": "",
+      "scope": {
+        "preset": "selected",
+        "module_ids": [],
+        "acceptance_item_ids": [],
+        "frozen_at": null
+      },
+      "applicable_count": 0,
+      "rules_version_id": null,
+      "cases": [],
+      "templates": [],
+      "unselected_by_module": [],
+      "warnings": [],
+      "status": "published",
+      "source_signature": "",
+      "revision": 1
+    },
+    "task": null,
+    "task_snapshot": false,
+    "outcome": "not_applicable",
+    "counts": {
+      "selected": 0,
+      "applicable": 0,
+      "covered": 0,
+      "passed": 0,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "item_outcomes": [],
+    "pending_items": 0,
+    "manual_cases": 0,
+    "l1": null,
+    "uncovered_items": [],
+    "link": null
+  }
+}

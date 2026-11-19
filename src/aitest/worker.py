@@ -747,7 +747,7 @@ def _postprocess(ws: Workspace, project: Project, run_dir: Path, run: Run) -> No
     if run.status in {"completed", "execution_error", "cancelled"}:
         try:
             with ws.lock(timeout=300.0):
-                build_report(ws, project, run_dir)
+                build_report(ws, project, run_dir, use_model=run.kind != "project_check")
         except Exception as exc:  # noqa: BLE001 - a failed report never changes run state
             _record_postprocess_error(run_dir, "report", exc)
 
@@ -803,7 +803,7 @@ def main(argv: list[str] | None = None) -> int:
         run_env = _run_env(workdir, project_python, run.run_id)
         config = _project_config(ws, args.project)
         secret_list = known_secret_values([config])
-        service_configs = _services(config)
+        service_configs = [] if run.kind == "project_check" else _services(config)
         delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
         evidence_settings = _evidence_settings(config)
         request_id_header = _request_id_header(config)

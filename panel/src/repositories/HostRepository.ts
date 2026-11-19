@@ -115,6 +115,7 @@ export class HostRepository implements ProjectRepository {
   };
 
   private readonly sidecar = new HostSidecar();
+  private readonly pendingProjects = new Map<string, Promise<Project | null>>();
 
   constructor(private readonly client: Api = api) {}
 
@@ -132,6 +133,18 @@ export class HostRepository implements ProjectRepository {
   }
 
   async getProject(projectId: string): Promise<Project | null> {
+    const pending = this.pendingProjects.get(projectId);
+    if (pending) {
+      return pending;
+    }
+    const load = this.loadProject(projectId).finally(() => {
+      this.pendingProjects.delete(projectId);
+    });
+    this.pendingProjects.set(projectId, load);
+    return load;
+  }
+
+  private async loadProject(projectId: string): Promise<Project | null> {
     const show = await this.client.showProject(projectId);
     const [mapData, configData, rulesData, tasksData, runsData, issuesData] = await Promise.all([
       this.client.getProjectMap(projectId).catch(() => ({ map: null })),
@@ -293,39 +306,56 @@ export class HostRepository implements ProjectRepository {
   async saveAnalysis(projectId: string): Promise<Project> {
     const mapData = await this.client.refreshProjectMap(projectId);
     let candidates: Candidate[] = [];
+    let fallback: { title: string; intent: "smoke" | "business" } | null = null;
     try {
       const suggested = await this.client.suggestTargets(projectId);
       candidates = suggested.candidates.map((candidate, index) =>
         mapCandidate(candidate, projectId, index),
       );
-      if (candidates.length === 0 && suggested.fallback) {
-        candidates = [
-          mapCandidate(
-            {
-              title: suggested.fallback,
-              reason: "项目信号不足时的通用目标",
-              source: "fallback",
-              intent: suggested.fallback_intent ?? "smoke",
-              scope_preview: { business_functions: [], acceptance_items_estimate: 1 },
-              uncertainties: ["项目信号不足，需要人工补充范围"],
-            },
-            projectId,
-            0,
-          ),
-        ];
+      if (suggested.fallback) {
+        fallback = {
+          title: suggested.fallback,
+          intent: suggested.fallback_intent ?? "smoke",
+        };
       }
     } catch {
       candidates = [];
+      fallback = { title: "验证项目能否启动并跑通主流程", intent: "smoke" };
+    }
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new RepositoryError("NOT_FOUND", "项目不存在。");
+    }
+    if (candidates.length === 0 && fallback) {
+      candidates = [
+        mapCandidate(
+          {
+            title: fallback.title,
+            reason: "项目信号不足时的通用目标",
+            source: "fallback",
+            intent: fallback.intent,
+            scope_preview: {
+              business_functions: [],
+              acceptance_items_estimate: project.catalog.filter(
+                (item) => item.observable && item.status === "active",
+              ).length,
+            },
+            uncertainties: ["项目信号不足，需要人工补充范围"],
+          },
+          projectId,
+          0,
+        ),
+      ];
     }
     this.sidecar.setAnalysis(projectId, {
       status: "ready",
       error: "",
       candidates,
     });
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
+    // 当前对象在 sidecar 写入前加载；同步状态，避免调用方继续显示“分析中”。
+    project.analysisStatus = "ready";
+    project.analysisError = "";
+    project.candidates = candidates;
     if (!mapData.map) {
       project.map = null;
     }
@@ -793,8 +823,8 @@ export class HostRepository implements ProjectRepository {
     return {
       filename: basename(result.path),
       bytes: result.bytes,
-      lines: 0,
-      sha256: "",
+      lines: result.lines,
+      sha256: result.sha256,
       markdown: "",
       path: result.path,
     };

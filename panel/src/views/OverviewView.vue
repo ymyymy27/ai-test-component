@@ -25,6 +25,9 @@ const analyzing = computed(
 const analyzingBusy = computed(() => workspace.busyKey(`analysis:${projectId.value}`));
 
 function routeForTask(taskId: string): string {
+  if (!taskId) {
+    return `/projects/${projectId.value}/overview`;
+  }
   const task = project.value?.tasks.find((entry) => entry.id === taskId);
   if (!task || !projectId.value) {
     return `/projects/${projectId.value}/overview`;
