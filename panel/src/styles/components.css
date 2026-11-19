@@ -527,8 +527,30 @@ select {
 }
 
 .project-map-row {
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "name confidence action"
+    "modules modules modules";
+  row-gap: 2px;
   font-size: var(--text-12);
+}
+
+.project-map-row > :nth-child(1) {
+  grid-area: name;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-map-row > :nth-child(2) {
+  grid-area: modules;
+}
+
+.project-map-row > :nth-child(3) {
+  grid-area: confidence;
+}
+
+.project-map-row > :nth-child(4) {
+  grid-area: action;
 }
 
 .project-map-row small {

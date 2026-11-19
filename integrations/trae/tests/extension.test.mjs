@@ -31,6 +31,7 @@ export const state = {
   bridgeCalls: [],
   bridgeConfigs: [],
   responses: [],
+  openDialogResult: [],
   revealed: 0,
   opened: [],
 };
@@ -92,6 +93,7 @@ export const window = {
   showWarningMessage: (text) => { state.warning = text; },
   showInformationMessage: (text) => { state.info = text; },
   showErrorMessage: (text) => { state.error = text; },
+  showOpenDialog: async () => state.openDialogResult,
   setStatusBarMessage: () => ({ dispose() {} }),
 };
 
@@ -281,6 +283,30 @@ test("run.start keeps confirmation, other commands cannot smuggle it", async () 
   state.receive({ type: "call", id: "cancel-confirm", command: "run.cancel", payload: { run_id: "r" }, confirm: true });
   await until(() => state.bridgeCalls.length === 4, "run.cancel call");
   assert.equal(state.bridgeCalls[3].options.confirm, false);
+});
+
+test("pickDirectory returns the chosen folder and handles cancel", async () => {
+  state.sent.length = 0;
+  state.openDialogResult = [{ fsPath: "D:/work/picked" }];
+  state.receive({ type: "pickDirectory", id: "pick-1" });
+  await until(
+    () => state.sent.some((message) => message.type === "result" && message.id === "pick-1"),
+    "picked folder",
+  );
+  assert.deepEqual(state.sent.at(-1), {
+    type: "result",
+    id: "pick-1",
+    ok: true,
+    data: "D:/work/picked",
+  });
+
+  state.openDialogResult = [];
+  state.receive({ type: "pickDirectory", id: "pick-2" });
+  await until(
+    () => state.sent.some((message) => message.type === "result" && message.id === "pick-2"),
+    "cancelled folder",
+  );
+  assert.equal(state.sent.at(-1).data, "");
 });
 
 test("panel writes and reads stay inside the allowlist", async () => {
