@@ -1,756 +1,818 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-import { api } from "@/api/commands";
-import { describeError } from "@/api/errors";
-import type {
-  BackupResult,
-  GithubChange,
-  ProjectConfig,
-  Rule,
-  RuleSummary,
-} from "@/api/types";
-import { THEMES, setThemeMode, themeMode } from "@/state/theme";
-import { refreshDoctor, workspace } from "@/state/workspace";
+import EmptyState from "@/components/EmptyState.vue";
+import ErrorState from "@/components/ErrorState.vue";
+import PageHeader from "@/components/PageHeader.vue";
+import SettingsIndex from "@/components/SettingsIndex.vue";
+import { defaultConfig } from "@/domain/factory";
+import {
+  formatJson,
+  parseJsonObject,
+  parseLineList,
+  validateProjectConfig,
+} from "@/domain/validation";
+import type { ProjectConfig, RuleVersion } from "@/domain/types";
+import { downloadText } from "@/services/exportService";
+import { useUiStore } from "@/stores/ui";
+import { useWorkspaceStore } from "@/stores/workspace";
 
-const config = ref<ProjectConfig>({});
-const configSection = ref<"services" | "l1" | "runners" | "evidence" | "link" | "model" | "data">("services");
-const configText = ref("{}");
-const configNote = ref("");
-const configError = ref("");
-const backupPath = ref("");
-const backupEvidence = ref(false);
-const backup = ref<BackupResult | null>(null);
-const backupError = ref("");
-const busy = ref(false);
-const configOpen = ref(false);
+type FullConfig = {
+  model: NonNullable<ProjectConfig["model"]>;
+  services: NonNullable<ProjectConfig["services"]>;
+  l1: NonNullable<ProjectConfig["l1"]>;
+  runners: NonNullable<ProjectConfig["runners"]>;
+  evidence: NonNullable<ProjectConfig["evidence"]>;
+  link: NonNullable<ProjectConfig["link"]>;
+  data: NonNullable<ProjectConfig["data"]>;
+};
 
-const rules = ref<RuleSummary[]>([]);
-const rulesError = ref("");
-const rulesNote = ref("");
-const ruleDetail = ref<Rule | null>(null);
-const binding = ref("");
-const ruleOpen = ref(false);
-const ruleName = ref("");
-const ruleVersion = ref("");
-const ruleSteps = ref("");
-const ruleAiRules = ref("");
-const ruleEvidence = ref("");
-const githubRepo = ref("");
-const githubRef = ref("main");
-const github = ref<GithubChange | null>(null);
-const githubError = ref("");
-const githubNote = ref("");
-const githubBusy = ref(false);
+const route = useRoute();
+const router = useRouter();
+const workspace = useWorkspaceStore();
+const ui = useUiStore();
+const projectId = computed(() => String(route.params.projectId ?? ""));
+const project = computed(() => workspace.currentProject);
 
-const sections: { id: typeof configSection.value; label: string }[] = [
-  { id: "services", label: "服务与健康检查" },
-  { id: "l1", label: "项目级检查" },
-  { id: "runners", label: "运行器" },
-  { id: "evidence", label: "证据" },
-  { id: "link", label: "调用链" },
-  { id: "model", label: "模型" },
-  { id: "data", label: "测试数据" },
+const sections = [
+  { id: "settings-profile", label: "项目资料" },
+  { id: "settings-config", label: "运行配置" },
+  { id: "settings-environment", label: "环境" },
+  { id: "settings-rules", label: "项目规则" },
+  { id: "settings-github", label: "GitHub" },
+  { id: "settings-boundary", label: "数据边界" },
+  { id: "settings-appearance", label: "外观" },
+  { id: "settings-backup", label: "备份" },
 ];
+const activeSection = ref(sections[0]?.id ?? "");
+const sectionRefs = new Map<string, HTMLElement>();
 
-function modelSource(value: string): string {
-  const source = value.toLowerCase();
-  if (source.includes("env")) {
-    return "环境变量";
-  }
-  if (source.includes("user") || source.includes("config")) {
-    return "用户配置";
-  }
-  return value ? "已配置" : "未配置";
+const profileName = ref("");
+const profileGoal = ref("");
+const profileError = ref("");
+const busyProfile = computed(() => workspace.busyKey(`project:${projectId.value}`));
+
+function mergeConfig(base: ReturnType<typeof defaultConfig>, current: ProjectConfig): FullConfig {
+  return {
+    model: { ...base.model, ...current.model },
+    services: { ...base.services, ...current.services },
+    l1: { ...base.l1, ...current.l1 },
+    runners: { ...base.runners, ...current.runners },
+    evidence: { ...base.evidence, ...current.evidence },
+    link: { ...base.link, ...current.link },
+    data: { ...base.data, ...current.data },
+  };
 }
 
-function pickSection(): void {
-  const value = config.value[configSection.value] ?? {};
-  configText.value = JSON.stringify(value, null, 2);
+const configDraft = ref<FullConfig>(mergeConfig(defaultConfig(), {}));
+const advanced = ref("");
+const configError = ref("");
+const busyConfig = computed(() => workspace.busyKey(`config:${projectId.value}`));
+
+const ruleForm = ref({
+  name: "",
+  version: "",
+  steps: "",
+  aiRules: "",
+  evidence: "",
+});
+const ruleError = ref("");
+const busyRule = computed(() => workspace.busyKey(`rule:${projectId.value}`));
+const boundRule = computed(
+  () => project.value?.rules.find((rule) => rule.id === project.value?.rulesVersionId) ?? null,
+);
+
+const backupBusy = ref(false);
+const restoreBusy = ref(false);
+const restoreInput = ref<HTMLInputElement | null>(null);
+const ruleImportInput = ref<HTMLInputElement | null>(null);
+
+watch(
+  () => project.value?.id,
+  () => {
+    const current = project.value;
+    if (!current) {
+      return;
+    }
+    profileName.value = current.name;
+    profileGoal.value = current.goal;
+    configDraft.value = mergeConfig(defaultConfig(), current.config);
+    advanced.value = formatJson(configDraft.value);
+    ruleForm.value = { name: "", version: "", steps: "", aiRules: "", evidence: "" };
+  },
+  { immediate: true },
+);
+
+onMounted(async () => {
+  if (workspace.environment.length === 0) {
+    await workspace.refreshEnvironment();
+  }
+});
+
+function setSectionRef(id: string, element: Element | ComponentPublicInstance | null): void {
+  if (element instanceof HTMLElement) {
+    sectionRefs.set(id, element);
+  } else {
+    sectionRefs.delete(id);
+  }
 }
 
-async function loadConfig(): Promise<void> {
-  if (!workspace.project) {
+function jump(id: string): void {
+  activeSection.value = id;
+  const element = sectionRefs.get(id);
+  if (!element) {
     return;
   }
-  configError.value = "";
-  try {
-    const data = await api.getProjectConfig(workspace.project.project_id);
-    config.value = data.config ?? {};
-    pickSection();
-  } catch (error) {
-    const friendly = describeError(error);
-    configError.value = `${friendly.title}。${friendly.next}`;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+}
+
+async function saveProfile(): Promise<void> {
+  const name = profileName.value.trim();
+  if (!name || name.length > 40) {
+    profileError.value = "项目名不能为空，且最多 40 个字。";
+    return;
   }
+  profileError.value = "";
+  try {
+    await workspace.updateProject(projectId.value, {
+      name,
+      goal: profileGoal.value,
+    });
+    ui.showToast("项目资料已保存。", "success");
+  } catch {
+    // store 已提示。
+  }
+}
+
+function applyAdvanced(): void {
+  configError.value = "";
+  const parsed = parseJsonObject(advanced.value);
+  if (!parsed.ok) {
+    configError.value = parsed.message;
+    return;
+  }
+  const validated = validateProjectConfig(parsed.value);
+  if (!validated.ok) {
+    configError.value = validated.message;
+    return;
+  }
+  configDraft.value = mergeConfig(defaultConfig(), validated.config);
+  advanced.value = formatJson(configDraft.value);
+  ui.showToast("JSON 已填入常用项；检查后保存。", "info");
 }
 
 async function saveConfig(): Promise<void> {
-  if (!workspace.project) {
+  const validated = validateProjectConfig(configDraft.value);
+  if (!validated.ok) {
+    configError.value = validated.message;
     return;
   }
-  configNote.value = "";
   configError.value = "";
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(configText.value || "{}");
+    await workspace.saveConfig(projectId.value, validated.config);
+    advanced.value = formatJson(validated.config);
+    ui.showToast("运行配置已保存；旧计划可能在启动时要求重新生成。", "success");
   } catch {
-    configError.value = "这段配置不是合法的对象。检查括号、引号和逗号后再保存。";
-    return;
+    // store 已提示。
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    configError.value = "这段配置必须是一个对象。";
-    return;
-  }
-  busy.value = true;
-  try {
-    const data = await api.saveProjectConfig(workspace.project.project_id, {
-      [configSection.value]: parsed as Record<string, unknown>,
-    });
-    config.value = data.config ?? {};
-    pickSection();
-    configNote.value = "项目配置已保存。";
-  } catch (error) {
-    const friendly = describeError(error);
-    configError.value = `${friendly.title}。${friendly.next}`;
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function loadRules(): Promise<void> {
-  if (!workspace.project) {
-    rules.value = [];
-    return;
-  }
-  rulesError.value = "";
-  binding.value = workspace.project.rules_version_id ?? "";
-  try {
-    const data = await api.listRules(workspace.project.project_id);
-    rules.value = data.rules;
-    if (!binding.value && data.rules.length) {
-      binding.value = data.rules[0]?.rules_version_id ?? "";
-    }
-  } catch (error) {
-    const friendly = describeError(error);
-    rulesError.value = `${friendly.title}。${friendly.next}`;
-  }
-}
-
-function splitLines(value: string): string[] {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 async function saveRule(): Promise<void> {
-  if (!workspace.project) {
+  if (!ruleForm.value.name.trim() || !ruleForm.value.version.trim()) {
+    ruleError.value = "规则名称和版本不能为空。";
     return;
   }
-  rulesError.value = "";
-  rulesNote.value = "";
-  const name = ruleName.value.trim();
-  const version = ruleVersion.value.trim();
-  if (!name || !version) {
-    rulesError.value = "规则名称和版本都要填写。";
-    return;
-  }
+  ruleError.value = "";
   try {
-    const saved = await api.saveRule(workspace.project.project_id, {
-      name,
-      version,
-      steps_md: ruleSteps.value,
-      ai_rules: splitLines(ruleAiRules.value),
-      evidence_requirements: splitLines(ruleEvidence.value),
+    await workspace.saveRule(projectId.value, {
+      name: ruleForm.value.name,
+      version: ruleForm.value.version,
+      stepsMd: ruleForm.value.steps,
+      aiRules: parseLineList(ruleForm.value.aiRules),
+      evidenceRequirements: parseLineList(ruleForm.value.evidence),
     });
-    ruleName.value = "";
-    ruleVersion.value = "";
-    ruleSteps.value = "";
-    ruleAiRules.value = "";
-    ruleEvidence.value = "";
-    ruleOpen.value = false;
-    await loadRules();
-    binding.value = saved.rules_version_id;
-    rulesNote.value = "规则版本已保存；需要时再绑定到项目。";
-  } catch (error) {
-    const friendly = describeError(error);
-    rulesError.value = `${friendly.title}。${friendly.next}`;
+    ruleForm.value = { name: "", version: "", steps: "", aiRules: "", evidence: "" };
+    ui.showToast("规则版本已保存；绑定后新计划才使用它。", "success");
+  } catch {
+    // store 已提示。
   }
 }
 
-async function bindRule(): Promise<void> {
-  if (!workspace.project || !binding.value) {
-    rulesNote.value = "先选一个规则版本。";
-    return;
-  }
-  rulesNote.value = "";
-  rulesError.value = "";
+async function bindRule(ruleId: string): Promise<void> {
   try {
-    await api.bindRule(workspace.project.project_id, binding.value);
-    const project = await api.showProject(workspace.project.project_id);
-    workspace.project = project.project;
-    rulesNote.value = "已绑定到项目；新生成的计划会引用这个版本。";
-  } catch (error) {
-    const friendly = describeError(error);
-    rulesError.value = `${friendly.title}。${friendly.next}`;
+    await workspace.bindRule(projectId.value, ruleId);
+    ui.showToast("规则已绑定；旧计划可能在启动时要求重新生成。", "success");
+  } catch {
+    // store 已提示。
   }
 }
 
-async function showRule(id: string): Promise<void> {
-  if (!workspace.project) {
-    return;
-  }
-  if (ruleDetail.value?.rules_version_id === id) {
-    ruleDetail.value = null;
-    return;
-  }
-  try {
-    const data = await api.showRule(workspace.project.project_id, id);
-    ruleDetail.value = data.rule;
-  } catch (error) {
-    const friendly = describeError(error);
-    rulesError.value = `${friendly.title}。${friendly.next}`;
-  }
+function exportRule(rule: RuleVersion): void {
+  const lines = [
+    `# ${rule.name} v${rule.version}`,
+    "",
+    rule.stepsMd || "未填写步骤。",
+    "",
+    "## AI 规则",
+    ...(rule.aiRules.length ? rule.aiRules.map((item) => `- ${item}`) : ["- 未填写"]),
+    "",
+    "## 证据要求",
+    ...(rule.evidenceRequirements.length
+      ? rule.evidenceRequirements.map((item) => `- ${item}`)
+      : ["- 未填写"]),
+    "",
+  ];
+  downloadText(`${rule.name}-v${rule.version}.md`, lines.join("\n"), "text/markdown");
+  ui.showToast("规则已导出。", "success");
 }
 
-async function readGithub(): Promise<void> {
-  if (!workspace.project) {
+function openRuleImport(): void {
+  ruleImportInput.value?.click();
+}
+
+async function onRuleFile(event: Event): Promise<void> {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.files?.[0]) {
     return;
   }
-  const repo = githubRepo.value.trim();
-  if (!repo) {
-    githubError.value = "先填写仓库，例如 owner/name。";
-    return;
-  }
-  githubBusy.value = true;
-  githubError.value = "";
-  githubNote.value = "";
-  github.value = null;
+  const file = target.files[0];
   try {
-    github.value = await api.readGithub(workspace.project.project_id, repo, githubRef.value.trim() || "main");
-    githubNote.value = "已读取并保存到项目工作空间。";
-  } catch (error) {
-    const friendly = describeError(error);
-    githubError.value = `${friendly.title}。${friendly.next}`;
+    const text = await file.text();
+    ruleForm.value.name = file.name.replace(/\.[^.]+$/, "");
+    ruleForm.value.version = "1";
+    ruleForm.value.steps = text;
+    ui.showToast("规则文件已读入；检查名称与版本后保存。", "info");
+  } catch {
+    ui.showToast("读取规则文件失败。", "error");
   } finally {
-    githubBusy.value = false;
+    target.value = "";
   }
 }
 
-async function runBackup(): Promise<void> {
-  backupError.value = "";
-  backup.value = null;
-  if (!backupPath.value.trim()) {
-    backupError.value = "先填写备份文件保存到哪里。";
-    return;
-  }
-  busy.value = true;
+async function createBackup(): Promise<void> {
+  backupBusy.value = true;
   try {
-    backup.value = await api.createBackup(backupPath.value.trim(), backupEvidence.value);
-  } catch (error) {
-    const friendly = describeError(error);
-    backupError.value = `${friendly.title}。${friendly.next}`;
+    await workspace.backup();
+  } catch {
+    // store 已提示。
   } finally {
-    busy.value = false;
+    backupBusy.value = false;
   }
 }
 
-async function repair(): Promise<void> {
-  if (!window.confirm("只执行低风险修复：创建目录、清理缓存、从项目配置移除密钥字段。继续？")) {
+function openRestore(): void {
+  restoreInput.value?.click();
+}
+
+async function onRestoreFile(event: Event): Promise<void> {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.files?.[0]) {
     return;
   }
-  await refreshDoctor(true);
+  const file = target.files[0];
+  const answer = await ui.askConfirm({
+    title: "从备份恢复？",
+    body: "恢复会替换当前本机保存的项目、任务、问题与报告。不会影响被测仓库。",
+    confirmLabel: "恢复备份",
+    tone: "danger",
+  });
+  if (answer === null) {
+    target.value = "";
+    return;
+  }
+  restoreBusy.value = true;
+  try {
+    const text = await file.text();
+    await workspace.restoreBackup(text);
+  } catch {
+    // store 已提示。
+  } finally {
+    restoreBusy.value = false;
+    target.value = "";
+  }
 }
 
-onMounted(() => {
-  void loadConfig();
-  void loadRules();
-});
+async function clearData(): Promise<void> {
+  const answer = await ui.askConfirm({
+    title: "清空本地面板数据？",
+    body: "会删除本机保存的项目、任务、问题与报告；这个动作不能撤销，不影响被测仓库。",
+    confirmLabel: "清空本地数据",
+    tone: "danger",
+  });
+  if (answer === null) {
+    return;
+  }
+  await workspace.clearData();
+  await router.push("/setup");
+}
 </script>
 
 <template>
-  <div class="settings">
-    <header class="page-head">
-      <div>
-        <h1>设置</h1>
-        <p>环境、模型、GitHub 和项目配置；密钥正文不会显示，也不会写进工作空间。</p>
-      </div>
-      <button type="button" class="ui-btn" :disabled="Boolean(workspace.loading.doctor)" @click="refreshDoctor(false)">
-        重新自检
-      </button>
-    </header>
-
-    <section class="section">
-      <div class="section-head">
-        <h2>环境自检</h2>
-        <span class="ui-help">{{ workspace.doctor ? "事实来自当前机器" : "还没有结果" }}</span>
-      </div>
-      <div v-if="workspace.doctor" class="facts">
-        <div class="fact">
-          <span>工作空间</span>
-          <b :class="{ bad: !workspace.doctor.workspace.ok }">{{ workspace.doctor.workspace.ok ? "可用" : "不可用" }}</b>
-          <span class="detail">{{ workspace.doctor.workspace.path }}</span>
-        </div>
-        <div class="fact">
-          <span>Python</span>
-          <b :class="{ bad: !workspace.doctor.python.ok }">{{ workspace.doctor.python.ok ? workspace.doctor.python.version : "不可用" }}</b>
-          <span class="detail"></span>
-        </div>
-        <div class="fact">
-          <span>插件包</span>
-          <b :class="{ bad: !workspace.doctor.package.ok }">{{ workspace.doctor.package.ok ? workspace.doctor.package.version : "不可用" }}</b>
-          <span class="detail"></span>
-        </div>
-        <div class="fact">
-          <span>模型</span>
-          <b :class="{ bad: !workspace.doctor.model.ok }">{{ workspace.doctor.model.ok ? "已连通" : "不可用" }}</b>
-          <span class="detail">{{ modelSource(workspace.doctor.model.source) }}</span>
-        </div>
-        <div class="fact">
-          <span>GitHub</span>
-          <b :class="{ bad: !workspace.doctor.github.ok }">{{ workspace.doctor.github.ok ? "已登录" : "未配置" }}</b>
-          <span class="detail">{{ workspace.doctor.github.path || "" }}</span>
-        </div>
-        <div class="fact">
-          <span>代理</span>
-          <b :class="{ bad: !workspace.doctor.proxy.ok }">{{ workspace.doctor.proxy.ok ? "正常" : "未通过" }}</b>
-          <span class="detail"></span>
-        </div>
-      </div>
-      <p v-else class="ui-help">还没有执行自检。</p>
-      <div class="actions">
-        <button type="button" class="ui-btn" :disabled="Boolean(workspace.loading.doctor)" @click="repair">
-          低风险修复
+  <div v-if="!project" class="page">
+    <ErrorState
+      title="项目不可用"
+      text="回到项目概览重新选择项目。"
+      retry-label="回到概览"
+      @retry="router.push('/')"
+    />
+  </div>
+  <div v-else class="page">
+    <PageHeader
+      kicker="设置"
+      title="设置"
+      :subtitle="`${project.name} · 环境、规则、配置与本机工作空间`"
+    >
+      <template #actions>
+        <button
+          class="btn btn-sm"
+          type="button"
+          @click="router.push(`/projects/${projectId}/overview`)"
+        >
+          返回项目
         </button>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <h2>项目规则</h2>
-        <span class="ui-help">计划里的步骤与证据要求引用规则版本</span>
-      </div>
-      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
-      <template v-else>
-        <p v-if="rulesError" class="ui-error">{{ rulesError }}</p>
-        <p v-if="!rules.length && !rulesError" class="ui-help">
-          还没有规则版本。可以在这里新建，或先用 CLI 导入 Markdown。
-        </p>
-        <div v-if="ruleOpen" class="rule-editor">
-          <label class="field">
-            <span class="ui-label">规则名称</span>
-            <input v-model="ruleName" class="ui-input" placeholder="例如：下单回归规则" />
-          </label>
-          <label class="field">
-            <span class="ui-label">版本</span>
-            <input v-model="ruleVersion" class="ui-input" placeholder="例如：1.0.0" />
-          </label>
-          <label class="field">
-            <span class="ui-label">步骤与说明</span>
-            <textarea v-model="ruleSteps" class="ui-textarea config-text" spellcheck="false" />
-          </label>
-          <label class="field">
-            <span class="ui-label">AI 规则（每行一条）</span>
-            <textarea v-model="ruleAiRules" class="ui-textarea" spellcheck="false" />
-          </label>
-          <label class="field">
-            <span class="ui-label">证据要求（每行一条）</span>
-            <textarea v-model="ruleEvidence" class="ui-textarea" spellcheck="false" />
-          </label>
-          <div class="actions">
-            <button type="button" class="ui-btn" @click="saveRule">保存规则版本</button>
-            <button type="button" class="ui-link" @click="ruleOpen = false">取消</button>
-          </div>
-        </div>
-        <button v-else type="button" class="ui-link rule-new" @click="ruleOpen = true">新建规则版本</button>
-        <div v-if="!ruleOpen" class="rule-list">
-          <div v-for="rule in rules" :key="rule.rules_version_id" class="rule-row">
-            <label class="rule-pick">
-              <input v-model="binding" type="radio" :value="rule.rules_version_id" />
-              <span>{{ rule.name || rule.rules_version_id }}</span>
-              <small>{{ rule.version }}</small>
-              <small v-if="rule.rules_version_id === workspace.project?.rules_version_id" class="bound">
-                当前绑定
-              </small>
-            </label>
-            <button type="button" class="ui-link" @click="showRule(rule.rules_version_id)">
-              {{ ruleDetail?.rules_version_id === rule.rules_version_id ? "收起" : "查看" }}
-            </button>
-          </div>
-        </div>
-        <div v-if="ruleDetail" class="rule-detail">
-          <p v-if="ruleDetail.steps_md" class="ui-help">{{ ruleDetail.steps_md }}</p>
-          <p v-for="(line, index) in ruleDetail.ai_rules" :key="`ai-${index}`" class="ui-help">
-            · {{ line }}
-          </p>
-          <p v-for="(line, index) in ruleDetail.evidence_requirements" :key="`ev-${index}`" class="ui-help">
-            证据：{{ line }}
-          </p>
-        </div>
-        <div v-if="rules.length" class="actions">
-          <button type="button" class="ui-btn" :disabled="!binding" @click="bindRule">
-            绑定所选规则
-          </button>
-          <span v-if="rulesNote" class="ui-help">{{ rulesNote }}</span>
-        </div>
       </template>
-    </section>
+    </PageHeader>
 
-    <section class="section">
-      <div class="section-head">
-        <h2>GitHub 变更</h2>
-        <span class="ui-help">可选；只读提交、PR 与检查结果</span>
-      </div>
-      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
-      <template v-else>
-        <div class="gh-row">
-          <label class="field gh-field">
-            <span class="ui-label">仓库</span>
-            <input v-model="githubRepo" class="ui-input" placeholder="owner/name" />
-          </label>
-          <label class="field gh-field">
-            <span class="ui-label">分支或提交</span>
-            <input v-model="githubRef" class="ui-input" placeholder="main" />
-          </label>
-          <button type="button" class="ui-btn" :disabled="githubBusy" @click="readGithub">
-            {{ githubBusy ? "读取中…" : "读取变更" }}
-          </button>
-        </div>
-        <p v-if="githubError" class="ui-error">{{ githubError }}</p>
-        <p v-if="githubNote" class="ui-help">{{ githubNote }}</p>
-        <template v-if="github">
-          <p class="ui-help">
-            {{ github.repo }} · {{ github.branch }} · {{ github.commit.slice(0, 12) }} ·
-            {{ github.files.length }} 个文件
-          </p>
-          <p v-for="file in github.files.slice(0, 12)" :key="file" class="ui-mono file-line">{{ file }}</p>
-          <p v-if="github.files.length > 12" class="ui-help">还有 {{ github.files.length - 12 }} 个文件。</p>
-          <p class="ui-help">PR {{ github.prs.length }} 条 · 检查 {{ github.checks.length }} 条</p>
-        </template>
-      </template>
-    </section>
+    <div class="settings-layout">
+      <SettingsIndex :sections="sections" :active="activeSection" @jump="jump" />
+      <div class="settings-content">
+        <section
+          :ref="(el) => setSectionRef('settings-profile', el)"
+          class="settings-section"
+          id="settings-profile"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">项目资料</h2>
+              <p class="settings-desc">
+                只改显示名称与项目目标；目录是登记时确定的，不在这里改写。
+              </p>
+            </div>
+          </div>
+          <form class="settings-form" novalidate @submit.prevent="saveProfile">
+            <div class="form-grid">
+              <div class="field" :class="{ 'has-error': profileError }">
+                <label for="project-name">项目名</label>
+                <input
+                  id="project-name"
+                  v-model="profileName"
+                  type="text"
+                  maxlength="40"
+                  :aria-describedby="profileError ? 'project-name-error' : undefined"
+                  @input="profileError = ''"
+                />
+                <p v-if="profileError" id="project-name-error" class="field-error" role="alert">
+                  {{ profileError }}
+                </p>
+              </div>
+              <div class="field">
+                <label for="project-root">项目目录</label>
+                <input id="project-root" :value="project.root" type="text" disabled />
+              </div>
+            </div>
+            <div class="field">
+              <label for="project-goal">项目目标</label>
+              <textarea
+                id="project-goal"
+                v-model="profileGoal"
+                rows="3"
+                placeholder="这个项目要解决什么"
+              />
+            </div>
+            <div class="form-actions">
+              <button
+                class="btn btn-primary"
+                type="submit"
+                :disabled="busyProfile"
+                :aria-busy="busyProfile"
+              >
+                {{ busyProfile ? "正在保存…" : "保存项目资料" }}
+              </button>
+            </div>
+          </form>
+        </section>
 
-    <section class="section">
-      <div class="section-head">
-        <h2>项目配置</h2>
-        <span class="ui-help">{{ workspace.project?.name || "还没有项目" }}</span>
-      </div>
-      <p v-if="!workspace.project" class="ui-help">先登记项目。</p>
-      <template v-else>
-        <div v-if="!configOpen" class="config-collapsed">
-          <p class="ui-help">
-            服务健康检查、运行器、调用链日志来源等按段保存；凭据字段会被拒绝。
-          </p>
-          <button type="button" class="ui-btn" @click="configOpen = true">编辑项目配置</button>
-        </div>
-        <template v-else>
-          <div class="section-tabs">
+        <section
+          :ref="(el) => setSectionRef('settings-config', el)"
+          class="settings-section"
+          id="settings-config"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">运行配置</h2>
+              <p class="settings-desc">
+                保存服务、项目级检查、运行器、证据、链路与数据边界配置；拒绝凭据字段。
+              </p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="config-build">构建命令</label>
+              <input
+                id="config-build"
+                v-model="configDraft.l1.build"
+                type="text"
+                placeholder="留空时自动检测"
+              />
+            </div>
+            <div class="field">
+              <label for="config-entry">入口命令</label>
+              <input
+                id="config-entry"
+                v-model="configDraft.l1.entry"
+                type="text"
+                placeholder="留空时自动检测"
+              />
+            </div>
+            <div class="field">
+              <label for="config-smoke">最小测试命令</label>
+              <input
+                id="config-smoke"
+                v-model="configDraft.l1.smokeCommand"
+                type="text"
+                placeholder="留空时自动检测"
+              />
+            </div>
+            <div class="field">
+              <label for="config-test">测试命令</label>
+              <input
+                id="config-test"
+                v-model="configDraft.runners.test"
+                type="text"
+                placeholder="例如 pytest"
+              />
+            </div>
+            <div class="field">
+              <label for="config-health">服务健康地址</label>
+              <input
+                id="config-health"
+                v-model="configDraft.services.healthUrl"
+                type="text"
+                placeholder="http://127.0.0.1:8000/health"
+              />
+            </div>
+            <div class="field">
+              <label for="config-base">服务地址</label>
+              <input
+                id="config-base"
+                v-model="configDraft.services.baseUrl"
+                type="text"
+                placeholder="http://127.0.0.1:8000"
+              />
+            </div>
+            <div class="field">
+              <label for="config-evidence-file">单文件证据上限（MB）</label>
+              <input
+                id="config-evidence-file"
+                v-model.number="configDraft.evidence.singleFileMb"
+                type="number"
+                min="1"
+              />
+            </div>
+            <div class="field">
+              <label for="config-evidence-media">单次媒体上限（MB）</label>
+              <input
+                id="config-evidence-media"
+                v-model.number="configDraft.evidence.mediaMb"
+                type="number"
+                min="1"
+              />
+            </div>
+            <div class="field">
+              <label for="config-log">链路日志路径</label>
+              <input
+                id="config-log"
+                v-model="configDraft.link.logPath"
+                type="text"
+                placeholder="留空表示未配置"
+              />
+            </div>
+            <div class="field">
+              <label for="config-model">模型名</label>
+              <input
+                id="config-model"
+                v-model="configDraft.model.name"
+                type="text"
+                placeholder="留空表示未接入"
+              />
+            </div>
+          </div>
+          <div class="field">
+            <label for="config-json">高级 JSON <span class="optional">只允许白名单段</span></label>
+            <textarea id="config-json" v-model="advanced" class="code-input" rows="8" />
+            <p v-if="configError" class="field-error" role="alert">{{ configError }}</p>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-sm" type="button" @click="applyAdvanced">解析并填入表单</button>
             <button
-              v-for="section in sections"
-              :key="section.id"
+              class="btn btn-primary"
               type="button"
-              class="tab"
-              :class="{ on: configSection === section.id }"
-              @click="configSection = section.id; pickSection()"
+              :disabled="busyConfig"
+              :aria-busy="busyConfig"
+              @click="saveConfig"
             >
-              {{ section.label }}
+              {{ busyConfig ? "正在保存…" : "保存运行配置" }}
             </button>
           </div>
-          <textarea v-model="configText" class="ui-textarea config-text" spellcheck="false" />
-          <p class="ui-help">这里直接编辑该段项目配置；凭据字段会被拒绝，密钥不要写进来。</p>
-          <p v-if="configError" class="ui-error">{{ configError }}</p>
-          <p v-if="configNote" class="ui-help">{{ configNote }}</p>
-          <div class="actions">
-            <button type="button" class="ui-btn" :disabled="busy" @click="saveConfig">
-              保存这段配置
-            </button>
-            <button type="button" class="ui-link" @click="configOpen = false">收起</button>
-          </div>
-        </template>
-      </template>
-    </section>
+        </section>
 
-    <section class="section">
-      <div class="section-head">
-        <h2>外观</h2>
-        <span class="ui-help">跟随系统时随编辑器明暗切换</span>
-      </div>
-      <div class="themes">
-        <label v-for="theme in THEMES" :key="theme.id" class="theme">
-          <input
-            type="radio"
-            name="theme"
-            :value="theme.id"
-            :checked="themeMode === theme.id"
-            @change="setThemeMode(theme.id)"
+        <section
+          :ref="(el) => setSectionRef('settings-environment', el)"
+          class="settings-section"
+          id="settings-environment"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">环境自检</h2>
+              <p class="settings-desc">缺失项不扩散到全部能力；本地记录、证据与报告仍可用。</p>
+            </div>
+            <button class="btn btn-sm" type="button" @click="workspace.refreshEnvironment()">
+              重新检查
+            </button>
+          </div>
+          <div class="env-list">
+            <div v-for="check in workspace.environment" :key="check.key" class="env-row">
+              <span class="env-name">{{ check.name }}</span>
+              <span class="env-value">{{ check.value }}</span>
+              <span class="env-state" :class="{ 'is-missing': !check.ok }">
+                {{ check.ok ? "通过" : "缺失" }}
+              </span>
+            </div>
+          </div>
+          <div
+            v-for="check in workspace.environment.filter((item) => !item.ok)"
+            :key="`${check.key}-repair`"
+            class="env-repair"
+          >
+            <strong>{{ check.name }}</strong>：{{ check.detail }}
+            <template v-if="check.repair"> · {{ check.repair }}</template>
+          </div>
+        </section>
+
+        <section
+          :ref="(el) => setSectionRef('settings-rules', el)"
+          class="settings-section"
+          id="settings-rules"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">项目规则</h2>
+              <p class="settings-desc">
+                规则有版本；新计划引用当前绑定版本，旧运行保留自己的规则版本。
+              </p>
+            </div>
+            <button class="btn btn-sm" type="button" @click="openRuleImport">导入规则文件</button>
+            <input
+              ref="ruleImportInput"
+              class="visually-hidden"
+              type="file"
+              accept=".md,.txt"
+              @change="onRuleFile"
+            />
+          </div>
+          <div class="rule-list">
+            <div v-for="rule in project.rules" :key="rule.id" class="rule-row">
+              <span class="rule-name">{{ rule.name }}</span>
+              <span class="rule-meta"
+                >v{{ rule.version }} ·
+                {{ rule.id === project.rulesVersionId ? "已绑定" : "历史版本" }}</span
+              >
+              <span class="rule-actions">
+                <button class="link-btn" type="button" @click="exportRule(rule)">导出</button>
+                <button
+                  v-if="rule.id !== project.rulesVersionId"
+                  class="link-btn"
+                  type="button"
+                  :disabled="workspace.busyKey(`rule-bind:${projectId}`)"
+                  @click="bindRule(rule.id)"
+                >
+                  绑定
+                </button>
+              </span>
+              <details class="rule-detail">
+                <summary>查看</summary>
+                <p class="doc-p">{{ rule.stepsMd || "未填写步骤。" }}</p>
+                <ul class="list-plain">
+                  <li v-for="item in rule.aiRules" :key="item">AI 规则：{{ item }}</li>
+                  <li v-for="item in rule.evidenceRequirements" :key="item">
+                    证据要求：{{ item }}
+                  </li>
+                </ul>
+              </details>
+            </div>
+          </div>
+          <p v-if="boundRule" class="doc-note">
+            当前绑定：{{ boundRule.name }} v{{
+              boundRule.version
+            }}。绑定变化可能在启动时要求重新生成计划。
+          </p>
+          <div class="divider"></div>
+          <h3 class="settings-title">新建规则版本</h3>
+          <form class="settings-form" novalidate @submit.prevent="saveRule">
+            <div class="form-grid">
+              <div class="field">
+                <label for="rule-name">名称</label>
+                <input id="rule-name" v-model="ruleForm.name" type="text" maxlength="40" />
+              </div>
+              <div class="field">
+                <label for="rule-version">版本</label>
+                <input id="rule-version" v-model="ruleForm.version" type="text" maxlength="20" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="rule-steps">步骤</label>
+              <textarea
+                id="rule-steps"
+                v-model="ruleForm.steps"
+                rows="4"
+                placeholder="按项目 README 与启动脚本执行主流程检查。"
+              />
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="rule-ai">AI 规则 <span class="optional">一行一条</span></label>
+                <textarea id="rule-ai" v-model="ruleForm.aiRules" rows="3" />
+              </div>
+              <div class="field">
+                <label for="rule-evidence">证据要求 <span class="optional">一行一条</span></label>
+                <textarea id="rule-evidence" v-model="ruleForm.evidence" rows="3" />
+              </div>
+            </div>
+            <p v-if="ruleError" class="field-error" role="alert">{{ ruleError }}</p>
+            <div class="form-actions">
+              <button
+                class="btn btn-primary"
+                type="submit"
+                :disabled="busyRule"
+                :aria-busy="busyRule"
+              >
+                {{ busyRule ? "正在保存…" : "保存规则版本" }}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          :ref="(el) => setSectionRef('settings-github', el)"
+          class="settings-section"
+          id="settings-github"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">GitHub 变更</h2>
+              <p class="settings-desc">只读提交与检查；读取失败时不会用缓存冒充最新。</p>
+            </div>
+          </div>
+          <div v-if="project.github" class="surface-strip">
+            <p class="doc-p">
+              <strong>{{ project.github.repo }}</strong> · {{ project.github.commit }} ·
+              {{ project.github.branch }}
+            </p>
+            <p class="doc-note">
+              读取于 {{ project.github.fetchedAt }} ·
+              {{ project.github.cached ? "缓存快照，未确认最新" : "最新读取" }}
+            </p>
+            <p class="doc-note mono">{{ project.github.files.join(" · ") || "没有文件列表" }}</p>
+          </div>
+          <EmptyState
+            v-else
+            title="未连接 GitHub"
+            text="只读提交、PR、检查与部署不可用；本地测试、证据与报告不受影响。接入宿主后再读取，不使用演示快照。"
           />
-          <span>{{ theme.name }}</span>
-          <small>{{ theme.summary }}</small>
-        </label>
-      </div>
-    </section>
+        </section>
 
-    <section class="section">
-      <div class="section-head">
-        <h2>备份</h2>
-        <span class="ui-help">默认不包含证据文件</span>
+        <section
+          :ref="(el) => setSectionRef('settings-boundary', el)"
+          class="settings-section"
+          id="settings-boundary"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">数据边界</h2>
+              <p class="settings-desc">这些是本机数据的边界规则，不会改动被测仓库。</p>
+            </div>
+          </div>
+          <div class="boundary-list">
+            <div class="boundary-row">
+              <span>项目隔离</span>
+              <p>测试、问题、历史、报告只属于当前项目；项目列表只汇总，不混合明细。</p>
+            </div>
+            <div class="boundary-row">
+              <span>本机存储</span>
+              <p>项目记录、证据元数据与报告留在浏览器本地存储，不写进被测仓库。</p>
+            </div>
+            <div class="boundary-row">
+              <span>运行锁</span>
+              <p>同一项目同时只运行一个任务；运行中不能切换任务、新建任务或做快速检查。</p>
+            </div>
+            <div class="boundary-row">
+              <span>凭据</span>
+              <p>配置拒绝 password/token/secret 等字段；凭据不进入报告或导出。</p>
+            </div>
+            <div class="boundary-row">
+              <span>清理</span>
+              <p>面板只提供清空本地数据；按运行清理测试数据仍由 CLI 执行。</p>
+            </div>
+          </div>
+        </section>
+
+        <section
+          :ref="(el) => setSectionRef('settings-appearance', el)"
+          class="settings-section"
+          id="settings-appearance"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">外观</h2>
+              <p class="settings-desc">明暗两套主题共用同一结构；默认跟随系统。</p>
+            </div>
+          </div>
+          <div class="theme-group" role="group" aria-label="外观主题">
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': ui.theme === 'auto' }"
+              type="button"
+              :aria-pressed="ui.theme === 'auto'"
+              @click="ui.setTheme('auto')"
+            >
+              跟随系统
+            </button>
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': ui.theme === 'light' }"
+              type="button"
+              :aria-pressed="ui.theme === 'light'"
+              @click="ui.setTheme('light')"
+            >
+              浅色
+            </button>
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': ui.theme === 'dark' }"
+              type="button"
+              :aria-pressed="ui.theme === 'dark'"
+              @click="ui.setTheme('dark')"
+            >
+              深色
+            </button>
+          </div>
+        </section>
+
+        <section
+          :ref="(el) => setSectionRef('settings-backup', el)"
+          class="settings-section"
+          id="settings-backup"
+        >
+          <div class="settings-head">
+            <div>
+              <h2 class="settings-title">备份</h2>
+              <p class="settings-desc">
+                本地 JSON 备份包含业务记录，不包含证据正文；恢复会替换当前本地数据。
+              </p>
+            </div>
+          </div>
+          <div class="backup-row">
+            <button
+              class="btn btn-sm"
+              type="button"
+              :disabled="backupBusy"
+              :aria-busy="backupBusy"
+              @click="createBackup"
+            >
+              {{ backupBusy ? "正在创建…" : "创建备份" }}
+            </button>
+            <button
+              class="btn btn-sm"
+              type="button"
+              :disabled="restoreBusy"
+              :aria-busy="restoreBusy"
+              @click="openRestore"
+            >
+              {{ restoreBusy ? "正在恢复…" : "从备份恢复" }}
+            </button>
+            <input
+              ref="restoreInput"
+              class="visually-hidden"
+              type="file"
+              accept="application/json,.json"
+              @change="onRestoreFile"
+            />
+            <span class="backup-meta">本地 JSON · 不打包证据 · 真实 ZIP 备份仍由 CLI 完成</span>
+          </div>
+          <div class="backup-row">
+            <button class="btn btn-sm btn-danger" type="button" @click="clearData">
+              清空本地数据
+            </button>
+            <span class="backup-meta">删除本机保存的项目、任务、问题与报告；不影响被测仓库。</span>
+          </div>
+        </section>
+
+        <p class="doc-note">
+          工作空间位于浏览器本地存储，项目仓库内不留插件数据。凭据不写入配置、日志、报告或导出。
+        </p>
       </div>
-      <label class="field">
-        <span class="ui-label">保存到</span>
-        <input v-model="backupPath" class="ui-input" placeholder="例如 E:\backup\aitest.zip" />
-      </label>
-      <label class="check">
-        <input v-model="backupEvidence" type="checkbox" />
-        同时备份证据
-      </label>
-      <button type="button" class="ui-btn" :disabled="busy" @click="runBackup">创建备份</button>
-      <p v-if="backupError" class="ui-error">{{ backupError }}</p>
-      <div v-if="backup" class="backup-result">
-        <p class="ui-help">已保存：{{ backup.path }}</p>
-        <p class="ui-help">文件 {{ backup.files }} 个 · {{ backup.sha256.slice(0, 12) }}</p>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.settings {
-  max-width: var(--layout-max);
-  margin: 0 auto;
-  padding: var(--space-4);
-  padding-bottom: var(--space-6);
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line-strong);
-}
-
-.page-head h1 {
-  font-size: var(--fs-20);
-}
-
-.page-head p {
-  margin-top: 3px;
-  color: var(--text-3);
-  font-size: var(--fs-11);
-  line-height: 1.5;
-}
-
-.section {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: 7px;
-}
-
-.section-head h2 {
-  margin: 0;
-  font-size: var(--fs-13);
-}
-
-.facts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fact {
-  display: grid;
-  grid-template-columns: 88px 90px minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--fs-11);
-}
-
-.fact > span:first-child {
-  color: var(--text-3);
-}
-
-.fact b {
-  font-weight: 500;
-  color: var(--passed);
-}
-
-.fact b.bad {
-  color: var(--failed);
-}
-
-.detail {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-  overflow-wrap: anywhere;
-}
-
-.actions {
-  margin-top: 8px;
-}
-
-.themes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.theme {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 2px 5px;
-  align-items: center;
-  color: var(--text-2);
-  font-size: var(--fs-11);
-}
-
-.theme small {
-  grid-column: 2;
-  color: var(--text-3);
-  font-size: var(--fs-10);
-}
-
-.section-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.tab {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-3);
-  font-size: var(--fs-10);
-}
-
-.tab.on {
-  color: var(--text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.config-collapsed .ui-help {
-  margin-bottom: 7px;
-}
-
-.config-text {
-  min-height: 130px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-  line-height: 1.5;
-}
-
-.field {
-  display: block;
-  margin-bottom: 7px;
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 8px;
-  color: var(--text-3);
-  font-size: var(--fs-10);
-}
-
-.backup-result {
-  margin-top: 6px;
-}
-
-.rule-editor {
-  margin: 8px 0 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface-sunken);
-}
-
-.rule-editor .ui-textarea {
-  min-height: 64px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-}
-
-.rule-new {
-  margin: 6px 0;
-}
-
-.rule-list {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--line);
-}
-
-.rule-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: 5px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.rule-pick {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--text-2);
-  font-size: var(--fs-11);
-  min-width: 0;
-}
-
-.rule-pick small {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-}
-
-.rule-pick .bound {
-  color: var(--accent);
-}
-
-.rule-detail {
-  padding: 6px 0;
-}
-
-.gh-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.gh-field {
-  min-width: 120px;
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.file-line {
-  font-size: var(--fs-10);
-  color: var(--text-3);
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 520px) {
-  .settings {
-    padding: var(--space-3);
-  }
-
-  .fact {
-    grid-template-columns: 70px 76px minmax(0, 1fr);
-  }
-}
-</style>

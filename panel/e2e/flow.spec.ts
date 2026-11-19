@@ -1,0 +1,55 @@
+import { expect } from "@playwright/test";
+
+import { createProject, createTaskFromCandidate, test } from "./fixtures";
+
+test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
+  const projectId = await createProject(page, "流程验证", "D:/work/flow-a");
+  await expect(page.locator(".stats-bar")).toContainText("业务功能");
+  await expect(page.locator(".candidate-brief")).toContainText("已整理 3 条候选");
+
+  await createTaskFromCandidate(page, 0);
+  await expect(page.locator(".scope-summary")).toContainText("本次 1 / 当前理解 4 项");
+  await expect(page.locator(".scope-unselected")).toContainText("未选 3 项");
+
+  await page.getByRole("button", { name: "生成计划" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
+  await expect(page.locator(".plan-summary")).toContainText("本次 1 项 / 共 4 项");
+  const start = page.getByRole("button", { name: "开始测试" });
+  await expect(start).toBeDisabled();
+  await page.locator("#confirm-execution").check();
+  await expect(start).toBeEnabled();
+  await start.click();
+
+  await page.waitForURL(/\/result/, { timeout: 15_000 });
+  await expect(page.locator(".result-verdict")).toHaveText("通过");
+  await expect(page.locator(".guidance").first()).toContainText("本次范围通过");
+  await expect(page.locator(".guidance").first()).not.toContainText("全部通过");
+  await expect(page.locator(".section-title").filter({ hasText: "项目级检查" })).toBeVisible();
+
+  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.waitForURL(/\/reports\//);
+  await expect(page.locator("h1").first()).toHaveText("测试报告");
+  await expect(page.locator(".result-verdict")).toHaveText("通过");
+  await expect(page.getByRole("heading", { name: "范围与覆盖" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "项目级检查" })).toBeVisible();
+
+  await page.locator("#opinion-text").fill("本次范围通过，可以进入下一轮。");
+  await page.getByRole("button", { name: "保存意见" }).click();
+  await expect(page.locator(".notice").first()).toContainText("本次范围通过");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出 Markdown" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toContain("测试报告");
+  await expect(page.locator("text=导出结果")).toBeVisible();
+  await expect(page.locator(".markdown-preview")).toHaveValue(/测试报告/);
+});
+
+test("概览不出现目标输入，当前任务条只在有任务时出现", async ({ page }) => {
+  const projectId = await createProject(page, "概览验证", "D:/work/flow-overview");
+  await expect(page.locator("#testGoalInput")).toHaveCount(0);
+  await expect(page.locator(".current-task-strip")).toHaveCount(0);
+  await createTaskFromCandidate(page, 0);
+  await page.goto(`/projects/${projectId}/overview`);
+  await expect(page.locator(".current-task-strip")).toContainText("验证 概览验证");
+});

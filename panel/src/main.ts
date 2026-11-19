@@ -1,18 +1,26 @@
 import { createApp } from "vue";
+import { createPinia } from "pinia";
 
 import App from "./App.vue";
-import { initTheme } from "./state/theme";
+import router from "./router";
+import { useUiStore } from "./stores/ui";
+import { useWorkspaceStore } from "./stores/workspace";
 import "./styles/tokens.css";
 import "./styles/base.css";
+import "./styles/layout.css";
+import "./styles/components.css";
+import "./styles/motion.css";
 
 async function start(): Promise<void> {
-  // 仅开发模式提供静态 mock 宿主，用于视觉检查与截图；生产构建会被移除。
-  if (import.meta.env.DEV && window.location.search.includes("mock")) {
-    const { installMockHost } = await import("./mock/host");
-    installMockHost(new URLSearchParams(window.location.search).get("mock") ?? "result");
-  }
-  initTheme();
-  createApp(App).mount("#app");
+  const app = createApp(App);
+  const pinia = createPinia();
+  app.use(pinia);
+  useUiStore().initTheme();
+  const workspace = useWorkspaceStore();
+  await workspace.bootstrap();
+  app.use(router);
+  await router.isReady();
+  app.mount("#app");
 }
 
 void start();

@@ -1,0 +1,126 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+
+import ErrorState from "@/components/ErrorState.vue";
+import LoadingState from "@/components/LoadingState.vue";
+import ModuleEditorDialog from "@/components/ModuleEditorDialog.vue";
+import ProjectOverview from "@/components/ProjectOverview.vue";
+import type { Module } from "@/domain/types";
+import { useWorkspaceStore } from "@/stores/workspace";
+
+const router = useRouter();
+const workspace = useWorkspaceStore();
+const moduleOpen = ref(false);
+const editingModule = ref<Module | null>(null);
+
+const project = computed(() => workspace.currentProject);
+const projectId = computed(() => project.value?.id ?? "");
+const analyzing = computed(
+  () =>
+    Boolean(project.value) &&
+    (project.value?.analysisStatus === "analyzing" ||
+      workspace.busyKey(`analysis:${projectId.value}`)),
+);
+const analyzingBusy = computed(() => workspace.busyKey(`analysis:${projectId.value}`));
+
+function routeForTask(taskId: string): string {
+  const task = project.value?.tasks.find((entry) => entry.id === taskId);
+  if (!task || !projectId.value) {
+    return `/projects/${projectId.value}/overview`;
+  }
+  switch (task.stage) {
+    case "fresh":
+      return `/projects/${projectId.value}/tasks/new`;
+    case "scope":
+      return `/projects/${projectId.value}/tasks/${taskId}/scope`;
+    case "planned":
+      return `/projects/${projectId.value}/tasks/${taskId}/plan`;
+    case "running":
+      return `/projects/${projectId.value}/tasks/${taskId}/run`;
+    case "result":
+      return `/projects/${projectId.value}/tasks/${taskId}/result`;
+    default:
+      return `/projects/${projectId.value}/overview`;
+  }
+}
+
+async function openTask(taskId: string): Promise<void> {
+  const task = project.value?.tasks.find((entry) => entry.id === taskId);
+  if (!task) {
+    return;
+  }
+  if (task.stage !== "fresh") {
+    await workspace.setActiveTask(projectId.value, taskId);
+  }
+  await router.push(routeForTask(taskId));
+}
+
+async function analyze(): Promise<void> {
+  if (!projectId.value) {
+    return;
+  }
+  try {
+    await workspace.analyzeProject(projectId.value);
+  } catch {
+    // store 已提示。
+  }
+}
+
+function addModule(): void {
+  editingModule.value = null;
+  moduleOpen.value = true;
+}
+
+function editModule(module: Module): void {
+  editingModule.value = module;
+  moduleOpen.value = true;
+}
+
+async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Promise<void> {
+  if (!projectId.value) {
+    return;
+  }
+  try {
+    if (editingModule.value) {
+      await workspace.updateModule(projectId.value, editingModule.value.id, input);
+    } else {
+      await workspace.addModule(projectId.value, input);
+    }
+  } catch {
+    // store 已提示。
+  }
+}
+</script>
+
+<template>
+  <div v-if="!project" class="page">
+    <LoadingState v-if="workspace.status === 'loading'" />
+    <ErrorState
+      v-else
+      title="项目不可用"
+      :text="workspace.error || '这个项目可能已被移除。'"
+      retry-label="重新读取"
+      @retry="workspace.bootstrap()"
+    />
+  </div>
+  <div v-else>
+    <ProjectOverview
+      :project="project"
+      :analyzing="analyzing"
+      :analysis-error="project.analysisError"
+      :analyzing-busy="analyzingBusy"
+      @new-task="router.push(`/projects/${projectId}/tasks/new`)"
+      @view-candidates="router.push(`/projects/${projectId}/tasks/new`)"
+      @open-task="openTask"
+      @open-run="(runId) => router.push(`/projects/${projectId}/history?run=${runId}`)"
+      @open-issue="(issueId) => router.push(`/projects/${projectId}/issues/${issueId}`)"
+      @open-history="router.push(`/projects/${projectId}/history`)"
+      @open-issues="router.push(`/projects/${projectId}/issues`)"
+      @analyze="analyze"
+      @add-module="addModule"
+      @edit-module="editModule"
+    />
+    <ModuleEditorDialog v-model="moduleOpen" :module="editingModule" @save="saveModule" />
+  </div>
+</template>

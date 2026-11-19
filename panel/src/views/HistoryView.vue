@@ -1,241 +1,207 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-import {
-  RUN_STATUS_LABEL,
-  VERDICT_LABEL,
-  formatDateTime,
-  formatDuration,
-} from "@/api/labels";
-import type { RunSummary } from "@/api/types";
-import { loadHistory, openHistoryRun, workspace } from "@/state/workspace";
+import EmptyState from "@/components/EmptyState.vue";
+import PageHeader from "@/components/PageHeader.vue";
+import RunHistoryDialog from "@/components/RunHistoryDialog.vue";
+import StatusMark from "@/components/StatusMark.vue";
+import { latestReportForRun } from "@/domain/derive";
+import { durationText } from "@/domain/ids";
+import { RUN_STATUS_LABEL, VERDICT_LABEL } from "@/domain/labels";
+import type { Run, Task } from "@/domain/types";
+import { useWorkspaceStore } from "@/stores/workspace";
 
-function titleOf(run: RunSummary): string {
-  return run.task_title || "未命名任务";
+const route = useRoute();
+const router = useRouter();
+const workspace = useWorkspaceStore();
+const projectId = computed(() => String(route.params.projectId ?? ""));
+const project = computed(() => workspace.currentProject);
+const tasks = computed(() => project.value?.tasks.filter((task) => task.stage !== "fresh") ?? []);
+const runs = computed(() => workspace.projectRuns);
+const taskFilter = ref("all");
+const resultFilter = ref("all");
+const selected = ref<Run | null>(null);
+const dialogOpen = ref(false);
+
+const filtered = computed(() =>
+  runs.value
+    .filter((run) => taskFilter.value === "all" || run.taskId === taskFilter.value)
+    .filter((run) => {
+      if (resultFilter.value === "failed") return run.verdict === "failed";
+      if (resultFilter.value === "passed") return run.verdict === "passed";
+      if (resultFilter.value === "running") return run.status === "running";
+      if (resultFilter.value === "interrupted") return run.status === "interrupted";
+      if (resultFilter.value === "cancelled") return run.status === "cancelled";
+      return true;
+    }),
+);
+
+function groupOf(run: Run): "今天" | "昨天" | "更早" {
+  const date = new Date(run.startedAt);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const time = date.getTime();
+  if (time >= start) return "今天";
+  if (time >= start - 24 * 60 * 60 * 1000) return "昨天";
+  return "更早";
 }
 
-function planLabel(run: RunSummary): string {
-  if (!run.plan_no) {
-    return "计划";
-  }
-  return run.plan_revision && run.plan_revision > 1
-    ? `计划 ${run.plan_no} · 第 ${run.plan_revision} 版`
-    : `计划 ${run.plan_no}`;
+const groups = computed(() =>
+  (["今天", "昨天", "更早"] as const)
+    .map((label) => ({
+      label,
+      runs: filtered.value.filter((run) => groupOf(run) === label),
+    }))
+    .filter((group) => group.runs.length > 0),
+);
+
+function taskFor(run: Run): Task | null {
+  return tasks.value.find((task) => task.id === run.taskId) ?? null;
 }
 
-function resultLabel(run: RunSummary): string {
-  if (run.outcome) {
-    return VERDICT_LABEL[run.outcome];
-  }
-  return RUN_STATUS_LABEL[run.status];
+function planLabel(run: Run): string {
+  const task = taskFor(run);
+  const plan = task?.plans.find((entry) => entry.id === run.planId);
+  return plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划快照缺失";
 }
 
-function resultTone(run: RunSummary): string {
-  if (run.outcome) {
-    return run.outcome;
-  }
-  return run.status === "running" ? "running" : "neutral";
+function openRun(run: Run): void {
+  selected.value = run;
+  dialogOpen.value = true;
+  void router.replace({ query: { ...route.query, run: run.id } });
 }
 
-function countsOf(run: RunSummary): string {
-  const counts = run.counts ?? {};
-  const parts: string[] = [];
-  if (counts.passed) {
-    parts.push(`通过 ${counts.passed}`);
-  }
-  if (counts.failed) {
-    parts.push(`失败 ${counts.failed}`);
-  }
-  if (counts.incomplete) {
-    parts.push(`未完成 ${counts.incomplete}`);
-  }
-  return parts.join(" · ");
+function openReport(reportId: string): void {
+  void router.push(`/projects/${projectId.value}/reports/${reportId}`);
 }
 
-onMounted(() => {
-  void loadHistory();
+watch(
+  () => route.query.run,
+  (runId) => {
+    if (typeof runId !== "string") {
+      return;
+    }
+    const target = runs.value.find((run) => run.id === runId);
+    if (target) {
+      selected.value = target;
+      dialogOpen.value = true;
+    }
+  },
+  { immediate: true },
+);
+
+watch(dialogOpen, (open) => {
+  if (!open && route.query.run) {
+    const query = { ...route.query };
+    delete query.run;
+    void router.replace({ query });
+  }
 });
 </script>
 
 <template>
-  <div class="history-page">
-    <header class="page-head">
-      <div>
-        <h1>历史</h1>
-        <p>整个项目最近的运行；点开是只读台账，计划与任务使用当时的快照。</p>
-      </div>
-      <button type="button" class="ui-btn" @click="loadHistory">刷新</button>
-    </header>
+  <div v-if="!project" class="page">
+    <EmptyState title="项目不可用" text="回到项目概览重新选择项目。" />
+  </div>
+  <div v-else class="page">
+    <PageHeader
+      kicker="历史"
+      title="历史"
+      :subtitle="`${project.name} · ${runs.length} 次运行 · 记录只读`"
+    />
 
-    <p v-if="workspace.history.length === 0" class="ui-help empty">还没有运行记录。</p>
-
-    <div v-else class="list">
-      <button
-        v-for="run in workspace.history"
-        :key="run.run_id"
-        type="button"
-        class="row"
-        @click="openHistoryRun(run.run_id)"
-      >
-        <span class="time">{{ formatDateTime(run.started_at) }}</span>
-        <span class="main">
-          <span class="title">{{ titleOf(run) }}</span>
-          <span class="meta">
-            {{ planLabel(run) }}
-            <template v-if="run.scope"> · 本次 {{ run.scope.selected }} / 共 {{ run.scope.applicable }} 项</template>
-            <template v-if="run.task_snapshot === false"> · 无任务快照</template>
-          </span>
-        </span>
-        <span class="result" :class="resultTone(run)">
-          {{ resultLabel(run) }}
-          <span v-if="countsOf(run)" class="counts">{{ countsOf(run) }}</span>
-        </span>
-        <span class="duration">{{ formatDuration(run.elapsed_seconds) }}</span>
-      </button>
+    <div class="toolbar">
+      <label class="scope-filter">
+        <span>任务</span>
+        <select v-model="taskFilter" aria-label="按任务筛选历史">
+          <option value="all">全部任务（{{ runs.length }}）</option>
+          <option v-for="task in tasks" :key="task.id" :value="task.id">
+            {{ task.title }}（{{ runs.filter((run) => run.taskId === task.id).length }}）
+          </option>
+        </select>
+      </label>
+      <label class="scope-filter">
+        <span>结果</span>
+        <select v-model="resultFilter" aria-label="按结果筛选历史">
+          <option value="all">全部结果</option>
+          <option value="failed">失败</option>
+          <option value="passed">通过</option>
+          <option value="running">运行中</option>
+          <option value="cancelled">已取消</option>
+          <option value="interrupted">中断</option>
+        </select>
+      </label>
+      <span class="section-note">{{ filtered.length }} 次运行</span>
     </div>
+
+    <div v-if="groups.length" class="history-groups">
+      <section v-for="group in groups" :key="group.label" class="history-group">
+        <div class="section-head">
+          <h2 class="section-title">{{ group.label }}</h2>
+          <span class="section-note">{{ group.runs.length }} 次</span>
+        </div>
+        <div class="history-list">
+          <button
+            v-for="run in group.runs"
+            :key="run.id"
+            class="run-row"
+            type="button"
+            @click="openRun(run)"
+          >
+            <StatusMark :result="run.status === 'interrupted' ? 'blocked' : run.verdict" />
+            <span>
+              <span class="row-title">
+                {{ taskFor(run)?.title ?? "任务已归档" }}
+                <span
+                  v-if="taskFor(run)?.currentRunId === run.id && taskFor(run)?.stage === 'result'"
+                  class="badge is-accent"
+                  >当前</span
+                >
+              </span>
+              <span class="row-meta">
+                <span>{{ planLabel(run) }}</span>
+                <span>{{ new Date(run.startedAt).toLocaleString("zh-CN") }}</span>
+                <span>{{ RUN_STATUS_LABEL[run.status] }} · {{ VERDICT_LABEL[run.verdict] }}</span>
+              </span>
+            </span>
+            <span class="row-side">
+              {{ run.counts.passed }} 通过 · {{ run.counts.failed }} 失败 ·
+              {{ run.counts.incomplete }} 未完成
+            </span>
+            <span class="row-side">{{ durationText(run.elapsedMs / 1000) }}</span>
+          </button>
+        </div>
+      </section>
+    </div>
+    <EmptyState
+      v-else
+      title="还没有运行记录"
+      :text="
+        runs.length === 0
+          ? '完成一次测试后，运行记录、报告与证据都会保留在这里。'
+          : '这个筛选下没有记录；切回全部任务或全部结果。'
+      "
+    >
+      <button
+        class="btn btn-sm"
+        type="button"
+        @click="router.push(`/projects/${projectId}/tasks/new`)"
+      >
+        开始测试
+      </button>
+    </EmptyState>
+
+    <p class="doc-note">
+      历史按任务归档；每次运行保留启动时的计划与任务快照，不混用当前任务文字。中断的运行没有报告。
+    </p>
+
+    <RunHistoryDialog
+      v-model="dialogOpen"
+      :run="selected"
+      :task="selected ? taskFor(selected) : null"
+      :report="selected && project ? latestReportForRun(project, selected.id) : null"
+      @open-report="openReport"
+    />
   </div>
 </template>
-
-<style scoped>
-.history-page {
-  max-width: var(--layout-max);
-  margin: 0 auto;
-  padding: var(--space-4);
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line-strong);
-}
-
-.page-head h1 {
-  font-size: var(--fs-20);
-}
-
-.page-head p {
-  margin-top: 3px;
-  color: var(--text-3);
-  font-size: var(--fs-11);
-  line-height: 1.5;
-}
-
-.empty {
-  padding: var(--space-5) 0;
-}
-
-.list {
-  margin-top: 6px;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 116px 62px;
-  gap: 10px;
-  align-items: start;
-  width: 100%;
-  padding: 8px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  text-align: left;
-}
-
-.row:hover {
-  background: var(--surface-raised);
-}
-
-.time {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-  line-height: 1.5;
-}
-
-.main {
-  min-width: 0;
-}
-
-.title {
-  display: block;
-  color: var(--text);
-  font-size: var(--fs-12);
-  line-height: 1.45;
-}
-
-.meta {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-  line-height: 1.45;
-}
-
-.result {
-  color: var(--text-2);
-  font-size: var(--fs-11);
-  line-height: 1.45;
-  text-align: right;
-}
-
-.result.passed {
-  color: var(--passed);
-}
-
-.result.failed {
-  color: var(--failed);
-}
-
-.result.incomplete {
-  color: var(--incomplete);
-}
-
-.result.running {
-  color: var(--accent);
-}
-
-.counts {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-9, 9px);
-}
-
-.duration {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-  line-height: 1.5;
-  text-align: right;
-}
-
-@media (max-width: 620px) {
-  .row {
-    grid-template-columns: 76px minmax(0, 1fr) 84px;
-  }
-
-  .duration {
-    display: none;
-  }
-}
-
-@media (max-width: 520px) {
-  .history-page {
-    padding: var(--space-3);
-  }
-
-  .row {
-    grid-template-columns: 68px minmax(0, 1fr);
-  }
-
-  .result {
-    grid-column: 2;
-    text-align: left;
-  }
-}
-</style>

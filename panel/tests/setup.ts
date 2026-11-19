@@ -1,6 +1,35 @@
-import { afterEach } from "vitest";
+import { enableAutoUnmount } from "@vue/test-utils";
+import { afterEach, beforeEach } from "vitest";
+
+enableAutoUnmount(afterEach);
+
+beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.dataset.theme = "light";
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.open = false;
+      this.dispatchEvent(new Event("close"));
+    };
+  }
+});
 
 afterEach(() => {
   document.body.innerHTML = "";
-  delete (window as { aitestHost?: unknown }).aitestHost;
 });

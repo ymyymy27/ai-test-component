@@ -1,0 +1,22 @@
+/* 动效只服务层级、状态与展开；页面和文档不做入场位移。 */
+@media (prefers-reduced-motion: no-preference) {
+  .progress-fill {
+    transition: transform var(--motion-progress) ease;
+  }
+
+  .ledger-chevron {
+    transition: transform var(--motion-fast) ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--accent);
+  }
+
+  .progress-fill,
+  .ledger-chevron {
+    transition: none;
+  }
+}

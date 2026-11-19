@@ -11,7 +11,7 @@ const panelRoot = join(repoRoot, "panel");
 const panelOut = join(extensionRoot, "media", "panel");
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const panelBuild = spawnSync(npm, ["run", "build"], {
+const panelBuild = spawnSync(npm, ["run", "build:extension"], {
   cwd: panelRoot,
   stdio: "inherit",
   shell: process.platform === "win32",

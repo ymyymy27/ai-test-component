@@ -1,48 +1,77 @@
-# 共享面板（Vue 3 + Vite）
+# AI 测试 · 共享面板
 
-编辑器无关的测试面板；生产构建由 Trae 扩展注入 `window.aitestHost`，开发时可用静态演示宿主查看页面。
+Vue 3 + TypeScript + Vite 的本地测试工作台。当前阶段用 `LocalStorageRepository` 提供可运行的本地数据实现；接入宿主后，用同一 `ProjectRepository` 接口替换为 Host/HTTP 实现，页面与领域规则不需要改。
 
-```bash
-npm install
-npm run dev                 # 默认 http://localhost:5173
-npm test                    # 48 项组件/状态测试
-npm run build               # vue-tsc + vite build
-```
-
-当前测试基线（2026-11-17，版本 0.5.0）：面板 vitest 48 项；扩展 node test 48 项、后端 pytest 265 项见各自目录。
-
-## 演示宿主
-
-开发模式在 URL 带 `?mock=<scenario>` 时加载 `src/mock/host.ts`，场景包括：
-
-- `proposal`：有计划、未运行（执行前确认）
-- `running`：运行中
-- `result`：结果台账
-- `passed`：全部通过
-- `no-project`：无项目
-- `smoke`：项目快速检查
-- 追加 `&view=issues|history|settings` 可直接打开问题、历史或设置
-
-演示数据只用于界面回归，不连接真实工作空间，也不进入生产构建。`no-project` 只用于手工预览，e2e 不覆盖该场景。
-
-## 浏览器端到端回归
-
-先启动开发服务器，再运行脚本。`test:e2e` 默认输出到 `test-results/`（可用第二个参数指定目录）；`npm run screenshot` 默认输出到 `../tests/acceptance/p1/evidence/frontend`。
+## 运行
 
 ```bash
-npm run dev -- --port 5174
-# 另一个终端
-npm run test:e2e -- http://localhost:5174
+pnpm install
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm exec playwright test
 ```
 
-脚本覆盖无宿主、计划与确认、运行/停止、结果、计划文档、报告、问题详情、历史、设置、420px 横向溢出；不覆盖“无项目”场景。使用本机 Chrome，不下载浏览器。
+- `pnpm build` 产出可直接由静态服务器托管的 `dist/`（history 路由需要 SPA fallback）。
+- `pnpm build:extension` 用相对 base 构建，供 Trae 扩展的 `integrations/trae/scripts/build-panel.mjs` 复制到 `media/panel`。
+- 现有 CI 使用 npm：`package-lock.json` 一并保留；`pnpm-lock.yaml` 供本地与 pnpm 流程使用。
 
-## 截图
+## 结构
 
-```bash
-npm run dev
-# 另一个终端
-npm run screenshot
+```text
+panel/
+├─ src/
+│  ├─ router/                  history 路由、项目/任务/阶段守卫、404
+│  ├─ domain/                  类型、状态机、派生、计划、运行、问题门禁、报告、分析
+│  ├─ repositories/            ProjectRepository 接口 + LocalStorageRepository
+│  ├─ stores/                  workspace（领域状态）+ ui（抽屉/主题/Toast/确认）
+│  ├─ services/                分析、运行模拟、快速检查、环境、导出、证据摘要
+│  ├─ components/              外壳、侧栏、状态、台账、范围、确认、对话框
+│  ├─ views/                   概览、任务、资料、范围、计划、运行、结果、报告、问题、历史、设置
+│  └─ styles/                  DESIGN.md token、基础、布局、组件、动效
+├─ tests/                      Vitest：领域、仓储、组件
+└─ e2e/                        Playwright：主流程、门禁、路由、响应式、设置
 ```
 
-默认 640×900，另生成 420×900 的结果页；目前只生成深色截图，浅色截图待补。演示数据只用于界面回归，不代表真实验收。
+## 路由
+
+```text
+/setup
+/projects/:projectId/overview
+/projects/:projectId/tasks/new
+/projects/:projectId/tasks/:taskId/details
+/projects/:projectId/tasks/:taskId/scope
+/projects/:projectId/tasks/:taskId/plan
+/projects/:projectId/tasks/:taskId/run
+/projects/:projectId/tasks/:taskId/result
+/projects/:projectId/quick-check
+/projects/:projectId/issues
+/projects/:projectId/issues/:issueId
+/projects/:projectId/history
+/projects/:projectId/settings
+/projects/:projectId/reports/:reportId
+/:pathMatch(.*)* → 404
+```
+
+## 边界
+
+- 组件不直接读写 `localStorage`；所有持久化经过 `ProjectRepository`。
+- 结论、覆盖、计数、问题关闭门禁和报告内容只在 `domain/` 计算一次。
+- 当前没有连接 CLI、模型、GitHub 或真实文件系统：
+  - 运行与快速检查是本地确定性模拟，UI 标“本地模拟”；
+  - 目标候选和失败分析使用本地规则；
+  - GitHub 未连接时显示空态，不伪造缓存；
+  - 报告导出是浏览器 Markdown 下载，不打包证据；
+  - 备份是本地 JSON，真实 ZIP 备份/恢复和按运行清理仍由 CLI 完成。
+- 接入宿主后，`LocalStorageRepository` 替换为 `window.aitestHost` 适配器；领域状态与页面不变。
+
+## 测试
+
+- `tests/domain/`：状态机、派生结论、表单/配置校验。
+- `tests/repositories/`：项目/任务/计划/运行、单运行锁、问题归并/关闭门禁、报告版本、人工结果、备份恢复、格式错误。
+- `tests/components/`：状态记号、目标输入、候选、范围刻度、确认、空/错/加载态。
+- `e2e/`：完整主流程、失败→重跑→关闭门禁、快速检查隔离、直接刷新路由、320/768/1200 无横向滚动、抽屉 Esc/焦点、设置与备份、人工结果/证据、任务资料/模板。
+
+历史路由依赖静态服务器的 SPA fallback；Trae webview 内的刷新回退属于宿主能力，未在本阶段验证。

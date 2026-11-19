@@ -1,124 +1,132 @@
-/* 测试台账 tokens：中性底色 + 一个 petrol 强调色；状态只给文字/记号。 */
+/* 设计 token：冷灰绿工作台。颜色、间距、圆角只在 token 层定义。 */
 :root {
   color-scheme: light;
 
-  --bg: #f4f5f3;
-  --surface: #fbfbfa;
-  --surface-raised: #eef0ed;
-  --surface-sunken: #f7f8f6;
-  --line: #d8dcd8;
-  --line-strong: #b7beb8;
+  --canvas: #f2f4f1;
+  --side: #e7ebe7;
+  --surface: #fcfdfb;
+  --surface-2: #f0f4f0;
+  --surface-3: #e6ebe6;
+  --surface-hover: #edf1ed;
 
-  --text: #171a18;
-  --text-2: #4f5a52;
-  --text-3: #6f7a72;
-  --text-disabled: #98a19a;
+  --ink: #1b201c;
+  --ink-2: #4e574f;
+  --ink-3: #68736a;
+  --ink-disabled: #98a19a;
 
-  --accent: #0f6b5f;
-  --accent-line: #0f6b5f;
-  --accent-ink: #f7fbf9;
-  --accent-fill: rgba(15, 107, 95, 0.08);
-  --accent-fill-strong: rgba(15, 107, 95, 0.14);
-  --accent-border: rgba(15, 107, 95, 0.28);
-  --accent-glow: rgba(15, 107, 95, 0.14);
+  --line: #d8ded8;
+  --line-strong: #c3ccc4;
 
-  --passed: #2f7d57;
-  --passed-fill: rgba(47, 125, 87, 0.08);
-  --passed-border: rgba(47, 125, 87, 0.22);
-  --failed: #b23a2e;
-  --failed-fill: rgba(178, 58, 46, 0.08);
-  --failed-border: rgba(178, 58, 46, 0.24);
-  --incomplete: #9a6a1f;
-  --incomplete-fill: rgba(154, 106, 31, 0.08);
-  --incomplete-border: rgba(154, 106, 31, 0.24);
-  --neutral: #667085;
-  --neutral-fill: rgba(102, 112, 133, 0.08);
+  --accent: #205e53;
+  --accent-hover: #184d43;
+  --accent-soft: #e3efeb;
+  --accent-contrast: #ffffff;
+  --on-danger: #ffffff;
 
-  --scrim: rgba(16, 20, 17, 0.34);
-  --skeleton-a: #eef0ed;
-  --skeleton-b: #e2e6e2;
+  --pass: #2f684b;
+  --fail: #9b3b31;
+  --warn: #84601b;
+  --pass-bg: #e8f6ee;
+  --fail-bg: #fdecea;
+  --warn-bg: #fbf3e4;
+  --neutral-bg: #eef1ee;
 
-  --primary-bg: #0f6b5f;
-  --primary-bg-hover: #0b574e;
-  --primary-text: #f7fbf9;
+  --focus: #205e53;
+  --shadow-1: 0 1px 2px rgba(27, 32, 28, 0.06);
+  --shadow-strip: 0 1px 2px rgba(27, 32, 28, 0.05), 0 6px 18px rgba(27, 32, 28, 0.05);
+  --shadow-pop: 0 18px 48px rgba(27, 32, 28, 0.18);
 
-  --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
-    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
-  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular",
-    "Microsoft YaHei UI", monospace;
+  --font-ui:
+    "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB",
+    sans-serif;
+  --font-display:
+    "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  --font-num: "Bahnschrift", "Cascadia Mono", "Consolas", monospace;
+  --font-mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
 
-  --fs-10: 10px;
-  --fs-11: 11px;
-  --fs-12: 12px;
-  --fs-13: 13px;
-  --fs-14: 14px;
-  --fs-16: 16px;
-  --fs-18: 18px;
-  --fs-20: 20px;
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-19: 19px;
+  --text-25: 25px;
+  --text-28: 28px;
 
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
-  --layout-max: 900px;
-  --header-h: 42px;
-  --drawer-w: 100%;
+  --radius-row: 4px;
+  --radius-control: 6px;
+  --radius-strip: 10px;
+  --radius-dialog: 8px;
 
-  --r-card: 4px;
-  --r-control: 3px;
-  --r-chip: 2px;
+  --btn-h: 36px;
+  --btn-h-sm: 30px;
+  --control-h: 36px;
+  --sidebar-w: 248px;
+  --content-max: 820px;
+  --header-h: 52px;
 
-  --focus: #0f6b5f;
-  --shadow-pop: 0 10px 28px rgba(16, 20, 17, 0.16);
+  --motion-fast: 120ms;
+  --motion-toast: 180ms;
+  --motion-dialog: 200ms;
+  --motion-drawer: 220ms;
+  --motion-progress: 240ms;
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --z-header: 30;
+  --z-sidebar: 40;
+  --z-popover: 45;
+  --z-backdrop: 55;
+  --z-drawer: 60;
+  --z-dialog: 100;
+  --z-toast: 120;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0f1211;
-  --surface: #151917;
-  --surface-raised: #1a201c;
-  --surface-sunken: #0b0e0c;
-  --line: #272d29;
-  --line-strong: #3a423c;
+  --canvas: #101512;
+  --side: #0b100d;
+  --surface: #171d19;
+  --surface-2: #1d251f;
+  --surface-3: #263029;
+  --surface-hover: #222b25;
 
-  --text: #e7ece7;
-  --text-2: #a4ada6;
-  --text-3: #737d75;
-  --text-disabled: #5b655e;
+  --ink: #e7ece7;
+  --ink-2: #adb8ae;
+  --ink-3: #7e8b80;
+  --ink-disabled: #5b655e;
 
-  --accent: #5fd3c0;
-  --accent-line: #5fd3c0;
-  --accent-ink: #08110f;
-  --accent-fill: rgba(95, 211, 192, 0.1);
-  --accent-fill-strong: rgba(95, 211, 192, 0.18);
-  --accent-border: rgba(95, 211, 192, 0.28);
-  --accent-glow: rgba(95, 211, 192, 0.16);
+  --line: #2b342d;
+  --line-strong: #414d43;
 
-  --passed: #6fca95;
-  --passed-fill: rgba(111, 202, 149, 0.1);
-  --passed-border: rgba(111, 202, 149, 0.24);
-  --failed: #f08a7a;
-  --failed-fill: rgba(240, 138, 122, 0.1);
-  --failed-border: rgba(240, 138, 122, 0.26);
-  --incomplete: #e0b05f;
-  --incomplete-fill: rgba(224, 176, 95, 0.1);
-  --incomplete-border: rgba(224, 176, 95, 0.26);
-  --neutral: #8b948c;
-  --neutral-fill: rgba(139, 148, 140, 0.1);
+  --accent: #8fd5c2;
+  --accent-hover: #a8e5d4;
+  --accent-soft: #17332c;
+  --accent-contrast: #06201b;
+  --on-danger: #ffffff;
 
-  --scrim: rgba(0, 0, 0, 0.62);
-  --skeleton-a: #1b211d;
-  --skeleton-b: #242c26;
+  --pass: #7cc79a;
+  --fail: #ee9182;
+  --warn: #d9ad61;
+  --pass-bg: #143025;
+  --fail-bg: #321d1d;
+  --warn-bg: #322716;
+  --neutral-bg: #1c231e;
 
-  --primary-bg: #5fd3c0;
-  --primary-bg-hover: #7fe0d0;
-  --primary-text: #08110f;
-
-  --focus: #5fd3c0;
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.46);
+  --focus: #8fd5c2;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-strip: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-pop: 0 22px 56px rgba(0, 0, 0, 0.55);
 }

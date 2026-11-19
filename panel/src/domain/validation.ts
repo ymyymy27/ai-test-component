@@ -1,0 +1,171 @@
+import type { Project, ProjectConfig } from "./types";
+
+export interface ProjectFormErrors {
+  root?: string;
+  name?: string;
+}
+
+export interface ProjectFormResult {
+  ok: boolean;
+  root: string;
+  name: string;
+  errors: ProjectFormErrors;
+}
+
+const ABSOLUTE_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+|\/)/;
+const CONFIG_SECTIONS = new Set(["model", "services", "l1", "runners", "evidence", "link", "data"]);
+const SECRET_KEY =
+  /(password|passwd|token|secret|api[-_]?key|authorization|credential|private[-_]?key)/i;
+
+export function isAbsolutePath(root: string): boolean {
+  return ABSOLUTE_PATH.test(root.trim());
+}
+
+function looksWindowsPath(root: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(root) || root.startsWith("\\\\");
+}
+
+export function normalizeRoot(root: string): string {
+  const trimmed = root.trim().replace(/[\\/]+$/, "");
+  return looksWindowsPath(trimmed) ? trimmed.toLowerCase() : trimmed;
+}
+
+export function basename(root: string): string {
+  const parts = root
+    .trim()
+    .replace(/[\\/]+$/, "")
+    .split(/[\\/]/)
+    .filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}
+
+function isNested(first: string, second: string): boolean {
+  const separator = looksWindowsPath(first) ? "\\" : "/";
+  return first.startsWith(`${second}${separator}`);
+}
+
+export function validateProjectForm(
+  input: { root: string; name: string },
+  existing: Project[],
+): ProjectFormResult {
+  const root = input.root.trim();
+  const name = input.name.trim() || basename(root);
+  const errors: ProjectFormErrors = {};
+
+  if (!root) {
+    errors.root = "填写项目目录的绝对路径。";
+  } else if (!isAbsolutePath(root)) {
+    errors.root = "使用绝对路径，例如 D:\\work\\service 或 /home/me/service。";
+  } else {
+    const normalized = normalizeRoot(root);
+    const duplicate = existing.find((project) => normalizeRoot(project.root) === normalized);
+    if (duplicate) {
+      errors.root = `这个目录已经登记为「${duplicate.name}」。`;
+    } else {
+      const overlap = existing.find((project) => {
+        const other = normalizeRoot(project.root);
+        return isNested(normalized, other) || isNested(other, normalized);
+      });
+      if (overlap) {
+        errors.root = `与已登记项目「${overlap.name}」的目录重叠；一个目录只能登记一次。`;
+      }
+    }
+  }
+
+  if (!name) {
+    errors.name = "项目名不能为空；留空时取目录名。";
+  } else if (name.length > 40) {
+    errors.name = "项目名最多 40 个字。";
+  }
+
+  return { ok: Object.keys(errors).length === 0, root, name, errors };
+}
+
+export function validateGoal(goal: string): string | null {
+  const text = goal.trim();
+  if (!text) {
+    return "先写一句要验证的目标。";
+  }
+  if (text.length > 200) {
+    return "目标最多 200 个字。";
+  }
+  return null;
+}
+
+export function parseLineList(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export function isSecretKey(key: string): boolean {
+  return SECRET_KEY.test(key);
+}
+
+function findSecretKey(value: unknown, path: string): string {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const found = findSecretKey(value[index], `${path}[${index}]`);
+      if (found) {
+        return found;
+      }
+    }
+    return "";
+  }
+  if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (isSecretKey(key)) {
+        return path ? `${path}.${key}` : key;
+      }
+      const found = findSecretKey(child, path ? `${path}.${key}` : key);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return "";
+}
+
+export type ConfigValidation = { ok: true; config: ProjectConfig } | { ok: false; message: string };
+
+export function validateProjectConfig(raw: unknown): ConfigValidation {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, message: "配置必须是 JSON 对象。" };
+  }
+  const value = raw as Record<string, unknown>;
+  for (const [section, sectionValue] of Object.entries(value)) {
+    if (!CONFIG_SECTIONS.has(section)) {
+      return {
+        ok: false,
+        message: `未知配置段「${section}」；只允许 ${[...CONFIG_SECTIONS].join(" / ")}。`,
+      };
+    }
+    if (sectionValue === null) {
+      continue;
+    }
+    if (typeof sectionValue !== "object" || Array.isArray(sectionValue)) {
+      return { ok: false, message: `配置段「${section}」必须是对象或 null。` };
+    }
+  }
+  const secret = findSecretKey(value, "");
+  if (secret) {
+    return { ok: false, message: `配置里不能出现凭据字段（${secret}）。` };
+  }
+  return { ok: true, config: value as ProjectConfig };
+}
+
+export function formatJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+export function parseJsonObject(
+  text: string,
+): { ok: true; value: unknown } | { ok: false; message: string } {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "JSON 解析失败";
+    return { ok: false, message: `JSON 不合法：${message}` };
+  }
+}

@@ -1,200 +1,83 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
-import type { Plan } from "@/api/types";
+import { sideEffectsFor, taskContract } from "@/domain/derive";
+import type { EnvironmentCheck, Plan, Project, Task } from "@/domain/types";
 
 const props = defineProps<{
   plan: Plan;
-  scope: string[];
-  applicable: number;
-  stale?: boolean;
-  staleReason?: string;
-  busy?: boolean;
+  task: Task;
+  project: Project;
+  environment: EnvironmentCheck[];
+  checked: boolean;
+  busy: boolean;
+  startDisabled: boolean;
 }>();
 
-const emit = defineEmits<{ confirm: []; "open-plan": [] }>();
-const checked = ref(false);
+const emit = defineEmits<{
+  "update:checked": [value: boolean];
+  start: [];
+}>();
 
-const selectedCases = computed(() =>
-  props.plan.cases.filter((item) => {
-    const ids = [
-      ...(item.acceptance_item_id ? [item.acceptance_item_id] : []),
-      ...(item.acceptance_item_ids ?? []),
-    ];
-    return ids.length === 0 || ids.some((id) => props.scope.includes(id));
-  }),
-);
-
-const dependencies = computed(() => {
-  const values = new Set<string>();
-  for (const item of selectedCases.value) {
-    for (const dep of item.dependencies ?? []) {
-      values.add(dep);
-    }
-  }
-  return [...values];
+const dependencies = computed(() => [
+  ...new Set(props.plan.cases.flatMap((testCase) => testCase.dependencies)),
+]);
+const effects = computed(() => sideEffectsFor(props.project));
+const environmentLine = computed(() => {
+  const wanted = ["cli", "model", "github"];
+  return props.environment
+    .filter((check) => wanted.includes(check.key))
+    .map((check) => `${check.name}：${check.value}`)
+    .join(" · ");
 });
-
-const planLabel = computed(() =>
-  props.plan.plan_no
-    ? `计划 ${props.plan.plan_no}${props.plan.revision > 1 ? ` · 第 ${props.plan.revision} 版` : ""}`
-    : "当前计划",
+const stale = computed(
+  () => props.plan.stale || props.plan.taskContract !== taskContract(props.task),
 );
+
+function toggle(event: Event): void {
+  const target = event.target;
+  if (target instanceof HTMLInputElement) {
+    emit("update:checked", target.checked);
+  }
+}
 </script>
 
 <template>
-  <section class="confirm" :class="{ stale }">
-    <div class="head">
-      <strong>执行前确认</strong>
-      <span>{{ stale ? "计划需要更新" : "确认后才开始" }}</span>
+  <section class="confirm-block" :class="{ 'is-active': checked }" aria-labelledby="confirm-title">
+    <div class="confirm-head">
+      <span id="confirm-title" class="confirm-title">执行前确认</span>
+      <span class="confirm-note">确认绑定计划版本、范围、环境、依赖与副作用</span>
     </div>
-
-    <p v-if="stale" class="stale-copy">
-      {{ staleReason || "任务验收项已变化，当前计划不能再运行。" }}
-      <button type="button" class="ui-link" @click="emit('open-plan')">查看计划</button>
+    <p v-if="stale" class="notice is-warn" role="alert">
+      {{ plan.staleReason || "验收项或验证方式已变化，需要生成新计划。" }}
     </p>
-
-    <dl class="facts">
-      <div>
-        <dt>范围</dt>
-        <dd>{{ scope.length }} 项 · {{ selectedCases.length }} 条用例</dd>
-      </div>
-      <div>
+    <dl class="confirm-grid">
+      <div class="confirm-item">
         <dt>计划</dt>
-        <dd>{{ planLabel }}</dd>
+        <dd>计划 {{ plan.no }} · 第 {{ plan.revision }} 版</dd>
       </div>
-      <div>
+      <div class="confirm-item">
+        <dt>范围</dt>
+        <dd>{{ plan.scope.coverage.selected }} 项 / 共 {{ plan.scope.coverage.applicable }} 项</dd>
+      </div>
+      <div class="confirm-item">
         <dt>依赖</dt>
         <dd>{{ dependencies.length ? dependencies.join("、") : "无额外依赖" }}</dd>
       </div>
-      <div>
-        <dt>会改动什么</dt>
-        <dd>按用例执行检查；可能写入测试数据</dd>
-      </div>
     </dl>
-
-    <div class="foot">
-      <label class="check">
-        <input v-model="checked" type="checkbox" :disabled="stale || busy" />
-        <span>我已确认范围、环境和副作用</span>
-      </label>
-      <div class="actions">
-        <button type="button" class="ui-link" @click="emit('open-plan')">查看 / 编辑计划</button>
-        <button
-          type="button"
-          class="ui-btn primary"
-          :disabled="!checked || stale || busy"
-          @click="emit('confirm')"
-        >
-          {{ busy ? "正在开始…" : "开始测试" }}
-        </button>
-      </div>
-    </div>
+    <ul class="side-effects">
+      <li v-for="effect in effects" :key="effect">{{ effect }}</li>
+    </ul>
+    <p class="field-hint">{{ environmentLine }}</p>
+    <label class="checkline" for="confirm-execution">
+      <input
+        id="confirm-execution"
+        type="checkbox"
+        :checked="checked"
+        :disabled="startDisabled"
+        @change="toggle"
+      />
+      <span>我已确认本次范围、依赖和副作用，同意开始测试。</span>
+    </label>
   </section>
 </template>
-
-<style scoped>
-.confirm {
-  flex: none;
-  border-top: 1px solid var(--line);
-  border-left: 2px solid var(--accent);
-  background: var(--surface-sunken);
-  padding: 10px var(--space-4) 12px;
-}
-
-.confirm.stale {
-  border-left-color: var(--incomplete);
-}
-
-.head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: 7px;
-}
-
-.head strong {
-  font-size: var(--fs-12);
-}
-
-.head span {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-10);
-}
-
-.stale-copy {
-  margin-bottom: 6px;
-  color: var(--incomplete);
-  font-size: var(--fs-11);
-  line-height: 1.5;
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 16px;
-  margin: 0;
-}
-
-.facts div {
-  min-width: 0;
-}
-
-.facts dt {
-  color: var(--text-3);
-  font-size: var(--fs-10);
-}
-
-.facts dd {
-  margin: 0;
-  color: var(--text-2);
-  font-size: var(--fs-11);
-  line-height: 1.45;
-}
-
-.foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: 9px;
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-2);
-  font-size: var(--fs-11);
-  line-height: 1.4;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-@media (max-width: 520px) {
-  .confirm {
-    padding: 9px var(--space-3) 11px;
-  }
-
-  .facts {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .foot {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-}
-</style>

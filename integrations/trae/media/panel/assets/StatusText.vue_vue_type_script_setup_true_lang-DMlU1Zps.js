@@ -1,0 +1,1 @@
+import{d as a,g as l,c as n,n as r,t as o,q as u,ab as c}from"./index-_G-eVqGT.js";const _=a({__name:"StatusText",props:{result:{},label:{default:""}},setup(t){const e=t,s=u(()=>e.label?e.label:e.result==="unselected"?"未纳入":c[e.result]);return(p,i)=>(l(),n("span",{class:r(["status-text",`is-${t.result}`])},o(s.value),3))}});export{_};
