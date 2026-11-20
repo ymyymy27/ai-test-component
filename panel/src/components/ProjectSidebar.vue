@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { projectStatus } from "@/domain/derive";
 import { stageLabel } from "@/domain/stateMachine";
@@ -25,6 +25,7 @@ const emit = defineEmits<{
   addProject: [];
   openSettings: [projectId: string];
   openTaskDetails: [projectId: string, taskId: string];
+  renameTask: [projectId: string, taskId: string, title: string];
   close: [];
 }>();
 
@@ -32,6 +33,9 @@ const query = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const menuTaskId = ref<string | null>(null);
+const renamingTaskId = ref<string | null>(null);
+const renameValue = ref("");
+const renameInput = ref<HTMLInputElement | null>(null);
 
 const currentProject = computed(
   () => props.projects.find((project) => project.id === props.currentProjectId) ?? null,
@@ -88,6 +92,35 @@ function toggleTaskMenu(taskId: string, event: MouseEvent): void {
 function openTaskDetails(projectId: string, taskId: string): void {
   menuTaskId.value = null;
   emit("openTaskDetails", projectId, taskId);
+}
+
+function beginRename(taskId: string, title: string): void {
+  menuTaskId.value = null;
+  renamingTaskId.value = taskId;
+  renameValue.value = title;
+  void nextTick(() => {
+    renameInput.value?.focus();
+    renameInput.value?.select();
+  });
+}
+
+function setRenameInput(element: unknown): void {
+  renameInput.value = element instanceof HTMLInputElement ? element : null;
+}
+
+function cancelRename(): void {
+  renamingTaskId.value = null;
+  renameValue.value = "";
+}
+
+function commitRename(projectId: string, taskId: string, currentTitle: string): void {
+  const title = renameValue.value.trim();
+  renamingTaskId.value = null;
+  renameValue.value = "";
+  if (!title || title === currentTitle) {
+    return;
+  }
+  emit("renameTask", projectId, taskId, title);
 }
 
 function closeMenuOnOutside(event: MouseEvent): void {
@@ -242,7 +275,23 @@ defineExpose({ focusSearch, focusClose });
               'is-disabled': Boolean(runningTaskId && runningTaskId !== task.id),
             }"
           >
+            <form
+              v-if="renamingTaskId === task.id"
+              class="side-task-rename"
+              @submit.prevent="commitRename(project.id, task.id, task.title)"
+            >
+              <input
+                :ref="setRenameInput"
+                v-model="renameValue"
+                type="text"
+                maxlength="80"
+                aria-label="任务名称"
+                @keydown.esc.prevent="cancelRename"
+                @blur="commitRename(project.id, task.id, task.title)"
+              />
+            </form>
             <button
+              v-else
               class="side-task"
               :class="{ 'is-active': task.id === currentTaskId }"
               type="button"
@@ -256,6 +305,7 @@ defineExpose({ focusSearch, focusClose });
               </span>
             </button>
             <button
+              v-if="renamingTaskId !== task.id"
               class="side-task-more"
               type="button"
               aria-label="任务操作"
@@ -266,15 +316,20 @@ defineExpose({ focusSearch, focusClose });
               <Icon name="more" :size="14" />
             </button>
             <div v-if="menuTaskId === task.id" class="side-task-menu" role="menu">
-              <button type="button" role="menuitem" @click="selectTask(task.id)">
-                打开任务
+              <button
+                type="button"
+                role="menuitem"
+                :disabled="runningTaskId === task.id"
+                @click="beginRename(task.id, task.title)"
+              >
+                重命名
               </button>
               <button
                 type="button"
                 role="menuitem"
                 @click="openTaskDetails(project.id, task.id)"
               >
-                任务资料
+                编辑资料
               </button>
             </div>
           </div>

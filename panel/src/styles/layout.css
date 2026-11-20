@@ -247,6 +247,19 @@
   flex: 1;
 }
 
+.side-task-rename {
+  min-width: 0;
+  flex: 1;
+  padding: 3px 0 3px var(--space-2);
+}
+
+.side-task-rename input {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-12);
+}
+
 .side-task-more {
   display: grid;
   place-items: center;
@@ -301,6 +314,12 @@
 .side-task-menu button:hover {
   background: var(--surface-hover);
   color: var(--ink);
+}
+
+.side-task-menu button:disabled {
+  color: var(--ink-3);
+  background: transparent;
+  cursor: not-allowed;
 }
 
 .side-task {

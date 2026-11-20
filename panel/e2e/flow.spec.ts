@@ -26,7 +26,7 @@ test("调整范围后取消调整返回计划页", async ({ page }) => {
   await expect(page.locator(".plan-summary")).toBeVisible();
 });
 
-test("侧边栏可以新建任务并打开任务资料", async ({ page }) => {
+test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) => {
   const projectId = await createProject(page, "侧边栏验证", "D:/work/flow-sidebar");
   await createTaskFromCandidate(page, 0);
   await page.goto(`/projects/${projectId}/overview`);
@@ -38,7 +38,12 @@ test("侧边栏可以新建任务并打开任务资料", async ({ page }) => {
   await page.waitForURL(/\/settings$/);
   await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-task-more").first().click();
-  await page.getByRole("menuitem", { name: "任务资料" }).click();
+  await page.getByRole("menuitem", { name: "重命名" }).click();
+  await page.fill(".side-task-rename input", "侧边栏改名任务");
+  await page.press(".side-task-rename input", "Enter");
+  await expect(page.locator(".side-task-title").first()).toHaveText("侧边栏改名任务");
+  await page.locator(".side-task-more").first().click();
+  await page.getByRole("menuitem", { name: "编辑资料" }).click();
   await page.waitForURL(/\/details/);
   await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-add").click();

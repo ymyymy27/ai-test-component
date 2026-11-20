@@ -127,6 +127,19 @@ async function openTaskDetails(projectIdValue: string, taskId: string): Promise<
   }
 }
 
+async function renameTask(
+  projectIdValue: string,
+  taskId: string,
+  title: string,
+): Promise<void> {
+  try {
+    await workspace.updateTask(projectIdValue, taskId, { title });
+    ui.showToast("任务已重命名。", "success");
+  } catch (error) {
+    ui.showToast(error instanceof Error ? error.message : "重命名失败。", "error");
+  }
+}
+
 async function newTask(projectIdValue: string): Promise<void> {
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/tasks/new`);
@@ -234,6 +247,7 @@ onBeforeUnmount(() => {
       @add-project="addProject"
       @open-settings="openSettings"
       @open-task-details="openTaskDetails"
+      @rename-task="renameTask"
       @close="closeSidebar"
     />
     <button
