@@ -698,6 +698,22 @@ export function mapRun(
     simulated: false,
     heartbeatAt: dto.heartbeat_at ?? dto.started_at,
     cancelRequested: dto.status === "cancelled",
+    environment: dto.environment ?? {},
+    dependencySuggestions: (dto.dependency_suggestions ?? []).map((entry) => ({
+      module: entry.module,
+      package: entry.package,
+      source: entry.source ?? "",
+      reason: entry.reason ?? "",
+      caseId: entry.case_id ?? "",
+      installed: entry.installed === "true",
+    })),
+    dependencyRepairs: (dto.dependency_repairs ?? []).map((entry) => ({
+      at: entry.at,
+      confirmedBy: entry.confirmed_by,
+      packages: entry.packages ?? {},
+      ok: entry.ok,
+      evidenceRef: entry.evidence_ref ?? "",
+    })),
   };
 }
 

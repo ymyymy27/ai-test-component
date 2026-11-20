@@ -510,6 +510,7 @@ export class LocalStorageRepository implements ProjectRepository {
       const confirmed = confirmDraftTask(project, draft, {
         goal: input.goal,
         candidate,
+        origin: input.origin,
       });
       const index = project.tasks.findIndex((task) => task.id === draft?.id);
       project.tasks[index] = confirmed;
@@ -624,6 +625,14 @@ export class LocalStorageRepository implements ProjectRepository {
       task.updatedAt = isoNow();
       return task;
     });
+  }
+
+  async repairRunDependencies(): Promise<Run> {
+    throw new RepositoryError(
+      "CONFLICT",
+      "本地演示模式不能安装依赖。",
+      "接入 Trae 宿主后再执行依赖修复。",
+    );
   }
 
   async prepareRerun(projectId: string, taskId: string, itemIds?: string[]): Promise<Plan> {

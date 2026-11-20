@@ -313,6 +313,23 @@ export interface Counts {
   incomplete: number;
 }
 
+export interface DependencySuggestion {
+  module: string;
+  package: string;
+  source: string;
+  reason: string;
+  caseId: string;
+  installed: boolean;
+}
+
+export interface DependencyRepair {
+  at: string;
+  confirmedBy: string;
+  packages: Record<string, string>;
+  ok: boolean;
+  evidenceRef: string;
+}
+
 export interface Run {
   id: string;
   projectId: string;
@@ -341,6 +358,9 @@ export interface Run {
   simulated: boolean;
   heartbeatAt: string;
   cancelRequested: boolean;
+  environment?: Record<string, string>;
+  dependencySuggestions?: DependencySuggestion[];
+  dependencyRepairs?: DependencyRepair[];
 }
 
 export interface IssueOccurrence {

@@ -111,12 +111,14 @@ async function submit(): Promise<void> {
     const task = await workspace.createTask(projectId.value, {
       goal: text,
       candidateId: selectedId.value ?? undefined,
+      origin: "goal",
     });
     try {
       await workspace.generatePlan(projectId.value, task.id);
       await router.push(`/projects/${projectId.value}/tasks/${task.id}/plan`);
     } catch {
-      await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
+      // 目标路径不切到范围页；计划页展示失败原因并允许重试。
+      await router.push(`/projects/${projectId.value}/tasks/${task.id}/plan`);
     }
   } catch {
     // store 已提示。
@@ -142,6 +144,7 @@ async function startRange(): Promise<void> {
     const task = await workspace.createTask(projectId.value, {
       goal: text,
       writeProjectGoal: false,
+      origin: "range",
     });
     await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
   } catch {

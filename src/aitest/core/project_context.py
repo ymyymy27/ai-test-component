@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -29,7 +30,7 @@ _DEPENDENCY_FRAMEWORKS = {
 }
 
 _FRAMEWORK_FILES = {
-    "pytest": ("pytest.ini", ".pytest.ini", "conftest.py", "tox.ini"),
+    "pytest": ("pytest.ini", ".pytest.ini", "conftest.py"),
     "vitest": ("vitest.config.ts", "vitest.config.js", "vitest.config.mts"),
     "jest": (
         "jest.config.js",
@@ -168,6 +169,55 @@ def _requirement_names(value: object) -> set[str]:
     return names
 
 
+def _requirement_specs(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    specs: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        spec = item.strip()
+        if not spec or spec.startswith(("-", ".", "/", "git+", "http")):
+            continue
+        specs.append(spec)
+    return specs
+
+
+_TEST_DEPENDENCY_GROUPS = frozenset({"test", "tests", "testing", "dev", "development"})
+
+
+def test_dependency_specs(root: Path) -> list[str]:
+    """Requirements declared for tests; used before suggesting an install."""
+
+    pyproject = _read_toml(root / "pyproject.toml")
+    specs: list[str] = []
+    project = pyproject.get("project")
+    if isinstance(project, dict):
+        optional = project.get("optional-dependencies")
+        if isinstance(optional, dict):
+            for key, value in optional.items():
+                if str(key).lower() in _TEST_DEPENDENCY_GROUPS:
+                    specs.extend(_requirement_specs(value))
+    groups = pyproject.get("dependency-groups")
+    if isinstance(groups, dict):
+        for key, value in groups.items():
+            if str(key).lower() in _TEST_DEPENDENCY_GROUPS:
+                specs.extend(_requirement_specs(value))
+    patterns = ("requirements-dev*.txt", "requirements-test*.txt", "requirements-tests*.txt")
+    for pattern in patterns:
+        for path in sorted(root.glob(pattern)):
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            specs.extend(_requirement_specs(lines))
+    return _unique(specs, 40)
+
+
+def package_name(spec: str) -> str:
+    return re.split(r"[<>=!~\[; ]", spec.strip(), maxsplit=1)[0].lower()
+
+
 def _pyproject_dependencies(data: dict[str, Any]) -> set[str]:
     names: set[str] = set()
     project = data.get("project")
@@ -205,7 +255,45 @@ def _package_dependencies(data: dict[str, Any]) -> set[str]:
     return names
 
 
+_TEST_DIR_NAMES = frozenset({"tests", "test", "testing"})
+_SKIP_WALK_DIRS = frozenset(
+    {
+        "node_modules",
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "env",
+        "build",
+        "dist",
+        "site-packages",
+        "__pycache__",
+        ".tox",
+        ".nox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".yarn",
+        ".cache",
+    }
+)
+_MAX_TEST_DIRS = 30
+_MAX_TEST_DIR_DEPTH = 5
+
+
+def _has_test_module(path: Path) -> bool:
+    return any(path.glob("test_*.py")) or any(path.glob("*_test.py"))
+
+
 def _test_dirs(root: Path) -> list[str]:
+    """Find test directories in nested layouts without walking dependency trees.
+
+    Large projects often keep tests beside the package (``pkg/tests``) instead of
+    a root ``tests/`` directory. Walking with a depth cap and pruning vendored
+    directories keeps this bounded on monorepos.
+    """
+
     found: list[str] = []
     for name in ("tests", "test", "testing"):
         if (root / name).is_dir():
@@ -218,7 +306,34 @@ def _test_dirs(root: Path) -> list[str]:
             marker = f"{relative}/"
             if marker not in found:
                 found.append(marker)
-    return found
+
+    for current, dirnames, _files in os.walk(root):
+        base = Path(current)
+        depth = len(base.relative_to(root).parts)
+        if depth >= _MAX_TEST_DIR_DEPTH:
+            dirnames[:] = []
+            continue
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name.lower() not in _SKIP_WALK_DIRS and not name.startswith(".")
+        )
+        for name in list(dirnames):
+            if name not in _TEST_DIR_NAMES:
+                continue
+            path = base / name
+            if not _has_test_module(path):
+                continue
+            relative = path.relative_to(root).as_posix()
+            marker = f"{relative}/"
+            if marker not in found:
+                found.append(marker)
+            # A discovered test directory is enough signal; do not descend into it.
+            dirnames.remove(name)
+        if len(found) >= _MAX_TEST_DIRS:
+            break
+
+    return found[:_MAX_TEST_DIRS]
 
 
 def _frameworks(root: Path, dependencies: set[str], pyproject: dict[str, Any]) -> list[str]:
@@ -274,6 +389,7 @@ def _test_commands(
     package: dict[str, Any],
     frameworks: list[str],
     test_dirs: list[str],
+    root: Path,
 ) -> list[str]:
     commands: list[str] = []
     runners = config.get("runners")
@@ -285,6 +401,10 @@ def _test_commands(
         build = l1.get("build")
         if isinstance(build, str) and build.strip():
             commands.append(build.strip())
+    if (root / "runtests.py").is_file():
+        commands.append("python runtests.py")
+    elif (root / "manage.py").is_file() and "django" in frameworks:
+        commands.append("python manage.py test")
     tool = pyproject.get("tool")
     has_pytest_config = isinstance(tool, dict) and isinstance(tool.get("pytest"), dict)
     if has_pytest_config or ("pytest" in frameworks and test_dirs):
@@ -329,6 +449,27 @@ def _smallest_test_file(root: Path, test_dirs: list[str]) -> str:
         return ""
     candidates.sort()
     return candidates[0][1]
+
+
+def _test_modules(root: Path, test_dirs: list[str], *, limit: int = 60) -> list[str]:
+    """Dotted module names for test files, so callers do not invent labels."""
+    modules: list[str] = []
+    for directory in test_dirs:
+        base = root / directory.rstrip("/")
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("test_*.py")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            relative = path.relative_to(root).with_suffix("")
+            module = ".".join(relative.parts)
+            if not all(part.isidentifier() for part in relative.parts):
+                continue
+            if module not in modules:
+                modules.append(module)
+            if len(modules) >= limit:
+                return modules
+    return modules
 
 
 def _test_example(
@@ -579,9 +720,13 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     frameworks = _frameworks(root, dependencies, pyproject)
     services = _services_with_health(config.get("services"))
     return {
-        "test_commands": _test_commands(config, pyproject, package, frameworks, test_dirs),
+        "test_commands": _test_commands(
+            config, pyproject, package, frameworks, test_dirs, root
+        ),
         "smoke_command": _configured_smoke_command(config),
-        "smallest_test": (_smallest_test_file(root, test_dirs) if "pytest" in frameworks else ""),
+        "smallest_test": _smallest_test_file(root, test_dirs) if test_dirs else "",
+        "test_modules": _test_modules(root, test_dirs),
+        "test_dependencies": test_dependency_specs(root),
         "test_example": _test_example(root, test_dirs),
         "symbols": _symbol_map(root),
         "services": services,

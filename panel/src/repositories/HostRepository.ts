@@ -357,6 +357,8 @@ export class HostRepository implements ProjectRepository {
       title: input.goal,
       goal: input.goal,
       intent: candidate?.intent ?? "business",
+      origin: input.origin ?? "goal",
+      sourceMapRevision: project.map?.revision ?? 0,
       acceptanceItems: chosen.map((item) => ({
         text: item.text,
         observable: item.observable,
@@ -466,6 +468,23 @@ export class HostRepository implements ProjectRepository {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
     return task;
+  }
+
+  async repairRunDependencies(
+    projectId: string,
+    runId: string,
+    packages: string[],
+    confirmedBy: string,
+  ): Promise<Run> {
+    await this.client.repairRunDependencies(projectId, runId, packages, confirmedBy);
+    const project = await this.getProject(projectId);
+    const run = project?.tasks
+      .flatMap((entry) => entry.runs)
+      .find((entry) => entry.id === runId);
+    if (!run) {
+      throw new RepositoryError("NOT_FOUND", "修复后无法读取运行记录。");
+    }
+    return run;
   }
 
   async prepareRerun(projectId: string, taskId: string, itemIds?: string[]): Promise<Plan> {

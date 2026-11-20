@@ -476,6 +476,101 @@ def _validate_dependencies(case: Case) -> None:
             )
 
 
+def _broad_test_command(method: str) -> str:
+    """Return a normalized whole-suite command, or an empty string.
+
+    Repeating the same whole-suite command for every acceptance item turns a
+    large project's plan into dozens of identical hour-long runs.
+    """
+
+    if not method.startswith(("command:", "pytest:")):
+        return ""
+    value = " ".join(method.split(":", 1)[1].split())
+    whole_suite = {
+        "python -m pytest",
+        "pytest",
+        "python runtests.py",
+        "python manage.py test",
+        "npm test",
+        "yarn test",
+        "pnpm test",
+        "tox",
+        "npx playwright test",
+    }
+    return value if value in whole_suite else ""
+
+
+def _drop_unavailable_django_scripts(
+    cases: list[Case], context: dict[str, Any]
+) -> tuple[list[Case], list[str]]:
+    """Remove Django TestCase scripts when the project has no pytest-django.
+
+    Such scripts cannot create a test database through pytest, so they would
+    fail for environment reasons. Their items are attached to the remaining
+    command case and the plan carries a warning.
+    """
+
+    frameworks = set(_string_list(context.get("framework")))
+    if "django" not in frameworks or "pytest" in frameworks:
+        return cases, []
+    dropped: list[str] = []
+    kept: list[Case] = []
+    for case in cases:
+        if case.script_content and "django.test" in case.script_content:
+            dropped.extend(case_item_ids(case))
+            continue
+        kept.append(case)
+    if not dropped:
+        return cases, []
+    if not kept:
+        # Dropping every case would leave selected items uncovered; let the
+        # validator ask the model to replace the scripts instead.
+        return cases, []
+    target = next(
+        (case for case in kept if case.verify_method.startswith("command:")),
+        kept[0],
+    )
+    target.acceptance_item_ids = list(
+        dict.fromkeys([*(target.acceptance_item_ids or []), *dropped])
+    )
+    return kept, dropped
+
+
+def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
+    """Merge identical command cases into one case bound to all their items."""
+
+    merged: list[Case] = []
+    by_key: dict[tuple[str, str, str, str, str], Case] = {}
+    removed = 0
+    for case in cases:
+        if not case.verify_method.startswith(("command:", "pytest:")):
+            merged.append(case)
+            continue
+        key = (
+            case.layer,
+            case.depends_on or "",
+            case.expected,
+            case.expectation_source,
+            " ".join(case.verify_method.split(":", 1)[1].split()),
+        )
+        target = by_key.get(key)
+        if target is None:
+            by_key[key] = case
+            merged.append(case)
+            continue
+        target.acceptance_item_ids = list(
+            dict.fromkeys(
+                [
+                    *(target.acceptance_item_ids or []),
+                    case.acceptance_item_id,
+                    *case.acceptance_item_ids,
+                ]
+            )
+        )
+        removed += 1
+    return merged, removed
+
+
 def _validate_plan_cases(
     cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
 ) -> None:
@@ -495,6 +590,7 @@ def _validate_plan_cases(
         allowed_commands.append(f'python -c "import {module}"')
     allowed_hosts = _allowed_http_hosts(context)
     seen_ids: set[str] = set()
+    seen_broad: set[str] = set()
     for case in cases:
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
             raise invalid_request(
@@ -505,11 +601,49 @@ def _validate_plan_cases(
             raise invalid_request(f"用例 ID 重复：{case.case_id}")
         seen_ids.add(case.case_id)
         _validate_verify_method(case)
+        broad = _broad_test_command(case.verify_method)
+        if broad:
+            if intent == "business" and case.layer != "L1":
+                raise invalid_request(
+                    f"业务用例不能使用整包测试命令：{broad}",
+                    "改用具体测试模块或目录；整包命令只用于 L1 冒烟检查",
+                )
+            if broad in seen_broad:
+                raise invalid_request(
+                    f"整包测试命令重复：{broad}",
+                    "同一整包命令只保留一条用例；其他验收项改用具体测试模块或目录",
+                )
+            seen_broad.add(broad)
         _validate_dependencies(case)
         if case.script_content:
             hosts = _script_example_hosts(case.script_content)
             if hosts:
                 raise invalid_request(f"用例 {case.case_id} 的脚本访问了外网示例域名：{hosts[0]}")
+            frameworks = set(_string_list(context.get("framework")))
+            if (
+                "django" in frameworks
+                and "pytest" not in frameworks
+                and "django.test" in case.script_content
+            ):
+                raise invalid_request(
+                    f"用例 {case.case_id} 使用 Django TestCase 独立脚本",
+                    "该项目没有 pytest-django；改用 command: 运行既有测试",
+                )
+        elif (
+            "django" in set(_string_list(context.get("framework")))
+            and case.verify_method.startswith("command:")
+        ):
+            command = case.verify_method.split(":", 1)[1]
+            if (
+                "python -c" in command
+                and " import " in command
+                and "DJANGO_SETTINGS_MODULE" not in command
+            ):
+                raise invalid_request(
+                    f"用例 {case.case_id} 的 Django 导入命令未配置 DJANGO_SETTINGS_MODULE",
+                    "改用项目测试运行器，或在命令中设置 DJANGO_SETTINGS_MODULE "
+                    "并调用 django.setup()",
+                )
         if intent == "smoke":
             _validate_smoke_case(case, allowed_commands)
         else:
@@ -934,7 +1068,15 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 return generated
 
             regenerate = _model_raw
-            raw_cases = _model_raw()
+            try:
+                raw_cases = _model_raw()
+            except AiTestError as exc:
+                if exc.info.code != "MODEL_OUTPUT_INVALID":
+                    raise
+                raw_cases = _model_raw(
+                    f"上一次输出未通过校验：{exc.info.message}。"
+                    "请确保每个选中验收项都有用例，且用例字段完整。"
+                )
     cases = [
         Case.model_validate(item)
         for item in raw_cases
@@ -943,6 +1085,12 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         or item.get("acceptance_item_id") is None
     ]
     generated_cases = not isinstance(payload.get("cases"), list) or not payload.get("cases")
+    django_dropped: list[str] = []
+    command_merged = 0
+    cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
+    django_dropped.extend(dropped_items)
+    cases, merged_now = _merge_duplicate_command_cases(cases)
+    command_merged += merged_now
     if generated_cases and task.intent != "smoke" and regenerate is not None:
         unverified = _unverified_cases(cases, task.acceptance_items)
         if unverified:
@@ -959,34 +1107,56 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 or item.get("acceptance_item_id") in selected
                 or item.get("acceptance_item_id") is None
             ]
-    try:
-        _validate_plan_cases(cases, task.intent, context)
-    except AiTestError as exc:
-        if regenerate is None or not generated_cases or exc.info.code != "INVALID_REQUEST":
-            raise
-        # Give the model the validator's reason once instead of failing the
-        # whole plan generation on a fixable script detail (for example an
-        # external example.org URL).
-        raw_cases = regenerate(
-            f"上一次生成的计划未通过校验：{exc.info.message}。请修正后重新生成。"
-        )
-        cases = [
-            Case.model_validate(item)
-            for item in raw_cases
-            if not isinstance(item, dict)
-            or item.get("acceptance_item_id") in selected
-            or item.get("acceptance_item_id") is None
-        ]
-        _validate_plan_cases(cases, task.intent, context)
-    plan_preview = Plan(
-        plan_id="preview",
-        task_id=task.task_id,
-        scope=scope,
-        applicable_count=applicable,
-        cases=cases,
-    )
-    _ensure_plan_coverage(plan_preview, task)
+            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
+            django_dropped.extend(dropped_items)
+            cases, merged_now = _merge_duplicate_command_cases(cases)
+            command_merged += merged_now
+    for attempt in range(2):
+        try:
+            _validate_plan_cases(cases, task.intent, context)
+            preview = Plan(
+                plan_id="preview",
+                task_id=task.task_id,
+                scope=scope,
+                applicable_count=applicable,
+                cases=cases,
+            )
+            _ensure_plan_coverage(preview, task)
+            break
+        except AiTestError as exc:
+            if (
+                regenerate is None
+                or not generated_cases
+                or exc.info.code != "INVALID_REQUEST"
+                or attempt == 1
+            ):
+                raise
+            # Give the model the validator's reason (at most twice) instead of
+            # failing on a fixable script detail or repeated command.
+            raw_cases = regenerate(
+                f"上一次生成的计划未通过校验：{exc.info.message}。请修正后重新生成。"
+            )
+            cases = [
+                Case.model_validate(item)
+                for item in raw_cases
+                if not isinstance(item, dict)
+                or item.get("acceptance_item_id") in selected
+                or item.get("acceptance_item_id") is None
+            ]
+            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
+            django_dropped.extend(dropped_items)
+            cases, merged_now = _merge_duplicate_command_cases(cases)
+            command_merged += merged_now
     warnings = annotate_cases(cases, task.acceptance_items)
+    if django_dropped:
+        warnings.append(
+            f"已移除 {len(set(django_dropped))} 条 Django TestCase 脚本用例；"
+            "相关验收项并入命令用例，需人工确认覆盖"
+        )
+    if command_merged:
+        warnings.append(
+            f"已合并 {command_merged} 条重复命令用例；相关验收项由同一条命令覆盖"
+        )
     ensure_publishable(cases)
     secret_list = known_secret_values([load_project_config(ws, project.project_id)])
     _redact_cases(cases, secret_list)
@@ -1863,6 +2033,178 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         "uncovered_items": uncovered,
         "link": link,
     }
+
+
+_REPAIR_SPEC = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}"
+    r"(?:\[[A-Za-z0-9,._-]+\])?"
+    r"(?:[<>=!~][A-Za-z0-9.*+!<>=~-]{1,40})?$"
+)
+
+
+def _project_python(root: Path) -> Path:
+    for candidate in (
+        root / ".venv" / "Scripts" / "python.exe",
+        root / ".venv" / "bin" / "python",
+    ):
+        if candidate.is_file():
+            return candidate
+    return Path(sys.executable)
+
+
+def _installed_versions(
+    python: Path, packages: list[str], env: dict[str, str]
+) -> dict[str, str]:
+    probe = (
+        "import importlib.metadata as m, re, sys\n"
+        "for spec in sys.argv[1:]:\n"
+        "    name = re.split(r'[<>=!~\\[]', spec)[0]\n"
+        "    try:\n"
+        "        print(name + '==' + m.version(name))\n"
+        "    except Exception:\n"
+        "        print(name + '==?')\n"
+    )
+    try:
+        completed = subprocess.run(
+            [str(python), "-c", probe, *packages],
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {spec: "?" for spec in packages}
+    versions: dict[str, str] = {}
+    for line in completed.stdout.decode("utf-8", errors="replace").splitlines():
+        name, _, version = line.partition("==")
+        if name:
+            versions[name] = version or "?"
+    return versions
+
+
+def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Install reviewed test dependencies for a completed run and record the change."""
+
+    if not confirm:
+        raise AiTestError(
+            "CONFIRMATION_REQUIRED",
+            "安装依赖需要显式确认",
+            "查看包名与来源后带 --confirm 重试",
+        )
+    project = _project(ws, payload)
+    run_dir, run = _run(ws, payload)
+    confirmed_by = _text(payload, "confirmed_by").strip()
+    if not confirmed_by:
+        raise invalid_request("缺少字段：confirmed_by", "安装依赖必须记录确认人")
+    raw_packages = payload.get("packages")
+    if not isinstance(raw_packages, list) or not raw_packages:
+        raise invalid_request("packages 必须是非空数组", "从本次运行的依赖建议中选择")
+    packages: list[str] = []
+    for item in raw_packages:
+        spec = str(item).strip()
+        if not _REPAIR_SPEC.fullmatch(spec):
+            raise invalid_request(f"依赖格式不合法：{spec}", "只接受包名与版本范围")
+        packages.append(spec)
+    suggested = {
+        str(entry.get("package") or "")
+        for entry in run.dependency_suggestions
+        if isinstance(entry, dict)
+    }
+    unknown = [spec for spec in packages if spec not in suggested]
+    if unknown:
+        raise invalid_request(
+            "只能安装本次运行检测到的依赖：" + "、".join(unknown),
+            "重新查看运行结果中的依赖修复建议",
+        )
+    python = _project_python(Path(project.root))
+    env = dict(os.environ)
+    command = [
+        str(python),
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        "--no-input",
+        *packages,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            timeout=600,
+            check=False,
+            cwd=project.root,
+            env=env,
+        )
+        output = (completed.stdout or b"") + (completed.stderr or b"")
+        ok = completed.returncode == 0
+        exit_code: int | None = completed.returncode
+    except (OSError, subprocess.SubprocessError) as exc:
+        output = str(exc).encode()
+        ok = False
+        exit_code = None
+    config = load_project_config(ws, project.project_id)
+    budget, cap, allow_video = _evidence_settings(config)
+    ref = _save_evidence_file(
+        run_dir,
+        "repair-deps.log",
+        output,
+        budget,
+        cap,
+        allow_video,
+        known_secret_values([config]),
+        result="passed" if ok else "failed",
+    )
+    versions = _installed_versions(python, packages, env) if ok else {}
+    repair = {
+        "at": iso_now(),
+        "confirmed_by": confirmed_by,
+        "packages": versions if versions else {spec: "?" for spec in packages},
+        "exit_code": exit_code,
+        "ok": ok,
+        "evidence_ref": ref,
+    }
+    run.dependency_repairs.append(repair)
+    if not ok:
+        write_model(run_dir / "run.json", run)
+        raise AiTestError(
+            "DEPENDENCY_INSTALL_FAILED",
+            "依赖安装失败",
+            "查看 repair-deps.log；修正环境后重试",
+        )
+    from aitest.worker import _environment_fingerprint
+
+    before = dict(run.environment)
+    after = _environment_fingerprint(python, Path(project.root))
+    run.environment_history.append(
+        {
+            "at": repair["at"],
+            "confirmed_by": confirmed_by,
+            "packages": repair["packages"],
+            "before": before,
+            "after": after,
+            "evidence_ref": ref,
+        }
+    )
+    run.environment = after
+    for spec in packages:
+        name = _installed_versions_key(spec)
+        if name not in run.dependencies:
+            run.dependencies.append(name)
+    for entry in run.dependency_suggestions:
+        if isinstance(entry, dict) and entry.get("package") in packages:
+            entry["installed"] = "true"
+    write_model(run_dir / "run.json", run)
+    return {
+        "run_id": run.run_id,
+        "repair": repair,
+        "environment": run.environment,
+        "dependencies": run.dependencies,
+    }
+
+
+def _installed_versions_key(spec: str) -> str:
+    return re.split(r"[<>=!~\[]", spec)[0].strip()
 
 
 def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -3213,6 +3555,7 @@ REGISTRY.update(
         "run.start": cmd_run_start,
         "run.quick": cmd_run_quick,
         "run.status": cmd_run_status,
+        "run.repair": cmd_run_repair,
         "run.list": cmd_run_list,
         "run.cancel": cmd_run_cancel,
         "run.manual": cmd_run_manual,
@@ -3244,6 +3587,7 @@ MUTATING.update(
         "run.quick",
         "run.cancel",
         "run.manual",
+        "run.repair",
         "evidence.add",
         "issue.add",
         "issue.update",

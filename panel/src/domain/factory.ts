@@ -136,7 +136,7 @@ function inferIntent(goal: string): "smoke" | "business" {
 export function confirmDraftTask(
   project: Project,
   draft: Task,
-  input: { goal: string; candidate: Candidate | null },
+  input: { goal: string; candidate: Candidate | null; origin?: Task["origin"] },
 ): Task {
   const ignored = new Set(project.map?.ignoredFeatures ?? []);
   const catalog = project.catalog
@@ -155,7 +155,7 @@ export function confirmDraftTask(
     title: title.length > 80 ? `${title.slice(0, 78)}…` : title,
     goal: input.goal.trim(),
     intent: input.candidate?.intent ?? inferIntent(input.goal),
-    origin: "goal",
+    origin: input.origin ?? "goal",
     sourceMapRevision: project.map?.revision ?? 0,
     acceptanceItems: catalog,
     recommendedItemIds: recommended.length > 0 ? recommended : observable.map((item) => item.id),

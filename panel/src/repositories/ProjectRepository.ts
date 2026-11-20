@@ -38,6 +38,8 @@ export interface CreateTaskInput {
   candidateId?: string;
   /** 范围测试不把系统生成的说明写进项目目标。 */
   writeProjectGoal?: boolean;
+  /** 任务来源：按目标测试或按范围测试。 */
+  origin?: "goal" | "range";
 }
 
 export interface TaskPatch {
@@ -175,6 +177,12 @@ export interface ProjectRepository {
   reviseScope(projectId: string, taskId: string): Promise<Task>;
   cancelRevision(projectId: string, taskId: string): Promise<Task>;
   prepareRerun(projectId: string, taskId: string, itemIds?: string[]): Promise<Plan>;
+  repairRunDependencies(
+    projectId: string,
+    runId: string,
+    packages: string[],
+    confirmedBy: string,
+  ): Promise<Run>;
   setActiveTask(projectId: string, taskId: string): Promise<Project>;
 
   generatePlan(projectId: string, taskId: string): Promise<Plan>;

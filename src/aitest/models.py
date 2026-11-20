@@ -226,6 +226,10 @@ class Run(Model):
     service_started: bool = False
     service_name: str = ""
     l1: dict[str, Any] | None = None
+    environment: dict[str, str] = Field(default_factory=dict)
+    environment_history: list[dict[str, Any]] = Field(default_factory=list)
+    dependency_suggestions: list[dict[str, str]] = Field(default_factory=list)
+    dependency_repairs: list[dict[str, Any]] = Field(default_factory=list)
     media_bytes: int = 0
     data_prefix: str = ""
     dependencies: list[str] = Field(default_factory=list)

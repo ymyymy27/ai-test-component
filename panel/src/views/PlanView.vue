@@ -27,6 +27,25 @@ const task = computed<Task | null>(
   () => project.value?.tasks.find((entry) => entry.id === taskId.value) ?? null,
 );
 const plan = computed<Plan | null>(() => (task.value ? readCurrentPlan(task.value) : null));
+const planError = computed(
+  () => workspace.planFailures[taskId.value] ?? "",
+);
+const retryingPlan = computed(() => workspace.busyKey(`plan:${taskId.value}`));
+
+async function retryPlan(): Promise<void> {
+  if (!task.value || retryingPlan.value) {
+    return;
+  }
+  try {
+    await workspace.generatePlan(projectId.value, taskId.value);
+  } catch {
+    // store 已提示；本页显示原因。
+  }
+}
+
+function adjustToRange(): void {
+  void router.push(`/projects/${projectId.value}/tasks/${taskId.value}/scope`);
+}
 const planLedgerRef = ref<InstanceType<typeof PlanLedger> | null>(null);
 const checked = ref(false);
 const warningsAcknowledged = ref(false);
@@ -150,13 +169,33 @@ onBeforeUnmount(() => {
     />
   </div>
   <div v-else-if="!plan" class="page">
-    <PageHeader kicker="计划" :title="task.title" subtitle="这个任务还没有计划。" />
-    <EmptyState title="还没有计划" text="先选本次范围，再生成计划；计划会作为这次运行的合同。">
-      <button
-        class="btn btn-primary btn-sm"
-        type="button"
-        @click="router.push(`/projects/${projectId}/tasks/${taskId}/scope`)"
-      >
+    <PageHeader
+      kicker="计划"
+      :title="task.title"
+      :subtitle="
+        task.origin === 'goal' ? '目标已确认，计划尚未生成。' : '这个任务还没有计划。'
+      "
+    />
+    <ErrorState
+      v-if="task.origin === 'goal'"
+      title="计划没有生成"
+      :text="
+        planError ||
+        '模型没有返回可发布的计划。可以重试；也可以主动改为范围测试。'
+      "
+      :retry-label="retryingPlan ? '正在重试…' : '重试生成计划'"
+      @retry="retryPlan"
+    >
+      <button class="btn btn-ghost btn-sm" type="button" @click="adjustToRange">
+        调整为范围测试
+      </button>
+    </ErrorState>
+    <EmptyState
+      v-else
+      title="还没有计划"
+      text="先选本次范围，再生成计划；计划会作为这次运行的合同。"
+    >
+      <button class="btn btn-primary btn-sm" type="button" @click="adjustToRange">
         去选范围
       </button>
     </EmptyState>

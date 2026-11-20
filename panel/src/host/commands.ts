@@ -137,6 +137,8 @@ export const api = {
     goal?: string;
     requirement?: string;
     intent?: "smoke" | "business";
+    origin?: "manual" | "goal" | "range";
+    sourceMapRevision?: number;
     acceptanceItems?: { text: string; observable: boolean; source?: string }[];
   }): Promise<AddTaskResult> {
     const payload: Record<string, unknown> = {
@@ -151,6 +153,12 @@ export const api = {
     }
     if (input.intent) {
       payload["intent"] = input.intent;
+    }
+    if (input.origin) {
+      payload["origin"] = input.origin;
+    }
+    if (typeof input.sourceMapRevision === "number") {
+      payload["source_map_revision"] = input.sourceMapRevision;
     }
     if (input.acceptanceItems && input.acceptanceItems.length > 0) {
       payload["acceptance_items"] = input.acceptanceItems;
@@ -358,6 +366,24 @@ export const api = {
 
   runStatus(projectId: string, runId: string): Promise<RunDetail> {
     return callHost("run.status", { project_id: projectId, run_id: runId });
+  },
+
+  repairRunDependencies(
+    projectId: string,
+    runId: string,
+    packages: string[],
+    confirmedBy: string,
+  ): Promise<{ run_id: string; environment: Record<string, string> }> {
+    return callHost(
+      "run.repair",
+      {
+        project_id: projectId,
+        run_id: runId,
+        packages,
+        confirmed_by: confirmedBy,
+      },
+      { confirm: true },
+    );
   },
 
   listRuns(projectId: string, limit = 20): Promise<{ runs: RunSummary[] }> {

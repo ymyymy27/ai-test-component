@@ -7,6 +7,7 @@ import {
 } from "vue-router";
 
 import { findTask, runningTask } from "@/domain/derive";
+import type { Task } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -26,6 +27,26 @@ function notFound(path: string): {
     name: "not-found",
     params: { pathMatch: path.split("/").filter(Boolean) },
   };
+}
+
+/** Plan route redirect by task stage; goal tasks without a plan stay on plan. */
+export function planRedirectFor(
+  task: Task,
+): { name: "scope" | "run" | "result"; params: Record<string, string> } | null {
+  const params = { projectId: task.projectId, taskId: task.id };
+  if (task.stage === "running") {
+    return { name: "run", params };
+  }
+  if (task.stage === "result") {
+    return { name: "result", params };
+  }
+  if (task.stage === "scope" || task.stage === "fresh") {
+    if (task.origin === "goal" && task.plans.length === 0) {
+      return null;
+    }
+    return { name: "scope", params };
+  }
+  return null;
 }
 
 function createHistory(): RouterHistory {
@@ -231,14 +252,9 @@ router.beforeEach(async (to) => {
     return { name: "result", params: { projectId, taskId } };
   }
   if (to.name === "plan") {
-    if (task.stage === "scope" || task.stage === "fresh") {
-      return { name: "scope", params: { projectId, taskId } };
-    }
-    if (task.stage === "running") {
-      return { name: "run", params: { projectId, taskId } };
-    }
-    if (task.stage === "result") {
-      return { name: "result", params: { projectId, taskId } };
+    const redirect = planRedirectFor(task);
+    if (redirect) {
+      return redirect;
     }
   }
   if (to.name === "run" && task.stage !== "running") {

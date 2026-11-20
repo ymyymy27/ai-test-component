@@ -65,6 +65,7 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "run.list",
   "run.cancel",
   "run.manual",
+  "run.repair",
   "analysis.run",
   "evidence.list",
   "evidence.add",
@@ -92,11 +93,16 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /** 只有用户显式确认的命令才接受 `--confirm`。 */
-const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start", "run.quick"]);
+const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set([
+  "run.start",
+  "run.quick",
+  "run.repair",
+]);
 
 const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "run.start": 60_000,
   "run.quick": 60_000,
+  "run.repair": 630_000,
   "project.map.refresh": 210_000,
   "plan.generate": 210_000,
   "task.add": 210_000,

@@ -7,6 +7,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -28,8 +29,10 @@ from aitest.core.evidence import (
 )
 from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
+from aitest.core.project_context import package_name, test_dependency_specs
 from aitest.core.reports import build_report
 from aitest.errors import AiTestError
+from aitest.model_config import build_client
 from aitest.models import Attempt, Case, Delivery, Plan, Project, Run, case_item_ids
 from aitest.procutil import process_created_at
 from aitest.runners.base import RunnerResult
@@ -142,6 +145,41 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     env["AITEST_RUN_ID"] = run_id
     env["AITEST_DATA_PREFIX"] = data_prefix(run_id)
     return env
+
+
+def _environment_fingerprint(python: Path, workdir: Path) -> dict[str, str]:
+    """Record the interpreter and platform that actually produced the result."""
+
+    info: dict[str, str] = {"python": str(python), "platform": sys.platform}
+    try:
+        completed = subprocess.run(
+            [str(python), "-c", "import sys; print(sys.version.split()[0])"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if completed.returncode == 0:
+            info["python_version"] = completed.stdout.decode(
+                "utf-8", errors="replace"
+            ).strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    venv_root = python.parent.parent
+    info["venv"] = str(venv_root) if (venv_root / "pyvenv.cfg").is_file() else ""
+    node = shutil.which("node")
+    if node:
+        try:
+            completed = subprocess.run(
+                [node, "--version"], capture_output=True, timeout=10, check=False
+            )
+            if completed.returncode == 0:
+                info["node"] = completed.stdout.decode(
+                    "utf-8", errors="replace"
+                ).strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+    info["cwd"] = str(workdir)
+    return info
 
 
 def _project_config(ws: Workspace, project_id: str) -> dict[str, object]:
@@ -645,6 +683,181 @@ def _junit_from_output(
     return None
 
 
+_KNOWN_TOOLS = frozenset(
+    {
+        "python",
+        "python3",
+        "pytest",
+        "tox",
+        "uv",
+        "poetry",
+        "npm",
+        "npx",
+        "node",
+        "yarn",
+        "pnpm",
+        "docker",
+    }
+)
+
+
+def _missing_command_tool(method: str, env: dict[str, str]) -> str:
+    """Return a missing leading tool for simple commands, or an empty string."""
+
+    if not method.startswith("command:"):
+        return ""
+    command = method.split(":", 1)[1].strip()
+    if not command or any(char in command for char in "|&;<>"):
+        return ""
+    first = command.split()[0].strip("\"'")
+    if not first:
+        return ""
+    candidate = Path(first)
+    base = candidate.name.lower()
+    if base.endswith(".exe"):
+        base = base[:-4]
+    if base not in _KNOWN_TOOLS:
+        return ""
+    if candidate.is_absolute() and candidate.is_file():
+        return ""
+    if shutil.which(base, path=env.get("PATH")):
+        return ""
+    return base
+
+
+_MODULE_PACKAGES = {
+    "factory": "factory-boy",
+    "yaml": "PyYAML",
+    "PIL": "Pillow",
+    "cv2": "opencv-python",
+    "sklearn": "scikit-learn",
+    "bs4": "beautifulsoup4",
+    "dateutil": "python-dateutil",
+    "dotenv": "python-dotenv",
+    "jwt": "PyJWT",
+    "jose": "python-jose",
+    "psycopg2": "psycopg2-binary",
+    "MySQLdb": "mysqlclient",
+    "OpenSSL": "pyOpenSSL",
+    "rest_framework": "djangorestframework",
+    "django": "Django",
+}
+
+
+def _missing_module_from_output(output: bytes) -> str:
+    text = output.decode("utf-8", errors="replace")
+    match = _MISSING_MODULE_RE.search(text)
+    return match.group(1).split(".", 1)[0] if match else ""
+
+
+def _resolve_dependency_package(
+    ws: Workspace, project_id: str, module: str, command: str
+) -> str:
+    """Map an import module to a pip package, preferring the configured model."""
+
+    mapped = _MODULE_PACKAGES.get(module, "")
+    if mapped:
+        return mapped
+    client = build_client(ws, project_id)
+    if client is None:
+        return ""
+    try:
+        return client.suggest_dependency(
+            module, {"command": command, "project_id": project_id}
+        )
+    except Exception:
+        return ""
+
+
+def _dependency_suggestion(
+    ws: Workspace, project_id: str, root: Path, module: str, command: str
+) -> dict[str, str]:
+    """Build a reviewable install suggestion; never installs by itself."""
+
+    package = _resolve_dependency_package(ws, project_id, module, command)
+    if not package:
+        return {}
+    declared = next(
+        (
+            spec
+            for spec in test_dependency_specs(root)
+            if package_name(spec) == package_name(package)
+        ),
+        "",
+    )
+    if declared:
+        return {
+            "module": module,
+            "package": declared,
+            "source": "declared",
+            "reason": "项目测试依赖已声明，直接使用声明的版本范围",
+        }
+    source = "mapping" if module in _MODULE_PACKAGES else "ai"
+    reason = (
+        "根据常见模块名映射；版本未锁定"
+        if source == "mapping"
+        else "由模型根据模块名解析；版本未锁定，安装前需人工确认"
+    )
+    return {
+        "module": module,
+        "package": package,
+        "source": source,
+        "reason": reason,
+    }
+
+
+def _project_top_level_names(root: Path) -> set[str]:
+    names: set[str] = set()
+    for base in (root, root / "src"):
+        if not base.is_dir():
+            continue
+        for item in base.iterdir():
+            if item.is_dir() and (item / "__init__.py").is_file():
+                names.add(item.name)
+            elif item.is_file() and item.suffix == ".py":
+                names.add(item.stem)
+    return names
+
+
+_MISSING_MODULE_RE = re.compile(
+    r"(?:ModuleNotFoundError|ImportError): No module named ['\"]([^'\"]+)['\"]"
+)
+
+
+def _environment_failure(output: bytes, workdir: Path) -> str:
+    """Classify command failures caused by the local environment, not the product.
+
+    A missing third-party test dependency or an unavailable database must not be
+    reported as a product failure. Missing project-local modules are left as
+    failures because they may be a real packaging defect.
+    """
+
+    text = output.decode("utf-8", errors="replace")
+    # A mixed run (real assertion failures plus missing dependencies) must stay
+    # a failure; otherwise a real defect could be hidden behind an environment
+    # problem.
+    if re.search(r"(?m)^FAIL:", text) or "AssertionError" in text:
+        return ""
+    match = _MISSING_MODULE_RE.search(text)
+    if match:
+        top_level = match.group(1).split(".", 1)[0]
+        if top_level not in _project_top_level_names(workdir):
+            return f"环境缺少依赖：{top_level}（不计为产品失败）"
+    lowered = text.lower()
+    if (
+        "is not recognized as an internal or external command" in lowered
+        or "command not found" in lowered
+    ):
+        return "环境缺少命令（不计为产品失败）"
+    if (
+        "connection refused" in lowered
+        or "could not connect to server" in lowered
+        or "unknown database" in lowered
+    ):
+        return "环境服务未就绪（不计为产品失败）"
+    return ""
+
+
 def _script_self_error(stderr: bytes) -> bool:
     markers = (
         b"SyntaxError",
@@ -1012,7 +1225,9 @@ def main(argv: list[str] | None = None) -> int:
         project_python = _venv_python(workdir)
         run_env = _run_env(workdir, project_python, run.run_id)
         case_python = project_python or Path(sys.executable)
+        run.environment = _environment_fingerprint(case_python, workdir)
         dependency_cache: dict[tuple[str, ...], list[str] | None] = {}
+        command_cache: dict[str, tuple[str, list[bytes], str, list[tuple[str, bytes]]]] = {}
         config = _project_config(ws, args.project)
         secret_list = known_secret_values([config])
         service_configs = [] if run.kind == "project_check" else _services(config)
@@ -1200,17 +1415,66 @@ def main(argv: list[str] | None = None) -> int:
                     screenshots_before = (
                         _screenshot_files(workdir, run_dir) if captures_screenshots else set()
                     )
-                    result, outputs, message, artifacts = _execute(
-                        case,
-                        workdir,
-                        run_dir / "generated",
-                        run_env,
-                        project_python or Path(sys.executable),
-                        request_id_header=request_id_header,
-                        request_id=request_id,
-                        run_dir=run_dir,
-                        cancelled=cancelled,
+                    cache_key = (
+                        case.verify_method
+                        if case.verify_method.startswith("command:")
+                        else ""
                     )
+                    cached = command_cache.get(cache_key) if cache_key else None
+                    missing_tool = (
+                        _missing_command_tool(case.verify_method, run_env)
+                        if cache_key
+                        else ""
+                    )
+                    if missing_tool:
+                        result = "blocked"
+                        outputs = []
+                        message = f"环境缺少命令：{missing_tool}（不计为产品失败）"
+                        artifacts = []
+                    elif cached is not None:
+                        result, outputs, message, artifacts = cached
+                        message = (
+                            f"{message}；复用同一命令结果" if message else "复用同一命令结果"
+                        )
+                    else:
+                        result, outputs, message, artifacts = _execute(
+                            case,
+                            workdir,
+                            run_dir / "generated",
+                            run_env,
+                            project_python or Path(sys.executable),
+                            request_id_header=request_id_header,
+                            request_id=request_id,
+                            run_dir=run_dir,
+                            cancelled=cancelled,
+                        )
+                        if cache_key:
+                            command_cache[cache_key] = (
+                                result,
+                                list(outputs),
+                                message,
+                                list(artifacts),
+                            )
+                    suggestion: dict[str, str] | None = None
+                    if result == "failed" and case.verify_method.startswith("command:"):
+                        missing_module = _missing_module_from_output(b"".join(outputs))
+                        if missing_module:
+                            candidate = _dependency_suggestion(
+                                ws,
+                                run.project_id,
+                                workdir,
+                                missing_module,
+                                case.verify_method,
+                            )
+                            if candidate:
+                                candidate["case_id"] = case.case_id
+                                suggestion = candidate
+                                if not any(
+                                    entry.get("module") == candidate["module"]
+                                    and entry.get("package") == candidate["package"]
+                                    for entry in run.dependency_suggestions
+                                ):
+                                    run.dependency_suggestions.append(candidate)
                     if captures_screenshots:
                         artifacts = [
                             *artifacts,
@@ -1231,6 +1495,20 @@ def main(argv: list[str] | None = None) -> int:
                                 ],
                                 *screenshots[-1:],
                             ]
+                    if result == "failed" and case.verify_method.startswith("command:"):
+                        if suggestion:
+                            result = "blocked"
+                            message = (
+                                f"环境缺少依赖：{suggestion['module']}"
+                                f"（建议安装 {suggestion['package']}）"
+                            )
+                        else:
+                            environment_reason = _environment_failure(
+                                b"".join(outputs), workdir
+                            )
+                            if environment_reason:
+                                result = "blocked"
+                                message = environment_reason
                     message = redact(message, secret_list)
                     refs: list[str] = []
                     for position, data in enumerate(outputs):

@@ -84,6 +84,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const status = ref<"idle" | "loading" | "ready" | "error">("idle");
   const error = ref("");
   const busy = ref<Record<string, boolean>>({});
+  const planFailures = ref<Record<string, string>>({});
   const environment = ref<EnvironmentCheck[]>([]);
   const quickCheck = ref<QuickCheck | null>(null);
   const initialized = ref(false);
@@ -418,9 +419,29 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function generatePlan(projectId: string, taskId: string): Promise<Plan> {
     return withBusy(`plan:${taskId}`, async () => {
-      const plan = await repo().generatePlan(projectId, taskId);
+      try {
+        const plan = await repo().generatePlan(projectId, taskId);
+        await refreshProject(projectId);
+        delete planFailures.value[taskId];
+        return plan;
+      } catch (cause) {
+        planFailures.value = {
+          ...planFailures.value,
+          [taskId]: errorMessage(cause),
+        };
+        throw cause;
+      }
+    });
+  }
+
+  async function repairRunDependencies(
+    projectId: string,
+    runId: string,
+    packages: string[],
+  ): Promise<void> {
+    return withBusy(`repair:${runId}`, async () => {
+      await repo().repairRunDependencies(projectId, runId, packages, OPERATOR);
       await refreshProject(projectId);
-      return plan;
     });
   }
 
@@ -1015,6 +1036,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     status,
     error,
     busy,
+    planFailures,
     environment,
     quickCheck,
     initialized,
@@ -1055,6 +1077,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     prepareRerun,
     setActiveTask,
     generatePlan,
+    repairRunDependencies,
     confirmAndStart,
     stopRun,
     recordManual,

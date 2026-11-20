@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { projectStatus } from "@/domain/derive";
-import { stageLabel } from "@/domain/stateMachine";
+import { taskStageLabel } from "@/domain/stateMachine";
 import type { Project } from "@/domain/types";
 import Icon from "./Icon.vue";
 
@@ -452,7 +452,7 @@ defineExpose({ focusSearch, focusClose });
             >
               <span class="side-task-main">
                 <span class="side-task-title">{{ task.title }}</span>
-                <span class="side-task-meta">{{ stageLabel(task.stage) }}</span>
+                <span class="side-task-meta">{{ taskStageLabel(task) }}</span>
               </span>
             </button>
             <button

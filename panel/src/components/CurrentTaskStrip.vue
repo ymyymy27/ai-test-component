@@ -2,7 +2,7 @@
 import { computed } from "vue";
 
 import { currentPlan, currentRun } from "@/domain/derive";
-import { stageLabel } from "@/domain/stateMachine";
+import { taskStageLabel } from "@/domain/stateMachine";
 import type { Task } from "@/domain/types";
 
 const props = defineProps<{
@@ -28,7 +28,7 @@ const state = computed(() => {
         ? "失败"
         : "未完成";
   }
-  return stageLabel(props.task.stage);
+  return taskStageLabel(props.task);
 });
 const action = computed(() => {
   if (isDraft.value) {
@@ -36,7 +36,9 @@ const action = computed(() => {
   }
   switch (props.task.stage) {
     case "scope":
-      return "继续选范围";
+      return props.task.origin === "goal" && props.task.plans.length === 0
+        ? "查看计划"
+        : "继续选范围";
     case "planned":
       return "确认计划";
     case "running":

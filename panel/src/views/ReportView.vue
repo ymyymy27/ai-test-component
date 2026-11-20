@@ -42,6 +42,14 @@ const task = computed<Task | null>(
 const run = computed<Run | null>(
   () => task.value?.runs.find((entry) => entry.id === report.value?.runId) ?? null,
 );
+const environmentRows = computed(() => {
+  const environment = run.value?.environment ?? {};
+  return [
+    environment["python_version"] ? `Python ${environment["python_version"]}` : "",
+    environment["venv"] ? `venv ${environment["venv"]}` : "",
+    environment["node"] ? `Node ${environment["node"]}` : "",
+  ].filter(Boolean);
+});
 const versions = computed(() =>
   project.value && report.value ? reportsForRun(project.value, report.value.runId) : [],
 );
@@ -258,6 +266,10 @@ function bytesText(bytes: number): string {
         <button class="btn btn-sm" type="button" @click="exportReport">导出 Markdown</button>
       </template>
     </PageHeader>
+
+    <p v-if="environmentRows.length" class="run-environment muted">
+      运行环境：{{ environmentRows.join(" · ") }}
+    </p>
 
     <div v-if="versions.length > 1" class="toolbar" role="group" aria-label="报告版本">
       <span class="section-note">版本</span>

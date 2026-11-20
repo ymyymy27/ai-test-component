@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import CaseLedger from "@/components/CaseLedger.vue";
@@ -36,6 +36,60 @@ const task = computed<Task | null>(
 );
 const run = computed<Run | null>(() => (task.value ? currentRun(task.value) : null));
 const plan = computed(() => (task.value ? currentPlan(task.value) : null));
+const environmentRows = computed(() => {
+  const environment = run.value?.environment ?? {};
+  return [
+    environment["python_version"] ? `Python ${environment["python_version"]}` : "",
+    environment["venv"] ? `venv ${environment["venv"]}` : "",
+    environment["node"] ? `Node ${environment["node"]}` : "",
+  ].filter(Boolean);
+});
+const repairSuggestions = computed(() =>
+  (run.value?.dependencySuggestions ?? []).filter((entry) => !entry.installed),
+);
+const repairSelection = ref<string[]>([]);
+const repairConfirmed = ref(false);
+watch(
+  repairSuggestions,
+  (entries) => {
+    repairSelection.value = entries.map((entry) => entry.package);
+    repairConfirmed.value = false;
+  },
+  { immediate: true },
+);
+const repairing = computed(
+  () => Boolean(run.value) && workspace.busyKey(`repair:${run.value?.id}`),
+);
+
+function toggleRepair(packageName: string): void {
+  repairSelection.value = repairSelection.value.includes(packageName)
+    ? repairSelection.value.filter((entry) => entry !== packageName)
+    : [...repairSelection.value, packageName];
+}
+
+async function installDependenciesAndRerun(): Promise<void> {
+  if (
+    !run.value ||
+    repairSelection.value.length === 0 ||
+    !repairConfirmed.value ||
+    repairing.value
+  ) {
+    return;
+  }
+  try {
+    await workspace.repairRunDependencies(
+      projectId.value,
+      run.value.id,
+      [...repairSelection.value],
+    );
+    await rerun();
+  } catch (error) {
+    ui.showToast(
+      error instanceof Error ? error.message : "依赖安装失败，请重试。",
+      "error",
+    );
+  }
+}
 const filter = ref<"all" | "problems" | "unfinished">("all");
 const caseLedgerRef = ref<InstanceType<typeof CaseLedger> | null>(null);
 const manualOpen = ref(false);
@@ -238,6 +292,63 @@ function rerunLabel(): string {
       :title="task.title"
       :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · 由 ${run.confirmedBy} 确认 · ${run.simulated ? '本地模拟' : '真实运行'}`"
     />
+
+    <p v-if="environmentRows.length" class="run-environment muted">
+      运行环境：{{ environmentRows.join(" · ") }}
+    </p>
+
+    <section
+      v-if="workspace.mode === 'host' && repairSuggestions.length"
+      class="section"
+      aria-label="依赖修复建议"
+    >
+      <div class="section-head">
+        <span class="section-title">依赖修复建议</span>
+        <span class="section-note">安装前需要确认；安装后会记录版本与环境变化</span>
+      </div>
+      <div class="repair-list">
+        <label
+          v-for="entry in repairSuggestions"
+          :key="`${entry.module}-${entry.package}`"
+          class="repair-row"
+        >
+          <input
+            type="checkbox"
+            :checked="repairSelection.includes(entry.package)"
+            @change="toggleRepair(entry.package)"
+          />
+          <span class="repair-package">{{ entry.package }}</span>
+          <span class="repair-module">缺失模块：{{ entry.module }}</span>
+          <span class="repair-source">
+            {{
+              entry.source === "declared"
+                ? "项目测试依赖"
+                : entry.source === "ai"
+                  ? "模型建议"
+                  : "内置映射"
+            }}
+          </span>
+          <span class="muted">{{ entry.reason }}</span>
+        </label>
+      </div>
+      <div class="empty-actions">
+        <label class="repair-confirm">
+          <input v-model="repairConfirmed" type="checkbox" />
+          我已确认安装以上依赖，并接受更新运行环境与证据记录
+        </label>
+        <button
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="
+            repairSelection.length === 0 || !repairConfirmed || repairing
+          "
+          :aria-busy="repairing"
+          @click="installDependenciesAndRerun"
+        >
+          {{ repairing ? "正在安装…" : "安装依赖并重跑未完成项" }}
+        </button>
+      </div>
+    </section>
 
     <ResultSummary :run="run" :task="task" @select="caseLedgerRef?.focusItem($event)" />
 

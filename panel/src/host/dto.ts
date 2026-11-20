@@ -369,6 +369,23 @@ export interface Run {
   latest_report_id?: string;
   dependency_install_ok?: boolean | null;
   l1?: Record<string, unknown> | null;
+  environment?: Record<string, string>;
+  dependency_suggestions?: Array<{
+    module: string;
+    package: string;
+    source?: string;
+    reason?: string;
+    case_id?: string;
+    installed?: string;
+  }>;
+  dependency_repairs?: Array<{
+    at: string;
+    confirmed_by: string;
+    packages: Record<string, string>;
+    ok: boolean;
+    evidence_ref?: string;
+  }>;
+  environment_history?: Array<Record<string, unknown>>;
 }
 
 export interface RunSummary {

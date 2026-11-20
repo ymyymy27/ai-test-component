@@ -1,4 +1,4 @@
-import type { TaskStage } from "./types";
+import type { Task, TaskStage } from "./types";
 
 export type StageAction =
   "confirmGoal" | "generatePlan" | "startRun" | "finishRun" | "reviseScope" | "cancelRevise";
@@ -70,4 +70,12 @@ export function stageLabel(stage: TaskStage): string {
     default:
       return "未知";
   }
+}
+
+/** Goal tasks without a plan failed before the scope step; do not label them 选范围. */
+export function taskStageLabel(task: Task): string {
+  if (task.stage === "scope" && task.origin === "goal" && task.plans.length === 0) {
+    return "计划未生成";
+  }
+  return stageLabel(task.stage);
 }

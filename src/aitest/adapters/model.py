@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -61,6 +62,18 @@ _SYSTEM_CASES = (
     "并绑定到最相关的验收项；再补充针对具体行为的脚本用例。"
     "整包测试的 command: 用例最多绑定一个 acceptance_item_id，"
     "不要用 acceptance_item_ids 扩绑多个验收项。"
+    "命令里引用的测试模块或文件必须逐字来自 context.test_modules、"
+    "context.smallest_test 或 context.test_commands；不得编造 test_* 模块名。"
+    "优先选择与验收项最相关的具体测试模块或子包；"
+    "除非验收项本身要求整包测试，不要选只含包名的超大范围目录。"
+    "business 计划中不要使用整包测试命令（如 python -m pytest、python runtests.py、"
+    "python manage.py test、npm test）；整包命令只用于 smoke 的 L1 检查。"
+    "如果多个验收项由同一个具体测试模块覆盖，只生成一条 command: 用例，"
+    "用 acceptance_item_ids 列出这些验收项；不要复制成多条相同命令。"
+    "context.framework 含 django 且不含 pytest 时，不要生成脚本用例"
+    "（尤其 django.test.TestCase）；全部用 command: 运行具体测试模块。"
+    "Django 项目的 command: 不要用 python -c 导入模块做签名检查；"
+    "确需导入时必须先设置 DJANGO_SETTINGS_MODULE 并调用 django.setup()。"
     "expected 只能描述验收项原文、任务目标或合同/文档已规定的可观察行为；"
     "不得臆造未规定的行为或断言（例如要求某个命令在某种输入下必须报错）。"
     "脚本内的断言预期必须由脚本自己构造的同一段输入直接推导；"
@@ -150,6 +163,13 @@ _SYSTEM_MODULES = (
     '"note": "说明"}]}]}。'
     "deps.to 只能指向本次建议中的模块或项目已登记的模块；"
     "无法确认负责人时 owner 留空；不要输出 JSON 之外的任何文本。"
+)
+
+_SYSTEM_DEPENDENCY = (
+    "你是 Python 依赖解析助手。只输出一个 JSON 对象，格式为 "
+    '{"package": "PyPI 包名"}。根据缺失的导入模块名给出对应的 pip 包名；'
+    "只输出包名，不要版本号、extras、选项或 URL；无法确定时返回 {\"package\": \"\"}。"
+    "不要输出 JSON 之外的任何文本。"
 )
 
 
@@ -604,6 +624,17 @@ class ModelClient:
         return {
             field: _text_list_or_empty(data.get(field)) for field in _DELIVERY_FIELDS
         }
+
+    def suggest_dependency(self, module: str, context: dict[str, Any]) -> str:
+        """Map a missing import module to a validated PyPI package name."""
+        data = self.complete_json(
+            _SYSTEM_DEPENDENCY,
+            json.dumps({"module": module, "context": context}, ensure_ascii=False),
+        )
+        package = str(data.get("package") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", package):
+            return ""
+        return package
 
     def suggest_modules(self, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Return validated module suggestions whose deps stay inside the set."""
