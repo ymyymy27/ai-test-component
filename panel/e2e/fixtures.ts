@@ -40,8 +40,8 @@ export async function createTaskFromCandidate(page: Page, candidateIndex = 0): P
   await page.waitForURL(/tasks\/new/);
   await expect(page.locator(".candidate").nth(candidateIndex)).toBeVisible();
   await page.locator(".candidate").nth(candidateIndex).click();
-  await page.getByRole("button", { name: "创建任务并选范围" }).click();
-  await page.waitForURL(/\/scope/);
+  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.waitForURL(/\/plan/, { timeout: 15_000 });
 }
 
 export async function confirmPlan(page: Page): Promise<void> {
@@ -53,8 +53,10 @@ export async function confirmPlan(page: Page): Promise<void> {
 }
 
 export async function startRun(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "生成计划" }).click();
-  await page.waitForURL(/\/plan/);
+  if (!/\/plan/.test(page.url())) {
+    await page.getByRole("button", { name: "生成计划" }).click();
+    await page.waitForURL(/\/plan/);
+  }
   await confirmPlan(page);
   await page.getByRole("button", { name: "开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 15_000 });

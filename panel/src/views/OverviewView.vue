@@ -125,6 +125,7 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
       :analysis-error="project.analysisError"
       :analyzing-busy="analyzingBusy"
       @new-task="router.push(`/projects/${projectId}/tasks/new`)"
+      @quick-check="router.push(`/projects/${projectId}/quick-check`)"
       @view-candidates="router.push(`/projects/${projectId}/tasks/new`)"
       @open-task="openTask"
       @open-run="(runId) => router.push(`/projects/${projectId}/history?run=${runId}`)"

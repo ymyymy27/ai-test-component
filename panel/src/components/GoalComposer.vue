@@ -70,7 +70,7 @@ function onKeydown(event: KeyboardEvent): void {
         @keydown="onKeydown"
       />
       <span id="goal-hint" class="field-hint">
-        写目标或从下方选一个候选，然后点“创建任务并选范围”。Ctrl / Cmd + Enter 也可以。
+        写目标或选候选，然后点“开始测试”。Ctrl / Cmd + Enter 也可以。
       </span>
       <span v-if="error" id="goal-error" class="field-error" role="alert">{{ error }}</span>
     </label>

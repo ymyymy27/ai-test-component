@@ -138,14 +138,10 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
     await page.waitForURL(/\/overview/, { timeout: 20_000 });
     await expect(page.locator(".candidate-brief")).toBeVisible({ timeout: 180_000 });
 
-    await page.getByRole("button", { name: "新建任务" }).click();
+    await page.getByRole("button", { name: "开始测试" }).click();
     await page.waitForURL(/tasks\/new/);
     await page.locator("textarea").fill("验证 add(1,2) 返回 3");
-    await page.getByRole("button", { name: "创建任务并选范围" }).click();
-    await page.waitForURL(/\/scope/, { timeout: 120_000 });
-    await expect(page.locator(".scope-summary")).toContainText("/");
-
-    await page.getByRole("button", { name: "生成计划" }).click();
+    await page.getByRole("button", { name: "开始测试" }).click();
     await page.waitForURL(/\/plan/, { timeout: 180_000 });
     await expect(page.locator(".plan-summary")).toContainText("本次");
 

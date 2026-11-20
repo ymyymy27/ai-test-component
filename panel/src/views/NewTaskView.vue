@@ -42,11 +42,23 @@ const canCreate = computed(
   () => Boolean(goal.value.trim()) && ready.value && !startBusy.value,
 );
 
-watch(candidates, (value) => {
-  if (selectedId.value && !value.some((candidate) => candidate.id === selectedId.value)) {
-    selectedId.value = null;
-  }
-});
+watch(
+  candidates,
+  (value) => {
+    if (
+      !selectedId.value &&
+      value.length > 0 &&
+      !goal.value.trim()
+    ) {
+      selectedId.value = value[0]?.id ?? null;
+      goal.value = value[0]?.title ?? "";
+    }
+    if (selectedId.value && !value.some((candidate) => candidate.id === selectedId.value)) {
+      selectedId.value = null;
+    }
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   if (!project.value) {
@@ -102,6 +114,24 @@ async function submit(): Promise<void> {
       goal: text,
       candidateId: selectedId.value ?? undefined,
     });
+    try {
+      await workspace.generatePlan(projectId.value, task.id);
+      await router.push(`/projects/${projectId.value}/tasks/${task.id}/plan`);
+    } catch {
+      await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
+    }
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function startRange(): Promise<void> {
+  if (!project.value || startBusy.value) {
+    return;
+  }
+  const text = `按范围测试 · ${project.value.name}`;
+  try {
+    const task = await workspace.createTask(projectId.value, { goal: text });
     await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
   } catch {
     // store 已提示。
@@ -121,11 +151,11 @@ async function submit(): Promise<void> {
   <div v-else class="page">
     <PageHeader
       kicker="任务"
-      title="新建任务"
+      title="开始测试"
       :subtitle="
         firstTask
-          ? `${project.name} · 先确认项目目标，再创建首个任务`
-          : `${project.name} · 先确认这次要验证什么`
+          ? `${project.name} · 先确认目标，再生成计划和验收项`
+          : `${project.name} · 确认这次要验证什么`
       "
     />
 
@@ -173,6 +203,9 @@ async function submit(): Promise<void> {
           <span v-else>只改本次任务目标</span>
         </div>
         <div class="actionbar-actions">
+          <button class="link-btn" type="button" :disabled="startBusy" @click="startRange">
+            按范围测试
+          </button>
           <button
             class="link-btn"
             type="button"
@@ -188,7 +221,7 @@ async function submit(): Promise<void> {
             :aria-busy="startBusy"
             @click="submit"
           >
-            {{ startBusy ? "正在提取验收项…" : "创建任务并选范围" }}
+            {{ startBusy ? "正在创建并生成计划…" : "开始测试" }}
           </button>
         </div>
       </div>

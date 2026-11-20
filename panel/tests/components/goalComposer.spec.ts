@@ -31,7 +31,7 @@ describe("GoalComposer", () => {
   it("keeps only the input on the composer", () => {
     const wrapper = mountComposer("验证主流程");
     expect(wrapper.findAll("button")).toHaveLength(0);
-    expect(wrapper.text()).toContain("创建任务并选范围");
+    expect(wrapper.text()).toContain("开始测试");
   });
 
   it("disables the input while busy", () => {

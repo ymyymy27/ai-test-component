@@ -2,21 +2,22 @@ import { expect } from "@playwright/test";
 
 import { confirmPlan, createProject, createTaskFromCandidate, test } from "./fixtures";
 
-test("选中候选会填入目标并创建任务", async ({ page }) => {
+test("选中候选会填入目标并自动生成计划", async ({ page }) => {
   const projectId = await createProject(page, "候选创建验证", "D:/work/flow-auto");
   await page.getByRole("button", { name: "查看候选" }).click();
   await page.waitForURL(/tasks\/new/);
   await page.locator(".candidate").first().click();
   await expect(page.locator("textarea")).toHaveValue(/验证/);
-  await page.getByRole("button", { name: "创建任务并选范围" }).click();
-  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/scope`));
+  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
+    timeout: 15_000,
+  });
+  await expect(page.locator(".plan-summary")).toContainText("待执行");
 });
 
 test("调整范围后取消调整返回计划页", async ({ page }) => {
   const projectId = await createProject(page, "取消调整验证", "D:/work/flow-cancel");
   await createTaskFromCandidate(page, 0);
-  await page.getByRole("button", { name: "生成计划" }).click();
-  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
   await page.getByRole("button", { name: "调整范围" }).click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/scope`));
   await page.getByRole("button", { name: "取消调整", exact: true }).click();
@@ -61,17 +62,12 @@ test("删除任务需要确认并从侧栏移除", async ({ page }) => {
   await expect(page.locator(".toast")).toContainText("任务已删除");
 });
 
-test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
-  const projectId = await createProject(page, "流程验证", "D:/work/flow-a");
+test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
+  await createProject(page, "流程验证", "D:/work/flow-a");
   await expect(page.locator(".stats-bar")).toContainText("业务功能");
   await expect(page.locator(".candidate-brief")).toContainText("已整理 3 条候选");
 
   await createTaskFromCandidate(page, 0);
-  await expect(page.locator(".scope-summary")).toContainText("本次 1 / 当前理解 4 项");
-  await expect(page.locator(".scope-unselected")).toContainText("未选 3 项");
-
-  await page.getByRole("button", { name: "生成计划" }).click();
-  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
   await expect(page.locator(".plan-summary")).toContainText("本次 1 项 / 共 4 项");
   const start = page.getByRole("button", { name: "开始测试" });
   await expect(start).toBeDisabled();

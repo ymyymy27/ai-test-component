@@ -70,7 +70,7 @@ const router = createRouter({
           path: "tasks/new",
           name: "new-task",
           component: () => import("@/views/NewTaskView.vue"),
-          meta: { title: "新建任务" },
+          meta: { title: "开始测试" },
         },
         {
           path: "tasks/:taskId/details",

@@ -29,6 +29,7 @@ const workspace = useWorkspaceStore();
 
 const emit = defineEmits<{
   newTask: [];
+  quickCheck: [];
   viewCandidates: [];
   openTask: [taskId: string];
   openRun: [runId: string];
@@ -110,13 +111,22 @@ function toggleFeature(name: string, ignored: boolean): void {
       </div>
       <div class="page-actions">
         <button
+          class="btn btn-sm"
+          type="button"
+          :disabled="Boolean(running)"
+          :title="running ? '有任务正在运行，完成或停止后再检查' : undefined"
+          @click="emit('quickCheck')"
+        >
+          快速检查
+        </button>
+        <button
           class="btn btn-sm btn-primary"
           type="button"
           :disabled="Boolean(running)"
-          :title="running ? '有任务正在运行，完成或停止后再新建' : undefined"
+          :title="running ? '有任务正在运行，完成或停止后再开始' : undefined"
           @click="emit('newTask')"
         >
-          新建任务
+          开始测试
         </button>
       </div>
     </header>
