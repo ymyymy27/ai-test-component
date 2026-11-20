@@ -18,6 +18,16 @@ function taskIdOf(to: RouteLocationNormalized): string {
   return String(to.params.taskId ?? "");
 }
 
+function notFound(path: string): {
+  name: "not-found";
+  params: { pathMatch: string[] };
+} {
+  return {
+    name: "not-found",
+    params: { pathMatch: path.split("/").filter(Boolean) },
+  };
+}
+
 function createHistory(): RouterHistory {
   if (typeof window === "undefined") {
     return createWebHistory("/");
@@ -173,7 +183,7 @@ router.beforeEach(async (to) => {
   }
   const project = store.projects.find((entry) => entry.id === projectId);
   if (!project) {
-    return { name: "not-found" };
+    return notFound(to.path);
   }
   if (store.currentProjectId !== projectId) {
     await store.setCurrentProject(projectId);
@@ -195,7 +205,7 @@ router.beforeEach(async (to) => {
   }
   const task = findTask(project, taskId);
   if (!task) {
-    return { name: "not-found" };
+    return notFound(to.path);
   }
   if (
     activeRunTask &&
@@ -257,6 +267,29 @@ router.afterEach((to) => {
     const title = typeof to.meta.title === "string" ? to.meta.title : "";
     document.title = title ? `${title} · AI 测试` : "AI 测试";
   }
+});
+
+const CHUNK_LOAD_ERROR =
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i;
+
+router.onError((error, to) => {
+  if (!to || !CHUNK_LOAD_ERROR.test(String(error?.message ?? error))) {
+    return;
+  }
+  // 开发服务器重启或发布后，旧页面拿不到懒加载 chunk：地址栏已变但主内容不切换，
+  // 用户会以为按钮没反应。整页打开目标地址；同一地址 30 秒内只重载一次，避免循环。
+  const target = router.resolve(to);
+  const key = `aitest.chunk-reload.${target.href}`;
+  try {
+    const last = Number(sessionStorage.getItem(key) ?? 0);
+    if (last && Date.now() - last < 30_000) {
+      return;
+    }
+    sessionStorage.setItem(key, String(Date.now()));
+  } catch {
+    // 无法记录时仍然重载一次；失败会显示浏览器的加载错误。
+  }
+  window.location.assign(target.href);
 });
 
 export default router;

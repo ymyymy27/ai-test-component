@@ -327,7 +327,7 @@ export const api = {
   runQuick(projectId: string): Promise<{ run_id: string; status: string; kind: string }> {
     return callHost(
       "run.quick",
-      { project_id: projectId, confirmed_by: "panel" },
+      { project_id: projectId, confirmed_by: "本机用户" },
       { confirm: true },
     );
   },
@@ -336,6 +336,7 @@ export const api = {
     projectId: string,
     planId: string,
     acceptanceItemIds?: string[],
+    confirmedBy = "本机用户",
   ): Promise<{
     run_id: string;
     status: string;
@@ -346,6 +347,7 @@ export const api = {
       {
         project_id: projectId,
         plan_id: planId,
+        confirmed_by: confirmedBy,
         ...(acceptanceItemIds && acceptanceItemIds.length
           ? { acceptance_item_ids: acceptanceItemIds }
           : {}),

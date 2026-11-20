@@ -48,6 +48,13 @@ async function chooseDirectory(): Promise<void> {
   if (picking.value) {
     return;
   }
+  if (workspace.mode !== "host") {
+    ui.showToast(
+      "浏览器演示模式无法读取本机绝对路径；请直接输入路径，接入 Trae 后可用“选择目录”。",
+      "info",
+    );
+    return;
+  }
   picking.value = true;
   try {
     const path = await workspace.pickDirectory();
@@ -106,6 +113,10 @@ async function clearAndRetry(): Promise<void> {
       "
     />
 
+    <p v-if="workspace.localMode" class="local-demo-banner" role="status">
+      本地演示模式：项目分析、计划与运行结果均为演示数据，未读取真实仓库。
+    </p>
+
     <ErrorState
       v-if="workspace.status === 'error'"
       title="本地数据无法读取"
@@ -133,17 +144,33 @@ async function clearAndRetry(): Promise<void> {
               @input="clearError('root')"
             />
             <button
-              v-if="workspace.mode === 'host'"
               class="btn btn-sm"
               type="button"
               :disabled="picking"
+              :title="
+                workspace.mode === 'host'
+                  ? '从本机选择项目目录'
+                  : '浏览器演示模式无法读取本机绝对路径'
+              "
               @click="chooseDirectory"
             >
               <Icon name="folder" :size="14" />
-              {{ picking ? "选择中…" : "选择目录" }}
+              {{
+                picking
+                  ? "选择中…"
+                  : workspace.mode === "host"
+                    ? "选择目录"
+                    : "选择目录（需 Trae）"
+              }}
             </button>
           </div>
-          <p id="setup-root-hint" class="field-hint">输入绝对路径，或从本机选择目录。</p>
+          <p id="setup-root-hint" class="field-hint">
+            {{
+              workspace.mode === "host"
+                ? "输入绝对路径，或从本机选择目录。"
+                : "输入绝对路径；浏览器演示模式无法读取本机目录。"
+            }}
+          </p>
           <p v-if="errors.root" id="setup-root-error" class="field-error" role="alert">
             {{ errors.root }}
           </p>

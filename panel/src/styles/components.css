@@ -1205,6 +1205,18 @@ select {
   background: var(--warn-bg);
 }
 
+.local-demo-banner {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-row);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-12);
+}
+
 .notice.is-old {
   border-color: var(--line-strong);
   background: var(--surface-3);
@@ -1322,6 +1334,7 @@ select {
 /* ---------- dialog / toast ---------- */
 dialog {
   width: min(470px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-dialog);
@@ -1352,6 +1365,8 @@ dialog[open] {
 .dialog-form {
   display: grid;
   gap: var(--space-3);
+  max-height: calc(100vh - 34px);
+  overflow-y: auto;
   padding: var(--space-4);
 }
 
@@ -2180,6 +2195,16 @@ dialog[open] {
   display: none;
 }
 
+.unselected-block > summary::after {
+  content: "展开";
+  margin-left: var(--space-1);
+  color: var(--ink-2);
+}
+
+.unselected-block[open] > summary::after {
+  content: "收起";
+}
+
 .unselected-block .list-plain {
   padding-bottom: var(--space-2);
 }
@@ -2511,7 +2536,6 @@ dialog[open] {
 
   .side-nav button,
   .side-add,
-  .side-task-toggle,
   .side-task-more,
   .icon-btn,
   .sidebar-close,

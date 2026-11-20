@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   conclusionForRun,
+  displayItemOutcome,
   itemOutcome,
   layersForRun,
   problemRunItems,
@@ -80,5 +81,35 @@ describe("derived results", () => {
     const effects = sideEffectsFor(seeded.project);
     expect(effects.some((effect) => effect.includes("只读取项目文件"))).toBe(true);
     expect(effects.join(" ")).not.toContain("password");
+  });
+
+  it("prefers the core item outcome for host runs", async () => {
+    const seeded = await completedRun(["01"]);
+    const run = seeded.task.runs[0] as Run;
+    const itemId = run.scope.acceptanceItemIds[0] as string;
+    const hostRun: Run = {
+      ...run,
+      simulated: false,
+      items: run.items.map((item) => ({ ...item, outcome: "failed" })),
+    };
+    expect(displayItemOutcome(hostRun, itemId)).toBe("failed");
+    expect(displayItemOutcome(run, itemId)).toBe("passed");
+  });
+
+  it("counts a case against every bound acceptance item", async () => {
+    const seeded = await completedRun(["01"]);
+    const run = seeded.task.runs[0] as Run;
+    const itemId = run.scope.acceptanceItemIds[0] as string;
+    const extraId = "extra_item";
+    const bound: Run = {
+      ...run,
+      cases: run.cases.map((testCase) => ({
+        ...testCase,
+        itemId,
+        caseItemIds: [itemId, extraId],
+        result: "failed",
+      })),
+    };
+    expect(itemOutcome(bound, extraId)).toBe("failed");
   });
 });

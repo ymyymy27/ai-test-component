@@ -7,6 +7,7 @@ command candidates only; they are never treated as tested endpoints.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import tomllib
@@ -206,16 +207,17 @@ def _package_dependencies(data: dict[str, Any]) -> set[str]:
 
 def _test_dirs(root: Path) -> list[str]:
     found: list[str] = []
-    for name in ("tests", "test"):
+    for name in ("tests", "test", "testing"):
         if (root / name).is_dir():
             found.append(f"{name}/")
-    for path in sorted(root.glob("src/**/tests")):
-        if not path.is_dir():
-            continue
-        relative = path.relative_to(root).as_posix()
-        marker = f"{relative}/"
-        if marker not in found:
-            found.append(marker)
+    for pattern in ("src/**/tests", "src/**/testing"):
+        for path in sorted(root.glob(pattern)):
+            if not path.is_dir():
+                continue
+            relative = path.relative_to(root).as_posix()
+            marker = f"{relative}/"
+            if marker not in found:
+                found.append(marker)
     return found
 
 
@@ -327,6 +329,98 @@ def _smallest_test_file(root: Path, test_dirs: list[str]) -> str:
         return ""
     candidates.sort()
     return candidates[0][1]
+
+
+def _test_example(
+    root: Path, test_dirs: list[str], *, max_lines: int = 80
+) -> dict[str, object] | None:
+    """A short real-usage excerpt so generated scripts do not guess the API."""
+    relative = _smallest_test_file(root, test_dirs)
+    if not relative:
+        return None
+    try:
+        lines = (root / relative).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    if not lines:
+        return None
+    return {
+        "path": relative,
+        "content": "\n".join(lines[:max_lines]),
+        "truncated": len(lines) > max_lines,
+    }
+
+
+def _symbol_signature(node: ast.AST) -> str:
+    if isinstance(node, ast.ClassDef):
+        return "class"
+    assert isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    returns = f" -> {ast.unparse(node.returns)}" if node.returns else ""
+    return f"({ast.unparse(node.args)}){returns}"
+
+
+def _symbol_map(
+    root: Path, *, max_modules: int = 20, max_files: int = 40
+) -> dict[str, dict[str, str]]:
+    """Public symbols per module with their signatures.
+
+    The model uses this to import the right module and call the real signature
+    instead of guessing an argument type or count.
+    """
+    skip_dirs = {"tests", "testing", ".venv", "venv", "build", "dist", "__pycache__"}
+    symbols: dict[str, dict[str, str]] = {}
+    scanned = 0
+    for path in sorted(root.rglob("*.py")):
+        if scanned >= max_files:
+            break
+        if any(part in skip_dirs for part in path.parts):
+            continue
+        scanned += 1
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        parts = list(path.relative_to(root).with_suffix("").parts)
+        if parts and parts[0] == "src":
+            parts = parts[1:]
+        if not parts:
+            continue
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        module = ".".join(parts)
+        if not module:
+            continue
+        entries: dict[str, str] = {}
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                if node.name.startswith("_"):
+                    continue
+                entries[node.name] = "class"
+                has_init = False
+                for child in node.body:
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if child.name == "__init__":
+                            has_init = True
+                            entries[f"{node.name}.__init__"] = _symbol_signature(child)
+                            continue
+                        if child.name.startswith("_"):
+                            continue
+                        entries[f"{node.name}.{child.name}"] = _symbol_signature(child)
+                if not has_init:
+                    entries[f"{node.name}.__init__"] = "(inherited; signature unknown)"
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name.startswith("_"):
+                    continue
+                entries[node.name] = _symbol_signature(node)
+        if entries:
+            symbols[module] = entries
+        if len(symbols) >= max_modules:
+            break
+    return symbols
 
 
 def _readme_commands(text: str) -> list[str]:
@@ -488,6 +582,8 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         "test_commands": _test_commands(config, pyproject, package, frameworks, test_dirs),
         "smoke_command": _configured_smoke_command(config),
         "smallest_test": (_smallest_test_file(root, test_dirs) if "pytest" in frameworks else ""),
+        "test_example": _test_example(root, test_dirs),
+        "symbols": _symbol_map(root),
         "services": services,
         "health_hosts": sorted(_health_hosts(services)),
         "test_dirs": test_dirs,

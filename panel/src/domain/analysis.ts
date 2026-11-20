@@ -122,7 +122,7 @@ export function buildProjectAnalysis(
         text: info.text,
         observable: true,
         status: "active" as const,
-        source: `${feature.name} · 本地分析`,
+        source: `本地演示分析 · ${feature.name}`,
         moduleId: module?.id ?? null,
         moduleName: info.module,
         featureName: info.feature,
@@ -136,7 +136,7 @@ export function buildProjectAnalysis(
     text: "系统要稳定",
     observable: false,
     status: "pending",
-    source: "本地分析 · 不可观察",
+    source: "本地演示分析 · 不可观察",
     moduleId: null,
     moduleName: "—",
     featureName: "待补充",
@@ -157,7 +157,7 @@ export function buildProjectAnalysis(
     {
       id: `cand_${project.id.slice(-8)}_startup`,
       title: `验证 ${project.name} 可以启动并跑通主流程`,
-      reason: "从项目名、目录结构与启动入口推断",
+      reason: "本地演示数据：从项目名、目录结构与启动入口推断",
       source: "来自目录",
       intent: "business",
       featureNames: ["启动与主流程"],
@@ -168,7 +168,7 @@ export function buildProjectAnalysis(
     {
       id: `cand_${project.id.slice(-8)}_data`,
       title: "验证关键数据写入后可以查询，并确认重复执行不产生重复数据",
-      reason: "按数据写入与查询路径整理",
+      reason: "本地演示数据：按数据写入与查询路径整理",
       source: "来自模块",
       intent: "business",
       featureNames: ["数据写入与查询"],
@@ -179,7 +179,7 @@ export function buildProjectAnalysis(
     {
       id: `cand_${project.id.slice(-8)}_boundary`,
       title: "验证异常输入被拒绝并给出可读提示",
-      reason: "按接口边界与错误处理路径整理",
+      reason: "本地演示数据：按接口边界与错误处理路径整理",
       source: "来自模块",
       intent: "business",
       featureNames: ["异常与边界"],
@@ -347,6 +347,7 @@ export function buildMockSummary(run: Run): MockSummary {
     mock: 0,
     mixed: 0,
     unknown: total,
+    realChain: false,
     note: "本次是本地模拟运行，未连接真实依赖，无法判断 Mock 真实性；本次不产生“真实链路通过”。",
     refs: [],
   };

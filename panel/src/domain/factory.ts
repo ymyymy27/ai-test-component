@@ -569,6 +569,7 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
       text: item.text,
       outcome: item.outcome,
       caseIds: item.caseIds,
+      selected: true,
     })),
     caseDetails: run.cases.map((testCase) => {
       const item = run.items.find((entry) => entry.itemId === testCase.itemId);
@@ -596,6 +597,7 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     unmapped: [],
     uncoveredItems: uncovered,
     unverifiedItems: unverified,
+    planWarnings: [],
     evidenceIndex: [...evidence.values()],
     source: {
       runTime: run.startedAt,

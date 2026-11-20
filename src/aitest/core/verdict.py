@@ -114,12 +114,27 @@ def _l1_outcome(run: Run) -> Literal["failed", "incomplete"] | None:
     return None
 
 
+def _l1_executed(l1: dict[str, object]) -> bool:
+    """Whether any project-level check actually ran.
+
+    ``l1`` can be an empty object (for example the panel saves an empty
+    ``l1`` section). An empty object must not be reported as a pass.
+    """
+    build = l1.get("build")
+    if isinstance(build, dict) and build.get("exit_code") is not None:
+        return True
+    entries = l1.get("entries")
+    return isinstance(entries, list) and len(entries) > 0
+
+
 def verdict(plan: Plan, run: Run) -> Verdict:
     if run.kind == "project_check":
         l1_result = _l1_outcome(run)
         if l1_result is not None:
             return l1_result
-        return "not_applicable" if run.l1 is None else "passed"
+        if run.l1 is None or not _l1_executed(run.l1):
+            return "not_applicable"
+        return "passed"
     outcomes = item_outcomes(plan, run)
     project_results = _project_results(plan, run)
     results = [*outcomes.values(), *project_results]

@@ -438,7 +438,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       };
       try {
         await repo().confirmPlan(projectId, taskId, planId, input);
-        const run = await repo().startRun(projectId, taskId, planId);
+        const run = await repo().startRun(projectId, taskId, planId, OPERATOR);
         await refreshProject(projectId);
         if (repo().mode === "host") {
           startHostPolling(projectId, taskId, run.id);
@@ -542,6 +542,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   function startHostPolling(projectId: string, taskId: string, runId: string): void {
     stopHostPolling();
+    let postprocessTicks = 0;
     hostPollTimer = setInterval(() => {
       void (async () => {
         try {
@@ -562,6 +563,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
           }
           task.currentRunId = run.id;
           task.stage = run.status === "running" ? "running" : "result";
+          const processing =
+            run.status !== "running" &&
+            (run.postprocess === "running" || run.postprocess === "pending");
+          if (processing && postprocessTicks < 80) {
+            postprocessTicks += 1;
+            return;
+          }
           if (run.status !== "running") {
             stopHostPolling();
             await refreshProject(projectId);
@@ -916,7 +924,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       quickCheck.value = {
         ...buildQuickCheckRun(project),
         confirmedBy: "本机用户",
-        simulated: false,
+        simulated: true,
       };
       const completed = await hostRepo.runQuickCheck(projectId);
       quickCheck.value = completed;
@@ -940,8 +948,18 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     try {
       const facts = await callHost<DoctorFacts>("doctor", {});
       return mapDoctorFacts(facts);
-    } catch {
-      return buildEnvironmentChecks();
+    } catch (cause) {
+      return [
+        {
+          key: "cli",
+          name: "CLI 环境",
+          value: "检查失败",
+          ok: false,
+          detail: cause instanceof Error ? cause.message : "无法连接 CLI。",
+          repair: "确认 Trae 扩展与 Python 运行环境后重试。",
+          risk: "high",
+        },
+      ];
     }
   }
 
@@ -988,7 +1006,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     quickCheck.value = null;
   }
 
+  const localMode = computed(() => repo().mode === "local");
+
   return {
+    localMode,
     projects,
     currentProjectId,
     status,

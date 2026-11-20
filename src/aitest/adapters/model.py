@@ -53,6 +53,21 @@ _SYSTEM_CASES = (
     '"mock_allowed": true, "importance": "high|medium|low", '
     '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。'
     "expectation_source 必须逐字引用对应验收项原文；preconditions 至少一条，不得留空。"
+    "写脚本或命令前必须参考 context.test_example 中的真实调用方式，禁止臆造函数签名；"
+    "导入符号前必须参考 context.symbols，确认符号所在模块和参数签名；"
+    "调用前必须匹配参数类型与数量，例如字符串参数不能传对象；导入或调用不匹配视为脚本错误。"
+    "无法确认 API 时，优先生成运行项目既有测试的 command: 用例。"
+    "如果 context.test_commands 非空，至少生成一条 command: 用例直接运行该测试命令，"
+    "并绑定到最相关的验收项；再补充针对具体行为的脚本用例。"
+    "整包测试的 command: 用例最多绑定一个 acceptance_item_id，"
+    "不要用 acceptance_item_ids 扩绑多个验收项。"
+    "expected 只能描述验收项原文、任务目标或合同/文档已规定的可观察行为；"
+    "不得臆造未规定的行为或断言（例如要求某个命令在某种输入下必须报错）。"
+    "脚本内的断言预期必须由脚本自己构造的同一段输入直接推导；"
+    "不得把验收项示例中空格、标点或大小写不同的字符串直接当作预期。"
+    "断言截断/省略行为时，不要假设省略号一定在字符串末尾；优先检查包含关系或总长度。"
+    "类没有显式 __init__ 时构造参数可能继承自基类；不确定时不要显式传参，"
+    "或照搬项目测试中的调用方式。"
     "script_name 只能是单层文件名，不要带目录，扩展名只能是 .py、.ts 或 .js；"
     "verify_method 用 script: 时填同一个文件名。使用 Python Playwright 时写 .py，"
     "脚本从环境变量或默认本机地址读取目标页，不要写死 example.com。"
@@ -549,10 +564,13 @@ class ModelClient:
         nested = data.get("analysis")
         if isinstance(nested, dict):
             data = _as_mapping(nested, "analysis 必须是对象")
+        causes = _candidate_causes(data)
+        if not causes:
+            raise _invalid("candidate_causes 至少需要一条")
         return {
             "observed": _require_text(data, "observed"),
             "evidence_refs": _require_text_list(data, "evidence_refs", allow_empty=True),
-            "candidate_causes": _candidate_causes(data),
+            "candidate_causes": causes,
             "unverified": _require_text_list(data, "unverified", allow_empty=False),
             "next_steps": _require_text_list(data, "next_steps", allow_empty=True),
         }

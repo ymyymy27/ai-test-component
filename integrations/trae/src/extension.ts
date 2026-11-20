@@ -97,22 +97,24 @@ const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start", "run.qui
 const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "run.start": 60_000,
   "run.quick": 60_000,
-  "project.map.refresh": 120_000,
-  "plan.generate": 120_000,
-  "task.add": 120_000,
+  "project.map.refresh": 210_000,
+  "plan.generate": 210_000,
+  "task.add": 210_000,
   "task.suggest": 60_000,
   "module.suggest": 60_000,
-  "delivery.draft": 120_000,
+  "delivery.draft": 210_000,
   "template.list": 30_000,
   "template.apply": 120_000,
   "analysis.run": 120_000,
-  "report.generate": 120_000,
+  "report.generate": 330_000,
   "report.export": 60_000,
   "rules.import": 30_000,
   "rules.export": 30_000,
-  "github.read": 60_000,
-  "link.import": 60_000,
+  "github.read": 150_000,
+  "link.import": 150_000,
   "project.config": 30_000,
+  "backup.create": 630_000,
+  "backup.restore": 630_000,
   doctor: 30_000,
 };
 
@@ -314,6 +316,7 @@ export function activate(context: vscode.ExtensionContext): void {
       };
       const listener = attachWebview(context, view.webview);
       panel = { webview: view.webview, reveal: () => view.show?.(true) };
+      panelReady = false;
       view.onDidDispose(() => {
         listener.dispose();
         releasePanel(view.webview);
@@ -349,8 +352,14 @@ function openPanel(context: vscode.ExtensionContext): void {
   }
   void refreshWorkspaceBinding();
   if (panel !== null) {
-    panel.reveal();
-    return;
+    try {
+      panel.reveal();
+      return;
+    } catch {
+      // 面板或侧栏 webview 已被关闭，句柄可能尚未收到 dispose 回调。
+      // 丢弃旧句柄后重建，避免把 “Webview is disposed” 抛给命令调用方。
+      clearPanel();
+    }
   }
   const created = vscode.window.createWebviewPanel(
     "aitestPanel",
@@ -367,6 +376,7 @@ function openPanel(context: vscode.ExtensionContext): void {
     webview: created.webview,
     reveal: () => created.reveal(vscode.ViewColumn.One),
   };
+  panelReady = false;
   created.onDidDispose(() => {
     listener.dispose();
     releasePanel(created.webview);
@@ -422,10 +432,14 @@ async function showRunStatus(context: vscode.ExtensionContext): Promise<void> {
 
 function releasePanel(webview: vscode.Webview): void {
   if (panel?.webview === webview) {
-    panel = null;
-    panelReady = false;
-    queued = [];
+    clearPanel();
   }
+}
+
+function clearPanel(): void {
+  panel = null;
+  panelReady = false;
+  queued = [];
 }
 
 function sendToPanel(message: unknown): void {
@@ -436,7 +450,13 @@ function sendToPanel(message: unknown): void {
     queued.push(message);
     return;
   }
-  void panel.webview.postMessage(message);
+  const target = panel.webview;
+  void Promise.resolve(target.postMessage(message)).catch(() => {
+    // webview 已销毁时 postMessage 会拒绝；丢弃句柄，下一次命令重建。
+    if (panel?.webview === target) {
+      clearPanel();
+    }
+  });
 }
 
 async function postContext(): Promise<void> {

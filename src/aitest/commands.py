@@ -580,6 +580,7 @@ CONFIG_SECTIONS: tuple[str, ...] = (
     "l1",
     "data",
 )
+_MODULE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 def _config_path(ws: Workspace, project_id: str) -> Path:
@@ -687,6 +688,17 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             current if isinstance(current, dict) else {}, value
         )
     merged["schema_version"] = 1
+    l1_config = merged.get("l1")
+    if isinstance(l1_config, dict) and "entry" in l1_config:
+        entries = l1_config.get("entry")
+        if not isinstance(entries, list) or any(
+            not isinstance(item, str) or not _MODULE_NAME.match(item)
+            for item in entries
+        ):
+            raise invalid_request(
+                'l1.entry 必须是模块名数组，例如 ["iniconfig"]',
+                "填可导入的模块名，不要填目录路径或文件路径",
+            )
     write_json(path, merged)
     return {"config": _whitelisted_config(_strip_secret_fields(merged))}
 

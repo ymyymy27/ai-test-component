@@ -14,7 +14,7 @@ import StatusText from "@/components/StatusText.vue";
 import {
   currentPlan,
   currentRun,
-  itemOutcome,
+  displayItemOutcome,
   reportsForRun,
   sortedRunItems,
   unselectedItems,
@@ -48,7 +48,7 @@ const outcomes = computed<Record<string, CaseResult>>(() => {
   const map: Record<string, CaseResult> = {};
   if (run.value) {
     run.value.items.forEach((item) => {
-      map[item.itemId] = itemOutcome(run.value as Run, item.itemId);
+      map[item.itemId] = displayItemOutcome(run.value as Run, item.itemId);
     });
   }
   return map;
@@ -214,12 +214,12 @@ async function exportReport(reportId: string): Promise<void> {
 
 function rerunLabel(): string {
   if (run.value?.verdict === "passed") {
-    return "再次运行";
+    return "重新生成计划";
   }
   if (run.value?.verdict === "failed") {
-    return "重跑未通过项";
+    return "按未通过项重新生成计划";
   }
-  return "重跑未完成项";
+  return "按未完成项重新生成计划";
 }
 </script>
 
@@ -252,6 +252,7 @@ function rerunLabel(): string {
           <span class="check-name">{{ check.name }}</span>
           <span class="check-method">{{ check.method }}</span>
           <StatusText :result="check.result" />
+          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
     </section>

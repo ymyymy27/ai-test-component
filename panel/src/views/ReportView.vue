@@ -21,6 +21,11 @@ import type { LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
+function formatTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
+}
+
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
@@ -338,7 +343,10 @@ function bytesText(bytes: number): string {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in report.itemDetails" :key="item.itemId">
+            <tr
+              v-for="item in report.itemDetails.filter((entry) => entry.selected)"
+              :key="item.itemId"
+            >
               <td class="cell-num" data-label="编号">{{ item.no }}</td>
               <td class="cell-main" data-label="验收项">{{ item.text }}</td>
               <td data-label="最差结果">{{ statusText(item.outcome) }}</td>
@@ -364,6 +372,12 @@ function bytesText(bytes: number): string {
           <li v-for="item in report.unverifiedItems" :key="item">{{ item }}</li>
         </ul>
       </details>
+      <details v-if="report.planWarnings.length" class="unselected-block">
+        <summary>计划警告 {{ report.planWarnings.length }} 条</summary>
+        <ul class="list-plain">
+          <li v-for="item in report.planWarnings" :key="item">{{ item }}</li>
+        </ul>
+      </details>
     </section>
 
     <section class="section">
@@ -374,6 +388,7 @@ function bytesText(bytes: number): string {
           <span class="check-name">{{ check.name }}</span>
           <span class="check-method">{{ check.method }}</span>
           <StatusText :result="check.result" />
+          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
       <p class="doc-note">项目级检查单独统计，不计入本次验收项覆盖；失败会影响运行结论。</p>
@@ -458,7 +473,7 @@ function bytesText(bytes: number): string {
       <h2 class="section-title-lg">验收意见</h2>
       <div v-if="report.opinion" class="notice">
         <span
-          ><strong>{{ report.opinion.by }}</strong> · {{ report.opinion.at }} ·
+          ><strong>{{ report.opinion.by }}</strong> · {{ formatTime(report.opinion.at) }} ·
           {{ report.opinion.text }}</span
         >
       </div>
@@ -503,7 +518,9 @@ function bytesText(bytes: number): string {
       <h2 class="section-title-lg">模拟数据判断</h2>
       <p class="doc-p">
         真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合 {{ report.mock.mixed }} ·
-        无法判断 {{ report.mock.unknown }}。{{ report.mock.note }}
+        无法判断 {{ report.mock.unknown }}。真实链路通过：{{ report.mock.realChain ? "是" : "否" }}。{{
+          report.mock.note
+        }}
       </p>
       <p class="doc-note">
         含模拟或无法判断依赖的用例，不能获得“真实链路通过”。该判断不可手工修改。

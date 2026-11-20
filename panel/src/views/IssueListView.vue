@@ -20,6 +20,15 @@ const ui = useUiStore();
 const projectId = computed(() => String(route.params.projectId ?? ""));
 const project = computed(() => workspace.currentProject);
 const tasks = computed(() => project.value?.tasks.filter((task) => task.stage !== "fresh") ?? []);
+const createGate = computed(() => {
+  if (workspace.mode !== "host") {
+    return "";
+  }
+  const hasRunCase = tasks.value.some((task) =>
+    task.runs.some((run) => run.cases.length > 0),
+  );
+  return hasRunCase ? "" : "还没有可绑定的运行用例；先完成一次运行再登记问题。";
+});
 const issues = computed(() => workspace.projectIssues);
 const status = ref<"all" | IssueStatus>("all");
 const taskFilter = ref("all");
@@ -95,7 +104,15 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
       :subtitle="`${project.name} · ${counts.all ?? 0} 个问题 · 关闭必须绑定新运行`"
     >
       <template #actions>
-        <button class="btn btn-sm btn-primary" type="button" @click="openCreate">登记问题</button>
+        <button
+          class="btn btn-sm btn-primary"
+          type="button"
+          :disabled="Boolean(createGate)"
+          :title="createGate || undefined"
+          @click="openCreate"
+        >
+          登记问题
+        </button>
       </template>
     </PageHeader>
 

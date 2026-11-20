@@ -34,10 +34,10 @@ const query = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const menuTaskId = ref<string | null>(null);
-const tasksCollapsed = ref(false);
+const projectCollapsed = ref<Record<string, boolean>>({});
 const menuRef = ref<HTMLElement | null>(null);
 const menuButtons = new Map<string, HTMLButtonElement>();
-const COLLAPSE_PREFIX = "aitest.tasks-collapsed.";
+const PROJECT_COLLAPSE_PREFIX = "aitest.project-collapsed.";
 const renamingTaskId = ref<string | null>(null);
 const renameValue = ref("");
 const renameInput = ref<HTMLInputElement | null>(null);
@@ -69,31 +69,6 @@ const runCount = computed(
   () =>
     currentProject.value?.tasks.reduce((total, task) => total + task.runs.length, 0) ?? 0,
 );
-
-watch(
-  () => props.currentProjectId,
-  (projectId) => {
-    try {
-      tasksCollapsed.value = projectId
-        ? localStorage.getItem(`${COLLAPSE_PREFIX}${projectId}`) === "1"
-        : false;
-    } catch {
-      tasksCollapsed.value = false;
-    }
-  },
-  { immediate: true },
-);
-
-watch(tasksCollapsed, (collapsed) => {
-  if (!props.currentProjectId) {
-    return;
-  }
-  try {
-    localStorage.setItem(`${COLLAPSE_PREFIX}${props.currentProjectId}`, collapsed ? "1" : "0");
-  } catch {
-    // 本地存储不可用时只保留当前状态。
-  }
-});
 
 function toneFor(project: Project): string {
   return projectStatus(project).tone;
@@ -217,6 +192,56 @@ function closeMenuOnOutside(event: MouseEvent): void {
 onMounted(() => document.addEventListener("click", closeMenuOnOutside));
 onBeforeUnmount(() => document.removeEventListener("click", closeMenuOnOutside));
 
+watch(
+  () => props.currentProjectId,
+  (projectId) => {
+    if (!projectId) {
+      return;
+    }
+    try {
+      projectCollapsed.value = {
+        ...projectCollapsed.value,
+        [projectId]: localStorage.getItem(`${PROJECT_COLLAPSE_PREFIX}${projectId}`) === "1",
+      };
+    } catch {
+      // 本地存储不可用时保持展开。
+    }
+  },
+  { immediate: true },
+);
+
+function isProjectCollapsed(projectId: string): boolean {
+  return projectCollapsed.value[projectId] === true;
+}
+
+function setProjectCollapsed(projectId: string, collapsed: boolean): void {
+  projectCollapsed.value = { ...projectCollapsed.value, [projectId]: collapsed };
+  try {
+    localStorage.setItem(`${PROJECT_COLLAPSE_PREFIX}${projectId}`, collapsed ? "1" : "0");
+  } catch {
+    // 本地存储不可用时只保留当前状态。
+  }
+}
+
+function toggleProject(projectId: string): void {
+  setProjectCollapsed(projectId, !isProjectCollapsed(projectId));
+}
+
+function handleProjectClick(project: Project): void {
+  if (project.id !== props.currentProjectId) {
+    if (isProjectCollapsed(project.id)) {
+      setProjectCollapsed(project.id, false);
+    }
+    selectProject(project.id);
+    return;
+  }
+  if (props.section === "overview") {
+    toggleProject(project.id);
+    return;
+  }
+  selectProject(project.id);
+}
+
 function focusSearch(): void {
   searchInput.value?.focus();
 }
@@ -266,12 +291,30 @@ defineExpose({ focusSearch, focusClose });
       <p v-if="visibleProjects.length === 0" class="side-empty">
         {{ projects.length === 0 ? "还没有项目。先建立一个本地目录。" : "没有匹配的项目。" }}
       </p>
-      <div v-for="project in visibleProjects" :key="project.id" class="side-project">
+      <div
+        v-for="project in visibleProjects"
+        :key="project.id"
+        class="side-project"
+        :class="{ 'is-collapsed': isProjectCollapsed(project.id) }"
+      >
         <button
           class="side-project-row"
           type="button"
           :aria-current="project.id === currentProjectId ? 'page' : undefined"
-          @click="selectProject(project.id)"
+          :aria-expanded="
+            project.id === currentProjectId ? !isProjectCollapsed(project.id) : undefined
+          "
+          :aria-controls="
+            project.id === currentProjectId ? `project-body-${project.id}` : undefined
+          "
+          :title="
+            project.id === currentProjectId && section === 'overview'
+              ? isProjectCollapsed(project.id)
+                ? '点击展开项目内容'
+                : '点击收起项目内容'
+              : '打开项目概览'
+          "
+          @click="handleProjectClick(project)"
         >
           <span class="side-status-dot" :class="`is-${toneFor(project)}`" aria-hidden="true"></span>
           <span class="side-project-main">
@@ -279,46 +322,64 @@ defineExpose({ focusSearch, focusClose });
             <span class="side-project-meta">{{ projectStatus(project).label }}</span>
           </span>
         </button>
-        <nav
+        <div
           v-if="project.id === currentProjectId"
-          class="side-nav"
-          aria-label="项目分区"
+          v-show="!isProjectCollapsed(project.id)"
+          :id="`project-body-${project.id}`"
         >
-          <button
-            type="button"
-            :class="{ 'is-active': section === 'overview' }"
-            :aria-current="section === 'overview' ? 'page' : undefined"
-            @click="emit('openOverview', project.id)"
-          >
-            概览
-          </button>
-          <button
-            type="button"
-            :class="{ 'is-active': section === 'issues' }"
-            :aria-current="section === 'issues' ? 'page' : undefined"
-            @click="emit('openIssues', project.id)"
-          >
-            问题
-            <span v-if="openIssueCount" class="side-nav-count">{{ openIssueCount }}</span>
-          </button>
-          <button
-            type="button"
-            :class="{ 'is-active': section === 'history' }"
-            :aria-current="section === 'history' ? 'page' : undefined"
-            @click="emit('openHistory', project.id)"
-          >
-            运行记录
-            <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
-          </button>
-          <button
-            type="button"
-            :class="{ 'is-active': section === 'settings' }"
-            :aria-current="section === 'settings' ? 'page' : undefined"
-            @click="emit('openSettings', project.id)"
-          >
-            设置
-          </button>
-        </nav>
+        <div
+          class="side-nav-block"
+        >
+          <div class="side-task-head">
+            <span class="side-task-label">视图</span>
+          </div>
+          <div class="side-tree-body">
+            <nav class="side-nav" aria-label="项目分区">
+              <button
+                class="side-nav-item"
+                type="button"
+                :class="{ 'is-active': section === 'overview' }"
+                :aria-current="section === 'overview' ? 'page' : undefined"
+                @click="emit('openOverview', project.id)"
+              >
+                <Icon name="overview" :size="14" />
+                <span class="side-nav-label">概览</span>
+              </button>
+              <button
+                class="side-nav-item"
+                type="button"
+                :class="{ 'is-active': section === 'issues' }"
+                :aria-current="section === 'issues' ? 'page' : undefined"
+                @click="emit('openIssues', project.id)"
+              >
+                <Icon name="warn" :size="14" />
+                <span class="side-nav-label">问题</span>
+                <span v-if="openIssueCount" class="side-nav-count">{{ openIssueCount }}</span>
+              </button>
+              <button
+                class="side-nav-item"
+                type="button"
+                :class="{ 'is-active': section === 'history' }"
+                :aria-current="section === 'history' ? 'page' : undefined"
+                @click="emit('openHistory', project.id)"
+              >
+                <Icon name="history" :size="14" />
+                <span class="side-nav-label">运行记录</span>
+                <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
+              </button>
+              <button
+                class="side-nav-item"
+                type="button"
+                :class="{ 'is-active': section === 'settings' }"
+                :aria-current="section === 'settings' ? 'page' : undefined"
+                @click="emit('openSettings', project.id)"
+              >
+                <Icon name="settings" :size="14" />
+                <span class="side-nav-label">设置</span>
+              </button>
+            </nav>
+          </div>
+        </div>
         <div
           v-if="project.id === currentProjectId"
           class="side-task-list"
@@ -339,24 +400,9 @@ defineExpose({ focusSearch, focusClose });
                 <Icon name="plus" :size="12" />
                 新建
               </button>
-              <button
-                class="side-task-toggle"
-                :class="{ 'is-collapsed': tasksCollapsed }"
-                type="button"
-                :aria-expanded="!tasksCollapsed"
-                :aria-controls="`tasks-${project.id}`"
-                :aria-label="tasksCollapsed ? '展开任务' : '收起任务'"
-                @click="tasksCollapsed = !tasksCollapsed"
-              >
-                <Icon name="chevron-down" :size="14" />
-              </button>
             </div>
           </div>
-          <div
-            v-show="!tasksCollapsed"
-            :id="`tasks-${project.id}`"
-            class="side-task-body"
-          >
+          <div class="side-task-body">
           <button
             v-if="draft"
             class="side-task"
@@ -459,6 +505,7 @@ defineExpose({ focusSearch, focusClose });
           </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, type ComponentPublicInstance } from "vue";
 
+import { compareItemNo } from "@/domain/derive";
 import { LAYER_LABEL } from "@/domain/labels";
 import type { Plan, Task } from "@/domain/types";
 import Icon from "./Icon.vue";
@@ -11,15 +12,17 @@ const props = defineProps<{
 }>();
 
 const groups = computed(() =>
-  props.plan.scope.acceptanceItemIds.map((itemId) => {
-    const item = props.task.acceptanceItems.find((entry) => entry.id === itemId);
-    return {
-      itemId,
-      no: item?.no ?? "",
-      text: item?.text ?? "验收项已归档",
-      cases: props.plan.cases.filter((testCase) => testCase.itemId === itemId),
-    };
-  }),
+  props.plan.scope.acceptanceItemIds
+    .map((itemId) => {
+      const item = props.task.acceptanceItems.find((entry) => entry.id === itemId);
+      return {
+        itemId,
+        no: item?.no ?? "",
+        text: item?.text ?? "验收项已归档",
+        cases: props.plan.cases.filter((testCase) => testCase.itemId === itemId),
+      };
+    })
+    .sort((first, second) => compareItemNo(first.no, second.no)),
 );
 
 const firstOpen = computed(() => groups.value[0]?.itemId ?? "");

@@ -294,7 +294,12 @@ def _wait_terminal(
             {"project_id": project_id, "run_id": run_id},
             capsys,
         )
-        if status["data"]["run"]["status"] != "running":
+        run = status["data"]["run"]
+        if run["status"] != "running" and run.get("postprocess") in {
+            None,
+            "done",
+            "error",
+        }:
             return status
         time.sleep(0.1)
     return status

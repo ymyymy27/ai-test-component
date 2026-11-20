@@ -9,6 +9,11 @@ import {
 import { hashText } from "@/domain/ids";
 import type { Project, Report, Task } from "@/domain/types";
 
+function formatTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
+}
+
 export function reportMarkdown(project: Project, task: Task, report: Report): string {
   const lines: string[] = [];
   lines.push(`# 测试报告 · ${project.name}`);
@@ -33,11 +38,13 @@ export function reportMarkdown(project: Project, task: Task, report: Report): st
   lines.push("");
   lines.push("| 编号 | 验收项 | 最差结果 | 用例数 |");
   lines.push("| --- | --- | --- | --- |");
-  report.itemDetails.forEach((item) => {
-    lines.push(
-      `| ${item.no} | ${item.text} | ${statusText(item.outcome)} | ${item.caseIds.length} |`,
-    );
-  });
+  report.itemDetails
+    .filter((item) => item.selected)
+    .forEach((item) => {
+      lines.push(
+        `| ${item.no} | ${item.text} | ${statusText(item.outcome)} | ${item.caseIds.length} |`,
+      );
+    });
   lines.push("");
   if (report.uncoveredItems.length > 0) {
     lines.push("### 未纳入本次");
@@ -51,10 +58,17 @@ export function reportMarkdown(project: Project, task: Task, report: Report): st
     report.unverifiedItems.forEach((item) => lines.push(`- ${item}（执行通过也按阻塞计）`));
     lines.push("");
   }
+  if (report.planWarnings.length > 0) {
+    lines.push("### 计划警告");
+    lines.push("");
+    report.planWarnings.forEach((item) => lines.push(`- ${item}`));
+    lines.push("");
+  }
   lines.push("## 项目级检查");
   lines.push("");
   report.l1.forEach((check) => {
-    lines.push(`- ${check.name} · ${statusText(check.result)} · ${check.method}`);
+    const reason = check.reason ? ` · 原因：${check.reason}` : "";
+    lines.push(`- ${check.name} · ${statusText(check.result)} · ${check.method}${reason}`);
   });
   lines.push("");
   lines.push("## 分层计数");
@@ -93,7 +107,7 @@ export function reportMarkdown(project: Project, task: Task, report: Report): st
   lines.push("## 模拟数据判断");
   lines.push("");
   lines.push(
-    `真实 ${report.mock.real} · 模拟 ${report.mock.mock} · 混合 ${report.mock.mixed} · 无法判断 ${report.mock.unknown}。${report.mock.note}`,
+    `真实 ${report.mock.real} · 模拟 ${report.mock.mock} · 混合 ${report.mock.mixed} · 无法判断 ${report.mock.unknown}。真实链路通过：${report.mock.realChain ? "是" : "否"}。${report.mock.note}`,
   );
   lines.push("");
   lines.push("## 失败分析");
@@ -148,7 +162,7 @@ export function reportMarkdown(project: Project, task: Task, report: Report): st
   lines.push("");
   lines.push(
     report.opinion
-      ? `${report.opinion.by} · ${report.opinion.at}\n\n${report.opinion.text}`
+      ? `${report.opinion.by} · ${formatTime(report.opinion.at)}\n\n${report.opinion.text}`
       : "未填写验收意见。",
   );
   lines.push("");

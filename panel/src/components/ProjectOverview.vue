@@ -160,14 +160,6 @@ function toggleFeature(name: string, ignored: boolean): void {
     />
 
     <div class="overview-grid">
-      <section class="section overview-feed">
-        <div class="section-head">
-          <span class="section-title">最近活动</span>
-          <button class="link-btn" type="button" @click="emit('openHistory')">全部历史</button>
-        </div>
-        <ActivityList :runs="runs" :tasks="project.tasks" @open="emit('openRun', $event)" />
-      </section>
-
       <div class="overview-side">
         <ProjectMap
           :map="project.map"
@@ -216,6 +208,14 @@ function toggleFeature(name: string, ignored: boolean): void {
           <p v-else class="doc-note">当前没有未关闭问题。</p>
         </section>
       </div>
+
+      <section class="section overview-feed">
+        <div class="section-head">
+          <span class="section-title">最近活动</span>
+          <button class="link-btn" type="button" @click="emit('openHistory')">全部历史</button>
+        </div>
+        <ActivityList :runs="runs" :tasks="project.tasks" @open="emit('openRun', $event)" />
+      </section>
     </div>
 
     <section class="section overview-info">

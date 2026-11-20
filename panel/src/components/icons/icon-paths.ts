@@ -1,5 +1,6 @@
 export type IconName =
   | "menu"
+  | "overview"
   | "close"
   | "chevron-right"
   | "chevron-down"
@@ -26,6 +27,12 @@ export type IconName =
 
 export const ICONS: Record<IconName, string[]> = {
   menu: ["M3 4.5h10M3 8h10M3 11.5h10"],
+  overview: [
+    "M2.5 2.5h4.5v4.5H2.5z",
+    "M9 2.5h4.5v4.5H9z",
+    "M2.5 9h4.5v4.5H2.5z",
+    "M9 9h4.5v4.5H9z",
+  ],
   close: ["M4 4l8 8M12 4l-8 8"],
   "chevron-right": ["M6 3.5L10.5 8 6 12.5"],
   "chevron-down": ["M4 6.5l4 4 4-4"],

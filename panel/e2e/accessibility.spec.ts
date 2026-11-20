@@ -46,6 +46,7 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
   await page.locator("#setup-root").focus();
   await page.keyboard.type("D:/work/flow-keyboard");
   await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await page.keyboard.type("键盘验证");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");

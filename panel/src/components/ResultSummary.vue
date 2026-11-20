@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { conclusionForRun, itemOutcome } from "@/domain/derive";
+import { conclusionForRun, displayItemOutcome } from "@/domain/derive";
 import { VERDICT_LABEL } from "@/domain/labels";
 import type { CaseResult, Run, Task } from "@/domain/types";
 import CoverageRuler from "./CoverageRuler.vue";
@@ -16,7 +16,7 @@ const emit = defineEmits<{ select: [itemId: string] }>();
 const outcomes = computed<Record<string, CaseResult>>(() => {
   const map: Record<string, CaseResult> = {};
   props.run.items.forEach((item) => {
-    map[item.itemId] = itemOutcome(props.run, item.itemId);
+    map[item.itemId] = displayItemOutcome(props.run, item.itemId);
   });
   return map;
 });

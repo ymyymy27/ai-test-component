@@ -1534,6 +1534,28 @@ def test_run_quick_completes_without_task(
     assert listed["data"]["runs"][0]["task_title"] == ""
 
 
+def test_run_quick_empty_l1_is_not_applicable(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    _write_config(ws, project_id, {"l1": {}})
+
+    started = call(
+        tmp_path,
+        "run.quick",
+        {"project_id": project_id, "confirmed_by": "tester"},
+        capsys,
+        confirm=True,
+    )
+    assert started["ok"] is True, started
+    status = _wait_completed(tmp_path, capsys, project_id, started["data"]["run_id"])
+    assert status["data"]["outcome"] == "not_applicable"
+    assert status["data"]["run"]["l1"]["build"]["exit_code"] is None
+    assert status["data"]["run"]["l1"]["entries"] == []
+
+
 def test_project_map_missing_and_refresh_without_model(
     tmp_path: Path, capsys: Capsys
 ) -> None:

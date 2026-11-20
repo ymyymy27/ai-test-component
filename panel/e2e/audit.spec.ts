@@ -95,7 +95,7 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   }
   await expect(page.getByRole("button", { name: /^全部/ })).toHaveAttribute("aria-pressed", "true");
 
-  await page.getByRole("button", { name: /再次运行|重跑/ }).click();
+  await page.getByRole("button", { name: /重新生成计划|按未通过项|按未完成项/ }).click();
   await page.waitForURL(/\/plan/);
   await expect(page.locator(".plan-summary")).toBeVisible();
   await expect(page.url()).toContain(projectId);

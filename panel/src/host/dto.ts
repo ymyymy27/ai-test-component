@@ -357,6 +357,7 @@ export interface Run {
   confirmation_fingerprint?: string;
   kind?: "task" | "project_check";
   status: RunStatus;
+  postprocess?: "pending" | "running" | "done" | "error";
   current_case_id?: string;
   started_at: string;
   heartbeat_at?: string;
@@ -557,6 +558,7 @@ export interface Report {
   github?: Record<string, unknown> | null;
   uncovered_items: string[];
   unverified_items: string[];
+  plan_warnings?: string[];
   item_details: Record<string, unknown>[];
   case_details: Record<string, unknown>[];
   evidence_index: Record<string, unknown>[];

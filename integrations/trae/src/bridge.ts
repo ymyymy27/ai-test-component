@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { cleanEnvironment, spawnFailureCode, spawnProcess, type SpawnFn } from "./process";
 
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-const MAX_TIMEOUT_MS = 600_000;
+const MAX_TIMEOUT_MS = 900_000;
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 

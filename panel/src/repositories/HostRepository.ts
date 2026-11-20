@@ -571,7 +571,12 @@ export class HostRepository implements ProjectRepository {
     return confirmation;
   }
 
-  async startRun(projectId: string, taskId: string, planId: string): Promise<Run> {
+  async startRun(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    confirmedBy = "本机用户",
+  ): Promise<Run> {
     const project = await this.getProject(projectId);
     const plan = project?.tasks
       .find((task) => task.id === taskId)
@@ -583,6 +588,7 @@ export class HostRepository implements ProjectRepository {
       projectId,
       planId,
       plan.scope.acceptanceItemIds,
+      confirmedBy,
     );
     this.sidecar.setStage(taskId, null);
     const run = await this.getRun(projectId, started.run_id);
@@ -666,18 +672,40 @@ export class HostRepository implements ProjectRepository {
   async createIssue(projectId: string, input: IssueCreateInput): Promise<Issue> {
     const before = await this.getProject(projectId);
     const task = before?.tasks.find((entry) => entry.id === input.taskId);
-    const run =
-      task?.runs.find((entry) => entry.id === task.currentRunId) ?? task?.runs[0] ?? null;
-    const runCase =
-      input.itemId && run
-        ? (run.cases.find((testCase) => testCase.itemId === input.itemId) ?? null)
-        : null;
+    if (!task) {
+      throw new RepositoryError("NOT_FOUND", "任务不存在。", "刷新后重新选择任务。");
+    }
+    const runs = [...task.runs].sort((first, second) =>
+      second.startedAt.localeCompare(first.startedAt),
+    );
+    const run = runs.find((entry) => entry.id === task.currentRunId) ?? runs[0] ?? null;
+    if (!run) {
+      throw new RepositoryError(
+        "VALIDATION",
+        "这个任务还没有运行记录，不能登记问题。",
+        "先完成一次运行，再从结果页登记问题。",
+      );
+    }
+    const runCase = input.itemId
+      ? (run.cases.find((testCase) =>
+          (testCase.caseItemIds ?? [testCase.itemId]).includes(input.itemId),
+        ) ?? null)
+      : (run.cases[0] ?? null);
+    if (!runCase) {
+      throw new RepositoryError(
+        "VALIDATION",
+        input.itemId
+          ? "这次运行没有覆盖所选验收项，不能绑定问题。"
+          : "这次运行没有用例记录，不能登记问题。",
+        "选择覆盖该验收项的运行，或先重跑。",
+      );
+    }
     const created = await this.client.addIssue({
       projectId,
       title: input.title,
       severity: input.severity,
-      ...(run ? { runId: run.id } : {}),
-      ...(runCase ? { caseId: runCase.caseId } : {}),
+      runId: run.id,
+      caseId: runCase.caseId,
     });
     const project = await this.getProject(projectId);
     const issue = project?.issues.find((entry) => entry.id === created.issue_id);

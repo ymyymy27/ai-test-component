@@ -132,6 +132,7 @@ onBeforeUnmount(() => {
           <span class="check-name">{{ check.name }}</span>
           <span class="check-method">{{ check.method }}</span>
           <StatusText :result="check.result" />
+          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
     </section>

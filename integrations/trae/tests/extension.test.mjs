@@ -33,6 +33,7 @@ export const state = {
   responses: [],
   openDialogResult: [],
   revealed: 0,
+  revealThrows: false,
   opened: [],
 };
 
@@ -53,7 +54,12 @@ function makePanel() {
   };
   return {
     webview,
-    reveal() { state.revealed += 1; },
+    reveal() {
+      state.revealed += 1;
+      if (state.revealThrows) {
+        throw new Error("Webview is disposed");
+      }
+    },
     onDidDispose(cb) { state.panelDispose = cb; },
     dispose() { state.disposed = true; },
   };
@@ -252,6 +258,16 @@ test("panel call dispatches through the bridge with discovered runtime and setti
   const result = state.sent.at(-1);
   assert.equal(result.ok, true);
   assert.equal(result.id, "call-1");
+});
+
+test("backup commands wait longer than the CLI lock budget", async () => {
+  state.bridgeCalls.length = 0;
+  state.receive({ type: "call", id: "backup-1", command: "backup.create", payload: {} });
+  await until(
+    () => state.sent.some((message) => message.type === "result" && message.id === "backup-1"),
+    "backup result",
+  );
+  assert.equal(state.bridgeCalls.at(-1).config.timeoutMs, 630000);
 });
 
 test("run.start keeps confirmation, other commands cannot smuggle it", async () => {
@@ -454,4 +470,16 @@ test("openPath asks the editor to open the evidence file", async () => {
   assert.deepEqual(state.opened, ["C:/data/ws/evidence/run/error.log"]);
   const result = state.sent.at(-1);
   assert.equal(result.ok, true);
+});
+
+test("openPanel 在旧 webview 已销毁时重建面板", () => {
+  const before = state.panels.length;
+  state.revealThrows = true;
+  try {
+    assert.doesNotThrow(() => state.commands.get("aitest.openPanel")());
+  } finally {
+    state.revealThrows = false;
+  }
+  assert.equal(state.panels.length, before + 1);
+  assert.equal(state.panels[state.panels.length - 1].webview.html.includes("AI 辅助测试"), true);
 });

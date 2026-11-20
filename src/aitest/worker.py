@@ -30,7 +30,7 @@ from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
 from aitest.core.reports import build_report
 from aitest.errors import AiTestError
-from aitest.models import Attempt, Case, Delivery, Plan, Project, Run
+from aitest.models import Attempt, Case, Delivery, Plan, Project, Run, case_item_ids
 from aitest.procutil import process_created_at
 from aitest.runners.base import RunnerResult
 from aitest.runners.command_runner import run_command
@@ -125,12 +125,20 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
             pythonpath.append(item)
     if pythonpath:
         env["PYTHONPATH"] = os.pathsep.join(pythonpath)
+    effective_python = python or Path(sys.executable)
+    # Always put the interpreter we actually use first. A project without its
+    # own .venv would otherwise let a bare `python` in a command resolve to an
+    # unrelated installation from the parent PATH.
+    env["PATH"] = str(effective_python.parent) + os.pathsep + env.get("PATH", "")
     if python is not None:
-        env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
         env["VIRTUAL_ENV"] = str(python.parent.parent)
-        # A parent interpreter's PYTHONHOME poisons the project interpreter and
-        # makes its stdlib mix with a different Python version.
-        env.pop("PYTHONHOME", None)
+    else:
+        venv_root = effective_python.parent.parent
+        if (venv_root / "pyvenv.cfg").is_file():
+            env["VIRTUAL_ENV"] = str(venv_root)
+    # A parent interpreter's PYTHONHOME poisons the project interpreter and
+    # makes its stdlib mix with a different Python version.
+    env.pop("PYTHONHOME", None)
     env["AITEST_RUN_ID"] = run_id
     env["AITEST_DATA_PREFIX"] = data_prefix(run_id)
     return env
@@ -324,6 +332,54 @@ def _write_action(ws: Workspace, entry: dict[str, Any]) -> None:
         handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def _missing_dependencies(
+    python: Path,
+    dependencies: list[str],
+    env: dict[str, str] | None,
+) -> list[str] | None:
+    """Return requirements not importable by the project interpreter.
+
+    ``None`` means the interpreter could not be probed; callers must not treat
+    that as "all installed".
+    """
+    specs = sorted({item.strip() for item in dependencies if item.strip()})
+    if not specs:
+        return []
+    probe = (
+        "import importlib.metadata as m, sys\n"
+        "try:\n"
+        "    from packaging.requirements import Requirement\n"
+        "except Exception:\n"
+        "    Requirement = None\n"
+        "missing = []\n"
+        "for spec in sys.argv[1:]:\n"
+        "    req = Requirement(spec) if Requirement is not None else None\n"
+        "    name = req.name if req is not None else spec\n"
+        "    try:\n"
+        "        version = m.version(name)\n"
+        "    except Exception:\n"
+        "        missing.append(spec)\n"
+        "        continue\n"
+        "    if req is not None and req.specifier and version not in req.specifier:\n"
+        "        missing.append(spec)\n"
+        "print('\\n'.join(missing))\n"
+    )
+    try:
+        completed = subprocess.run(
+            [str(python), "-c", probe, *specs],
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    output = (completed.stdout or b"").decode("utf-8", errors="replace")
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
 def _install_dependencies(
     ws: Workspace,
     run_dir: Path,
@@ -335,6 +391,28 @@ def _install_dependencies(
 ) -> tuple[bool, str | None]:
     if not dependencies:
         return True, None
+    candidate = "evidence/deps-install.log"
+    missing = _missing_dependencies(python, dependencies, env)
+    if missing == []:
+        note = "依赖已可导入，跳过 pip 安装：".encode() + ", ".join(
+            dependencies
+        ).encode()
+        _save_evidence(
+            run_dir, "deps-install.log", note, "passed", settings, secrets
+        )
+        ref: str | None = candidate if (run_dir / candidate).is_file() else None
+        _write_action(
+            ws,
+            {
+                "at": iso_now(),
+                "action": "install_dependencies",
+                "dependencies": dependencies,
+                "exit_code": 0,
+                "ok": True,
+                "skipped": True,
+            },
+        )
+        return True, ref
     command = [
         str(python),
         "-m",
@@ -370,7 +448,7 @@ def _install_dependencies(
         secrets,
     )
     candidate = "evidence/deps-install.log"
-    ref: str | None = candidate if (run_dir / candidate).is_file() else None
+    ref = candidate if (run_dir / candidate).is_file() else None
     _write_action(
         ws,
         {
@@ -575,7 +653,66 @@ def _script_self_error(stderr: bytes) -> bool:
         b"ModuleNotFoundError",
         b"NameError: name",
     )
-    return any(marker in stderr for marker in markers)
+    if any(marker in stderr for marker in markers):
+        return True
+    # A wrong call signature (for example omitting a required positional
+    # argument) is a defect in the generated script, not in the product.
+    if b"TypeError: " in stderr or b"AttributeError: " in stderr:
+        return b"generated" in stderr
+    return False
+
+
+def _run_python_script(
+    python: Path,
+    script_path: Path,
+    workdir: Path,
+    env: dict[str, str],
+    cancelled: Callable[[], bool] | None,
+) -> RunnerResult:
+    """Run a generated .py script.
+
+    Generated scripts commonly use pytest-style ``def test_*`` functions; running
+    the file directly would define them and exit 0 without executing a single
+    assertion. Prefer pytest, and fall back to direct execution only when pytest
+    is unavailable or collects no tests (standalone Playwright-style scripts).
+    """
+    pytest_result = run_command(
+        f'"{python}" -m pytest -q "{script_path}"',
+        cwd=workdir,
+        env=env,
+        cancelled=cancelled,
+    )
+    fallback = pytest_result.exit_code == 5 or b"No module named pytest" in pytest_result.stderr
+    if fallback:
+        return run_command(
+            f'"{python}" "{script_path}"',
+            cwd=workdir,
+            env=env,
+            cancelled=cancelled,
+        )
+    return pytest_result
+
+
+def _case_dependencies_ready(
+    python: Path,
+    dependencies: list[str],
+    env: dict[str, str],
+    cache: dict[tuple[str, ...], list[str] | None],
+) -> tuple[bool, list[str] | None]:
+    """Per-case dependency gate.
+
+    A missing package for one case must not block unrelated cases that only
+    need packages already available in the interpreter.
+    """
+    if not dependencies:
+        return True, []
+    key = tuple(sorted(dependencies))
+    if key not in cache:
+        cache[key] = _missing_dependencies(python, dependencies, env)
+    missing = cache[key]
+    if missing is None:
+        return False, None
+    return not missing, missing
 
 
 def _execute(
@@ -599,10 +736,12 @@ def _execute(
         name = method[len("script:") :].strip()
         script_path = generated_dir / name
         if script_path.suffix == ".py":
-            result = run_command(
-                f'"{python}" "{script_path}"', cwd=workdir, env=env, cancelled=cancelled
+            result = _run_python_script(
+                python, script_path, workdir, env, cancelled
             )
-            if result.status == "failed" and _script_self_error(result.stderr):
+            if result.status == "failed" and _script_self_error(
+                result.stderr + b"\n" + result.stdout
+            ):
                 return (
                     "error",
                     [item for item in (result.stdout, result.stderr) if item],
@@ -744,25 +883,83 @@ def _record_postprocess_error(run_dir: Path, stage: str, exc: Exception) -> None
         handle.write(f"[{stage}] {exc}\n")
 
 
+def _set_postprocess(run_dir: Path, state: str) -> None:
+    """Update only the postprocess marker, preserving fields written meanwhile."""
+    path = run_dir / "run.json"
+    try:
+        current = read_model(path, Run)
+    except AiTestError:
+        return
+    current.postprocess = state  # type: ignore[assignment]
+    write_model(path, current)
+
+
 def _postprocess(ws: Workspace, project: Project, run_dir: Path, run: Run) -> None:
     """Best-effort analysis, issue drafts and report; run status is already final."""
-    has_failure = any(case.result in {"failed", "blocked", "error"} for case in run.cases)
-    if has_failure:
-        try:
-            analyze_run(ws, project.project_id, run_dir)
-        except Exception as exc:  # noqa: BLE001 - post-processing must not fail the run
-            _record_postprocess_error(run_dir, "analysis", exc)
+    _set_postprocess(run_dir, "running")
     try:
-        with ws.lock(timeout=300.0):
-            draft_failed_issues(ws, project.project_id, run_dir)
-    except Exception as exc:  # noqa: BLE001 - issue drafting must not block reports
-        _record_postprocess_error(run_dir, "issues", exc)
-    if run.status in {"completed", "execution_error", "cancelled"}:
+        has_failure = any(case.result in {"failed", "blocked", "error"} for case in run.cases)
+        if has_failure:
+            try:
+                analyze_run(ws, project.project_id, run_dir)
+            except Exception as exc:  # noqa: BLE001 - post-processing must not fail the run
+                _record_postprocess_error(run_dir, "analysis", exc)
         try:
             with ws.lock(timeout=300.0):
-                build_report(ws, project, run_dir, use_model=run.kind != "project_check")
-        except Exception as exc:  # noqa: BLE001 - a failed report never changes run state
-            _record_postprocess_error(run_dir, "report", exc)
+                draft_failed_issues(ws, project.project_id, run_dir)
+        except Exception as exc:  # noqa: BLE001 - issue drafting must not block reports
+            _record_postprocess_error(run_dir, "issues", exc)
+        if run.status in {"completed", "execution_error", "cancelled"}:
+            try:
+                with ws.lock(timeout=300.0):
+                    build_report(ws, project, run_dir, use_model=run.kind != "project_check")
+            except Exception as exc:  # noqa: BLE001 - a failed report never changes run state
+                _record_postprocess_error(run_dir, "report", exc)
+    finally:
+        state = "error" if (run_dir / "postprocess-error.txt").is_file() else "done"
+        _set_postprocess(run_dir, state)
+
+
+def _downgrade_script_failures(plan: Plan, run: Run) -> None:
+    """Do not report a generated-script assertion as a product failure when the
+    project's own passing command test covers the same acceptance item.
+
+    Such a contradiction usually means the generated expectation is wrong. It
+    is downgraded to ``error`` (incomplete, never passed); if no passing
+    command case covers the item, the failure stays ``failed`` so an uncovered
+    real defect is not hidden.
+    """
+    passed_command_items: set[str] = set()
+    for case in plan.cases:
+        run_case = next(
+            (item for item in run.cases if item.case_id == case.case_id), None
+        )
+        if (
+            run_case is not None
+            and run_case.result == "passed"
+            and case.verify_method.startswith(("command:", "pytest:"))
+        ):
+            passed_command_items.update(case_item_ids(case))
+    for case in plan.cases:
+        if not case.verify_method.startswith("script:"):
+            continue
+        run_case = next(
+            (item for item in run.cases if item.case_id == case.case_id), None
+        )
+        if run_case is None or run_case.result != "failed":
+            continue
+        items = case_item_ids(case)
+        if items and all(item in passed_command_items for item in items):
+            run_case.result = "error"
+            run_case.attempts.append(
+                Attempt(
+                    attempt=len(run_case.attempts) + 1,
+                    result="error",
+                    started_at=iso_now(),
+                    finished_at=iso_now(),
+                    message="项目测试通过但生成脚本失败，疑似脚本预期错误；不计产品失败",
+                )
+            )
 
 
 def _mark_cancelled(run: Run) -> None:
@@ -814,6 +1011,8 @@ def main(argv: list[str] | None = None) -> int:
 
         project_python = _venv_python(workdir)
         run_env = _run_env(workdir, project_python, run.run_id)
+        case_python = project_python or Path(sys.executable)
+        dependency_cache: dict[tuple[str, ...], list[str] | None] = {}
         config = _project_config(ws, args.project)
         secret_list = known_secret_values([config])
         service_configs = [] if run.kind == "project_check" else _services(config)
@@ -946,13 +1145,24 @@ def main(argv: list[str] | None = None) -> int:
                             )
                             _save(run_path, run)
                         continue
-                    if case.dependencies and not dependency_ok:
+                    ready, missing_deps = _case_dependencies_ready(
+                        case_python,
+                        case.dependencies,
+                        run_env,
+                        dependency_cache,
+                    )
+                    if not ready:
+                        message = (
+                            "依赖安装失败"
+                            if missing_deps is None
+                            else "依赖未安装：" + ", ".join(missing_deps)
+                        )
                         run_case.result = "blocked"
                         run_case.attempts.append(
                             Attempt(
                                 attempt=len(run_case.attempts) + 1,
                                 result="blocked",
-                                message="依赖安装失败",
+                                message=message,
                             )
                         )
                         _save(run_path, run)
@@ -1047,6 +1257,19 @@ def main(argv: list[str] | None = None) -> int:
                             refs.append(ref)
                     if is_http and request_id not in run.request_ids:
                         run.request_ids.append(request_id)
+                    if result == "passed" and not refs:
+                        # A silent passing command still needs a citable log, so a
+                        # pass can never be an evidence-free claim.
+                        ref = _save_evidence(
+                            run_dir,
+                            f"{case.case_id}-0.log",
+                            f"用例 {case.case_id} 通过；命令无输出。".encode(),
+                            result,
+                            evidence_settings,
+                            secret_list,
+                        )
+                        if ref is not None:
+                            refs.append(ref)
                     run.media_bytes = evidence_bytes(run_dir)
                     run_case.attempts.append(
                         Attempt(
@@ -1070,6 +1293,7 @@ def main(argv: list[str] | None = None) -> int:
                     if cancelled():
                         _mark_cancelled(run)
                     else:
+                        _downgrade_script_failures(plan, run)
                         run.status = "completed"
     except Exception as exc:  # noqa: BLE001 - record unexpected failure, do not crash silently
         run.status = "execution_error"

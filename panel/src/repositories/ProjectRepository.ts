@@ -184,7 +184,7 @@ export interface ProjectRepository {
     planId: string,
     input: ConfirmPlanInput,
   ): Promise<Confirmation>;
-  startRun(projectId: string, taskId: string, planId: string): Promise<Run>;
+  startRun(projectId: string, taskId: string, planId: string, confirmedBy?: string): Promise<Run>;
   recordRunCase(
     projectId: string,
     runId: string,

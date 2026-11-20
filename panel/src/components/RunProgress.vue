@@ -36,7 +36,7 @@ const currentItem = computed(() =>
           <strong class="num">{{ total }}</strong> 条检查 · {{ Math.floor(elapsedMs / 1000) }} 秒
         </p>
       </div>
-      <span class="badge is-accent">本地模拟</span>
+      <span v-if="run.simulated" class="badge is-accent">本地模拟</span>
     </div>
     <div
       class="progress"

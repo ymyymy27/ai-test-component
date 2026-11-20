@@ -68,11 +68,36 @@ export function effectiveCaseResult(runCase: RunCase, run: Run): CaseResult {
 }
 
 export function itemOutcome(run: Run, itemId: string): CaseResult {
-  const cases = run.cases.filter((testCase) => testCase.itemId === itemId);
+  const cases = run.cases.filter(
+    (testCase) => (testCase.caseItemIds ?? [testCase.itemId]).includes(itemId),
+  );
   if (cases.length === 0) {
     return "not_run";
   }
   return worstResult(cases.map((testCase) => effectiveCaseResult(testCase, run)));
+}
+
+/**
+ * 展示用逐项结论：宿主运行以 CLI 的 item_outcomes 为准（映射进 run.items），
+ * 本地模拟才回退到前端重算。
+ */
+export function displayItemOutcome(run: Run, itemId: string): CaseResult {
+  if (!run.simulated) {
+    const item = run.items.find((entry) => entry.itemId === itemId);
+    if (item) {
+      return item.outcome;
+    }
+  }
+  return itemOutcome(run, itemId);
+}
+
+export function compareItemNo(first: string, second: string): number {
+  const firstNo = Number.parseInt(first.replace(/\D+/g, ""), 10);
+  const secondNo = Number.parseInt(second.replace(/\D+/g, ""), 10);
+  if (Number.isFinite(firstNo) && Number.isFinite(secondNo) && firstNo !== secondNo) {
+    return firstNo - secondNo;
+  }
+  return first.localeCompare(second);
 }
 
 export function recountRun(run: Run): Run {
@@ -142,8 +167,8 @@ export function conclusionForRun(run: Run): string {
 
 export function sortedRunItems(run: Run): Run["items"] {
   return [...run.items].sort((first, second) => {
-    const firstRank = RESULT_RANK[itemOutcome(run, first.itemId)] ?? 0;
-    const secondRank = RESULT_RANK[itemOutcome(run, second.itemId)] ?? 0;
+    const firstRank = RESULT_RANK[displayItemOutcome(run, first.itemId)] ?? 0;
+    const secondRank = RESULT_RANK[displayItemOutcome(run, second.itemId)] ?? 0;
     if (firstRank !== secondRank) {
       return secondRank - firstRank;
     }
@@ -153,7 +178,7 @@ export function sortedRunItems(run: Run): Run["items"] {
 
 export function problemRunItems(run: Run): Run["items"] {
   return sortedRunItems(run).filter((item) =>
-    ["failed", "blocked", "error"].includes(itemOutcome(run, item.itemId)),
+    ["failed", "blocked", "error"].includes(displayItemOutcome(run, item.itemId)),
   );
 }
 

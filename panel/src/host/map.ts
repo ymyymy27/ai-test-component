@@ -32,6 +32,9 @@ import type {
   UnknownArea,
 } from "@/domain/types";
 import { hashText, isoNow } from "@/domain/ids";
+import { compareItemNo } from "@/domain/derive";
+
+export { compareItemNo };
 import type {
   Delivery as DeliveryDto,
   EvidenceItem,
@@ -133,14 +136,28 @@ export function mapConfig(raw: ProjectConfigDto): ProjectConfig {
     runners: { ...runners, test: str(runners.test), build: str(runners.build) },
     evidence: {
       ...evidence,
-      singleFileMb: num(evidence.singleFileMb ?? evidence.max_file_mb, 20),
-      mediaMb: num(evidence.mediaMb ?? evidence.media_total_mb, 500),
+      singleFileMb: num(
+        evidence.singleFileMb ?? evidence.file_cap_mb ?? evidence.max_file_mb,
+        20,
+      ),
+      mediaMb: num(
+        evidence.mediaMb ?? evidence.media_budget_mb ?? evidence.media_total_mb,
+        500,
+      ),
       video: bool(evidence.video),
     },
-    link: { ...link, logPath: str(link.logPath ?? link.log_path), query: str(link.query) },
+    link: {
+      ...link,
+      logPath: str(
+        link.logPath ??
+          link.log_path ??
+          (Array.isArray(link.log_paths) ? link.log_paths.join(", ") : ""),
+      ),
+      query: str(link.query),
+    },
     data: {
       ...data,
-      cleanupCommand: str(data.cleanupCommand ?? data.cleanup_command),
+      cleanupCommand: str(data.cleanupCommand ?? data.cleanup ?? data.cleanup_command),
       dataPrefix: str(data.dataPrefix ?? data.data_prefix),
     },
   };
@@ -148,9 +165,30 @@ export function mapConfig(raw: ProjectConfigDto): ProjectConfig {
 
 export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
   const l1 = config.l1 ?? {};
+  const services = config.services ?? {};
+  const evidence = config.evidence ?? {};
+  const link = config.link ?? {};
+  const data = config.data ?? {};
+  const { healthUrl, baseUrl, ...serviceRest } = services;
+  const { singleFileMb, mediaMb, video, ...evidenceRest } = evidence;
+  const { logPath, ...linkRest } = link;
+  const dataRest = { ...data };
+  delete dataRest.cleanupCommand;
+  delete dataRest.cleanup_command;
+  delete dataRest.dataPrefix;
+  delete dataRest.data_prefix;
+  const cleanupCommand = str(data.cleanupCommand ?? data.cleanup ?? data.cleanup_command);
+  const logPaths = (logPath ?? "")
+    .split(/[,，\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
   return {
     model: config.model ? { ...config.model } : {},
-    services: config.services ? { ...config.services } : {},
+    services: {
+      ...serviceRest,
+      health: healthUrl ?? "",
+      base_url: baseUrl ?? "",
+    },
     l1: {
       build: l1.build ?? "",
       entry: (l1.entry ?? "")
@@ -160,9 +198,21 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
       smoke_command: l1.smokeCommand ?? "",
     },
     runners: config.runners ? { ...config.runners } : {},
-    evidence: config.evidence ? { ...config.evidence } : {},
-    link: config.link ? { ...config.link } : {},
-    data: config.data ? { ...config.data } : {},
+    evidence: {
+      ...evidenceRest,
+      file_cap_mb: singleFileMb ?? 20,
+      media_budget_mb: mediaMb ?? 500,
+      video: video ?? false,
+    },
+    link: {
+      ...linkRest,
+      log_paths: logPaths,
+      ...(logPaths.length === 1 ? { log_path: logPaths[0] } : {}),
+    },
+    data: {
+      ...dataRest,
+      cleanup: cleanupCommand,
+    },
   };
 }
 
@@ -440,6 +490,8 @@ function mapProjectChecks(raw: unknown): ProjectCheck[] {
       result: asCaseResult(check.result ?? check.status, "not_run"),
       detail: str(check.detail ?? check.message ?? ""),
       time: str(check.time ?? check.at ?? ""),
+      reason: str(check.reason ?? check.message ?? ""),
+      evidenceRef: str(check.evidence_ref ?? check.evidenceRef ?? ""),
     }));
   }
   if (!isRecord(raw)) {
@@ -448,16 +500,25 @@ function mapProjectChecks(raw: unknown): ProjectCheck[] {
   if (Array.isArray(raw.checks)) {
     return mapProjectChecks(raw.checks);
   }
+  const blocking = strList(raw.blocking_reasons);
   const checks: ProjectCheck[] = [];
   if (isRecord(raw.build)) {
     const build = raw.build;
+    const ok = build.ok === true;
+    const exitCode = build.exit_code;
     checks.push({
       key: "build",
       name: "构建",
       method: "项目级构建",
-      result: build.ok === true ? "passed" : "failed",
-      detail: build.ok === true ? "退出码 0" : `退出码 ${String(build.exit_code ?? "未知")}`,
+      result: ok ? "passed" : "failed",
+      detail: ok
+        ? exitCode == null
+          ? "未记录退出码"
+          : `退出码 ${String(exitCode)}`
+        : `退出码 ${String(exitCode ?? "未知")}`,
       time: "",
+      reason: blocking.join("；"),
+      evidenceRef: str(build.evidence_ref),
     });
   }
   if (Array.isArray(raw.entries)) {
@@ -469,7 +530,19 @@ function mapProjectChecks(raw: unknown): ProjectCheck[] {
         result: entry.ok === true ? "passed" : "failed",
         detail: entry.ok === true ? "入口可加载" : "入口加载失败",
         time: "",
+        evidenceRef: str(entry.evidence_ref),
       });
+    });
+  }
+  if (blocking.length && checks.length === 0) {
+    checks.push({
+      key: "blocking",
+      name: "项目级检查",
+      method: "",
+      result: "blocked",
+      detail: "",
+      time: "",
+      reason: blocking.join("；"),
     });
   }
   return checks;
@@ -518,10 +591,14 @@ function mapRunCase(
 ): RunCase {
   const lastAttempt = dto.attempts[dto.attempts.length - 1];
   const refs = new Set([...(dto.evidence_refs ?? []), ...(lastAttempt?.evidence_refs ?? [])]);
+  const caseItemIds = planCase
+    ? [planCase.itemId, ...planCase.extraItemIds].filter(Boolean)
+    : [];
   return {
     id: dto.case_id,
     caseId: dto.case_id,
-    itemId: planCase?.itemId ?? "",
+    itemId: planCase?.itemId ?? caseItemIds[0] ?? "",
+    caseItemIds,
     title: planCase?.title ?? dto.case_id,
     method: planCase?.verifyMethod ?? "",
     layer: planCase?.layer ?? "L2",
@@ -576,9 +653,12 @@ export function mapRun(
       module: item?.moduleName ?? "",
       feature: item?.featureName ?? "",
       outcome: outcomes.get(itemId) ?? "not_run",
-      caseIds: cases.filter((testCase) => testCase.itemId === itemId).map((testCase) => testCase.id),
+      caseIds: cases
+        .filter((testCase) => (testCase.caseItemIds ?? [testCase.itemId]).includes(itemId))
+        .map((testCase) => testCase.id),
     };
   });
+  items.sort((first, second) => compareItemNo(first.no, second.no));
   const started = new Date(dto.started_at).getTime();
   const elapsedSeconds = num(dto.elapsed_seconds);
   const elapsedMs = dto.status === "running" ? Math.max(0, Date.now() - started) : elapsedSeconds * 1000;
@@ -589,6 +669,7 @@ export function mapRun(
     planId: dto.plan_id,
     kind: dto.kind ?? "task",
     status: dto.status,
+    postprocess: dto.postprocess ?? "done",
     startedAt: dto.started_at,
     finishedAt:
       dto.status === "running"
@@ -685,8 +766,10 @@ export function mapReport(
       text: str(item.text),
       outcome: asCaseResult(item.result ?? item.outcome),
       caseIds: strList(item.case_ids),
+      selected: item.selected !== false,
     };
   });
+  itemDetails.sort((first, second) => compareItemNo(first.no, second.no));
   const caseDetails: ReportCaseDetail[] = records(dto.case_details).map((testCase) => {
     const caseId = str(testCase.case_id);
     const planCase = plan?.cases.find((entry) => entry.id === caseId) ?? null;
@@ -722,15 +805,26 @@ export function mapReport(
     incomplete: 0,
   });
   const mockRecords = records(dto.mock_judgement);
+  const mockKind = (entry: Record<string, unknown>): unknown => entry.kind ?? entry.result;
   const mock = {
-    real: mockRecords.filter((entry) => entry.result === "real").length,
-    mock: mockRecords.filter((entry) => entry.result === "mock").length,
-    mixed: mockRecords.filter((entry) => entry.result === "mixed").length,
-    unknown: mockRecords.filter((entry) => entry.result === "unknown").length,
+    real: mockRecords.filter((entry) => mockKind(entry) === "real").length,
+    mock: mockRecords.filter((entry) => mockKind(entry) === "mock").length,
+    mixed: mockRecords.filter((entry) => mockKind(entry) === "mixed").length,
+    unknown: mockRecords.filter((entry) => mockKind(entry) === "unknown").length,
+    realChain: dto.real_chain === true,
     note: mockRecords.length
       ? "Mock 真实性由后端判定；含模拟或无法判断的用例不能获得真实链路通过。"
       : "本次没有 Mock 判定记录；未产生真实链路通过结论。",
     refs: [],
+  };
+  const l1 = mapProjectChecks(dto.l1);
+  const l1Layer = {
+    total: l1.length,
+    passed: l1.filter((check) => check.result === "passed").length,
+    failed: l1.filter((check) => check.result === "failed" || check.result === "error").length,
+    incomplete: l1.filter(
+      (check) => !["passed", "failed", "error"].includes(check.result),
+    ).length,
   };
   return {
     id: dto.report_id,
@@ -750,8 +844,8 @@ export function mapReport(
     },
     itemDetails,
     caseDetails,
-    l1: mapProjectChecks(dto.l1),
-    layers: caseLayers,
+    l1,
+    layers: { ...caseLayers, L1: l1Layer },
     issues: records(dto.issues)
       .map((issue) => str(issue.issue_id))
       .filter(Boolean),
@@ -765,6 +859,7 @@ export function mapReport(
     unmapped: strList(dto.unmapped_files),
     uncoveredItems: strList(dto.uncovered_items),
     unverifiedItems: strList(dto.unverified_items),
+    planWarnings: strList(dto.plan_warnings ?? []),
     evidenceIndex: evidence,
     source: {
       runTime: run?.startedAt ?? "",

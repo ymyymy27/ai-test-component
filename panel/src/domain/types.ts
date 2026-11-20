@@ -264,12 +264,15 @@ export interface ProjectCheck {
   result: CaseResult;
   detail: string;
   time: string;
+  reason?: string;
+  evidenceRef?: string;
 }
 
 export interface RunCase {
   id: string;
   caseId: string;
   itemId: string;
+  caseItemIds?: string[];
   title: string;
   method: string;
   layer: Layer;
@@ -317,6 +320,7 @@ export interface Run {
   planId: string;
   kind: RunKind;
   status: RunStatus;
+  postprocess?: "pending" | "running" | "done" | "error";
   startedAt: string;
   finishedAt: string;
   elapsedMs: number;
@@ -419,6 +423,7 @@ export interface MockSummary {
   mock: number;
   mixed: number;
   unknown: number;
+  realChain: boolean;
   note: string;
   refs: string[];
 }
@@ -429,6 +434,7 @@ export interface ReportItemDetail {
   text: string;
   outcome: CaseResult;
   caseIds: string[];
+  selected: boolean;
 }
 
 export interface ReportCaseDetail {
@@ -488,6 +494,7 @@ export interface Report {
   unmapped: string[];
   uncoveredItems: string[];
   unverifiedItems: string[];
+  planWarnings: string[];
   evidenceIndex: EvidenceRef[];
   source: ReportSource;
   summary: string;

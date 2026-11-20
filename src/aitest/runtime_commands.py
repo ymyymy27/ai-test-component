@@ -45,7 +45,7 @@ from aitest.core.evidence import (
     settings_from_config,
 )
 from aitest.core.expectations import annotate_cases, ensure_publishable, expectation_matches
-from aitest.core.issues import add_issue
+from aitest.core.issues import add_issue, ensure_run_issues
 from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
 from aitest.core.project_context import build_project_context
@@ -192,7 +192,11 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
             break
     config = load_project_config(ws, project.project_id)
     derived = build_project_context(root, config)
+    for directory in derived["test_dirs"]:
+        if directory not in files:
+            files.append(directory)
     secrets = known_secret_values([config])
+    example = derived.get("test_example")
     return {
         "root": str(root),
         "routes": [redact(item, secrets) for item in sources],
@@ -204,6 +208,8 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "test_commands": derived["test_commands"],
         "smoke_command": derived["smoke_command"],
         "smallest_test": derived["smallest_test"],
+        "test_example": redact_tree(example, secrets) if isinstance(example, dict) else None,
+        "symbols": derived.get("symbols", {}),
         "test_dirs": derived["test_dirs"],
         "framework": derived["framework"],
         "has_frontend": derived["has_frontend"],
@@ -953,7 +959,25 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 or item.get("acceptance_item_id") in selected
                 or item.get("acceptance_item_id") is None
             ]
-    _validate_plan_cases(cases, task.intent, context)
+    try:
+        _validate_plan_cases(cases, task.intent, context)
+    except AiTestError as exc:
+        if regenerate is None or not generated_cases or exc.info.code != "INVALID_REQUEST":
+            raise
+        # Give the model the validator's reason once instead of failing the
+        # whole plan generation on a fixable script detail (for example an
+        # external example.org URL).
+        raw_cases = regenerate(
+            f"上一次生成的计划未通过校验：{exc.info.message}。请修正后重新生成。"
+        )
+        cases = [
+            Case.model_validate(item)
+            for item in raw_cases
+            if not isinstance(item, dict)
+            or item.get("acceptance_item_id") in selected
+            or item.get("acceptance_item_id") is None
+        ]
+        _validate_plan_cases(cases, task.intent, context)
     plan_preview = Plan(
         plan_id="preview",
         task_id=task.task_id,
@@ -2137,6 +2161,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
     project = _project(ws, payload)
     run_dir, run = _run(ws, payload)
     _ensure_settled(run)
+    ensure_run_issues(ws, project.project_id, run_dir)
     report = build_report(ws, project, run_dir)
     return {
         "report_id": report.report_id,
@@ -2150,6 +2175,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         "unmapped_files": report.unmapped_files,
         "uncovered_items": report.uncovered_items,
         "unverified_items": report.unverified_items,
+        "plan_warnings": report.plan_warnings,
         "layers": report.layers,
         "item_details": report.item_details,
         "l1": report.l1,
@@ -2869,12 +2895,23 @@ def _record_base(restored: Path, path: Path, data: dict[str, Any]) -> Path:
     return path.parent
 
 
+def _is_evidence_ref(ref: str) -> bool:
+    """Only workspace evidence belongs in missing-evidence checks.
+
+    Mock judgement also carries ``evidence_refs`` pointing at project source
+    files; those are not copied into the workspace and must not be reported as
+    missing evidence.
+    """
+    normalized = ref.strip().replace("\\", "/")
+    return normalized.startswith("evidence/") or normalized.startswith("generated/")
+
+
 def _missing_evidence(restored: Path) -> list[str]:
     missing: list[str] = []
 
     def check(base: Path, refs: object) -> None:
         for ref in _evidence_refs({"evidence_refs": refs}):
-            if not _is_local_ref(ref) or ref in missing:
+            if not _is_local_ref(ref) or not _is_evidence_ref(ref) or ref in missing:
                 continue
             if not (base / ref).is_file():
                 missing.append(ref)
@@ -2905,7 +2942,7 @@ def _missing_evidence(restored: Path) -> list[str]:
             continue
         base = _record_base(restored, path, data)
         for ref in _evidence_refs(data):
-            if not _is_local_ref(ref) or ref in missing:
+            if not _is_local_ref(ref) or not _is_evidence_ref(ref) or ref in missing:
                 continue
             if not (base / ref).is_file():
                 missing.append(ref)

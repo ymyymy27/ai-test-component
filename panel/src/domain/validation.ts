@@ -73,7 +73,7 @@ export function validateProjectForm(
   }
 
   if (!name) {
-    errors.name = "项目名不能为空；留空时取目录名。";
+    errors.name = "无法从目录名推断项目名，请填写项目名。";
   } else if (name.length > 40) {
     errors.name = "项目名最多 40 个字。";
   }

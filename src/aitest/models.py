@@ -212,6 +212,7 @@ class Run(Model):
     confirmation_fingerprint: str = ""
     confirmation_reused: bool = False
     status: RunStatus = "running"
+    postprocess: Literal["pending", "running", "done", "error"] = "pending"
     current_case_id: str = ""
     pid: int | None = None
     pid_created_at: float | None = None
@@ -327,6 +328,7 @@ class Report(Model):
     github: dict[str, Any] | None = None
     uncovered_items: list[str] = Field(default_factory=list)
     unverified_items: list[str] = Field(default_factory=list)
+    plan_warnings: list[str] = Field(default_factory=list)
     item_details: list[dict[str, Any]] = Field(default_factory=list)
     case_details: list[dict[str, Any]] = Field(default_factory=list)
     evidence_index: list[dict[str, Any]] = Field(default_factory=list)

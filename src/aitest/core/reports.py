@@ -450,6 +450,20 @@ def _conclusion(
     )
 
 
+def _next_report_revision(ws: Workspace, project_id: str, run_id: str) -> int:
+    directory = ws.project_dir(project_id) / "reports"
+    highest = 0
+    if directory.is_dir():
+        for path in directory.glob("*.json"):
+            try:
+                existing = read_model(path, Report)
+            except AiTestError:
+                continue
+            if existing.run_id == run_id:
+                highest = max(highest, existing.revision)
+    return highest + 1
+
+
 def build_report(
     ws: Workspace,
     project: Project,
@@ -491,6 +505,12 @@ def build_report(
     )
     summary, summary_source = _summary(outcome, counts, uncovered, client, kind=run.kind)
     issues, issue_count, failure_occurrences = _issues_summary(ws, project.project_id, run)
+    unverified_items = [
+        f"{case.case_id}：{'；'.join(case.warnings)}"
+        for case in plan.cases
+        if case.warnings
+    ]
+    plan_warnings = [warning for warning in plan.warnings if warning not in unverified_items]
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
@@ -517,15 +537,13 @@ def build_report(
         environment=_environment(ws, project.project_id),
         github=github,
         uncovered_items=uncovered,
-        unverified_items=[
-            f"{case.case_id}：{'；'.join(case.warnings)}"
-            for case in plan.cases
-            if case.warnings
-        ],
+        unverified_items=unverified_items,
+        plan_warnings=plan_warnings,
         item_details=_item_details(plan, run, task),
         case_details=_case_details(plan, run),
         evidence_index=_evidence_index(run_dir, run),
         l1=_l1_details(plan, run),
+        revision=_next_report_revision(ws, project.project_id, run.run_id),
     )
     secrets = known_secret_values([load_project_config(ws, project.project_id)])
     safe = Report.model_validate(redact_tree(report.model_dump(mode="json"), secrets))

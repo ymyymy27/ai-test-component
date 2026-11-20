@@ -235,6 +235,28 @@ def _previous_case_result(
     return candidates[-1][1]
 
 
+def ensure_run_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[str]:
+    """Draft issues for a run's failed cases if post-processing has not done it.
+
+    Report generation can race the worker's best-effort post-processing. Without
+    this guard a report could truthfully say "failed" while its issue list is
+    empty, which reads like no problem was recorded.
+    """
+    run = read_model(run_dir / "run.json", Run)
+    if not any(case.result == "failed" for case in run.cases):
+        return []
+    directory = issues_dir(ws, project_id)
+    if directory.is_dir():
+        for path in directory.glob("*.json"):
+            try:
+                issue = read_model(path, Issue)
+            except AiTestError:
+                continue
+            if any(item.run_id == run.run_id for item in issue.occurrences):
+                return []
+    return draft_failed_issues(ws, project_id, run_dir)
+
+
 def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[str]:
     """Create draft issues for failed cases and flag inconsistent later passes."""
     run = read_model(run_dir / "run.json", Run)

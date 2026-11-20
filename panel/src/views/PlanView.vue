@@ -9,7 +9,11 @@ import ErrorState from "@/components/ErrorState.vue";
 import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import PlanLedger from "@/components/PlanLedger.vue";
-import { currentPlan as readCurrentPlan, unselectedItems } from "@/domain/derive";
+import {
+  compareItemNo,
+  currentPlan as readCurrentPlan,
+  unselectedItems,
+} from "@/domain/derive";
 import type { CaseResult, Plan, Task } from "@/domain/types";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -60,10 +64,12 @@ const confirmHint = computed(() => {
   return "";
 });
 const items = computed(() =>
-  (plan.value?.scope.acceptanceItemIds ?? []).map((itemId) => {
-    const item = task.value?.acceptanceItems.find((entry) => entry.id === itemId);
-    return { itemId, no: item?.no ?? "", text: item?.text ?? "验收项已归档" };
-  }),
+  (plan.value?.scope.acceptanceItemIds ?? [])
+    .map((itemId) => {
+      const item = task.value?.acceptanceItems.find((entry) => entry.id === itemId);
+      return { itemId, no: item?.no ?? "", text: item?.text ?? "验收项已归档" };
+    })
+    .sort((first, second) => compareItemNo(first.no, second.no)),
 );
 const outcomes = computed<Record<string, CaseResult>>(() => {
   const map: Record<string, CaseResult> = {};
