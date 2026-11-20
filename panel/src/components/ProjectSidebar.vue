@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { projectStatus } from "@/domain/derive";
 import { stageLabel } from "@/domain/stateMachine";
@@ -34,6 +34,10 @@ const query = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const menuTaskId = ref<string | null>(null);
+const tasksCollapsed = ref(false);
+const menuRef = ref<HTMLElement | null>(null);
+const menuButtons = new Map<string, HTMLButtonElement>();
+const COLLAPSE_PREFIX = "aitest.tasks-collapsed.";
 const renamingTaskId = ref<string | null>(null);
 const renameValue = ref("");
 const renameInput = ref<HTMLInputElement | null>(null);
@@ -66,6 +70,31 @@ const runCount = computed(
     currentProject.value?.tasks.reduce((total, task) => total + task.runs.length, 0) ?? 0,
 );
 
+watch(
+  () => props.currentProjectId,
+  (projectId) => {
+    try {
+      tasksCollapsed.value = projectId
+        ? localStorage.getItem(`${COLLAPSE_PREFIX}${projectId}`) === "1"
+        : false;
+    } catch {
+      tasksCollapsed.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+watch(tasksCollapsed, (collapsed) => {
+  if (!props.currentProjectId) {
+    return;
+  }
+  try {
+    localStorage.setItem(`${COLLAPSE_PREFIX}${props.currentProjectId}`, collapsed ? "1" : "0");
+  } catch {
+    // 本地存储不可用时只保留当前状态。
+  }
+});
+
 function toneFor(project: Project): string {
   return projectStatus(project).tone;
 }
@@ -88,6 +117,59 @@ function selectTask(taskId: string): void {
 function toggleTaskMenu(taskId: string, event: MouseEvent): void {
   event.stopPropagation();
   menuTaskId.value = menuTaskId.value === taskId ? null : taskId;
+  if (menuTaskId.value) {
+    void nextTick(() => {
+      const first = menuRef.value?.querySelector<HTMLButtonElement>(
+        'button[role="menuitem"]:not(:disabled)',
+      );
+      first?.focus();
+    });
+  }
+}
+
+function setMenuRef(element: unknown): void {
+  menuRef.value = element instanceof HTMLElement ? element : null;
+}
+
+function setMenuButton(taskId: string, element: unknown): void {
+  if (element instanceof HTMLButtonElement) {
+    menuButtons.set(taskId, element);
+  } else {
+    menuButtons.delete(taskId);
+  }
+}
+
+function onTaskMenuKeydown(event: KeyboardEvent, taskId: string): void {
+  const menu = event.currentTarget;
+  if (!(menu instanceof HTMLElement)) {
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    menuTaskId.value = null;
+    void nextTick(() => menuButtons.get(taskId)?.focus());
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    return;
+  }
+  const items = Array.from(
+    menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)'),
+  );
+  if (items.length === 0) {
+    return;
+  }
+  event.preventDefault();
+  const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? (current + 1) % items.length
+          : (current - 1 + items.length) % items.length;
+  items[next]?.focus();
 }
 
 function openTaskDetails(projectId: string, taskId: string): void {
@@ -225,7 +307,7 @@ defineExpose({ focusSearch, focusClose });
             :aria-current="section === 'history' ? 'page' : undefined"
             @click="emit('openHistory', project.id)"
           >
-            记录
+            运行记录
             <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
           </button>
           <button
@@ -243,17 +325,38 @@ defineExpose({ focusSearch, focusClose });
           aria-label="当前项目的任务"
         >
           <div class="side-task-head">
-            <span>任务</span>
-            <button
-              class="side-add"
-              type="button"
-              :disabled="Boolean(runningTaskId)"
-              @click="emit('newTask', project.id)"
-            >
-              <Icon name="plus" :size="12" />
-              新建
-            </button>
+            <span class="side-task-label">
+              任务
+              <span v-if="tasks.length" class="side-task-count">{{ tasks.length }}</span>
+            </span>
+            <div class="side-task-actions">
+              <button
+                class="side-add"
+                type="button"
+                :disabled="Boolean(runningTaskId)"
+                @click="emit('newTask', project.id)"
+              >
+                <Icon name="plus" :size="12" />
+                新建
+              </button>
+              <button
+                class="side-task-toggle"
+                :class="{ 'is-collapsed': tasksCollapsed }"
+                type="button"
+                :aria-expanded="!tasksCollapsed"
+                :aria-controls="`tasks-${project.id}`"
+                :aria-label="tasksCollapsed ? '展开任务' : '收起任务'"
+                @click="tasksCollapsed = !tasksCollapsed"
+              >
+                <Icon name="chevron-down" :size="14" />
+              </button>
+            </div>
           </div>
+          <div
+            v-show="!tasksCollapsed"
+            :id="`tasks-${project.id}`"
+            class="side-task-body"
+          >
           <button
             v-if="draft"
             class="side-task"
@@ -296,6 +399,7 @@ defineExpose({ focusSearch, focusClose });
               class="side-task"
               :class="{ 'is-active': task.id === currentTaskId }"
               type="button"
+              :title="task.title"
               :aria-current="task.id === currentTaskId ? 'page' : undefined"
               :disabled="Boolean(runningTaskId && runningTaskId !== task.id)"
               @click="selectTask(task.id)"
@@ -307,6 +411,7 @@ defineExpose({ focusSearch, focusClose });
             </button>
             <button
               v-if="renamingTaskId !== task.id"
+              :ref="(element) => setMenuButton(task.id, element)"
               class="side-task-more"
               type="button"
               aria-label="任务操作"
@@ -316,7 +421,13 @@ defineExpose({ focusSearch, focusClose });
             >
               <Icon name="more" :size="14" />
             </button>
-            <div v-if="menuTaskId === task.id" class="side-task-menu" role="menu">
+            <div
+              v-if="menuTaskId === task.id"
+              :ref="setMenuRef"
+              class="side-task-menu"
+              role="menu"
+              @keydown="onTaskMenuKeydown($event, task.id)"
+            >
               <button
                 type="button"
                 role="menuitem"
@@ -346,6 +457,7 @@ defineExpose({ focusSearch, focusClose });
           <p v-if="tasks.length === 0 && !draft" class="side-empty">
             还没有任务。点“新建”开始。
           </p>
+          </div>
         </div>
       </div>
     </div>

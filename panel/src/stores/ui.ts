@@ -96,7 +96,7 @@ export const useUiStore = defineStore("ui", () => {
     const narrowQuery = window.matchMedia(NARROW_QUERY);
     narrowQuery.addEventListener?.("change", (event) => {
       narrow.value = event.matches;
-      if (!event.matches) {
+      if (event.matches) {
         sidebarOpen.value = false;
       }
     });

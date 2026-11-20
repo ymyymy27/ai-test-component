@@ -236,14 +236,8 @@ function rerunLabel(): string {
     <PageHeader
       kicker="结果"
       :title="task.title"
-      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · 由 ${run.confirmedBy} 确认`"
-    >
-      <template #actions>
-        <span class="badge" :class="run.simulated ? 'is-neutral' : 'is-accent'">
-          {{ run.simulated ? "本地模拟" : "真实运行" }}
-        </span>
-      </template>
-    </PageHeader>
+      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · 由 ${run.confirmedBy} 确认 · ${run.simulated ? '本地模拟' : '真实运行'}`"
+    />
 
     <ResultSummary :run="run" :task="task" @select="caseLedgerRef?.focusItem($event)" />
 

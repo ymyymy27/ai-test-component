@@ -29,7 +29,6 @@ const workspace = useWorkspaceStore();
 
 const emit = defineEmits<{
   newTask: [];
-  quickCheck: [];
   viewCandidates: [];
   openTask: [taskId: string];
   openRun: [runId: string];
@@ -62,10 +61,10 @@ const status = computed(() => projectStatus(props.project));
 const boundRule = computed(
   () => props.project.rules.find((rule) => rule.id === props.project.rulesVersionId) ?? null,
 );
-const latestRunText = computed(() => {
-  const latest = runs.value[0];
-  return latest ? new Date(latest.startedAt).toLocaleString("zh-CN") : "还没有运行";
-});
+const latestRun = computed(() => runs.value[0] ?? null);
+const latestRunText = computed(() =>
+  latestRun.value ? new Date(latestRun.value.startedAt).toLocaleString("zh-CN") : "",
+);
 
 function taskTitle(taskId: string): string {
   return props.project.tasks.find((task) => task.id === taskId)?.title ?? "任务已归档";
@@ -111,15 +110,6 @@ function toggleFeature(name: string, ignored: boolean): void {
       </div>
       <div class="page-actions">
         <button
-          class="btn btn-sm"
-          type="button"
-          :disabled="Boolean(running)"
-          :title="running ? '有任务正在运行，完成或停止后再检查' : undefined"
-          @click="emit('quickCheck')"
-        >
-          快速检查
-        </button>
-        <button
           class="btn btn-sm btn-primary"
           type="button"
           :disabled="Boolean(running)"
@@ -138,7 +128,7 @@ function toggleFeature(name: string, ignored: boolean): void {
       :features="features.length"
     />
     <p class="overview-summary">
-      最近运行 {{ latestRunText }} · {{ project.modules.length }} 个模块已识别
+      {{ latestRunText ? `最近运行 ${latestRunText} · ` : "" }}{{ project.modules.length }} 个模块已识别
     </p>
 
     <div v-if="analyzing" class="analysis-strip" role="status" aria-live="polite" aria-busy="true">

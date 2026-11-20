@@ -140,8 +140,9 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
 
     await page.getByRole("button", { name: "开始测试" }).click();
     await page.waitForURL(/tasks\/new/);
+    await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
     await page.locator("textarea").fill("验证 add(1,2) 返回 3");
-    await page.getByRole("button", { name: "开始测试" }).click();
+    await page.getByRole("button", { name: "创建任务并生成计划" }).click();
     await page.waitForURL(/\/plan/, { timeout: 180_000 });
     await expect(page.locator(".plan-summary")).toContainText("本次");
 

@@ -4,7 +4,9 @@ import { createProject, test } from "./fixtures";
 
 test("快速检查只做项目级 L1，不建任务、不进入验收项覆盖", async ({ page }) => {
   await createProject(page, "快速检查验证", "D:/work/flow-quick");
-  await page.getByRole("button", { name: "快速检查", exact: true }).click();
+  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.locator(".test-mode").filter({ hasText: "快速检查" }).click();
+  await page.getByRole("button", { name: "开始快速检查" }).click();
   await page.waitForURL(/quick-check/);
 
   await expect(page.locator("body")).toContainText("不进入验收项覆盖");

@@ -250,9 +250,7 @@ function bytesText(bytes: number): string {
         >
           {{ regenerating ? "正在生成…" : "重新生成" }}
         </button>
-        <button class="btn btn-sm btn-primary" type="button" @click="exportReport">
-          导出 Markdown
-        </button>
+        <button class="btn btn-sm" type="button" @click="exportReport">导出 Markdown</button>
       </template>
     </PageHeader>
 

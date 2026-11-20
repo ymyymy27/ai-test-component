@@ -514,7 +514,7 @@ export class LocalStorageRepository implements ProjectRepository {
       const index = project.tasks.findIndex((task) => task.id === draft?.id);
       project.tasks[index] = confirmed;
       project.activeTaskId = confirmed.id;
-      if (!project.goal) {
+      if (!project.goal && input.writeProjectGoal !== false) {
         project.goal = input.goal.trim();
       }
       return confirmed;

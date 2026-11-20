@@ -507,7 +507,7 @@ async function clearData(): Promise<void> {
                 id="config-build"
                 v-model="configDraft.l1.build"
                 type="text"
-                placeholder="例如 app, src.main"
+                placeholder="例如 pnpm build"
               />
             </div>
             <div class="field">

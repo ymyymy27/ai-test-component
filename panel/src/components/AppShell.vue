@@ -25,6 +25,9 @@ const task = computed(() => workspace.currentTask);
 const sectionTitle = computed(() =>
   typeof route.meta.title === "string" ? route.meta.title : "AI 测试",
 );
+const taskScoped = computed(() =>
+  ["scope", "plan", "run", "result", "task-details", "report"].includes(String(route.name)),
+);
 const currentSection = computed(() => {
   const name = String(route.name ?? "");
   if (name === "overview") return "overview";
@@ -34,10 +37,40 @@ const currentSection = computed(() => {
   return "";
 });
 const backRoute = computed(() => {
-  if (!project.value) {
+  const currentProject = project.value;
+  if (!currentProject) {
     return null;
   }
-  return taskRoute.value ?? `/projects/${project.value.id}/overview`;
+  const overview = `/projects/${currentProject.id}/overview`;
+  const currentTask = task.value;
+  const taskBase = currentTask
+    ? `/projects/${currentProject.id}/tasks/${currentTask.id}`
+    : "";
+  const name = String(route.name ?? "");
+  if (name === "overview") {
+    return null;
+  }
+  if (name === "issue-detail") {
+    return `/projects/${currentProject.id}/issues`;
+  }
+  if (name === "report") {
+    return currentTask ? `${taskBase}/result` : overview;
+  }
+  if (name === "result" || name === "run") {
+    return currentTask ? `${taskBase}/plan` : overview;
+  }
+  if (name === "scope" && currentTask?.previousStage) {
+    if (currentTask.previousStage === "planned") {
+      return `${taskBase}/plan`;
+    }
+    if (currentTask.previousStage === "result") {
+      return `${taskBase}/result`;
+    }
+    if (currentTask.previousStage === "running") {
+      return `${taskBase}/run`;
+    }
+  }
+  return overview;
 });
 const missingCount = computed(() => missingEnvironmentCount(workspace.environment));
 const taskRoute = computed(() => {
@@ -260,7 +293,7 @@ onBeforeUnmount(() => {
       :inert="ui.narrow && !ui.sidebarOpen"
       :projects="workspace.projects"
       :current-project-id="workspace.currentProjectId"
-      :current-task-id="workspace.currentTask?.id ?? null"
+      :current-task-id="taskScoped ? (workspace.currentTask?.id ?? null) : null"
       :running-task-id="workspace.runningTask?.id ?? null"
       :section="currentSection"
       :open="ui.sidebarOpen"

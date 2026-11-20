@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { createAndRun, test } from "./fixtures";
+import { createAndRun, createProject, test } from "./fixtures";
 
 const widths = [320, 768, 1200];
 
@@ -47,4 +47,31 @@ test("桌面宽度保留 248px 项目树", async ({ page }) => {
     return element.getBoundingClientRect().width;
   });
   expect(Math.round(width)).toBe(248);
+});
+
+
+test("320 宽度下三个测试入口同级且不横向滚动", async ({ page }) => {
+  await createProject(page, "窄屏开始测试", "D:/work/responsive-start");
+  await page.getByRole("button", { name: "开始测试", exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect(page.locator(".test-mode")).toHaveCount(3);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(overflow).toBe(false);
+});
+
+
+test("窄屏返回指向上一级，运行记录不横向滚动", async ({ page }) => {
+  const projectId = await createAndRun(page, "窄屏导航验证", "D:/work/responsive-back");
+  await page.setViewportSize({ width: 320, height: 900 });
+  const resultBack = page.locator(".breadcrumb-back");
+  await expect(resultBack).toHaveAttribute("href", /\/plan$/);
+
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(page.locator(".breadcrumb-back")).toHaveAttribute("href", /\/overview$/);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(overflow).toBe(false);
 });

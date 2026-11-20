@@ -10,11 +10,13 @@ import PageHeader from "@/components/PageHeader.vue";
 import ScopeModeTabs from "@/components/ScopeModeTabs.vue";
 import { applicableItems, featureGroups, pendingItems } from "@/domain/derive";
 import type { Task } from "@/domain/types";
+import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
+const ui = useUiStore();
 const projectId = computed(() => String(route.params.projectId ?? ""));
 const taskId = computed(() => String(route.params.taskId ?? ""));
 const task = computed<Task | null>(
@@ -60,6 +62,13 @@ const moduleLine = computed(() => {
 });
 const generating = computed(() => workspace.busyKey(`plan:${taskId.value}`));
 const canGenerate = computed(() => selected.value.length > 0 && !generating.value);
+const canDiscard = computed(
+  () =>
+    Boolean(task.value) &&
+    !task.value?.previousStage &&
+    (task.value?.plans.length ?? 0) === 0 &&
+    (task.value?.runs.length ?? 0) === 0,
+);
 const modeNote = computed(() => {
   if (mode.value === "all") return "当前理解范围内的全部可测内容";
   if (mode.value === "recommended") return "按目标候选预选，可直接修改";
@@ -170,6 +179,27 @@ async function generatePlan(): Promise<void> {
   }
 }
 
+async function discardTask(): Promise<void> {
+  if (!task.value || !canDiscard.value) {
+    return;
+  }
+  const answer = await ui.askConfirm({
+    title: "取消并删除这次任务？",
+    body: "还没有生成计划或运行，删除后不会留下记录。",
+    confirmLabel: "删除任务",
+    tone: "danger",
+  });
+  if (answer === null) {
+    return;
+  }
+  try {
+    await workspace.deleteTask(projectId.value, taskId.value);
+    await router.push(`/projects/${projectId.value}/overview`);
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function cancelAdjust(): Promise<void> {
   if (!task.value) {
     return;
@@ -273,7 +303,7 @@ onMounted(async () => {
           </select>
         </label>
         <span class="scope-tools">
-          <button class="link-btn" type="button" @click="selectAll">全选全部</button>
+          <button class="link-btn" type="button" @click="selectAll">全选</button>
           <button class="link-btn" type="button" @click="clearAll">清空</button>
         </span>
       </div>
@@ -317,6 +347,15 @@ onMounted(async () => {
             >
           </div>
           <div class="actionbar-actions">
+            <button
+              v-if="canDiscard"
+              class="btn btn-ghost"
+              type="button"
+              :disabled="generating"
+              @click="discardTask"
+            >
+              取消任务
+            </button>
             <button
               v-if="task.previousStage"
               class="btn btn-ghost"

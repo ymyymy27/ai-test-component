@@ -36,6 +36,8 @@ export interface CreateProjectInput {
 export interface CreateTaskInput {
   goal: string;
   candidateId?: string;
+  /** 范围测试不把系统生成的说明写进项目目标。 */
+  writeProjectGoal?: boolean;
 }
 
 export interface TaskPatch {

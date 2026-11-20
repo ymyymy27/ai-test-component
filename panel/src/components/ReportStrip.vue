@@ -34,7 +34,9 @@ const emit = defineEmits<{
       </span>
     </div>
     <template v-if="report">
-      <button class="btn btn-sm" type="button" @click="emit('open', report.id)">查看报告</button>
+      <button class="btn btn-sm btn-primary" type="button" @click="emit('open', report.id)">
+        查看报告
+      </button>
       <button class="btn btn-sm" type="button" @click="emit('export', report.id)">
         导出 Markdown
       </button>

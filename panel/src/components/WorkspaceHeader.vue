@@ -56,8 +56,10 @@ defineExpose({ focusToggle, isEnvButtonTarget });
           :to="backRoute"
           aria-label="返回上一级"
         >
+          <Icon name="arrow-left" :size="13" />
           返回
         </RouterLink>
+        <span class="breadcrumb-back-separator" aria-hidden="true">/</span>
         <RouterLink
           class="breadcrumb-project"
           :to="`/projects/${projectId}/overview`"

@@ -6,9 +6,12 @@ test("选中候选会填入目标并自动生成计划", async ({ page }) => {
   const projectId = await createProject(page, "候选创建验证", "D:/work/flow-auto");
   await page.getByRole("button", { name: "查看候选" }).click();
   await page.waitForURL(/tasks\/new/);
+  await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
+  await expect(page.locator('input[name="target-candidate"]:checked')).toHaveCount(0);
+  await expect(page.locator("textarea")).toHaveValue("");
   await page.locator(".candidate").first().click();
   await expect(page.locator("textarea")).toHaveValue(/验证/);
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "创建任务并生成计划" }).click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
     timeout: 15_000,
   });
@@ -31,12 +34,24 @@ test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) 
   await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-nav").getByRole("button", { name: /^问题/ }).click();
   await page.waitForURL(/\/issues$/);
-  await page.locator(".side-nav").getByRole("button", { name: /^记录/ }).click();
+  await page.locator(".side-nav").getByRole("button", { name: /^运行记录/ }).click();
   await page.waitForURL(/\/history$/);
   await page.locator(".side-nav").getByRole("button", { name: "设置" }).click();
   await page.waitForURL(/\/settings$/);
   await page.goto(`/projects/${projectId}/overview`);
-  await page.locator(".side-task-more").first().click();
+  await page.locator(".side-task-toggle").click();
+  await expect(page.locator(".side-task-body")).toBeHidden();
+  await page.reload();
+  await expect(page.locator(".side-task-body")).toBeHidden();
+  await page.locator(".side-task-toggle").click();
+  await expect(page.locator(".side-task-body")).toBeVisible();
+  const more = page.locator(".side-task-more").first();
+  await more.click();
+  await expect(page.getByRole("menuitem", { name: "重命名" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  await expect(more).toBeFocused();
+  await more.click();
   await page.getByRole("menuitem", { name: "重命名" }).click();
   await page.fill(".side-task-rename input", "侧边栏改名任务");
   await page.press(".side-task-rename input", "Enter");
@@ -47,6 +62,8 @@ test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) 
   await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-add").click();
   await page.waitForURL(/\/tasks\/new/);
+  await expect(page.locator(".side-task.is-active")).toHaveCount(0);
+  await expect(page.locator(".test-mode.is-active")).toHaveCount(0);
 });
 
 test("删除任务需要确认并从侧栏移除", async ({ page }) => {
@@ -71,6 +88,7 @@ test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → �
   await expect(page.locator(".plan-summary")).toContainText("本次 1 项 / 共 4 项");
   const start = page.getByRole("button", { name: "开始测试" });
   await expect(start).toBeDisabled();
+  await expect(page.locator(".actionbar")).toContainText("先勾选页面下方");
   await confirmPlan(page);
   await expect(start).toBeEnabled();
   await start.click();

@@ -41,6 +41,24 @@ const canStart = computed(
     checked.value &&
     (!hasWarnings.value || warningsAcknowledged.value),
 );
+const confirmHint = computed(() => {
+  if (!plan.value) {
+    return "";
+  }
+  if (stale.value) {
+    return "计划已过期，先重新生成";
+  }
+  if (plan.value.cases.length === 0) {
+    return "计划没有用例，不能启动";
+  }
+  if (!checked.value) {
+    return "先勾选页面下方“执行前确认”";
+  }
+  if (hasWarnings.value && !warningsAcknowledged.value) {
+    return "还需勾选“已逐条查看计划警告”";
+  }
+  return "";
+});
 const items = computed(() =>
   (plan.value?.scope.acceptanceItemIds ?? []).map((itemId) => {
     const item = task.value?.acceptanceItems.find((entry) => entry.id === itemId);
@@ -244,6 +262,7 @@ onBeforeUnmount(() => {
         <div class="actionbar-facts">
           <span class="fact-strong">计划 {{ plan.no }} · 第 {{ plan.revision }} 版</span>
           <span>{{ plan.cases.length }} 条检查 · {{ plan.scope.coverage.selected }} 项验收</span>
+          <span v-if="confirmHint" class="field-hint">{{ confirmHint }}</span>
         </div>
         <div class="actionbar-actions">
           <button class="btn btn-ghost" type="button" :disabled="busy" @click="adjustScope">
@@ -253,6 +272,7 @@ onBeforeUnmount(() => {
             class="btn btn-primary"
             type="button"
             :disabled="!canStart"
+            :title="confirmHint || undefined"
             :aria-busy="busy"
             @click="start"
           >

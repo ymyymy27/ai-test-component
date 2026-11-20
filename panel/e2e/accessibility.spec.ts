@@ -55,9 +55,11 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
   await page.getByRole("button", { name: "查看候选" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/tasks\/new/);
+  await page.locator('input[name="test-mode"][value="target"]').focus();
+  await page.keyboard.press("Space");
   await page.locator('input[type="radio"][name="target-candidate"]').first().focus();
   await page.keyboard.press("Space");
-  await page.getByRole("button", { name: "开始测试" }).focus();
+  await page.getByRole("button", { name: "创建任务并生成计划" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/plan/, { timeout: 15_000 });
   await page.locator("#confirm-execution").focus();

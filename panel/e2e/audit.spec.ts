@@ -28,7 +28,7 @@ test("审计：建立项目、侧栏导航、项目理解与模块", async ({ pa
 
   await page.locator(".side-nav").getByRole("button", { name: /^问题/ }).click();
   await page.waitForURL(/\/issues$/);
-  await page.locator(".side-nav").getByRole("button", { name: /^记录/ }).click();
+  await page.locator(".side-nav").getByRole("button", { name: /^运行记录/ }).click();
   await page.waitForURL(/\/history$/);
   await page.locator(".side-nav").getByRole("button", { name: "设置" }).click();
   await page.waitForURL(/\/settings$/);
@@ -59,7 +59,8 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   const projectId = await createProject(page, "交互审计流程", "D:/work/audit-flow");
   await page.getByRole("button", { name: "开始测试" }).click();
   await page.waitForURL(/tasks\/new/);
-  await page.getByRole("button", { name: "按范围测试" }).click();
+  await page.locator(".test-mode").filter({ hasText: "按范围测试" }).click();
+  await page.getByRole("button", { name: "选择范围" }).click();
   await page.waitForURL(/\/scope/);
   await expect(page.locator(".scope-summary")).toContainText("/");
 
@@ -243,7 +244,8 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
 test("审计：运行停止与快速检查重跑", async ({ page }) => {
   const projectId = await createProject(page, "交互审计运行", "D:/work/audit-run");
   await page.getByRole("button", { name: "开始测试" }).click();
-  await page.getByRole("button", { name: "按范围测试" }).click();
+  await page.locator(".test-mode").filter({ hasText: "按范围测试" }).click();
+  await page.getByRole("button", { name: "选择范围" }).click();
   await page.waitForURL(/\/scope/);
   await page.getByRole("button", { name: "生成计划" }).click();
   await page.waitForURL(/\/plan/);

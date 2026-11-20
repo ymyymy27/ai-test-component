@@ -38,9 +38,10 @@ export async function createProject(
 export async function createTaskFromCandidate(page: Page, candidateIndex = 0): Promise<void> {
   await page.getByRole("button", { name: "查看候选" }).click();
   await page.waitForURL(/tasks\/new/);
+  await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
   await expect(page.locator(".candidate").nth(candidateIndex)).toBeVisible();
   await page.locator(".candidate").nth(candidateIndex).click();
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "创建任务并生成计划" }).click();
   await page.waitForURL(/\/plan/, { timeout: 15_000 });
 }
 

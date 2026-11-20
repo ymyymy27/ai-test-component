@@ -55,7 +55,7 @@
         "Trae CN 1.107.1",
         "ai-test-component 0.5.0"
       ],
-      "actual": "真实 Trae CN 1.107.1 面板：在空工作空间新增项目 aitest-ac02-demo 后，显示“这次要验证什么”，给出通用目标候选“验证项目能否启动并跑通主流程”（来源“通用目标”），下方目标输入框可直接改写；页面明确提示默认选中但确认后才建任务。",
+      "actual": "真实 Trae CN 面板：空工作空间新增项目后显示通用目标候选和可编辑目标输入，候选可点选、目标可直接改写。当前实现不默认选中候选，必须由人点选候选或输入目标后才建任务；历史截图保留调整前状态。",
       "evidence": {
         "path": "tests/acceptance/p1/evidence/2026-11-17-trae-panel/trae-target-selection.png",
         "description": "真实 Trae 面板新增项目后的目标选择",
