@@ -227,9 +227,6 @@ async function startRange(): Promise<void> {
     </div>
 
     <section v-if="!mode" class="start-hint">
-      <p>
-        按目标测试适合验证一个具体改动；按范围测试适合回归已有功能；快速检查只确认项目能跑。
-      </p>
       <div class="start-facts">
         <span><strong class="num">{{ featureCount }}</strong> 个业务功能</span>
         <span><strong class="num">{{ catalogCount }}</strong> 个可测项</span>

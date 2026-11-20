@@ -629,7 +629,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .page-head-main {
@@ -638,11 +638,7 @@
 }
 
 .page-kicker {
-  display: block;
-  margin-bottom: var(--space-1);
-  color: var(--ink-3);
-  font-size: var(--text-12);
-  letter-spacing: 0.03em;
+  display: none;
 }
 
 .page-title {
@@ -651,7 +647,7 @@
 }
 
 .page-subtitle {
-  margin-top: var(--space-1);
+  margin-top: 6px;
   color: var(--ink-2);
   font-size: var(--text-13);
   overflow-wrap: anywhere;
@@ -668,7 +664,7 @@
 
 .section {
   min-width: 0;
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
   border-top: 1px solid var(--line);
 }
 
@@ -680,7 +676,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .section-title {

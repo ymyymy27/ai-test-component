@@ -9,7 +9,6 @@ defineProps<{
 <template>
   <header class="page-head">
     <div class="page-head-main">
-      <span v-if="kicker" class="page-kicker">{{ kicker }}</span>
       <h1 class="page-title">{{ title }}</h1>
       <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
     </div>

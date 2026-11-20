@@ -315,13 +315,6 @@ function bytesText(bytes: number): string {
           </div>
         </div>
       </div>
-      <p class="doc-note">
-        {{
-          workspace.mode === "host"
-            ? "结论与计数由 CLI 运行记录派生；面板不重算结论，AI 摘要只写事实。"
-            : "结论与计数由运行记录派生；AI 摘要只写事实，不改变结论。本地模拟运行不代表真实 CLI 验收结论。"
-        }}
-      </p>
     </section>
 
     <section class="section">
@@ -384,10 +377,10 @@ function bytesText(bytes: number): string {
           <li v-for="item in report.unverifiedItems" :key="item">{{ item }}</li>
         </ul>
       </details>
-      <details v-if="report.planWarnings.length" class="unselected-block">
+      <details v-if="report.planWarnings?.length" class="unselected-block">
         <summary>计划警告 {{ report.planWarnings.length }} 条</summary>
         <ul class="list-plain">
-          <li v-for="item in report.planWarnings" :key="item">{{ item }}</li>
+          <li v-for="item in report.planWarnings ?? []" :key="item">{{ item }}</li>
         </ul>
       </details>
     </section>
@@ -403,7 +396,6 @@ function bytesText(bytes: number): string {
           <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
-      <p class="doc-note">项目级检查单独统计，不计入本次验收项覆盖；失败会影响运行结论。</p>
     </section>
 
     <section class="section">
@@ -513,7 +505,6 @@ function bytesText(bytes: number): string {
         </div>
         <div class="form-actions">
           <button class="btn btn-primary" type="submit">保存意见</button>
-          <span class="field-hint">自由文本，无流转，不改变结论。</span>
         </div>
       </form>
       <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
@@ -524,7 +515,6 @@ function bytesText(bytes: number): string {
     <details class="report-details">
       <summary>
         <span>运行明细</span>
-        <span class="section-note">模拟判断、分析、链路、模板、证据与来源</span>
       </summary>
     <section class="section">
       <h2 class="section-title-lg">模拟数据判断</h2>
@@ -651,7 +641,6 @@ function bytesText(bytes: number): string {
           <dd>第 {{ report.version }} 版</dd>
         </div>
       </dl>
-      <p class="doc-note">环境与来源只作为报告上下文，不改变结论。</p>
     </section>
 
     </details>

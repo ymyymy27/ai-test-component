@@ -246,9 +246,8 @@ onMounted(async () => {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="本次范围"
       :title="task.title"
-      subtitle="范围决定报告分母与新计划覆盖的验收项。"
+      :subtitle="`本次 ${selected.length} 项`"
     >
       <template #actions>
         <button

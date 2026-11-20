@@ -84,13 +84,11 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
     <details v-if="ignoredRows.length" class="project-map-details">
       <summary>
         <span>已忽略 {{ ignoredRows.length }} 个</span>
-        <span class="muted">不进入新任务范围</span>
       </summary>
       <div class="project-map-list">
         <div v-for="feature in ignoredRows" :key="feature.id" class="project-map-row">
           <span>{{ feature.name }}</span>
           <small>{{ feature.modules.join(" · ") }}</small>
-          <span class="muted">已忽略</span>
           <button
             class="link-btn"
             type="button"
@@ -106,7 +104,6 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
     <details class="project-map-details">
       <summary>
         <span>模块 {{ modules.length }} 个</span>
-        <span class="muted">可编辑</span>
       </summary>
       <div class="row project-map-actions">
         <button class="link-btn" type="button" @click="emit('addModule')">新增模块</button>

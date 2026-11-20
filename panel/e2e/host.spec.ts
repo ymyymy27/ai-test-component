@@ -57,7 +57,7 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
     await page.getByRole("button", { name: "开始测试" }).click();
     await page.waitForURL(/\/result/, { timeout: 240_000 });
     await expect(page.locator(".result-verdict")).toBeVisible();
-    await expect(page.locator("body")).toContainText("真实运行");
+    await expect(page.locator(".run-environment")).toContainText("Python");
     await expect(page.locator(".report-strip-title")).toContainText("测试报告", {
       timeout: 60_000,
     });

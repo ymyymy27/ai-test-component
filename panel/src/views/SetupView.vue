@@ -114,7 +114,7 @@ async function clearAndRetry(): Promise<void> {
     />
 
     <p v-if="workspace.localMode" class="local-demo-banner" role="status">
-      本地演示模式：项目分析、计划与运行结果均为演示数据，未读取真实仓库。
+      本地演示数据 · 未读取真实仓库
     </p>
 
     <ErrorState
@@ -195,8 +195,6 @@ async function clearAndRetry(): Promise<void> {
             {{ errors.name }}
           </p>
         </div>
-
-        <p class="setup-note">登记后先确认目标，再创建任务。</p>
 
         <div class="setup-actions">
           <button class="btn btn-primary" type="submit" :disabled="busy" :aria-busy="busy">

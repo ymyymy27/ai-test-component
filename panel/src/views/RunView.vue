@@ -114,9 +114,8 @@ onBeforeUnmount(() => {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="运行"
       :title="task.title"
-      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · 关闭面板不会中断运行`"
+      :subtitle="plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'"
     />
 
     <RunProgress :run="run" :elapsed-ms="elapsedMs" />
@@ -124,7 +123,7 @@ onBeforeUnmount(() => {
     <section class="section">
       <div class="section-head">
         <span class="section-title">项目级检查</span>
-        <span class="section-note">单独统计，不进入验收项覆盖</span>
+        <span class="section-note">不计入验收项</span>
       </div>
       <div class="check-list">
         <div v-for="check in run.l1" :key="check.key" class="check-row">
@@ -140,7 +139,6 @@ onBeforeUnmount(() => {
     <section class="section">
       <div class="section-head">
         <span class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</span>
-        <span class="section-note">结果只来自已完成的检查</span>
       </div>
       <CaseLedger :run="run" :items="run.items" />
     </section>

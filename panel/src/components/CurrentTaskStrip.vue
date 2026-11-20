@@ -57,9 +57,6 @@ const meta = computed(() => {
     parts.push("还没有计划");
   }
   parts.push(`${props.openIssueCount} 个未关闭问题`);
-  if (run.value) {
-    parts.push(`最近运行 ${new Date(run.value.startedAt).toLocaleString("zh-CN")}`);
-  }
   if (props.runningElsewhere) {
     parts.push("其他任务运行中，暂时不能切换");
   }

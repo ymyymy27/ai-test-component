@@ -170,7 +170,6 @@ onBeforeUnmount(() => {
   </div>
   <div v-else-if="!plan" class="page">
     <PageHeader
-      kicker="计划"
       :title="task.title"
       :subtitle="
         task.origin === 'goal' ? '目标已确认，计划尚未生成。' : '这个任务还没有计划。'
@@ -202,9 +201,8 @@ onBeforeUnmount(() => {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="计划"
       :title="task.title"
-      :subtitle="`计划 ${plan.no} · 第 ${plan.revision} 版 · 只读；确认后才会开始运行`"
+      :subtitle="`计划 ${plan.no} · 第 ${plan.revision} 版`"
     >
       <template #actions>
         <button
@@ -229,7 +227,6 @@ onBeforeUnmount(() => {
     <section class="surface-strip plan-summary" aria-label="计划摘要">
       <div class="row-between">
         <div>
-          <p class="page-kicker">待执行</p>
           <p class="page-subtitle">
             本次 <strong class="num">{{ plan.scope.coverage.selected }}</strong> 项 / 共
             <strong class="num">{{ plan.scope.coverage.applicable }}</strong> 项 ·
@@ -270,7 +267,6 @@ onBeforeUnmount(() => {
     <section class="section">
       <div class="section-head">
         <span class="section-title">计划纳入 {{ plan.scope.acceptanceItemIds.length }} 项</span>
-        <span class="section-note">每个验收项至少一条用例；计划只读</span>
       </div>
       <PlanLedger ref="planLedgerRef" :plan="plan" :task="task" />
     </section>

@@ -12,7 +12,7 @@ const project = computed(() => workspace.currentProject);
 <template>
   <div v-if="project" class="project-layout">
     <p v-if="workspace.localMode" class="local-demo-banner" role="status">
-      本地演示模式：项目分析、计划与运行结果均为演示数据，未读取真实仓库。
+      本地演示数据 · 未读取真实仓库
     </p>
     <RouterView />
   </div>

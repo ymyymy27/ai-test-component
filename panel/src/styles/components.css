@@ -1206,12 +1206,12 @@ select {
 }
 
 .local-demo-banner {
-  display: flex;
+  display: inline-flex;
   gap: var(--space-2);
-  margin: var(--space-3) 0;
-  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-row);
+  border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-2);
   font-size: var(--text-12);

@@ -15,7 +15,7 @@ test("选中候选会填入目标并自动生成计划", async ({ page }) => {
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
     timeout: 15_000,
   });
-  await expect(page.locator(".plan-summary")).toContainText("待执行");
+  await expect(page.locator(".plan-summary")).toContainText("待确认");
 });
 
 test("调整范围后取消调整返回计划页", async ({ page }) => {

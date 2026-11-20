@@ -61,11 +61,6 @@ const status = computed(() => projectStatus(props.project));
 const boundRule = computed(
   () => props.project.rules.find((rule) => rule.id === props.project.rulesVersionId) ?? null,
 );
-const latestRun = computed(() => runs.value[0] ?? null);
-const latestRunText = computed(() =>
-  latestRun.value ? new Date(latestRun.value.startedAt).toLocaleString("zh-CN") : "",
-);
-
 function taskTitle(taskId: string): string {
   return props.project.tasks.find((task) => task.id === taskId)?.title ?? "任务已归档";
 }
@@ -97,7 +92,6 @@ function toggleFeature(name: string, ignored: boolean): void {
   <div class="page">
     <header class="page-head">
       <div class="page-head-main">
-        <span class="page-kicker">项目概览</span>
         <h1 class="page-title">{{ project.name }}</h1>
         <p class="page-subtitle">
           <span class="current-task-state">
@@ -127,9 +121,6 @@ function toggleFeature(name: string, ignored: boolean): void {
       :open-issues="issues.length"
       :features="features.length"
     />
-    <p class="overview-summary">
-      {{ latestRunText ? `最近运行 ${latestRunText} · ` : "" }}{{ project.modules.length }} 个模块已识别
-    </p>
 
     <div v-if="analyzing" class="analysis-strip" role="status" aria-live="polite" aria-busy="true">
       <span class="spinner" aria-hidden="true"></span>

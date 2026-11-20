@@ -8,7 +8,6 @@ import RunHistoryDialog from "@/components/RunHistoryDialog.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import { latestReportForRun } from "@/domain/derive";
 import { durationText } from "@/domain/ids";
-import { RUN_STATUS_LABEL, VERDICT_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -162,7 +161,6 @@ watch(dialogOpen, (open) => {
               <span class="row-meta">
                 <span>{{ planLabel(run) }}</span>
                 <span>{{ new Date(run.startedAt).toLocaleString("zh-CN") }}</span>
-                <span>{{ RUN_STATUS_LABEL[run.status] }} · {{ VERDICT_LABEL[run.verdict] }}</span>
               </span>
             </span>
             <span class="row-side">
@@ -191,10 +189,6 @@ watch(dialogOpen, (open) => {
         开始测试
       </button>
     </EmptyState>
-
-    <p class="doc-note">
-      历史按任务归档；每次运行保留启动时的计划与任务快照，不混用当前任务文字。中断的运行没有报告。
-    </p>
 
     <RunHistoryDialog
       v-model="dialogOpen"

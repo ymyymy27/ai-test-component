@@ -288,13 +288,12 @@ function rerunLabel(): string {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="结果"
       :title="task.title"
-      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · 由 ${run.confirmedBy} 确认 · ${run.simulated ? '本地模拟' : '真实运行'}`"
+      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · ${run.confirmedBy} 确认`"
     />
 
     <p v-if="environmentRows.length" class="run-environment muted">
-      运行环境：{{ environmentRows.join(" · ") }}
+      环境：{{ environmentRows.join(" · ") }}
     </p>
 
     <section
@@ -304,7 +303,6 @@ function rerunLabel(): string {
     >
       <div class="section-head">
         <span class="section-title">依赖修复建议</span>
-        <span class="section-note">安装前需要确认；安装后会记录版本与环境变化</span>
       </div>
       <div class="repair-list">
         <label
@@ -355,7 +353,7 @@ function rerunLabel(): string {
     <section class="section">
       <div class="section-head">
         <span class="section-title">项目级检查</span>
-        <span class="section-note">单独统计，不进入验收项覆盖</span>
+        <span class="section-note">不计入验收项覆盖</span>
       </div>
       <div class="check-list">
         <div v-for="check in run.l1" :key="check.key" class="check-row">
@@ -407,11 +405,10 @@ function rerunLabel(): string {
           未完成<span class="filter-count">{{ unfinishedCount }}</span>
         </button>
       </div>
-      <span class="section-note">按最差结果排序 · 编号为验收项序号</span>
+      <span class="section-note">按最差结果排序</span>
       <button v-if="supportsEvidence" class="link-btn" type="button" @click="openEvidence">
         补充证据
       </button>
-      <span v-else class="section-note">宿主模式证据由 CLI 追加</span>
     </div>
 
     <CaseLedger
@@ -438,7 +435,6 @@ function rerunLabel(): string {
             >计划 {{ plan?.no ?? "—" }} · 第 {{ plan?.revision ?? "—" }} 版</span
           >
           <span>本次 {{ run.counts.selected }} 项 / 共 {{ run.counts.applicable }} 项</span>
-          <span>{{ latestReport ? `报告第 ${latestReport.version} 版` : "未生成报告" }}</span>
         </div>
         <div class="actionbar-actions">
           <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>

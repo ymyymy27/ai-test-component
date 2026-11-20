@@ -2,7 +2,6 @@
 import { computed } from "vue";
 
 import { durationText } from "@/domain/ids";
-import { RUN_STATUS_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
 import StatusMark from "./StatusMark.vue";
 
@@ -41,7 +40,6 @@ const rows = computed(() =>
         <span class="row-meta">
           <span>{{ row.planLabel }}</span>
           <span>{{ new Date(row.run.startedAt).toLocaleString("zh-CN") }}</span>
-          <span>{{ RUN_STATUS_LABEL[row.run.status] }}</span>
         </span>
       </span>
       <span class="row-side">
