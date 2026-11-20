@@ -42,7 +42,6 @@ function close(): void {
 function openReport(): void {
   if (props.report) {
     emit("openReport", props.report.id);
-    close();
   }
 }
 
