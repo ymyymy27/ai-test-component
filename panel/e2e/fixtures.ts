@@ -40,7 +40,7 @@ export async function createTaskFromCandidate(page: Page, candidateIndex = 0): P
   await page.waitForURL(/tasks\/new/);
   await expect(page.locator(".candidate").nth(candidateIndex)).toBeVisible();
   await page.locator(".candidate").nth(candidateIndex).click();
-  await page.getByRole("button", { name: "用选中候选创建任务" }).click();
+  await page.getByRole("button", { name: "创建任务并选范围" }).click();
   await page.waitForURL(/\/scope/);
 }
 

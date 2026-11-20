@@ -3,13 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import GoalComposer from "@/components/GoalComposer.vue";
 
-function mountComposer(value = "") {
+function mountComposer(value = "", busy = false) {
   return mount(GoalComposer, {
     props: {
       modelValue: value,
-      busy: false,
-      analysisBusy: false,
-      ready: true,
+      busy,
       catalogCount: 4,
       featureCount: 3,
     },
@@ -17,9 +15,9 @@ function mountComposer(value = "") {
 }
 
 describe("GoalComposer", () => {
-  it("asks for a goal instead of doing nothing", async () => {
+  it("asks for a goal when submitting an empty value", async () => {
     const wrapper = mountComposer();
-    await wrapper.get("button.btn-primary").trigger("click");
+    await wrapper.get("textarea").trigger("keydown", { key: "Enter", ctrlKey: true });
     expect(wrapper.text()).toContain("先写一句要验证的目标");
     expect(wrapper.emitted("start")).toBeUndefined();
   });
@@ -30,28 +28,14 @@ describe("GoalComposer", () => {
     expect(wrapper.emitted("start")?.[0]).toEqual(["验证删除标记后批次仍然可读"]);
   });
 
-  it("exposes analyze and quick check without creating a task", async () => {
+  it("keeps only the input on the composer", () => {
     const wrapper = mountComposer("验证主流程");
-    const buttons = wrapper.findAll("button");
-    await buttons[1]?.trigger("click");
-    await buttons[2]?.trigger("click");
-    expect(wrapper.emitted("analyze")).toHaveLength(1);
-    expect(wrapper.emitted("quickCheck")).toHaveLength(1);
+    expect(wrapper.findAll("button")).toHaveLength(0);
+    expect(wrapper.text()).toContain("创建任务并选范围");
   });
 
-  it("disables start while analysis is not ready", () => {
-    const wrapper = mount(GoalComposer, {
-      props: {
-        modelValue: "验证主流程",
-        busy: false,
-        analysisBusy: true,
-        ready: false,
-        catalogCount: 0,
-        featureCount: 0,
-      },
-    });
-    const primary = wrapper.get("button.btn-primary");
-    expect(primary.attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("分析完成后可创建带验收项的任务");
+  it("disables the input while busy", () => {
+    const wrapper = mountComposer("验证主流程", true);
+    expect(wrapper.get("textarea").attributes("disabled")).toBeDefined();
   });
 });

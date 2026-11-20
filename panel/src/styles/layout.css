@@ -712,8 +712,20 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
   color: var(--ink-3);
   font-size: var(--text-12);
+}
+
+.new-task-actionbar .actionbar-facts {
+  flex: 1;
+}
+
+.new-task-actionbar .fact-strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actionbar-actions {

@@ -2,16 +2,14 @@ import { expect } from "@playwright/test";
 
 import { confirmPlan, createProject, createTaskFromCandidate, test } from "./fixtures";
 
-test("候选目标可以按预计范围直接生成计划", async ({ page }) => {
-  const projectId = await createProject(page, "自动计划验证", "D:/work/flow-auto");
+test("选中候选会填入目标并创建任务", async ({ page }) => {
+  const projectId = await createProject(page, "候选创建验证", "D:/work/flow-auto");
   await page.getByRole("button", { name: "查看候选" }).click();
   await page.waitForURL(/tasks\/new/);
   await page.locator(".candidate").first().click();
-  await page.getByRole("button", { name: "按预计范围生成计划" }).click();
-  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
-    timeout: 15000,
-  });
-  await expect(page.locator(".plan-summary")).toContainText("待执行");
+  await expect(page.locator("textarea")).toHaveValue(/验证/);
+  await page.getByRole("button", { name: "创建任务并选范围" }).click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/scope`));
 });
 
 test("调整范围后取消调整返回计划页", async ({ page }) => {

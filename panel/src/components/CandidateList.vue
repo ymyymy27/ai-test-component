@@ -7,18 +7,14 @@ defineProps<{
   busy: boolean;
 }>();
 
-const emit = defineEmits<{
-  select: [candidateId: string];
-  create: [];
-  createAndPlan: [];
-}>();
+const emit = defineEmits<{ select: [candidateId: string] }>();
 </script>
 
 <template>
   <section class="candidate-section" aria-labelledby="candidate-title">
     <div class="section-head">
       <span id="candidate-title" class="section-title">或者从目标候选开始</span>
-      <span class="section-note">基于当前项目分析</span>
+      <span class="section-note">选中后填入上方目标</span>
     </div>
     <div
       v-if="candidates.length"
@@ -32,6 +28,7 @@ const emit = defineEmits<{
           name="target-candidate"
           :value="candidate.id"
           :checked="candidate.id === selectedId"
+          :disabled="busy"
           @change="emit('select', candidate.id)"
         />
         <span>
@@ -46,28 +43,5 @@ const emit = defineEmits<{
       </label>
     </div>
     <p v-else class="doc-note">还没有生成候选；可以直接在上方写一句目标。</p>
-    <div class="candidate-foot">
-      <p class="field-hint">创建后先确认范围；也可按预计范围直接生成计划。</p>
-      <div class="form-actions">
-        <button
-          class="btn btn-primary"
-          type="button"
-          :disabled="!selectedId || busy"
-          :aria-busy="busy"
-          @click="emit('create')"
-        >
-          {{ busy ? "正在创建任务…" : "用选中候选创建任务" }}
-        </button>
-        <button
-          class="btn"
-          type="button"
-          :disabled="!selectedId || busy"
-          :aria-busy="busy"
-          @click="emit('createAndPlan')"
-        >
-          {{ busy ? "正在生成…" : "按预计范围生成计划" }}
-        </button>
-      </div>
-    </div>
   </section>
 </template>

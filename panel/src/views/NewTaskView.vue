@@ -35,16 +35,18 @@ const firstTask = computed(
   () => (project.value?.tasks.filter((task) => task.stage !== "fresh").length ?? 0) === 0,
 );
 const candidates = computed(() => project.value?.candidates ?? []);
-
-watch(
-  candidates,
-  (value) => {
-    if (!selectedId.value || !value.some((candidate) => candidate.id === selectedId.value)) {
-      selectedId.value = value[0]?.id ?? null;
-    }
-  },
-  { immediate: true },
+const selectedCandidate = computed(
+  () => candidates.value.find((candidate) => candidate.id === selectedId.value) ?? null,
 );
+const canCreate = computed(
+  () => Boolean(goal.value.trim()) && ready.value && !startBusy.value,
+);
+
+watch(candidates, (value) => {
+  if (selectedId.value && !value.some((candidate) => candidate.id === selectedId.value)) {
+    selectedId.value = null;
+  }
+});
 
 onMounted(async () => {
   if (!project.value) {
@@ -74,47 +76,33 @@ async function analyze(): Promise<void> {
   }
 }
 
-async function createFromGoal(text: string): Promise<void> {
-  try {
-    const task = await workspace.createTask(projectId.value, { goal: text });
-    await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
-  } catch {
-    // store 已提示。
+function updateGoal(value: string): void {
+  goal.value = value;
+  if (selectedCandidate.value && value.trim() !== selectedCandidate.value.title) {
+    selectedId.value = null;
   }
 }
 
-async function createFromCandidate(): Promise<void> {
-  const candidate = candidates.value.find((entry) => entry.id === selectedId.value);
+function selectCandidate(candidateId: string): void {
+  const candidate = candidates.value.find((entry) => entry.id === candidateId);
   if (!candidate) {
+    return;
+  }
+  selectedId.value = candidate.id;
+  goal.value = candidate.title;
+}
+
+async function submit(): Promise<void> {
+  const text = goal.value.trim();
+  if (!text || !canCreate.value) {
     return;
   }
   try {
     const task = await workspace.createTask(projectId.value, {
-      goal: candidate.title,
-      candidateId: candidate.id,
+      goal: text,
+      candidateId: selectedId.value ?? undefined,
     });
     await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
-  } catch {
-    // store 已提示。
-  }
-}
-
-async function createFromCandidateAndPlan(): Promise<void> {
-  const candidate = candidates.value.find((entry) => entry.id === selectedId.value);
-  if (!candidate) {
-    return;
-  }
-  try {
-    const task = await workspace.createTask(projectId.value, {
-      goal: candidate.title,
-      candidateId: candidate.id,
-    });
-    try {
-      await workspace.generatePlan(projectId.value, task.id);
-      await router.push(`/projects/${projectId.value}/tasks/${task.id}/plan`);
-    } catch {
-      await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
-    }
   } catch {
     // store 已提示。
   }
@@ -157,31 +145,53 @@ async function createFromCandidateAndPlan(): Promise<void> {
     </div>
 
     <GoalComposer
-      v-model="goal"
+      :model-value="goal"
       :busy="startBusy"
-      :analysis-busy="analysisBusy"
-      :ready="ready"
       :catalog-count="catalogCount"
       :feature-count="featureCount"
-      @start="createFromGoal"
-      @analyze="analyze"
-      @quick-check="router.push(`/projects/${projectId}/quick-check`)"
+      @update:model-value="updateGoal"
+      @start="submit"
     />
 
     <CandidateList
       :candidates="candidates"
       :selected-id="selectedId"
       :busy="startBusy"
-      @select="selectedId = $event"
-      @create="createFromCandidate"
-      @create-and-plan="createFromCandidateAndPlan"
+      @select="selectCandidate"
     />
 
-    <div class="target-context">
-      <span>未关闭问题 {{ workspace.openIssues.length }} 个</span>
-      <span>识别 {{ project.modules.length }} 个模块 · {{ featureCount }} 个业务功能</span>
-      <span v-if="firstTask">确认后写入项目目标</span>
-      <span v-else>只改本次任务目标</span>
+    <div class="actionbar new-task-actionbar">
+      <div class="actionbar-inner">
+        <div class="actionbar-facts">
+          <span v-if="selectedCandidate" class="fact-strong">
+            已选候选 · {{ selectedCandidate.title }}
+          </span>
+          <span v-else-if="goal.trim()" class="fact-strong">目标 · {{ goal.trim() }}</span>
+          <span v-else>写目标或选一个候选</span>
+          <span v-if="!ready" class="field-error">分析完成后可创建带验收项的任务。</span>
+          <span v-else-if="firstTask">确认后写入项目目标</span>
+          <span v-else>只改本次任务目标</span>
+        </div>
+        <div class="actionbar-actions">
+          <button
+            class="link-btn"
+            type="button"
+            :disabled="startBusy"
+            @click="router.push(`/projects/${projectId}/quick-check`)"
+          >
+            快速检查（项目级）
+          </button>
+          <button
+            class="btn btn-primary"
+            type="button"
+            :disabled="!canCreate"
+            :aria-busy="startBusy"
+            @click="submit"
+          >
+            {{ startBusy ? "正在提取验收项…" : "创建任务并选范围" }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

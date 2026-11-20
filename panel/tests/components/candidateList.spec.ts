@@ -38,22 +38,21 @@ describe("CandidateList", () => {
     expect(wrapper.text()).toContain("来自目录");
     expect(wrapper.text()).toContain("预计范围");
     expect(wrapper.text()).toContain("不确定");
+    expect(wrapper.findAll("button")).toHaveLength(0);
   });
 
-  it("emits selection and create", async () => {
+  it("emits selection without a second create action", async () => {
     const wrapper = mount(CandidateList, {
       props: { candidates, selectedId: "cand_1", busy: false },
     });
     await wrapper.findAll('input[type="radio"]')[1]?.trigger("change");
     expect(wrapper.emitted("select")?.[0]).toEqual(["cand_2"]);
-    await wrapper.get(".candidate-foot button").trigger("click");
-    expect(wrapper.emitted("create")).toHaveLength(1);
   });
 
-  it("disables create without a selected candidate", () => {
+  it("disables radios while busy", () => {
     const wrapper = mount(CandidateList, {
-      props: { candidates, selectedId: null, busy: false },
+      props: { candidates, selectedId: null, busy: true },
     });
-    expect(wrapper.get(".candidate-foot button").attributes("disabled")).toBeDefined();
+    expect(wrapper.get('input[type="radio"]').attributes("disabled")).toBeDefined();
   });
 });

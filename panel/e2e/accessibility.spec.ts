@@ -60,7 +60,7 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
   await page.waitForURL(/tasks\/new/);
   await page.locator('input[type="radio"][name="target-candidate"]').first().focus();
   await page.keyboard.press("Space");
-  await page.getByRole("button", { name: "用选中候选创建任务" }).focus();
+  await page.getByRole("button", { name: "创建任务并选范围" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/scope/);
 
