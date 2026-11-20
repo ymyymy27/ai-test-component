@@ -207,14 +207,6 @@ async function startRange(): Promise<void> {
             按范围测试
           </button>
           <button
-            class="link-btn"
-            type="button"
-            :disabled="startBusy"
-            @click="router.push(`/projects/${projectId}/quick-check`)"
-          >
-            快速检查（项目级）
-          </button>
-          <button
             class="btn btn-primary"
             type="button"
             :disabled="!canCreate"
