@@ -561,3 +561,41 @@ def test_project_snapshot_returns_read_model(tmp_path: Path, capsys: Capsys) -> 
     assert snapshot["tasks"][0]["plans"][0]["plan"]["plan_id"] == plan["plan_id"]
     assert snapshot["runs"] == []
     assert snapshot["issues"] == []
+
+
+def test_task_delete_removes_task_and_derived_records(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    project_id = setup["project"]["project_id"]
+    task_id = setup["task"]["task_id"]
+    plan = call(
+        tmp_path, "plan.generate", _plan_payload(setup, "command: echo ok"), capsys
+    )["data"]
+
+    deleted = call(
+        tmp_path,
+        "task.delete",
+        {"project_id": project_id, "task_id": task_id},
+        capsys,
+    )
+    assert deleted["ok"] is True
+    assert deleted["data"]["deleted"] is True
+    assert deleted["data"]["plans"] == 1
+
+    listed = call(tmp_path, "task.list", {"project_id": project_id}, capsys)
+    assert task_id not in {item["task_id"] for item in listed["data"]["tasks"]}
+
+    project_dir = tmp_path / "ws" / "projects" / project_id
+    assert not (project_dir / "tasks" / f"{task_id}.json").exists()
+    assert not (project_dir / "plans" / f"{plan['plan_id']}.json").exists()
+    assert not (project_dir / "tasks" / "deleted").exists()
+
+    missing = call(
+        tmp_path,
+        "task.show",
+        {"project_id": project_id, "task_id": task_id},
+        capsys,
+    )
+    assert missing["ok"] is False
+    assert missing["error"]["code"] == "TASK_NOT_FOUND"

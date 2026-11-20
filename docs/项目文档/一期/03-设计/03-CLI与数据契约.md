@@ -217,9 +217,9 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `intent` 可选，取值 `smoke|business`，默认按 `goal` 推断：只含“能否启动/跑通主流程”等泛化目标且无具体业务词时为 `smoke`，否则 `business`。`origin` 可选，取值 `goal|range`：按目标测试传 `goal`，按范围测试传 `range`；`source_map_revision` 记录范围来自哪一版项目地图。`observable=false` 的项标 `pending`，不进入范围。AI 提取出的泛化描述（如“项目能够启动”“主流程能够跑通”）自动标 `observable=false` 并转 `pending`；没有可观察项时任务照常保存，验收项列表为空。
 
-#### `task.update` / `task.list` / `task.show`
+#### `task.update` / `task.delete` / `task.list` / `task.show`
 
-`update` 生成新修订；`show` 返回任务、验收项与关联计划。
+`update` 生成新修订；`delete` 彻底删除任务及其计划、运行、报告、关联问题和证据，不可恢复；`show` 返回任务、验收项与关联计划。
 
 ### 4.3 交付说明
 

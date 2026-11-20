@@ -313,6 +313,7 @@ test("panel writes and reads stay inside the allowlist", async () => {
   state.bridgeCalls.length = 0;
   const commands = [
     "task.update",
+    "task.delete",
     "module.add",
     "delivery.save",
     "delivery.show",

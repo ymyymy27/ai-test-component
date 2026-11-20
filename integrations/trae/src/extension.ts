@@ -50,6 +50,7 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "module.add",
   "module.update",
   "task.update",
+  "task.delete",
   "delivery.draft",
   "delivery.save",
   "delivery.show",

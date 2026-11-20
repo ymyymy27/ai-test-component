@@ -422,6 +422,12 @@ export class HostRepository implements ProjectRepository {
     return updated;
   }
 
+  async deleteTask(projectId: string, taskId: string): Promise<void> {
+    await this.client.deleteTask(projectId, taskId);
+    this.sidecar.setActiveTask(projectId, "");
+    await this.getProject(projectId);
+  }
+
   async selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task> {
     this.sidecar.setScope(taskId, itemIds);
     const project = await this.getProject(projectId);

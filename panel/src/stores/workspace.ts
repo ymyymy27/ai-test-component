@@ -365,6 +365,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
+  async function deleteTask(projectId: string, taskId: string): Promise<void> {
+    return withBusy(`task-delete:${taskId}`, async () => {
+      await repo().deleteTask(projectId, taskId);
+      await refreshProject(projectId);
+    });
+  }
+
   async function selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task> {
     return withBusy(`scope:${taskId}`, async () => {
       const task = await repo().selectScope(projectId, taskId, itemIds);
@@ -1020,6 +1027,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     pickDirectory,
     createTask,
     updateTask,
+    deleteTask,
     selectScope,
     reviseScope,
     cancelRevision,

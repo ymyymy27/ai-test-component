@@ -53,6 +53,17 @@ describe("LocalStorageRepository", () => {
     expect(project?.reports).toHaveLength(1);
   });
 
+  it("deletes a task and its reports and issues", async () => {
+    const seeded = await completedRun(["03"]);
+    expect(seeded.project.issues.length).toBeGreaterThan(0);
+    await seeded.repo.deleteTask(seeded.projectId, seeded.task.id);
+    const project = await seeded.repo.getProject(seeded.projectId);
+    expect(project?.tasks.some((entry) => entry.id === seeded.task.id)).toBe(false);
+    expect(project?.reports.some((report) => report.taskId === seeded.task.id)).toBe(false);
+    expect(project?.issues.some((issue) => issue.taskId === seeded.task.id)).toBe(false);
+    expect(project?.activeTaskId).not.toBe(seeded.task.id);
+  });
+
   it("merges a failed case into one issue and enforces the close gate", async () => {
     const seeded = await completedRun(["03"]);
     const issue = seeded.project.issues[0];

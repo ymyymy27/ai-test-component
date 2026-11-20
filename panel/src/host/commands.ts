@@ -198,6 +198,10 @@ export const api = {
     });
   },
 
+  deleteTask(projectId: string, taskId: string): Promise<{ task_id: string; deleted: boolean }> {
+    return callHost("task.delete", { project_id: projectId, task_id: taskId });
+  },
+
   draftDelivery(
     projectId: string,
     taskId: string,

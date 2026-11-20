@@ -553,6 +553,25 @@ export class LocalStorageRepository implements ProjectRepository {
     });
   }
 
+  async deleteTask(projectId: string, taskId: string): Promise<void> {
+    this.mutate(projectId, (project) => {
+      const index = project.tasks.findIndex((entry) => entry.id === taskId);
+      if (index < 0) {
+        throw new RepositoryError("NOT_FOUND", "任务不存在。", "刷新后重试。");
+      }
+      const task = project.tasks[index];
+      if (task.stage === "running") {
+        throw new RepositoryError("CONFLICT", "运行中不能删除任务。", "先停止运行。");
+      }
+      project.tasks.splice(index, 1);
+      project.reports = project.reports.filter((report) => report.taskId !== taskId);
+      project.issues = project.issues.filter((issue) => issue.taskId !== taskId);
+      if (project.activeTaskId === taskId) {
+        project.activeTaskId = project.tasks[0]?.id ?? null;
+      }
+    });
+  }
+
   async selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task> {
     return this.mutate(projectId, (project) => {
       const task = findTask(project, taskId);

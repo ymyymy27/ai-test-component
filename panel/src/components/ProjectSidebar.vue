@@ -26,6 +26,7 @@ const emit = defineEmits<{
   openSettings: [projectId: string];
   openTaskDetails: [projectId: string, taskId: string];
   renameTask: [projectId: string, taskId: string, title: string];
+  deleteTask: [projectId: string, taskId: string, title: string];
   close: [];
 }>();
 
@@ -330,6 +331,15 @@ defineExpose({ focusSearch, focusClose });
                 @click="openTaskDetails(project.id, task.id)"
               >
                 编辑资料
+              </button>
+              <button
+                class="is-danger"
+                type="button"
+                role="menuitem"
+                :disabled="Boolean(runningTaskId)"
+                @click="menuTaskId = null; emit('deleteTask', project.id, task.id, task.title)"
+              >
+                删除
               </button>
             </div>
           </div>

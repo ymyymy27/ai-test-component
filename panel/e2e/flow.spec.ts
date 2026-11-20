@@ -50,6 +50,19 @@ test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) 
   await page.waitForURL(/\/tasks\/new/);
 });
 
+test("删除任务需要确认并从侧栏移除", async ({ page }) => {
+  const projectId = await createProject(page, "删除验证", "D:/work/flow-delete");
+  await createTaskFromCandidate(page, 0);
+  await page.goto(`/projects/${projectId}/overview`);
+  await page.locator(".side-task-more").first().click();
+  await page.getByRole("menuitem", { name: "删除" }).click();
+  await expect(page.locator("#confirm-dialog-title")).toBeVisible();
+  await expect(page.locator("#confirm-dialog-title")).toContainText("删除任务");
+  await page.locator(".dialog-confirm").click();
+  await expect(page.locator(".side-task-row")).toHaveCount(0);
+  await expect(page.locator(".toast")).toContainText("任务已删除");
+});
+
 test("建立项目 → 目标 → 范围 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
   const projectId = await createProject(page, "流程验证", "D:/work/flow-a");
   await expect(page.locator(".stats-bar")).toContainText("业务功能");

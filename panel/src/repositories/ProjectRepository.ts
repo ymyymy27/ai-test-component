@@ -168,6 +168,7 @@ export interface ProjectRepository {
   ensureDraftTask(projectId: string): Promise<Task>;
   createTask(projectId: string, input: CreateTaskInput): Promise<Task>;
   updateTask(projectId: string, taskId: string, patch: TaskPatch): Promise<Task>;
+  deleteTask(projectId: string, taskId: string): Promise<void>;
   selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task>;
   reviseScope(projectId: string, taskId: string): Promise<Task>;
   cancelRevision(projectId: string, taskId: string): Promise<Task>;

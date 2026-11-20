@@ -322,6 +322,14 @@
   cursor: not-allowed;
 }
 
+.side-task-menu button.is-danger {
+  color: var(--fail);
+}
+
+.side-task-menu button.is-danger:hover:not(:disabled) {
+  background: var(--fail-bg);
+}
+
 .side-task {
   display: flex;
   align-items: center;

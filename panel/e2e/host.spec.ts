@@ -181,6 +181,13 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
     await expect(page.locator(".check-list")).toContainText("构建");
     await expect(page.locator(".check-list")).toContainText("启动入口");
     await expect(page.locator("body")).toContainText("不进入验收项覆盖");
+
+    await page.goto(`/projects/${projectId}/overview`);
+    await page.locator(".side-task-more").first().click();
+    await page.getByRole("menuitem", { name: "删除" }).click();
+    await expect(page.locator("#confirm-dialog-title")).toBeVisible();
+    await page.locator(".dialog-confirm").click();
+    await expect(page.locator(".side-task-row")).toHaveCount(0);
   } finally {
     await page.close().catch(() => undefined);
     for (let attempt = 0; attempt < 5; attempt += 1) {

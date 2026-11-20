@@ -1131,6 +1131,82 @@ def cmd_task_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     return {"task": task.model_dump(mode="json"), "plans": plans}
 
 
+def cmd_task_delete(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """Permanently delete a task and every record derived from it."""
+    del confirm
+    project = _project(ws, payload)
+    task = _task(ws, payload)
+    root = ws.project_dir(project.project_id)
+
+    plan_ids: set[str] = set()
+    plans_dir = root / "plans"
+    if plans_dir.is_dir():
+        for path in plans_dir.glob("*.json"):
+            try:
+                plan = read_model(path, Plan)
+            except AiTestError:
+                continue
+            if plan.task_id == task.task_id:
+                plan_ids.add(plan.plan_id)
+
+    run_ids: set[str] = set()
+    run_dirs: list[Path] = []
+    runs_dir = root / "runs"
+    if runs_dir.is_dir():
+        for run_dir in runs_dir.iterdir():
+            run_path = run_dir / "run.json"
+            if not run_path.is_file():
+                continue
+            try:
+                run = read_model(run_path, Run)
+            except AiTestError:
+                continue
+            if run.plan_id in plan_ids:
+                run_ids.add(run.run_id)
+                run_dirs.append(run_dir)
+
+    removed_reports = 0
+    reports_dir = root / "reports"
+    if reports_dir.is_dir():
+        for path in reports_dir.glob("*.json"):
+            try:
+                data = read_json(path)
+            except (OSError, ValueError):
+                continue
+            if data.get("run_id") in run_ids:
+                path.unlink(missing_ok=True)
+                removed_reports += 1
+
+    removed_issues = 0
+    issues_dir = root / "issues"
+    if issues_dir.is_dir():
+        for path in issues_dir.glob("*.json"):
+            try:
+                issue = read_model(path, Issue)
+            except AiTestError:
+                continue
+            if any(occurrence.run_id in run_ids for occurrence in issue.occurrences):
+                path.unlink(missing_ok=True)
+                removed_issues += 1
+
+    for plan_id in plan_ids:
+        (plans_dir / f"{plan_id}.json").unlink(missing_ok=True)
+    for run_dir in run_dirs:
+        shutil.rmtree(run_dir, ignore_errors=True)
+    (root / "deliveries" / f"{task.task_id}.json").unlink(missing_ok=True)
+    shutil.rmtree(root / "tasks" / "revisions" / task.task_id, ignore_errors=True)
+    _task_path(ws, project.project_id, task.task_id).unlink(missing_ok=True)
+
+    return {
+        "task_id": task.task_id,
+        "deleted": True,
+        "plans": len(plan_ids),
+        "runs": len(run_ids),
+        "reports": removed_reports,
+        "issues": removed_issues,
+    }
+
+
 def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -1448,6 +1524,7 @@ REGISTRY: dict[str, Handler] = {
     "project.map.refresh": cmd_project_map_refresh,
     "task.add": cmd_task_add,
     "task.update": cmd_task_update,
+    "task.delete": cmd_task_delete,
     "task.list": cmd_task_list,
     "task.show": cmd_task_show,
     "delivery.save": cmd_delivery_save,
@@ -1471,6 +1548,7 @@ MUTATING = {
     "module.update",
     "task.add",
     "task.update",
+    "task.delete",
     "delivery.save",
     "template.apply",
     "rules.save",

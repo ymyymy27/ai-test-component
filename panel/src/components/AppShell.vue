@@ -140,6 +140,32 @@ async function renameTask(
   }
 }
 
+async function deleteTask(
+  projectIdValue: string,
+  taskId: string,
+  title: string,
+): Promise<void> {
+  const confirmed = await ui.askConfirm({
+    title: "删除任务",
+    body: `删除「${title}」及其计划、运行、报告、问题和证据。删除后不可恢复。`,
+    confirmLabel: "删除",
+    tone: "danger",
+  });
+  if (confirmed === null) {
+    return;
+  }
+  const wasCurrent = workspace.currentTask?.id === taskId;
+  try {
+    await workspace.deleteTask(projectIdValue, taskId);
+    if (wasCurrent) {
+      await router.push(`/projects/${projectIdValue}/overview`);
+    }
+    ui.showToast("任务已删除。", "success");
+  } catch (error) {
+    ui.showToast(error instanceof Error ? error.message : "删除失败。", "error");
+  }
+}
+
 async function newTask(projectIdValue: string): Promise<void> {
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/tasks/new`);
@@ -248,6 +274,7 @@ onBeforeUnmount(() => {
       @open-settings="openSettings"
       @open-task-details="openTaskDetails"
       @rename-task="renameTask"
+      @delete-task="deleteTask"
       @close="closeSidebar"
     />
     <button
