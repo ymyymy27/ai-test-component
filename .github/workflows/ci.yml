@@ -40,9 +40,9 @@ jobs:
       - name: Collect every test module (import errors still fail the job)
         run: uv run pytest --collect-only -q
 
-      # 完整 Python 回归随节点数和机器负载变化（2026-11-04 的 -n 8 记录为 50:37，
-      # 2026-11-10 全量为 6,104 节点）；托管运行器上由 nightly 工作流执行全量，
-      # 这里跑快速且有代表性的合同/架构/恢复/验收检查与核心单元冒烟。
+      # 这里跑完整 Python 测试套件（没有 marker/路径筛选）；耗时随节点数增长。
+      # nightly 工作流另外执行同一套全量回归。面板 e2e（Playwright）与面板 lint
+      # 不在 basic-checks/ui-checks 内，发布前由人工或专门的 e2e 任务执行。
       - name: Run tests
         run: >
           uv run pytest
@@ -90,6 +90,13 @@ jobs:
           $zip.Dispose()
           if ($wheels.Count -eq 0) { throw 'VSIX 缺少 extension/media/runtime/*.whl' }
           $wheels | ForEach-Object { Write-Host $_.FullName }
+          # aitest wheel 版本必须与 pyproject.toml 一致，避免把旧 CLI 打进新 VSIX。
+          $pyproject = Get-Content (Join-Path $env:GITHUB_WORKSPACE 'pyproject.toml') -Raw
+          $expected = [regex]::Match($pyproject, '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+          $own = @($wheels | Where-Object { $_.FullName -match '/(ai_test_component|aitest)-(\d+\.\d+(?:\.\d+)?)-' })
+          if ($own.Count -ne 1) { throw "VSIX 应包含且仅包含 1 个 aitest wheel，实际 $($own.Count)" }
+          $actual = [regex]::Match($own[0].FullName, '/(?:ai_test_component|aitest)-(\d+\.\d+(?:\.\d+)?)-').Groups[1].Value
+          if ($actual -ne $expected) { throw "VSIX 内 aitest wheel 版本 $actual 与 pyproject.toml 的 $expected 不一致" }
       # Builds dist/*.whl, installs it into a temp venv and runs `doctor`
       # there, asserting an `ok: true` envelope. No artifact metadata checks.
       - name: Smoke-test built wheel
@@ -104,6 +111,26 @@ jobs:
           path: |
             dist/*
             integrations/trae/dist/*.vsix
+
+  python-compat:
+    name: Python ${{ matrix.python }} unit compatibility
+    timeout-minutes: 20
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --python ${{ matrix.python }} --extra dev --locked
+      - name: Run unit tests on the declared minimum versions
+        run: uv run --python ${{ matrix.python }} pytest tests/unit -q
 
   ui-checks:
     name: Panel and extension checks (Windows)

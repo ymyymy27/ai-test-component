@@ -20,6 +20,7 @@ dev = [
   "build>=1.2,<2",
   "mypy>=1.15,<2",
   "pytest>=8.3,<10",
+  "pytest-timeout>=2.3,<3",
   "pytest-xdist>=3.8,<4",
   "ruff>=0.11,<1",
 ]
@@ -41,6 +42,9 @@ addopts = "-q"
 testpaths = ["tests"]
 pythonpath = [".", "src"]
 norecursedirs = ["tests/acceptance/p1/evidence"]
+# 单个用例挂起时由插件统一终止，而不是等 CI job 超时。
+timeout = 300
+timeout_method = "thread"
 
 [tool.ruff]
 target-version = "py311"

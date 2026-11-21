@@ -37,8 +37,11 @@ def call(
     argv = [command, "--workspace", str(workspace), "--input", str(input_file)]
     if confirm:
         argv.append("--confirm")
-    main(argv)
-    return json.loads(capsys.readouterr().out.strip())
+    code = main(argv)
+    data = json.loads(capsys.readouterr().out.strip())
+    expected = 0 if data.get("ok") else (2 if data.get("error", {}).get("code") == "USAGE" else 1)
+    assert code == expected, data
+    return data
 
 
 def _setup_task(tmp_path: Path, capsys: Capsys) -> dict[str, Any]:

@@ -298,7 +298,9 @@ def test_link_assert_requires_an_imported_node_and_persists_assertion(tmp_path: 
     run_dir = ws.project_dir("proj_1") / "runs" / "run_1"
     run_dir.mkdir(parents=True)
     (run_dir / "link.json").write_text(
-        json.dumps({"nodes": [{"node_id": "log:1"}], "assertions": []}),
+        json.dumps(
+            {"schema_version": 1, "nodes": [{"node_id": "log:1"}], "assertions": []}
+        ),
         encoding="utf-8",
     )
 

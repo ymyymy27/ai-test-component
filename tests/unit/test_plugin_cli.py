@@ -16,6 +16,16 @@ from aitest.storage.files import read_json, write_json
 Capsys = pytest.CaptureFixture[str]
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Doctor must never see this machine's real credentials or gh login."""
+
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.delenv("AITEST_MODEL_KEY", raising=False)
+    monkeypatch.delenv("AITEST_GITHUB_TOKEN", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+
+
 def call(tmp_path: Path, command: str, payload: dict[str, Any], capsys: Capsys) -> dict[str, Any]:
     workspace = tmp_path / "ws"
     input_file = tmp_path / "req.json"
@@ -125,6 +135,7 @@ def test_project_config_get_returns_whitelist_without_credentials(
     write_json(
         path,
         {
+            "schema_version": 1,
             "model": {"base_url": "https://example", "api_key": "sk-secret", "max_tokens": 200},
             "services": {"api": {"start": "uvicorn app:main", "password": "db-pass"}},
             "link": {"log_paths": ["logs/app.log"]},
@@ -158,6 +169,7 @@ def test_project_config_update_merges_and_persists(tmp_path: Path, capsys: Capsy
     write_json(
         path,
         {
+            "schema_version": 1,
             "services": {"api": {"start": "uvicorn app:main", "health": "http://localhost/health"}},
             "link": {"log_paths": ["logs/app.log"], "log_format": "jsonl"},
         },
@@ -200,7 +212,9 @@ def test_project_config_update_rejects_secret_and_unknown_fields(
     root.mkdir()
     project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
     path = tmp_path / "ws" / "projects" / project["project_id"] / "project.config.json"
-    write_json(path, {"services": {"api": {"start": "uvicorn app:main"}}})
+    write_json(
+        path, {"schema_version": 1, "services": {"api": {"start": "uvicorn app:main"}}}
+    )
 
     for patch in (
         {"model": {"api_key": "sk-secret"}},
@@ -216,7 +230,10 @@ def test_project_config_update_rejects_secret_and_unknown_fields(
         assert rejected["ok"] is False
         assert rejected["error"]["code"] == "INVALID_REQUEST"
         assert "密钥" in rejected["error"]["message"]
-        assert read_json(path) == {"services": {"api": {"start": "uvicorn app:main"}}}
+        assert read_json(path) == {
+            "schema_version": 1,
+            "services": {"api": {"start": "uvicorn app:main"}},
+        }
 
     unknown = call(
         tmp_path,

@@ -311,7 +311,10 @@ def test_run_start_reuses_confirmation_and_requires_new_one_after_env_change(
 
     ws = _workspace(tmp_path)
     (ws.project_dir(project_id) / "project.config.json").write_text(
-        json.dumps({"services": {"web": {"health": "", "start": ""}}}), encoding="utf-8"
+        json.dumps(
+            {"schema_version": 1, "services": {"web": {"health": "", "start": ""}}}
+        ),
+        encoding="utf-8",
     )
     stale = call(
         tmp_path,
@@ -423,6 +426,7 @@ def test_report_contains_issues_analysis_layers_and_github_mapping(
     (github_dir / "abc123.json").write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "repo": "o/r",
                 "branch": "main",
                 "commit": "abc123",

@@ -71,8 +71,11 @@ def call_with_payload(
     argv = [command, "--workspace", str(workspace), "--input", str(input_file)]
     if confirm:
         argv.append("--confirm")
-    main(argv)
-    return json.loads(capsys.readouterr().out.strip())
+    code = main(argv)
+    data = json.loads(capsys.readouterr().out.strip())
+    expected = 0 if data.get("ok") else (2 if data.get("error", {}).get("code") == "USAGE" else 1)
+    assert code == expected, data
+    return data
 
 
 def _workspace(tmp_path: Path) -> Workspace:
@@ -184,8 +187,9 @@ def _run_plan(
 
 
 def _write_config(ws: Workspace, project_id: str, data: dict[str, Any]) -> None:
+    payload = {"schema_version": 1, **data}
     (ws.project_dir(project_id) / "project.config.json").write_text(
-        json.dumps(data, ensure_ascii=False), encoding="utf-8"
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
     )
 
 

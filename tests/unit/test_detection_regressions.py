@@ -13,8 +13,6 @@ from aitest.core.project_context import (
     _test_modules,
     package_name,
 )
-from aitest.ai_features import _conclusion_free
-from aitest.core.expectations import expectation_matches, publish_problems
 from aitest.core.project_context import (
     test_dependency_specs as declared_test_dependency_specs,
 )

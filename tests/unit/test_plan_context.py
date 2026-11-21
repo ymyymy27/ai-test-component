@@ -42,8 +42,11 @@ def call(
     argv = [command, "--workspace", str(workspace), "--input", str(input_file)]
     if confirm:
         argv.append("--confirm")
-    main(argv)
-    return json.loads(capsys.readouterr().out.strip())
+    code = main(argv)
+    data = json.loads(capsys.readouterr().out.strip())
+    expected = 0 if data.get("ok") else (2 if data.get("error", {}).get("code") == "USAGE" else 1)
+    assert code == expected, data
+    return data
 
 
 def _workspace(tmp_path: Path) -> Workspace:
@@ -718,7 +721,12 @@ def test_plan_signature_detects_services_change_and_accepts_legacy_empty_signatu
 
     ws = _workspace(tmp_path)
     (ws.project_dir(project_id) / "project.config.json").write_text(
-        json.dumps({"services": {"web": {"health": "http://127.0.0.1:8000/health"}}}),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "services": {"web": {"health": "http://127.0.0.1:8000/health"}},
+            }
+        ),
         encoding="utf-8",
     )
     stale = call(

@@ -23,12 +23,20 @@ import aitest.cli  # noqa: F401 - importing registers runtime/integration comman
 from aitest.cli import main
 from aitest.commands import MUTATING, REGISTRY
 from aitest.models import (
+    AcceptanceItem,
+    Analysis,
+    Case,
     CaseResult,
+    Dependency,
     IssueDisposition,
     IssueStatus,
+    ManualStep,
     MockKind,
     Plan,
+    Report,
+    Run,
     RunStatus,
+    Task,
     Verdict,
 )
 
@@ -239,6 +247,77 @@ def test_documented_issue_status_and_disposition_match_the_model() -> None:
 def test_documented_plan_status_matches_the_model() -> None:
     annotation = Plan.model_fields["status"].annotation
     assert _documented_enum("### 3.6 计划状态") == _literal_values(annotation)
+
+
+def test_documented_run_kind_and_postprocess_match_the_model() -> None:
+    assert _documented_enum("### 3.7 运行种类与后处理", "运行种类") == _literal_values(
+        Run.model_fields["kind"].annotation
+    )
+    assert _documented_enum("### 3.7 运行种类与后处理", "后处理状态") == _literal_values(
+        Run.model_fields["postprocess"].annotation
+    )
+
+
+def test_documented_task_intent_and_item_status_match_the_model() -> None:
+    assert _documented_enum("### 3.8 任务意图与验收项状态", "任务意图") == _literal_values(
+        Task.model_fields["intent"].annotation
+    )
+    assert _documented_enum(
+        "### 3.8 任务意图与验收项状态", "验收项状态"
+    ) == _literal_values(AcceptanceItem.model_fields["status"].annotation)
+
+
+def test_documented_case_importance_and_manual_result_match_the_model() -> None:
+    assert _documented_enum(
+        "### 3.9 用例重要度与人工步骤结果", "用例重要度"
+    ) == _literal_values(Case.model_fields["importance"].annotation)
+    assert _documented_enum(
+        "### 3.9 用例重要度与人工步骤结果", "人工步骤结果"
+    ) == _literal_values(ManualStep.model_fields["result"].annotation)
+
+
+def test_documented_dependency_type_matches_the_model() -> None:
+    assert _documented_enum("### 3.10 模块依赖类型") == _literal_values(
+        Dependency.model_fields["type"].annotation
+    )
+
+
+def test_documented_analysis_status_and_reason_match_the_model() -> None:
+    assert _documented_enum("### 3.11 分析状态与原因", "分析状态") == _literal_values(
+        Analysis.model_fields["status"].annotation
+    )
+    assert _documented_enum("### 3.11 分析状态与原因", "分析原因") == _literal_values(
+        Analysis.model_fields["reason"].annotation
+    )
+
+
+def test_documented_report_summary_source_matches_the_model() -> None:
+    assert _documented_enum("### 3.12 报告摘要来源") == _literal_values(
+        Report.model_fields["summary_source"].annotation
+    )
+
+
+def test_project_commands_reject_missing_project_id(tmp_path: Path, capsys: Capsys) -> None:
+    global_commands = {
+        "doctor",
+        "project.add",
+        "project.list",
+        "template.list",
+        "run.repair",  # 先校验 --confirm
+        "run.manual",  # 先校验 case_id
+        "backup.create",
+        "backup.restore",
+    }
+    for command in sorted(set(REGISTRY) - global_commands):
+        code, response = _call(
+            tmp_path,
+            capsys,
+            [command],
+            {"command": command, "request_id": f"req-{command}", "payload": {}},
+        )
+        assert code == 1, (command, response)
+        assert response["error"]["code"] == "INVALID_REQUEST", (command, response)
+        assert "project_id" in response["error"]["message"], (command, response)
 
 
 def test_contract_error_table_covers_every_code_used_in_code() -> None:
