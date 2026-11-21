@@ -32,6 +32,7 @@ const analyzing = computed(
 const analysisBusy = computed(() => workspace.busyKey(`analysis:${projectId.value}`));
 const ready = computed(() => project.value?.analysisStatus === "ready" && catalogCount.value > 0);
 const startBusy = computed(() => workspace.busyKey(`create-task:${projectId.value}`));
+const submitting = ref(false);
 const firstTask = computed(
   () => (project.value?.tasks.filter((task) => task.stage !== "fresh").length ?? 0) === 0,
 );
@@ -40,7 +41,7 @@ const selectedCandidate = computed(
   () => candidates.value.find((candidate) => candidate.id === selectedId.value) ?? null,
 );
 const canCreate = computed(
-  () => Boolean(goal.value.trim()) && ready.value && !startBusy.value,
+  () => Boolean(goal.value.trim()) && ready.value && !startBusy.value && !submitting.value,
 );
 
 watch(candidates, (value) => {
@@ -50,6 +51,9 @@ watch(candidates, (value) => {
 });
 
 function chooseMode(next: "target" | "range" | "quick"): void {
+  if (submitting.value) {
+    return;
+  }
   mode.value = next;
   void router.replace({ query: { ...route.query, mode: next } });
 }
@@ -87,6 +91,9 @@ async function analyze(): Promise<void> {
 }
 
 function updateGoal(value: string): void {
+  if (submitting.value) {
+    return;
+  }
   goal.value = value;
   if (selectedCandidate.value && value.trim() !== selectedCandidate.value.title) {
     selectedId.value = null;
@@ -94,6 +101,9 @@ function updateGoal(value: string): void {
 }
 
 function selectCandidate(candidateId: string): void {
+  if (submitting.value) {
+    return;
+  }
   const candidate = candidates.value.find((entry) => entry.id === candidateId);
   if (!candidate) {
     return;
@@ -107,6 +117,7 @@ async function submit(): Promise<void> {
   if (!text || !canCreate.value) {
     return;
   }
+  submitting.value = true;
   try {
     const task = await workspace.createTask(projectId.value, {
       goal: text,
@@ -122,6 +133,8 @@ async function submit(): Promise<void> {
     }
   } catch {
     // store 已提示。
+  } finally {
+    submitting.value = false;
   }
 }
 

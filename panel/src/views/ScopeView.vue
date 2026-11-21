@@ -108,11 +108,13 @@ watch(
 );
 
 let saveChain: Promise<unknown> = Promise.resolve();
+let saveFailed = false;
 
 function persist(ids: string[]): void {
   saveChain = saveChain
     .then(() => workspace.selectScope(projectId.value, taskId.value, ids))
     .catch(() => {
+      saveFailed = true;
       selected.value = task.value ? [...task.value.selectedItemIds] : [];
     });
 }
@@ -169,6 +171,12 @@ function clearAll(): void {
 
 async function generatePlan(): Promise<void> {
   if (!canGenerate.value) {
+    return;
+  }
+  await saveChain;
+  if (saveFailed) {
+    saveFailed = false;
+    ui.showToast("范围保存失败，未生成计划；请重新选择后重试。", "error");
     return;
   }
   try {

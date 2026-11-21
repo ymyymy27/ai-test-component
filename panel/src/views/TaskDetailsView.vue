@@ -55,6 +55,8 @@ const delivery = ref({
 const deliveryError = ref("");
 
 const busyBasic = computed(() => workspace.busyKey(`task:${taskId.value}`));
+const savingBasic = ref(false);
+const savingItems = ref(false);
 const busyDelivery = computed(() => workspace.busyKey(`delivery:${taskId.value}`));
 const busyTemplate = computed(() => workspace.busyKey(`template:${taskId.value}`));
 const planStale = computed(() => Boolean(plan.value?.stale));
@@ -144,12 +146,17 @@ async function saveBasic(): Promise<void> {
     executor: basic.value.executor,
     reviewer: basic.value.reviewer,
   };
+  savingBasic.value = true;
   try {
     await workspace.updateTask(projectId.value, taskId.value, patch);
-    reset();
+    if (task.value) {
+      fillBasic(task.value);
+    }
     ui.showToast("任务资料已保存。", "success");
   } catch {
     // store 已提示。
+  } finally {
+    savingBasic.value = false;
   }
 }
 
@@ -197,19 +204,27 @@ async function saveItems(): Promise<void> {
   if (!task.value || running.value) {
     return;
   }
-  if (items.value.some((item) => !item.text.trim())) {
+  const emptyIndex = items.value.findIndex((item) => !item.text.trim());
+  if (emptyIndex >= 0) {
     itemsError.value = "验收项文本不能为空；先补全或删除空行。";
+    const inputs = document.querySelectorAll<HTMLInputElement>('input[aria-label="验收项文本"]');
+    inputs[emptyIndex]?.focus();
     return;
   }
   itemsError.value = "";
+  savingItems.value = true;
   try {
     await workspace.updateTask(projectId.value, taskId.value, {
       acceptanceItems: items.value,
     });
-    reset();
+    if (task.value) {
+      fillItems(task.value);
+    }
     ui.showToast("验收项已保存；如契约变化，旧计划会标为过期。", "success");
   } catch {
     // store 已提示。
+  } finally {
+    savingItems.value = false;
   }
 }
 
@@ -260,7 +275,9 @@ async function saveDelivery(): Promise<void> {
   }
   try {
     await workspace.saveDelivery(projectId.value, taskId.value, input);
-    reset();
+    if (task.value) {
+      fillDelivery(task.value);
+    }
     ui.showToast("交付说明已保存。", "success");
   } catch {
     // store 已提示。
@@ -273,8 +290,19 @@ async function applyTemplate(templateId: string): Promise<void> {
   }
   try {
     await workspace.applyTemplate(projectId.value, taskId.value, templateId);
-    reset();
+    if (task.value) {
+      fillItems(task.value);
+    }
     ui.showToast("检查模板已应用；不进入必测分母。", "success");
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function reviseScope(): Promise<void> {
+  try {
+    await workspace.reviseScope(projectId.value, taskId.value);
+    await router.push(`/projects/${projectId.value}/tasks/${taskId.value}/scope`);
   } catch {
     // store 已提示。
   }
@@ -314,7 +342,7 @@ function deliveryComplete(): boolean {
       <button
         class="link-btn"
         type="button"
-        @click="router.push(`/projects/${projectId}/tasks/${taskId}/scope`)"
+        @click="reviseScope"
       >
         重新选范围
       </button>
@@ -403,7 +431,7 @@ function deliveryComplete(): boolean {
             :disabled="running || busyBasic"
             :aria-busy="busyBasic"
           >
-            {{ busyBasic ? "正在保存…" : "保存基本信息" }}
+            {{ savingBasic ? "正在保存…" : "保存基本信息" }}
           </button>
         </div>
       </form>

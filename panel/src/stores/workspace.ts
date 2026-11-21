@@ -465,7 +465,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       if (!project) {
         throw new RepositoryError("NOT_FOUND", "项目不存在。");
       }
-      environment.value = buildEnvironmentChecks();
+      if (environment.value.length === 0) {
+        environment.value = buildEnvironmentChecks();
+      }
       const input: ConfirmPlanInput = {
         operator: OPERATOR,
         environment: environment.value,
