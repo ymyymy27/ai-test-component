@@ -190,7 +190,10 @@ def _load_delivery(
     ws: Workspace, project_id: str, task_id: str, run_dir: Path | None = None
 ) -> Delivery | None:
     if run_dir is not None and (run_dir / "delivery.json").is_file():
-        return read_model(run_dir / "delivery.json", Delivery)
+        try:
+            return read_model(run_dir / "delivery.json", Delivery)
+        except AiTestError:
+            return None
     path = ws.project_dir(project_id) / "deliveries" / f"{task_id}.json"
     if not path.is_file():
         return None

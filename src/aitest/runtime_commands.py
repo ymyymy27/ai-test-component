@@ -3218,7 +3218,10 @@ def _check_zip_member(name: str) -> str:
         or raw.startswith("/")
         or ".." in parts
         or ":" in normalized
-        or any(part.endswith((".", " ")) or part.split(".")[0].upper() in reserved for part in parts)
+        or any(
+            part.endswith((".", " ")) or part.split(".")[0].upper() in reserved
+            for part in parts
+        )
     ):
         raise _invalid_backup(f"备份包含非法路径：{name}")
     return normalized
@@ -3566,41 +3569,40 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         "exit_code": None,
     }
     _action_log(ws, started)
+    from aitest.runners.command_runner import run_command
     from aitest.worker import _run_env
 
     cleanup_env = _run_env(Path(project.root), None, run_id or "cleanup")
-    try:
-        completed = subprocess.run(
-            command,
-            shell=True,
-            cwd=Path(project.root),
-            capture_output=True,
-            text=True,
-            timeout=600,
-            check=False,
-            env=cleanup_env,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise AiTestError(
-            "CLEANUP_FAILED", f"清理命令无法执行：{exc}", "检查命令与项目根目录"
-        ) from exc
-    stdout = redact(_trim_output(completed.stdout), secret_list)
-    stderr = redact(_trim_output(completed.stderr), secret_list)
+    result = run_command(
+        command,
+        cwd=Path(project.root),
+        timeout_seconds=600,
+        env=cleanup_env,
+    )
+    stdout = redact(
+        _trim_output(result.stdout.decode("utf-8", errors="replace")), secret_list
+    )
+    stderr = redact(
+        _trim_output(result.stderr.decode("utf-8", errors="replace")), secret_list
+    )
+    exit_code = result.exit_code
+    if result.status == "blocked":
+        stderr = redact((stderr + "\n" + result.error).strip(), secret_list)
     entry = {
         "at": iso_now(),
         "run_id": run_id,
         "command": redact(command, secret_list),
         "dry_run": dry_run,
         "phase": "finished",
-        "exit_code": completed.returncode,
+        "exit_code": exit_code,
         "stdout": stdout,
         "stderr": stderr,
     }
     log_path = _action_log(ws, entry)
-    if completed.returncode != 0:
+    if result.status != "passed":
         raise AiTestError(
             "CLEANUP_FAILED",
-            f"清理命令退出码 {completed.returncode}",
+            f"清理命令未通过：{result.error or f'退出码 {exit_code}'}",
             f"检查 {log_path} 中的输出",
         )
     return {
@@ -3608,7 +3610,7 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         "executed": not dry_run,
         "run_id": run_id,
         "command": redact(command, secret_list),
-        "exit_code": completed.returncode,
+        "exit_code": exit_code,
         "stdout": stdout,
         "stderr": stderr,
         "log_path": log_path,
