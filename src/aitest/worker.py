@@ -950,6 +950,45 @@ def _environment_failure(output: bytes, workdir: Path) -> str:
     return ""
 
 
+_E2E_COMMAND_RE = re.compile(r"\b(?:playwright|cypress)\b", re.IGNORECASE)
+_DEV_SERVER_RE = re.compile(
+    r"\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?dev\b",
+    re.IGNORECASE,
+)
+
+
+def _is_e2e_command(method: str) -> bool:
+    return bool(_E2E_COMMAND_RE.search(method))
+
+
+def _is_dev_server_command(method: str) -> bool:
+    if not method.startswith(("command:", "playwright:")):
+        return False
+    return bool(_DEV_SERVER_RE.search(method))
+
+
+def _service_block_reason(
+    method: str,
+    service_configs: list[Any],
+    service_ok: bool,
+    env: dict[str, str],
+) -> str:
+    """Reasons that must block before a command can hang waiting for a server."""
+
+    if _is_dev_server_command(method):
+        return "长驻开发服务命令不能作为业务用例；改用快速检查或服务配置（不计为产品失败）"
+    if (
+        _is_e2e_command(method)
+        and (not service_configs or not service_ok)
+        and not env.get("PLAYWRIGHT_BASE_URL")
+    ):
+        return (
+            "端到端测试需要可访问的服务；当前未配置或服务未就绪，"
+            "未执行（不计为产品失败）"
+        )
+    return ""
+
+
 def _script_self_error(stderr: bytes) -> bool:
     markers = (
         b"SyntaxError",
@@ -1533,11 +1572,19 @@ def main(argv: list[str] | None = None) -> int:
                         if cache_key
                         else ""
                     )
+                    service_block = _service_block_reason(
+                        case.verify_method, service_configs, service_ok, run_env
+                    )
                     if missing_tool:
                         result = "blocked"
                         outputs: list[bytes] = []
                         message = f"环境缺少命令：{missing_tool}（不计为产品失败）"
                         artifacts: list[tuple[str, bytes]] = []
+                    elif service_block:
+                        result = "blocked"
+                        outputs = []
+                        message = service_block
+                        artifacts = []
                     elif cached is not None:
                         result, outputs, message, artifacts = cached
                         message = (

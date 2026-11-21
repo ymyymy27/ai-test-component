@@ -554,7 +554,9 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
     """Merge identical command cases into one case bound to all their items."""
 
     merged: list[Case] = []
-    by_key: dict[tuple[str, str, str, str, str, tuple[str, ...]], Case] = {}
+    by_key: dict[
+        tuple[str, str, str, str, str, tuple[str, ...], tuple[str, ...]], Case
+    ] = {}
     removed = 0
     for case in cases:
         if not case.verify_method.startswith(("command:", "pytest:")):
@@ -567,6 +569,7 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
             case.expectation_source,
             " ".join(case.verify_method.split(":", 1)[1].split()),
             tuple(case.dependencies),
+            tuple(case_item_ids(case)),
         )
         target = by_key.get(key)
         if target is None:
@@ -623,6 +626,39 @@ def _downgrade_broad_business_cases(cases: list[Case]) -> list[str]:
     return downgraded
 
 
+def _split_multi_item_cases(
+    cases: list[Case], items: list[AcceptanceItem]
+) -> tuple[list[Case], int]:
+    """Give every business item its own case with an exact expectation source."""
+
+    by_id = {item.item_id: item for item in items}
+    result: list[Case] = []
+    split_count = 0
+    for case in cases:
+        ids = [item_id for item_id in case_item_ids(case) if item_id in by_id]
+        if len(ids) < 2:
+            if case.acceptance_item_ids:
+                # Unknown or already-single extras must not leave a multi-item
+                # business case behind.
+                case.acceptance_item_ids = []
+            result.append(case)
+            continue
+        split_count += 1
+        for index, item_id in enumerate(ids):
+            clone = case.model_copy(deep=True)
+            clone.case_id = (
+                case.case_id
+                if index == 0
+                else f"{case.case_id[:110]}_{index + 1}"
+            )
+            clone.acceptance_item_id = item_id
+            clone.acceptance_item_ids = []
+            clone.expectation_source = by_id[item_id].text
+            clone.warnings = []
+            result.append(clone)
+    return result, split_count
+
+
 def _validate_plan_cases(
     cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
 ) -> None:
@@ -653,6 +689,16 @@ def _validate_plan_cases(
             raise invalid_request(f"用例 ID 重复：{case.case_id}")
         seen_ids.add(case.case_id)
         _validate_verify_method(case)
+        if (
+            intent == "business"
+            and case.layer != "L1"
+            and not is_manual_case(case)
+            and case.acceptance_item_ids
+        ):
+            raise invalid_request(
+                f"业务用例 {case.case_id} 绑定了多个验收项",
+                "业务用例必须一项一案；同一命令可分别绑定各验收项，执行阶段会复用结果",
+            )
         broad = _broad_test_command(case.verify_method)
         if broad:
             if intent == "business" and case.layer != "L1":
@@ -1220,7 +1266,13 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     downgraded_broad: list[str] = []
+    multi_item_split = 0
     for attempt in range(2):
+        if task.intent == "business":
+            cases, split_now = _split_multi_item_cases(
+                cases, task.acceptance_items
+            )
+            multi_item_split += split_now
         try:
             _validate_plan_cases(cases, task.intent, context)
             preview = Plan(
@@ -1276,6 +1328,11 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         warnings.append(
             f"{len(downgraded_broad)} 条整包测试命令已改为人工验证；"
             "项目没有可定位的具体测试，未计入自动通过"
+        )
+    if multi_item_split:
+        warnings.append(
+            f"已拆分 {multi_item_split} 条组合用例为逐项用例；"
+            "预期来源使用验收项原文，逐项断言仍需人工确认"
         )
     if django_dropped:
         warnings.append(

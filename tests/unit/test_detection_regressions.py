@@ -17,7 +17,7 @@ from aitest.core.project_context import (
     test_dependency_specs as declared_test_dependency_specs,
 )
 from aitest.errors import AiTestError
-from aitest.models import Case, Plan, Run, RunCase, Scope
+from aitest.models import AcceptanceItem, Case, Plan, Run, RunCase, Scope
 from aitest.runners.base import RunnerResult
 from aitest.runtime_commands import (
     _broad_test_command,
@@ -25,6 +25,7 @@ from aitest.runtime_commands import (
     _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
     _shared_command_warnings,
+    _split_multi_item_cases,
     _validate_plan_cases,
 )
 from aitest.worker import (
@@ -33,6 +34,8 @@ from aitest.worker import (
     _downgrade_script_failures,
     _environment_failure,
     _environment_fingerprint,
+    _is_dev_server_command,
+    _is_e2e_command,
     _missing_command_tool,
     _missing_dependencies,
     _missing_module_from_output,
@@ -41,6 +44,7 @@ from aitest.worker import (
     _run_env,
     _run_python_script,
     _script_self_error,
+    _service_block_reason,
 )
 
 
@@ -148,6 +152,41 @@ def test_whole_suite_is_allowed_only_as_l1_smoke(tmp_path: Path) -> None:
         verify_method="command:python runtests.py",
     )
     _validate_plan_cases([smoke_case], "business", {"root": str(tmp_path)})
+
+
+def test_business_case_cannot_bind_multiple_items(tmp_path: Path) -> None:
+    case = Case(
+        case_id="case_multi",
+        acceptance_item_id="item_1",
+        acceptance_item_ids=["item_2"],
+        layer="L2",
+        expected="文件通过",
+        verify_method="command:python -m pytest tests/test_users.py",
+    )
+    with pytest.raises(AiTestError) as excinfo:
+        _validate_plan_cases([case], "business", {"root": str(tmp_path)})
+    assert "绑定了多个验收项" in str(excinfo.value)
+
+
+def test_multi_item_case_splits_with_exact_item_sources() -> None:
+    items = [
+        AcceptanceItem(item_id="item_1", text="用户注册"),
+        AcceptanceItem(item_id="item_2", text="用户列表查询"),
+    ]
+    case = Case(
+        case_id="case_1",
+        acceptance_item_id="item_1",
+        acceptance_item_ids=["item_2"],
+        layer="L2",
+        expected="文件通过",
+        expectation_source="用户注册、用户列表查询",
+        verify_method="command:python -m pytest tests/test_users.py",
+    )
+    cases, split = _split_multi_item_cases([case], items)
+    assert split == 1
+    assert len(cases) == 2
+    assert [c.expectation_source for c in cases] == ["用户注册", "用户列表查询"]
+    assert all(c.acceptance_item_ids == [] for c in cases)
 
 
 def test_duplicate_scoped_test_command_is_allowed(tmp_path: Path) -> None:
@@ -262,7 +301,7 @@ def test_missing_command_and_service_are_environment_failures(tmp_path: Path) ->
     )
 
 
-def test_duplicate_command_cases_merge_and_keep_items() -> None:
+def test_duplicate_command_cases_for_different_items_are_not_merged() -> None:
     cases = [
         Case(
             case_id="case_1",
@@ -280,10 +319,27 @@ def test_duplicate_command_cases_merge_and_keep_items() -> None:
         ),
     ]
     merged, removed = _merge_duplicate_command_cases(cases)
-    assert removed == 1
-    assert len(merged) == 1
-    assert merged[0].acceptance_item_id == "item_1"
-    assert merged[0].acceptance_item_ids == ["item_2"]
+    assert removed == 0
+    assert len(merged) == 2
+    assert [case.acceptance_item_id for case in merged] == ["item_1", "item_2"]
+
+
+def test_e2e_and_dev_server_commands_are_classified() -> None:
+    assert _is_e2e_command("command:cd frontend && bunx playwright test tests/a.spec.ts")
+    assert _is_e2e_command("playwright:tests/login.spec.ts")
+    assert _is_dev_server_command("command:cd frontend && bun run dev")
+    assert _is_dev_server_command("command:npm run dev")
+    assert not _is_dev_server_command("command:npm run build")
+    assert "端到端" in _service_block_reason(
+        "command:bunx playwright test", [], True, {}
+    )
+    assert "开发服务" in _service_block_reason("command:bun run dev", [], True, {})
+    assert (
+        _service_block_reason("command:bunx playwright test", [], True, {
+            "PLAYWRIGHT_BASE_URL": "http://localhost:5173"
+        })
+        == ""
+    )
 
 
 def test_missing_leading_tool_is_detected() -> None:
