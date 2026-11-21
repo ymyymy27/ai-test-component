@@ -8,6 +8,7 @@ import RunHistoryDialog from "@/components/RunHistoryDialog.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import { latestReportForRun } from "@/domain/derive";
 import { durationText } from "@/domain/ids";
+import { VERDICT_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -147,7 +148,10 @@ watch(dialogOpen, (open) => {
             type="button"
             @click="openRun(run)"
           >
-            <StatusMark :result="run.status === 'interrupted' ? 'blocked' : run.verdict" />
+            <StatusMark
+              :result="run.status === 'interrupted' ? 'blocked' : run.verdict"
+              :label="run.status === 'interrupted' ? '中断' : VERDICT_LABEL[run.verdict]"
+            />
             <span>
               <span class="row-title">
                 {{ taskFor(run)?.title ?? "任务已归档" }}

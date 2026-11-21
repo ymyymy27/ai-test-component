@@ -16,11 +16,19 @@ async function start(): Promise<void> {
   const pinia = createPinia();
   app.use(pinia);
   useUiStore().initTheme();
-  const workspace = useWorkspaceStore();
-  await workspace.bootstrap();
+  app.config.errorHandler = (error) => {
+    console.error(error);
+    useUiStore().showToast("界面出现异常，请刷新或重试。", "error");
+  };
   app.use(router);
-  await router.isReady();
   app.mount("#app");
+  try {
+    await useWorkspaceStore().bootstrap();
+    await router.isReady();
+  } catch (error) {
+    console.error(error);
+    useUiStore().showToast("应用启动失败，请刷新重试。", "error");
+  }
 }
 
 void start();

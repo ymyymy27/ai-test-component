@@ -135,7 +135,7 @@ function onDialogClick(event: MouseEvent): void {
         <p v-if="error" id="manual-error" class="field-error" role="alert">{{ error }}</p>
       </div>
       <div v-if="allowFiles" class="field">
-        <label for="manual-files">证据文件 <span class="optional">可选</span></label>
+        <label for="manual-files">证据文件 <span class="optional">选填</span></label>
         <input id="manual-files" type="file" multiple @change="onFiles" />
         <p v-if="files.length" class="field-hint">
           已选 {{ files.length }} 个文件；只登记文件名、大小与摘要，不读取正文。

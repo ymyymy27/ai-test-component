@@ -1061,7 +1061,7 @@
 @media (max-width: 620px) {
   .page-title,
   .doc-title {
-    font-size: 23px;
+    font-size: var(--text-23);
   }
 
   .link-btn {

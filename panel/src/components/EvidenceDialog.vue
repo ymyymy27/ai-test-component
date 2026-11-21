@@ -105,7 +105,7 @@ function onDialogClick(event: MouseEvent): void {
       </header>
       <p class="dialog-text">只登记文件名、大小和摘要，不读取文件正文；证据不会改变本次结论。</p>
       <div class="field">
-        <label for="evidence-case">关联用例 <span class="optional">可选</span></label>
+        <label for="evidence-case">关联用例 <span class="optional">选填</span></label>
         <select id="evidence-case" v-model="caseId">
           <option value="">不关联具体用例</option>
           <option v-for="testCase in cases" :key="testCase.id" :value="testCase.id">

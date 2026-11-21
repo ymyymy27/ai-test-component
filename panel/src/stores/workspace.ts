@@ -88,6 +88,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const environment = ref<EnvironmentCheck[]>([]);
   const quickCheck = ref<QuickCheck | null>(null);
   const initialized = ref(false);
+  let bootstrapPromise: Promise<void> | null = null;
   const analysisTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let hostPollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -202,6 +203,19 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     analysisTimers.set(project.id, timer);
   }
 
+  function bootstrap(): Promise<void> {
+    if (initialized.value) {
+      return Promise.resolve();
+    }
+    if (bootstrapPromise) {
+      return bootstrapPromise;
+    }
+    bootstrapPromise = runBootstrap().finally(() => {
+      bootstrapPromise = null;
+    });
+    return bootstrapPromise;
+  }
+
   async function completeAnalysis(projectId: string): Promise<void> {
     const project = projects.value.find((entry) => entry.id === projectId);
     if (!project || project.analysisStatus === "ready") {
@@ -231,7 +245,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
-  async function bootstrap(): Promise<void> {
+  async function runBootstrap(): Promise<void> {
     if (initialized.value) {
       return;
     }

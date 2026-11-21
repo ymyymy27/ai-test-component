@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import { durationText } from "@/domain/ids";
+import { VERDICT_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
 import StatusMark from "./StatusMark.vue";
 
@@ -34,7 +35,10 @@ const rows = computed(() =>
       type="button"
       @click="emit('open', row.run.id)"
     >
-      <StatusMark :result="row.run.status === 'interrupted' ? 'blocked' : row.run.verdict" />
+      <StatusMark
+        :result="row.run.status === 'interrupted' ? 'blocked' : row.run.verdict"
+        :label="row.run.status === 'interrupted' ? '中断' : VERDICT_LABEL[row.run.verdict]"
+      />
       <span>
         <span class="row-title">{{ row.taskTitle }}</span>
         <span class="row-meta">

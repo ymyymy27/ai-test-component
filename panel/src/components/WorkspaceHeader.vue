@@ -63,7 +63,6 @@ defineExpose({ focusToggle, isEnvButtonTarget });
         <RouterLink
           class="breadcrumb-project"
           :to="`/projects/${projectId}/overview`"
-          aria-current-value="false"
           >{{ projectName }}</RouterLink
         >
         <span class="breadcrumb-separator" aria-hidden="true">/</span>
@@ -72,8 +71,7 @@ defineExpose({ focusToggle, isEnvButtonTarget });
             v-if="taskRoute"
             class="breadcrumb-task"
             :to="taskRoute"
-            aria-current-value="false"
-            >{{ taskTitle }}</RouterLink
+              >{{ taskTitle }}</RouterLink
           >
           <span v-else class="breadcrumb-task">{{ taskTitle }}</span>
           <span class="breadcrumb-separator" aria-hidden="true">/</span>

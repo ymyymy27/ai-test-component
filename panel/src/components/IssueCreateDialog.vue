@@ -130,7 +130,7 @@ function onDialogClick(event: MouseEvent): void {
           </select>
         </div>
         <div class="field">
-          <label for="issue-item">关联验收项 <span class="optional">可选</span></label>
+          <label for="issue-item">关联验收项 <span class="optional">选填</span></label>
           <select id="issue-item" v-model="itemId">
             <option value="">不关联验收项</option>
             <option v-for="item in items" :key="item.id" :value="item.id">
