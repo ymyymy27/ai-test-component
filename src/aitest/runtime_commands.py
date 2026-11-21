@@ -48,7 +48,7 @@ from aitest.core.expectations import annotate_cases, ensure_publishable, expecta
 from aitest.core.issues import add_issue, ensure_run_issues
 from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
-from aitest.core.project_context import build_project_context
+from aitest.core.project_context import build_project_context, python_dependencies
 from aitest.core.reports import build_report
 from aitest.core.scope import applicable_items, task_contract, uncovered_items
 from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
@@ -359,21 +359,13 @@ def _validate_verify_method(case: Case) -> None:
     raise _invalid_method(case, f"未知验证方式前缀：{method.split(':', 1)[0]}")
 
 
-_NODE_ONLY_DEPENDENCIES = frozenset({"bun", "npm", "node", "yarn", "pnpm"})
-
-
 def _plan_dependencies(cases: list[Case]) -> list[str]:
     """Only Python requirements are auto-installed; Node deps belong to npm/bun."""
 
-    dependencies = {
-        dependency for case in cases for dependency in case.dependencies
-    }
     return sorted(
-        dependency
-        for dependency in dependencies
-        if not dependency.startswith("@")
-        and re.split(r"[<>=!~\[; ]", dependency.strip(), maxsplit=1)[0].lower()
-        not in _NODE_ONLY_DEPENDENCIES
+        python_dependencies(
+            [dependency for case in cases for dependency in case.dependencies]
+        )
     )
 
 

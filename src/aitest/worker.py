@@ -29,7 +29,11 @@ from aitest.core.evidence import (
 )
 from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
-from aitest.core.project_context import package_name, test_dependency_specs
+from aitest.core.project_context import (
+    package_name,
+    python_dependencies,
+    test_dependency_specs,
+)
 from aitest.core.reports import build_report
 from aitest.errors import AiTestError
 from aitest.model_config import build_client
@@ -1396,8 +1400,8 @@ def main(argv: list[str] | None = None) -> int:
     service_states: list[dict[str, Any]] = []
     dependency_ok = True
     try:
-        run.dependencies = sorted(
-            {dependency for case in plan.cases for dependency in case.dependencies}
+        run.dependencies = python_dependencies(
+            sorted({dependency for case in plan.cases for dependency in case.dependencies})
         )
         if run.dependencies and not cancelled():
             dependency_ok, dependency_ref = _install_dependencies(

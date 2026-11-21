@@ -221,6 +221,22 @@ def package_name(spec: str) -> str:
     return re.split(r"[<>=!~\[; ]", spec.strip(), maxsplit=1)[0].lower()
 
 
+_NODE_ONLY_DEPENDENCIES = frozenset({"bun", "npm", "node", "yarn", "pnpm"})
+
+
+def python_dependencies(values: list[str]) -> list[str]:
+    """Keep Python requirements; Node tools must be installed by their own manager."""
+
+    result: list[str] = []
+    for value in values:
+        name = re.split(r"[<>=!~\[; ]", value.strip(), maxsplit=1)[0].lower()
+        if not name or name in _NODE_ONLY_DEPENDENCIES or value.startswith("@"):
+            continue
+        if value not in result:
+            result.append(value)
+    return result
+
+
 def _pyproject_dependencies(data: dict[str, Any]) -> set[str]:
     names: set[str] = set()
     project = data.get("project")
