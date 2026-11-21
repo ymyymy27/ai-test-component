@@ -305,8 +305,16 @@ def _reference_problems(ws: Workspace) -> list[str]:
 
 def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
-    meta = ws.init()
+    init_error = ""
+    try:
+        meta = ws.init()
+    except AiTestError as exc:
+        meta = None
+        init_error = exc.info.message
     writable, writable_error = _probe_writable(ws.root)
+    if init_error:
+        writable = False
+        writable_error = init_error
     python_ok = sys.version_info >= (3, 11)
     gh_path = shutil.which("gh")
     repo = _text(payload, "repo")
@@ -441,7 +449,7 @@ def cmd_doctor(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]
         "workspace": {
             "ok": writable,
             "path": str(ws.root),
-            "workspace_id": meta.workspace_id,
+            "workspace_id": meta.workspace_id if meta is not None else "",
         },
         "python": {
             "ok": python_ok,
@@ -644,6 +652,33 @@ def _whitelisted_config(data: dict[str, Any]) -> dict[str, Any]:
     return {section: data[section] for section in CONFIG_SECTIONS if section in data}
 
 
+def _validate_config_numbers(merged: dict[str, Any]) -> None:
+    evidence = merged.get("evidence")
+    if isinstance(evidence, dict):
+        for key in ("singleFileMb", "mediaMb", "single_file_mb", "media_budget_mb"):
+            value = evidence.get(key)
+            if value is not None and (
+                not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0
+            ):
+                raise invalid_request(
+                    f"evidence.{key} 必须是大于 0 的数字",
+                    "证据上限按 MB 填写",
+                )
+    services = merged.get("services")
+    if isinstance(services, dict):
+        port = services.get("port")
+        if port is not None and (
+            not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
+        ):
+            raise invalid_request("services.port 必须是 1–65535 的整数", "端口范围 1–65535")
+        for key in ("timeoutSeconds", "timeout_seconds"):
+            value = services.get(key)
+            if value is not None and (
+                not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0
+            ):
+                raise invalid_request(f"services.{key} 必须是大于 0 的秒数", "超时按秒填写")
+
+
 def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     """Read or merge project.config.json without ever returning credential bodies."""
     del confirm
@@ -679,7 +714,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             raise invalid_request(
                 f"{section} 必须是对象", f"把 {section} 写成 JSON 对象后重试"
             )
-    merged = dict(raw)
+    merged = dict(existing)
     for section, value in patch.items():
         if value is None:
             merged.pop(section, None)
@@ -700,6 +735,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
                 'l1.entry 必须是模块名数组，例如 ["iniconfig"]',
                 "填可导入的模块名，不要填目录路径或文件路径",
             )
+    _validate_config_numbers(merged)
     write_json(path, merged)
     return {"config": _whitelisted_config(_strip_secret_fields(merged))}
 
@@ -882,11 +918,40 @@ def _map_config_hash(config: dict[str, Any]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _source_stamp(root: Path) -> str:
+    """Cheap non-git source fingerprint: newest mtime under the project."""
+    newest = 0
+    seen = 0
+    skip = {".git", ".venv", "node_modules", "__pycache__", "dist", "build"}
+    try:
+        for path in root.rglob("*"):
+            if any(part in skip for part in path.parts):
+                continue
+            if not path.is_file():
+                continue
+            try:
+                newest = max(newest, int(path.stat().st_mtime_ns))
+            except OSError:
+                continue
+            seen += 1
+            if seen >= 5000:
+                break
+    except OSError:
+        return ""
+    return str(newest)
+
+
 def _map_stale(ws: Workspace, project: Project, record: dict[str, Any]) -> bool:
     config = load_project_config(ws, project.project_id)
+    git_head = _git_head(Path(project.root))
+    source_changed = (
+        record.get("source_commit") != git_head
+        if git_head
+        else record.get("source_stamp") != _source_stamp(Path(project.root))
+    )
     return (
         record.get("project_revision") != project.revision
-        or record.get("source_commit") != _git_head(Path(project.root))
+        or source_changed
         or record.get("config_hash") != _map_config_hash(config)
     )
 
@@ -930,6 +995,7 @@ def cmd_project_map_refresh(
         "project_id": project.project_id,
         "project_revision": project.revision,
         "source_commit": _git_head(Path(project.root)),
+        "source_stamp": _source_stamp(Path(project.root)),
         "config_hash": _map_config_hash(config),
         "generated_at": iso_now(),
         "model": _map_model_name(ws, project.project_id),
@@ -1351,7 +1417,16 @@ def cmd_delivery_draft(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             "message": "未配置模型密钥，交付说明未生成；可手工填写后 delivery.save",
         }
     context = build_delivery_context(project, task, commit)
-    draft = client.draft_delivery(context)
+    try:
+        draft = client.draft_delivery(context)
+    except Exception:
+        return {
+            "draft": None,
+            "sources": {"commit": commit},
+            "status": "not_generated",
+            "reason": "model_error",
+            "message": "模型调用失败，交付说明未生成；可手工填写后 delivery.save",
+        }
     files = context["files"]
     return {
         "draft": draft,
