@@ -1488,13 +1488,6 @@ def main(argv: list[str] | None = None) -> int:
                             run_dir=run_dir,
                             cancelled=cancelled,
                         )
-                        if cache_key:
-                            command_cache[cache_key] = (
-                                result,
-                                list(outputs),
-                                message,
-                                list(artifacts),
-                            )
                     suggestion: dict[str, str] | None = None
                     if result == "failed" and case.verify_method.startswith("command:"):
                         missing_module = _missing_module_from_output(b"".join(outputs))
@@ -1550,6 +1543,13 @@ def main(argv: list[str] | None = None) -> int:
                                 result = "blocked"
                                 message = environment_reason
                     message = redact(message, secret_list)
+                    if cache_key:
+                        command_cache[cache_key] = (
+                            result,
+                            list(outputs),
+                            message,
+                            list(artifacts),
+                        )
                     refs: list[str] = []
                     for position, data in enumerate(outputs):
                         ref = _save_evidence(

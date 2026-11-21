@@ -176,7 +176,10 @@ def _requirement_specs(value: object) -> list[str]:
     for item in value:
         if not isinstance(item, str):
             continue
-        spec = item.strip()
+        spec = item.split("#", 1)[0].strip()
+        if " @ " in spec:
+            spec = spec.split(" @ ", 1)[0].strip()
+        spec = spec.split(";", 1)[0].strip()
         if not spec or spec.startswith(("-", ".", "/", "git+", "http")):
             continue
         specs.append(spec)
