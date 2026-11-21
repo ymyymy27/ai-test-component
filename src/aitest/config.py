@@ -28,7 +28,7 @@ def load_user_config() -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
+        data: object = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}

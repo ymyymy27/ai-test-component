@@ -1668,13 +1668,23 @@ def cmd_rules_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     source = Path(_text({"path": _require(payload, "path")}, "path")).expanduser().resolve()
     if not source.is_file():
         raise invalid_path(f"文件不存在：{source}")
+    try:
+        content = source.read_bytes()
+    except OSError as exc:
+        raise invalid_path(f"规则文件无法读取：{source}（{exc}）") from exc
+    if len(content) > 1024 * 1024:
+        raise invalid_request("规则文件超过 1 MiB 上限", "拆分或精简规则文件")
+    try:
+        steps_md = content.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise invalid_request("规则文件必须是 UTF-8 文本", "转换编码后重试") from exc
     secrets = _project_secrets(ws, project.project_id)
     rule = RuleVersion(
         rules_version_id=new_id("rule"),
         project_id=project.project_id,
         name=redact(_text({"name": _require(payload, "name")}, "name"), secrets),
         version=str(_require(payload, "version")),
-        steps_md=redact(source.read_text(encoding="utf-8"), secrets),
+        steps_md=redact(steps_md, secrets),
     )
     write_model(
         ws.project_dir(project.project_id) / "rules" / f"{rule.rules_version_id}.json", rule
