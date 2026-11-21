@@ -54,6 +54,21 @@ describe("toast feedback", () => {
     expect(wrapper.find(".toast-close").exists()).toBe(true);
   });
 
+  it("copies the message when the copy action is used", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const ui = useUiStore();
+    const wrapper = mount(Toast);
+    ui.showToast("需要复制的提示", "info");
+    await tick();
+
+    await wrapper.find(".toast-copy").trigger("click");
+    expect(writeText).toHaveBeenCalledWith("需要复制的提示");
+  });
+
   it("lets an error replace a visible non-error message", () => {
     const ui = useUiStore();
     ui.showToast("正在保存", "info");

@@ -1526,6 +1526,24 @@ dialog[open] {
   color: var(--on-danger);
 }
 
+.toast-copy {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-11);
+  line-height: 20px;
+  opacity: 0.82;
+  cursor: pointer;
+}
+
+.toast-copy:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .toast-close {
   flex: none;
   width: 20px;
