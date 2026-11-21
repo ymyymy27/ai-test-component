@@ -558,6 +558,42 @@ def _component_commands(
     return commands
 
 
+def _test_function_map(
+    root: Path, test_dirs: list[str], *, limit: int = 80
+) -> dict[str, list[str]]:
+    """Real test function names per file, so plans can target one assertion."""
+
+    found: dict[str, list[str]] = {}
+    for directory in test_dirs:
+        base = root / directory.rstrip("/")
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("test_*.py")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+            except (OSError, SyntaxError):
+                continue
+            names: list[str] = []
+            for node in tree.body:
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and node.name.startswith("test_"):
+                    names.append(node.name)
+                elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+                    for child in node.body:
+                        if isinstance(
+                            child, (ast.FunctionDef, ast.AsyncFunctionDef)
+                        ) and child.name.startswith("test_"):
+                            names.append(f"{node.name}::{child.name}")
+            if names:
+                found[path.relative_to(root).as_posix()] = names[:20]
+            if len(found) >= limit:
+                return found
+    return found
+
+
 def _specific_test_commands(
     root: Path, test_dirs: list[str], *, limit: int = 8
 ) -> list[str]:
@@ -567,6 +603,13 @@ def _specific_test_commands(
     smallest = _smallest_test_file(root, test_dirs)
     if smallest:
         commands.append(f"python -m pytest {smallest}")
+    for relative, names in _test_function_map(root, test_dirs).items():
+        for name in names[:2]:
+            command = f"python -m pytest {relative}::{name}"
+            if command not in commands:
+                commands.append(command)
+            if len(commands) >= limit:
+                return commands
     for module in _test_modules(root, test_dirs):
         relative = module.replace(".", "/") + ".py"
         if relative == smallest or not (root / relative).is_file():
@@ -855,6 +898,7 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         "smoke_command": _configured_smoke_command(config),
         "smallest_test": _smallest_test_file(root, test_dirs) if test_dirs else "",
         "test_modules": _test_modules(root, test_dirs),
+        "test_functions": _test_function_map(root, test_dirs),
         "test_dependencies": _unique(declared, 40),
         "test_example": _test_example(root, test_dirs),
         "symbols": _symbol_map(root),

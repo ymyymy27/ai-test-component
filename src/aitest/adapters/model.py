@@ -64,6 +64,8 @@ _SYSTEM_CASES = (
     "不要用 acceptance_item_ids 扩绑多个验收项。"
     "命令里引用的测试模块或文件必须逐字来自 context.test_modules、"
     "context.smallest_test 或 context.test_commands；不得编造 test_* 模块名。"
+    "如果 context.test_functions 提供具体测试函数，优先用 "
+    "python -m pytest <文件>::<函数> 精确覆盖；函数名必须逐字来自该映射。"
     "优先选择与验收项最相关的具体测试模块或子包；"
     "除非验收项本身要求整包测试，不要选只含包名的超大范围目录。"
     "business 计划中不要使用整包测试命令（如 python -m pytest、python runtests.py、"

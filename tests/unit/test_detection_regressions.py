@@ -24,6 +24,7 @@ from aitest.runtime_commands import (
     _downgrade_broad_business_cases,
     _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
+    _prefix_component_command,
     _shared_command_warnings,
     _split_multi_item_cases,
     _validate_plan_cases,
@@ -322,6 +323,19 @@ def test_duplicate_command_cases_for_different_items_are_not_merged() -> None:
     assert removed == 0
     assert len(merged) == 2
     assert [case.acceptance_item_id for case in merged] == ["item_1", "item_2"]
+
+
+def test_alembic_command_runs_from_owning_subproject(tmp_path: Path) -> None:
+    (tmp_path / "backend").mkdir()
+    (tmp_path / "backend" / "alembic.ini").write_text("[alembic]\n", encoding="utf-8")
+    assert (
+        _prefix_component_command("command:alembic upgrade head", tmp_path)
+        == "command:cd backend && alembic upgrade head"
+    )
+    assert (
+        _prefix_component_command("command:alembic -c custom.ini upgrade head", tmp_path)
+        == "command:alembic -c custom.ini upgrade head"
+    )
 
 
 def test_e2e_and_dev_server_commands_are_classified() -> None:

@@ -237,6 +237,26 @@ def _normalize_method(method: str, script_name: str | None = None) -> str:
     return f"command:{method}"
 
 
+def _prefix_component_command(method: str, root: Path) -> str:
+    """Run tool commands from the subproject that owns their config file."""
+
+    if not method.startswith("command:"):
+        return method
+    command = method[len("command:") :].strip()
+    if not re.match(r"^alembic(?:\s|$)", command, re.IGNORECASE):
+        return method
+    if re.search(r"\s-c(?:\s|$)", command):
+        return method
+    try:
+        children = sorted(root.iterdir())
+    except OSError:
+        return method
+    for child in children:
+        if child.is_dir() and (child / "alembic.ini").is_file():
+            return f"command:cd {child.name} && {command}"
+    return method
+
+
 # -- plan generation guards -------------------------------------------------
 
 _EXAMPLE_HOSTS = (
@@ -621,6 +641,7 @@ def _downgrade_broad_business_cases(cases: list[Case]) -> list[str]:
         if not broad or case.layer == "L1":
             continue
         case.verify_method = "manual"
+        case.layer = "L3"
         case.steps = [*case.steps, f"人工执行并核对：{broad}"]
         downgraded.append(broad)
     return downgraded
@@ -1273,6 +1294,10 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 cases, task.acceptance_items
             )
             multi_item_split += split_now
+        for case in cases:
+            case.verify_method = _prefix_component_command(
+                case.verify_method, Path(project.root)
+            )
         try:
             _validate_plan_cases(cases, task.intent, context)
             preview = Plan(

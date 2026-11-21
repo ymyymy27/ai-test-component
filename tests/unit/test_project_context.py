@@ -48,6 +48,13 @@ def test_nested_manifests_drive_frameworks_and_test_commands(tmp_path: Path) -> 
     assert context["has_database"] is True
     assert context["smallest_test"] == "backend/tests/api/test_users.py"
     assert "python -m pytest backend/tests/api/test_users.py" in context["test_commands"]
+    assert context["test_functions"] == {
+        "backend/tests/api/test_users.py": ["test_users"]
+    }
+    assert (
+        "python -m pytest backend/tests/api/test_users.py::test_users"
+        in context["test_commands"]
+    )
     assert any(spec.startswith("pytest") for spec in context["test_dependencies"])
 
 

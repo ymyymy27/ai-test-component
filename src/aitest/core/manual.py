@@ -14,7 +14,9 @@ def is_automatable(case: Case) -> bool:
 
 
 def is_manual_case(case: Case) -> bool:
-    """L3 cases without an automatable verification method wait for a human."""
+    """Explicit manual cases and non-automatable L3 cases wait for a human."""
+    if case.verify_method.strip().lower().startswith("manual"):
+        return True
     return case.layer == "L3" and not is_automatable(case)
 
 
