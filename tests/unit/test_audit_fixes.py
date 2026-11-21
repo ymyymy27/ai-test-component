@@ -16,6 +16,7 @@ import pytest
 from aitest.cli import main
 from aitest.errors import AiTestError
 from aitest.models import Run, Scope
+from aitest.runners.package_install import InstallOutcome
 from aitest.storage.files import read_json, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -261,12 +262,20 @@ def test_run_repair_records_installation_and_failure(
         ],
     )
 
-    class Completed:
-        returncode = 0
-        stdout = b"Successfully installed factory-boy-3.2.0\n"
-        stderr = b""
+    outcomes = [
+        InstallOutcome(
+            ok=True,
+            exit_code=0,
+            output=b"Successfully installed factory-boy-3.2.0\n",
+            installer="pip",
+            attempts=["pip"],
+        )
+    ]
 
-    monkeypatch.setattr("aitest.runtime_commands.subprocess.run", lambda *a, **k: Completed())
+    def fake_install(*_args, **_kwargs):
+        return outcomes.pop(0)
+
+    monkeypatch.setattr("aitest.runtime_commands.install_packages", fake_install)
     monkeypatch.setattr(
         "aitest.runtime_commands._installed_versions",
         lambda python, packages, env: {spec: "3.2.0" for spec in packages},
@@ -295,11 +304,6 @@ def test_run_repair_records_installation_and_failure(
     assert stored.environment_history[0]["before"]["python"] == sys.executable
     assert stored.dependency_suggestions[0]["installed"] == "true"
 
-    class Failed:
-        returncode = 1
-        stdout = b""
-        stderr = b"ERROR: no matching distribution\n"
-
     run_dir2 = _workspace(tmp_path).project_dir(project["project_id"]) / "runs" / "run_audit2"
     run_dir2.mkdir(parents=True)
     run2 = Run(
@@ -315,7 +319,15 @@ def test_run_repair_records_installation_and_failure(
         ],
     )
     write_model(run_dir2 / "run.json", run2)
-    monkeypatch.setattr("aitest.runtime_commands.subprocess.run", lambda *a, **k: Failed())
+    outcomes.append(
+        InstallOutcome(
+            ok=False,
+            exit_code=1,
+            output=b"ERROR: no matching distribution\n",
+            installer="pip",
+            attempts=["pip"],
+        )
+    )
     failed = call(
         tmp_path,
         "run.repair",

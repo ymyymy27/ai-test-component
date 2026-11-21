@@ -39,6 +39,7 @@ from aitest.runners.base import RunnerResult
 from aitest.runners.command_runner import run_command
 from aitest.runners.http_runner import run_http_sequence
 from aitest.runners.junit import parse_junit
+from aitest.runners.package_install import install_packages
 from aitest.security import is_secret_field, redact, redact_bytes
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
@@ -452,6 +453,7 @@ def _install_dependencies(
     settings: EvidenceSettings,
     secrets: list[str],
     env: dict[str, str] | None = None,
+    cwd: Path | None = None,
 ) -> tuple[bool, str | None]:
     if not dependencies:
         return True, None
@@ -477,32 +479,16 @@ def _install_dependencies(
             },
         )
         return True, ref
-    command = [
-        str(python),
-        "-m",
-        "pip",
-        "install",
-        "--disable-pip-version-check",
-        "--no-input",
-        *dependencies,
-    ]
-    try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            timeout=600,
-            check=False,
-            env=env,
-        )
-        output = (completed.stdout or b"").decode("utf-8", errors="replace") + (
-            completed.stderr or b""
-        ).decode("utf-8", errors="replace")
-        ok = completed.returncode == 0
-        exit_code: int | None = completed.returncode
-    except (OSError, subprocess.SubprocessError) as exc:
-        output = str(exc)
-        ok = False
-        exit_code = None
+    installed = install_packages(
+        python,
+        dependencies,
+        cwd or python.parent,
+        env,
+        timeout_seconds=600,
+    )
+    output = installed.output.decode("utf-8", errors="replace")
+    ok = installed.ok
+    exit_code = installed.exit_code
     _save_evidence(
         run_dir,
         "deps-install.log",
@@ -521,6 +507,8 @@ def _install_dependencies(
             "dependencies": dependencies,
             "exit_code": exit_code,
             "ok": ok,
+            "installer": installed.installer,
+            "attempts": installed.attempts,
         },
     )
     return ok, ref
@@ -1332,6 +1320,7 @@ def main(argv: list[str] | None = None) -> int:
                 evidence_settings,
                 secret_list,
                 run_env,
+                workdir,
             )
             if dependency_ref is not None:
                 run.evidence_refs.append(dependency_ref)

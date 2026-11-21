@@ -75,6 +75,7 @@ from aitest.models import (
     new_id,
 )
 from aitest.procutil import pid_alive
+from aitest.runners.package_install import install_packages
 from aitest.security import redact, redact_bytes, redact_tree, scan_script
 from aitest.storage.files import read_json, read_model, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
@@ -2163,31 +2164,16 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     from aitest.worker import _run_env
 
     env = _run_env(Path(project.root), python, run.run_id)
-    command = [
-        str(python),
-        "-m",
-        "pip",
-        "install",
-        "--disable-pip-version-check",
-        "--no-input",
-        *packages,
-    ]
-    try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            timeout=600,
-            check=False,
-            cwd=project.root,
-            env=env,
-        )
-        output = (completed.stdout or b"") + (completed.stderr or b"")
-        ok = completed.returncode == 0
-        exit_code: int | None = completed.returncode
-    except (OSError, subprocess.SubprocessError) as exc:
-        output = str(exc).encode()
-        ok = False
-        exit_code = None
+    installed = install_packages(
+        python,
+        packages,
+        Path(project.root),
+        env,
+        timeout_seconds=600,
+    )
+    output = installed.output
+    ok = installed.ok
+    exit_code = installed.exit_code
     config = load_project_config(ws, project.project_id)
     budget, cap, allow_video = _evidence_settings(config)
     ref = _save_evidence_file(
@@ -2207,15 +2193,23 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         "packages": versions if versions else {spec: "?" for spec in packages},
         "exit_code": exit_code,
         "ok": ok,
+        "installer": installed.installer,
+        "attempts": installed.attempts,
         "evidence_ref": ref,
     }
     run.dependency_repairs.append(repair)
     if not ok:
         write_model(run_dir / "run.json", run)
+        next_step = "查看 repair-deps.log；修正环境后重试"
+        if installed.error == "ensurepip failed":
+            next_step = (
+                "项目解释器没有 pip，且 uv/ensurepip 均不可用；"
+                "安装 uv 或重建带 pip 的 venv 后重试"
+            )
         raise AiTestError(
             "DEPENDENCY_INSTALL_FAILED",
             "依赖安装失败",
-            "查看 repair-deps.log；修正环境后重试",
+            next_step,
         )
     from aitest.worker import _environment_fingerprint
 
