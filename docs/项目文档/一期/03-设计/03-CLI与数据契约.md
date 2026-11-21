@@ -423,7 +423,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   - `outcome`、`counts`（`selected/applicable/covered/passed/failed/incomplete`）；
   - `item_outcomes`：每个所选验收项的最差结果与用例 ID；
   - `pending_items`、`manual_cases`、`l1`（项目级检查）、`uncovered_items`；
-  - `link`：运行目录已有 `link.json` 时为首错节点、上下游与位置（见 4.10），没有链路数据时为 `null`。
+  - `link`：运行目录已有 `link.json` 时为首错节点、上下游、位置与 `assertions`（见 4.10），没有链路数据时为 `null`。
 
   报告 ID 不在顶层，读 `run.latest_report_id`；当前用例读 `run.current_case_id`。
 - `list` 入参 `{"project_id", "limit": 20}`，按时间倒序；每条返回 `run_id/kind/status/started_at/heartbeat_at/elapsed_seconds/plan_id/plan_no/plan_revision/task_id/task_title/task_snapshot/outcome/counts/scope/latest_report_id`；`kind` 为 `task|project_check`。无法读取的旧运行不静默丢弃，放在 `skipped` 里并附 `run_id/code/message`。

@@ -2018,14 +2018,20 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         imported = read_json(link_path)
         stored = imported.get("location")
         if isinstance(stored, dict):
-            link = stored
+            location = stored
         else:
             nodes = imported.get("nodes")
             assertions = imported.get("assertions")
-            link = locate_link(
+            location = locate_link(
                 nodes if isinstance(nodes, list) else [],
                 assertions if isinstance(assertions, list) else [],
             )
+        link = {
+            **(location if isinstance(location, dict) else {}),
+            "assertions": imported.get("assertions")
+            if isinstance(imported.get("assertions"), list)
+            else [],
+        }
     return {
         "run": run.model_dump(mode="json"),
         "plan": plan_snapshot.model_dump(mode="json") if plan_snapshot is not None else None,

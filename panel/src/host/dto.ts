@@ -167,6 +167,7 @@ export interface LinkImportResult {
 }
 
 export interface LinkLocation {
+  assertions?: Array<Record<string, unknown>>;
   first_anomaly: LinkNode | null;
   upstream: LinkNode[];
   downstream: LinkNode[];
@@ -368,6 +369,7 @@ export interface Run {
   postprocess?: "pending" | "running" | "done" | "error";
   current_case_id?: string;
   started_at: string;
+  finished_at?: string;
   heartbeat_at?: string;
   elapsed_seconds?: number;
   cases: RunCase[];
@@ -401,6 +403,7 @@ export interface RunSummary {
   status: RunStatus;
   current_case_id?: string;
   started_at: string;
+  finished_at?: string;
   heartbeat_at?: string;
   elapsed_seconds?: number | null;
   plan_id?: string;

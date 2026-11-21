@@ -555,6 +555,7 @@ function mapLink(raw: LinkLocation | null, runId: string): LinkData | null {
   if (!raw) {
     return null;
   }
+  const rawAssertions = raw.assertions ?? [];
   const nodes: LinkNode[] = [
     ...(raw.upstream ?? []),
     ...(raw.first_anomaly ? [raw.first_anomaly] : []),
@@ -574,7 +575,13 @@ function mapLink(raw: LinkLocation | null, runId: string): LinkData | null {
   }));
   return {
     nodes,
-    assertions: [],
+    assertions: rawAssertions.map((entry) => ({
+      nodeId: String(entry.node_id ?? entry.nodeId ?? ""),
+      expected: String(entry.expected ?? ""),
+      actual: String(entry.actual ?? ""),
+      result: entry.passed === true || entry.result === "passed" ? "passed" : "failed",
+      operator: String(entry.operator ?? "equals"),
+    })),
     gaps: nodes
       .filter((node) => node.state === "gap")
       .map((node) => ({ nodeId: node.id, reason: node.detail || "链路缺口" })),
@@ -681,7 +688,7 @@ export function mapRun(
     finishedAt:
       dto.status === "running"
         ? ""
-        : new Date(started + elapsedSeconds * 1000).toISOString(),
+        : (dto.finished_at ?? new Date(started + elapsedSeconds * 1000).toISOString()),
     elapsedMs,
     confirmedBy: dto.confirmed_by ?? "",
     confirmationId: dto.confirmation_id ?? "",
