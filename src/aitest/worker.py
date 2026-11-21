@@ -277,6 +277,9 @@ def _healthy(url: str) -> bool | None:
     """Return True/False, or None when no health check is configured."""
     if not url:
         return None
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return False
     try:
         with urllib.request.urlopen(url, timeout=2) as response:
             status = int(response.status)

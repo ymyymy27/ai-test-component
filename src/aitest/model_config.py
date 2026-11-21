@@ -9,6 +9,7 @@ from typing import Any
 from aitest.adapters.model import ModelClient
 from aitest.config import load_user_config, model_key
 from aitest.errors import AiTestError
+from aitest.storage.files import check_schema_version
 from aitest.storage.workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -37,6 +38,7 @@ def load_project_config(ws: Workspace, project_id: str) -> dict[str, Any]:
             f"项目配置不是对象：{path.name}",
             "把 project.config.json 改成 JSON 对象",
         )
+    check_schema_version(data, path)
     return data
 
 

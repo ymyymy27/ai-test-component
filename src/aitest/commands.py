@@ -38,7 +38,13 @@ from aitest.models import (
     new_id,
 )
 from aitest.security import is_secret_field, looks_like_secret_value, redact, redact_tree
-from aitest.storage.files import read_json, read_model, write_json, write_model
+from aitest.storage.files import (
+    check_schema_version,
+    read_json,
+    read_model,
+    write_json,
+    write_model,
+)
 from aitest.storage.workspace import Workspace, iso_now
 
 Payload = dict[str, Any]
@@ -599,7 +605,9 @@ def _config_path(ws: Workspace, project_id: str) -> Path:
 def _read_project_config(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
-    return read_json(path)
+    data = read_json(path)
+    check_schema_version(data, path)
+    return data
 
 
 def _find_secret_field(value: Any, prefix: str = "") -> str | None:
@@ -961,6 +969,8 @@ def cmd_project_map(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     project = _project(ws, payload)
     path = _project_map_path(ws, project.project_id)
     record = read_json(path) if path.is_file() else None
+    if isinstance(record, dict):
+        check_schema_version(record, path)
     if not isinstance(record, dict):
         return {"map": None, "stale": False}
     return {"map": record, "stale": _map_stale(ws, project, record)}

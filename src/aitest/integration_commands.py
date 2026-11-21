@@ -14,7 +14,7 @@ from aitest.core.link_location import locate_link
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import load_project_config
 from aitest.runners.assertions import evaluate
-from aitest.storage.files import read_json, write_json
+from aitest.storage.files import check_schema_version, read_json, write_json
 from aitest.storage.workspace import Workspace, iso_now
 
 
@@ -38,7 +38,7 @@ def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "检查仓库与 ref 后重试",
         )
     target = ws.project_dir(project.project_id) / "github" / f"{commit}.json"
-    write_json(target, result)
+    write_json(target, {"schema_version": 1, **result})
     return {
         **result,
         "change": result,
@@ -82,11 +82,17 @@ def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     log_paths = config.get("log_paths") or []
     if not isinstance(log_paths, list):
         raise invalid_request("link.log_paths 必须是数组")
-    project_root = Path(project.root)
-    resolved_logs = [
-        str(item if Path(str(item)).is_absolute() else project_root / str(item))
-        for item in log_paths
-    ]
+    project_root = Path(project.root).resolve()
+    resolved_logs: list[str] = []
+    for item in log_paths:
+        candidate = Path(str(item))
+        resolved = (candidate if candidate.is_absolute() else project_root / candidate).resolve()
+        if not candidate.is_absolute() and not resolved.is_relative_to(project_root):
+            raise invalid_request(
+                f"相对日志路径不能逃出项目目录：{item}",
+                "使用项目内相对路径或明确配置绝对路径",
+            )
+        resolved_logs.append(str(resolved))
     run_dir = ws.project_dir(project.project_id) / "runs" / run_id
     if not run_dir.is_dir():
         raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
@@ -123,6 +129,7 @@ def cmd_link_assert(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "RUN_STATE_CONFLICT", "该运行尚未导入链路", "先调用 link.import"
         )
     data = read_json(link_path)
+    check_schema_version(data, link_path)
     nodes = data.get("nodes")
     if not isinstance(nodes, list) or not any(
         isinstance(node, dict) and node.get("node_id") == node_id for node in nodes

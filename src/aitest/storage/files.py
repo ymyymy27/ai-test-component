@@ -47,20 +47,47 @@ def read_json(path: Path) -> dict[str, Any]:
     return data
 
 
-def read_model(path: Path, model_cls: type[T]) -> T:
-    data = read_json(path)
+def check_schema_version(data: dict[str, Any], path: Path) -> None:
+    """Reject business JSON written by another schema before using it."""
+
     if data.get("schema_version") != SCHEMA_VERSION:
         raise AiTestError(
             "SCHEMA_UNSUPPORTED",
             f"数据格式版本不受支持：{path}（{data.get('schema_version')!r}）",
             "备份后转换或重建工作空间",
         )
+
+
+def read_model(path: Path, model_cls: type[T]) -> T:
+    data = read_json(path)
+    check_schema_version(data, path)
     try:
         return model_cls.model_validate(data)
     except ValueError as exc:
         raise AiTestError(
             "INVALID_REQUEST", f"记录字段不合法：{path}（{exc}）", "修复或重建该文件"
         ) from exc
+
+
+def _write_failure(path: Path, exc: OSError) -> AiTestError:
+    """Map a write failure to the code that actually describes it."""
+
+    errno = getattr(exc, "errno", None)
+    if isinstance(exc, _ReplaceBusy):
+        return AiTestError(
+            "FILE_BUSY", f"目标文件持续被占用，写入失败：{path}（{exc}）", "关闭占用程序后重试"
+        )
+    if errno in {28, 112}:  # ENOSPC / ERROR_DISK_FULL
+        return AiTestError("DISK_FULL", f"磁盘不足，写入失败：{path}（{exc}）", "清理磁盘后重试")
+    if errno in {36, 206}:  # ENAMETOOLONG / ERROR_FILENAME_EXCED_RANGE
+        return AiTestError(
+            "PATH_TOO_LONG", f"路径过长，写入失败：{path}（{exc}）", "缩短工作空间或文件名后重试"
+        )
+    if isinstance(exc, PermissionError):
+        return AiTestError(
+            "PERMISSION_DENIED", f"权限不足，写入失败：{path}（{exc}）", "检查目录权限后重试"
+        )
+    return AiTestError("WRITE_FAILED", f"写入失败：{path}（{exc}）", "检查目标路径与可用空间")
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -76,7 +103,11 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
         _replace_with_retry(tmp, path)
     except OSError as exc:
         tmp.unlink(missing_ok=True)
-        raise AiTestError("DISK_FULL", f"写入失败：{path}（{exc}）", "检查磁盘空间与权限") from exc
+        raise _write_failure(path, exc) from exc
+
+
+class _ReplaceBusy(OSError):
+    """A file stayed locked for every replace attempt (Windows sharing)."""
 
 
 def _replace_with_retry(tmp: Path, path: Path, attempts: int = 20) -> None:
@@ -90,7 +121,9 @@ def _replace_with_retry(tmp: Path, path: Path, attempts: int = 20) -> None:
             last_error = exc
             time.sleep(0.05)
     assert last_error is not None
-    raise last_error
+    raise _ReplaceBusy(
+        last_error.errno, f"目标文件持续被占用：{path}（{last_error}）"
+    ) from last_error
 
 
 def write_model(path: Path, model: BaseModel) -> None:

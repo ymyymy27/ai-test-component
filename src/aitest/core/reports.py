@@ -35,7 +35,7 @@ from aitest.models import (
     new_id,
 )
 from aitest.security import redact_tree
-from aitest.storage.files import read_json, read_model, write_model
+from aitest.storage.files import check_schema_version, read_json, read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
 _OUTCOME_LABEL = {
@@ -103,6 +103,7 @@ def _github_record(
         return None, []
     try:
         record = read_json(path)
+        check_schema_version(record, path)
     except AiTestError:
         return None, []
     raw_files = record.get("files")

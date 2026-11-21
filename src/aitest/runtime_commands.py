@@ -2232,12 +2232,20 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     del confirm
     project = _project(ws, payload)
     runs: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     directory = _runs_dir(ws, project.project_id)
     if directory.is_dir():
         for path in sorted(directory.glob("*/run.json")):
             try:
                 run = _refresh_and_save(path, read_model(path, Run))
-            except AiTestError:
+            except AiTestError as exc:
+                skipped.append(
+                    {
+                        "run_id": path.parent.name,
+                        "code": exc.info.code,
+                        "message": exc.info.message,
+                    }
+                )
                 continue
             run_dir = path.parent
             plan_snapshot: Plan | None = None
@@ -2299,7 +2307,7 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     except (TypeError, ValueError):
         limit = 20
     limit = max(1, min(limit, 200))
-    return {"runs": runs[:limit]}
+    return {"runs": runs[:limit], "skipped": skipped}
 
 
 def cmd_run_cancel(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -2579,11 +2587,19 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     run_id = _text({"id": _require(payload, "run_id")}, "id")
     directory = ws.project_dir(project.project_id) / "reports"
     rows: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     if directory.is_dir():
         for path in directory.glob("*.json"):
             try:
                 report = read_model(path, Report)
-            except AiTestError:
+            except AiTestError as exc:
+                skipped.append(
+                    {
+                        "report_id": path.stem,
+                        "code": exc.info.code,
+                        "message": exc.info.message,
+                    }
+                )
                 continue
             if report.run_id != run_id:
                 continue
@@ -2606,7 +2622,7 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
                 }
             )
     rows.sort(key=lambda item: item["generated_at"], reverse=True)
-    return {"reports": rows}
+    return {"reports": rows, "skipped": skipped}
 
 
 def _cell(value: object) -> str:
@@ -3526,6 +3542,9 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         "exit_code": None,
     }
     _action_log(ws, started)
+    from aitest.worker import _run_env
+
+    cleanup_env = _run_env(Path(project.root), None, run_id or "cleanup")
     try:
         completed = subprocess.run(
             command,
@@ -3535,6 +3554,7 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
             text=True,
             timeout=600,
             check=False,
+            env=cleanup_env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise AiTestError(
