@@ -939,6 +939,8 @@ export function mapIssue(
     planId: detail?.plan?.plan_id ?? "",
     runId: latest?.run_id ?? "",
     itemId: planCase?.acceptance_item_id ?? "",
+    itemNo: dto.item_no || "",
+    itemText: dto.item_text || "",
     caseId: latest?.case_id ?? "",
     signature: dto.signature,
     title: dto.title,

@@ -38,7 +38,16 @@ const verificationRun = computed<Run | null>(() => {
   return task.value?.runs.find((entry) => entry.id === issue.value?.verificationRunId) ?? null;
 });
 const issueItemNo = computed(
-  () => task.value?.acceptanceItems.find((item) => item.id === issue.value?.itemId)?.no ?? "—",
+  () =>
+    issue.value?.itemNo ||
+    task.value?.acceptanceItems.find((item) => item.id === issue.value?.itemId)?.no ||
+    "—",
+);
+const issueItemText = computed(
+  () =>
+    issue.value?.itemText ||
+    task.value?.acceptanceItems.find((item) => item.id === issue.value?.itemId)?.text ||
+    "",
 );
 const occurrenceCount = computed(
   () => issue.value?.occurrences.filter((entry) => entry.result !== "passed").length ?? 0,
@@ -204,7 +213,10 @@ async function rerun(): Promise<void> {
         </div>
         <div class="info-cell">
           <dt>验收项</dt>
-          <dd>{{ issueItemNo }}</dd>
+          <dd>
+            {{ issueItemNo }}
+            <span v-if="issueItemText" class="muted">· {{ issueItemText }}</span>
+          </dd>
         </div>
       </dl>
     </section>

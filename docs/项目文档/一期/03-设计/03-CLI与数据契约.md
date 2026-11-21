@@ -476,7 +476,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 - 失败签名 = 用例 ID + 错误类型 + 关键堆栈/断言标识摘要；同一签名返回现有 `issue_id` 并追加带证据的发生记录；
 - `list` 返回 `issue_id/title/status/severity/occurrences`，并附带 `last_at`、`last_result`、`unstable`、`disposition`、`reason`、`verification_run_id`、`last_case_id`、`last_run_id` 供列表展示；
-- `show` 入参 `{"project_id", "issue_id"}`，返回完整问题（含 `occurrences`、证据引用、处置与状态）；
+- `show` 入参 `{"project_id", "issue_id"}`，返回完整问题（含 `occurrences`、证据引用、处置与状态）；问题保存发生时的 `item_no`/`item_text` 快照；
 - `update` 入参 `{"project_id", "issue_id", "status"|"disposition", "severity", "fix_version", "reason"}`；允许的流转是待确认→处理中，处理中→待复测或退回待确认，待复测→处理中或退回待确认，已关闭→处理中（重开必须写原因）。`update` 不能直接把状态改为 `closed`；关闭必须走 `issue.close` 并绑定新运行。非缺陷/重复/延期必须写理由；
 - `close` 入参 `{"project_id", "issue_id", "run_id", "reason"}`，`reason` 必填并写入问题记录：问题必须处于 `retest`，运行必须为 `completed`、开始时间晚于问题最后一次发生、包含该用例、有效结果（含预期核实降级）为 `passed` 且有证据，且不能复用问题发生时的运行；`cancelled`、`interrupted`、`execution_error` 或原始 `passed` 但应按 `blocked` 计的运行都不能关闭。否则返回 `RUN_STATE_CONFLICT`。
 
@@ -489,7 +489,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 - `report_id`（前缀 `rep_`）、`generated_at`；
 - `outcome`、`conclusion`、`counts`、`coverage`；
 - `changed_modules`、`unmapped_files`、`uncovered_items`、`unverified_items`；
-- `layers`、`item_details`（验收项主表）、`l1`（项目级检查）；
+- `layers`、`item_details`（验收项主表）、`l1`（项目级检查）；计划还保存 `item_texts` 验收项文本快照；
 - `issue_count`、`failure_occurrences`；
 - `templates`：模板处置摘要（`template_id`、`name`、`summary`），只作说明，不参与结论与计数。
 

@@ -1176,6 +1176,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         applicable_count=applicable,
         rules_version_id=_text(payload, "rules_version_id") or None,
         cases=cases,
+        item_texts={
+            item.item_id: item.text for item in task.acceptance_items if item.item_id in selected
+        },
         warnings=warnings,
         status="published",
     )
@@ -2995,6 +2998,31 @@ def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         if isinstance(evidence, list)
         else list(run_case.evidence_refs)
     )
+    item_no = ""
+    item_text = ""
+    plan_path = run_dir / "plan.json"
+    if plan_path.is_file():
+        plan_snapshot = read_model(plan_path, Plan)
+        plan_case = next(
+            (item for item in plan_snapshot.cases if item.case_id == case_id), None
+        )
+        if plan_case is not None:
+            ids = case_item_ids(plan_case)
+            item_id = ids[0] if ids else ""
+            item_text = plan_snapshot.item_texts.get(item_id, "")
+            task_path = run_dir / "task.json"
+            if task_path.is_file():
+                try:
+                    task_snapshot = read_model(task_path, Task)
+                except AiTestError:
+                    task_snapshot = None
+                if task_snapshot is not None:
+                    for index, entry in enumerate(task_snapshot.acceptance_items, start=1):
+                        if entry.item_id != item_id:
+                            continue
+                        item_no = f"{index:02d}"
+                        item_text = item_text or entry.text
+                        break
     raw_steps = payload.get("steps")
     steps = (
         [str(item) for item in raw_steps if isinstance(item, str)]
@@ -3015,6 +3043,8 @@ def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         steps=steps,
         expected=_text(payload, "expected"),
         actual=_text(payload, "actual"),
+        item_no=item_no,
+        item_text=item_text,
     )
 
 

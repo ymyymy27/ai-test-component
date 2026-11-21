@@ -284,6 +284,7 @@ export interface Plan {
   scope: Scope;
   applicable_count: number;
   cases: PlanCase[];
+  item_texts?: Record<string, string>;
   templates?: TemplateResult[];
   unselected_by_module?: UnselectedHint[];
   status: "draft" | "published";
@@ -475,6 +476,8 @@ export interface Issue {
   project_id: string;
   signature: string;
   title: string;
+  item_no?: string;
+  item_text?: string;
   steps: string[];
   expected: string;
   actual: string;

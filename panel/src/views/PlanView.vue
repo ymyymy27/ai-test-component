@@ -92,7 +92,11 @@ const items = computed(() =>
   (plan.value?.scope.acceptanceItemIds ?? [])
     .map((itemId) => {
       const item = task.value?.acceptanceItems.find((entry) => entry.id === itemId);
-      return { itemId, no: item?.no ?? "", text: item?.text ?? "验收项已归档" };
+      return {
+        itemId,
+        no: item?.no ?? "",
+        text: plan.value?.itemTexts?.[itemId] ?? item?.text ?? "验收项已归档",
+      };
     })
     .sort((first, second) => compareItemNo(first.no, second.no)),
 );

@@ -11,7 +11,7 @@ from aitest.config import known_secret_values
 from aitest.core.evidence import evidence_path
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
-from aitest.models import Issue, IssueOccurrence, Plan, Run, new_id
+from aitest.models import Issue, IssueOccurrence, Plan, Run, case_item_ids, new_id
 from aitest.security import redact
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
@@ -81,6 +81,8 @@ def add_issue(
     steps: list[str] | None = None,
     expected: str = "",
     actual: str = "",
+    item_no: str = "",
+    item_text: str = "",
     unstable: bool = False,
 ) -> dict[str, Any]:
     if run_dir is not None and error_type == "unknown" and not stack_key:
@@ -88,6 +90,8 @@ def add_issue(
         error_type, stack_key = _case_error(run_dir, case_id, run)
     secrets = known_secret_values([load_project_config(ws, project_id)])
     title = redact(title, secrets)
+    item_no = redact(item_no, secrets)
+    item_text = redact(item_text, secrets)
     expected = redact(expected, secrets)
     actual = redact(actual, secrets)
     steps = [redact(step, secrets) for step in (steps or [])]
@@ -124,6 +128,8 @@ def add_issue(
         project_id=project_id,
         signature=signature,
         title=title,
+        item_no=item_no,
+        item_text=item_text,
         steps=list(steps or []),
         expected=expected,
         actual=actual,
@@ -285,12 +291,18 @@ def draft_failed_issues(
             continue
         draft = _draft_issue(ws, project_id, run_dir, run, plan, run_case, secrets)
         previous = _previous_case_result(ws, project_id, run.run_id, run_case.case_id)
+        plan_case = next(
+            (item for item in plan.cases if item.case_id == run_case.case_id), None
+        )
+        item_id = case_item_ids(plan_case)[0] if plan_case is not None else ""
+        item_text = plan.item_texts.get(item_id, "") if item_id else ""
         result = add_issue(
             ws,
             project_id,
             run.run_id,
             run_case.case_id,
             draft["title"],
+            item_text=item_text,
             steps=draft["steps"],
             expected=draft["expected"],
             actual=draft["actual"],

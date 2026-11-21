@@ -162,6 +162,7 @@ class Plan(Model):
     applicable_count: int = 0
     rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
+    item_texts: dict[str, str] = Field(default_factory=dict)
     templates: list[dict[str, Any]] = Field(default_factory=list)
     unselected_by_module: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -288,6 +289,8 @@ class Issue(Model):
     project_id: str
     signature: str
     title: str
+    item_no: str = ""
+    item_text: str = ""
     steps: list[str] = Field(default_factory=list)
     expected: str = ""
     actual: str = ""

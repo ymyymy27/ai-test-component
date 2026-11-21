@@ -235,6 +235,7 @@ export interface Plan {
   applicableCount: number;
   rulesVersionId: string | null;
   cases: PlanCase[];
+  itemTexts?: Record<string, string>;
   templates: TemplateResult[];
   unselectedByModule: Array<{ moduleId: string; moduleName: string; count: number }>;
   warnings: string[];
@@ -381,6 +382,8 @@ export interface Issue {
   planId: string;
   runId: string;
   itemId: string;
+  itemNo?: string;
+  itemText?: string;
   caseId: string;
   signature: string;
   title: string;
