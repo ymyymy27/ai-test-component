@@ -9,7 +9,7 @@ import PageHeader from "@/components/PageHeader.vue";
 import RunProgress from "@/components/RunProgress.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import StatusText from "@/components/StatusText.vue";
-import { currentRun, currentPlan } from "@/domain/derive";
+import { compareItemNo, currentRun, currentPlan } from "@/domain/derive";
 import type { Run, Task } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -26,6 +26,18 @@ const task = computed<Task | null>(
 const run = computed<Run | null>(() => (task.value ? currentRun(task.value) : null));
 const plan = computed(() => (task.value ? currentPlan(task.value) : null));
 const elapsedMs = ref(0);
+const stalled = computed(() => {
+  void elapsedMs.value;
+  const heartbeat = run.value?.heartbeatAt;
+  if (!run.value || run.value.status !== "running" || !heartbeat) {
+    return false;
+  }
+  const since = new Date(heartbeat).getTime();
+  return Number.isFinite(since) && Date.now() - since > 90_000;
+});
+const sortedItems = computed(() =>
+  [...(run.value?.items ?? [])].sort((first, second) => compareItemNo(first.no, second.no)),
+);
 const stopping = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -119,6 +131,10 @@ onBeforeUnmount(() => {
     />
 
     <RunProgress :run="run" :elapsed-ms="elapsedMs" />
+    <div v-if="stalled" class="notice is-warn" role="alert">
+      <Icon name="warn" :size="14" />
+      <span>运行心跳超过 90 秒未更新，可能已中断；可以停止并回运行记录查看。</span>
+    </div>
 
     <section class="section">
       <div class="section-head">
@@ -139,8 +155,9 @@ onBeforeUnmount(() => {
     <section class="section">
       <div class="section-head">
         <span class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</span>
+        <span class="section-note">上方进度按用例计，这里按验收项归组</span>
       </div>
-      <CaseLedger :run="run" :items="run.items" />
+      <CaseLedger :run="run" :items="sortedItems" running />
     </section>
 
     <div class="actionbar">

@@ -23,16 +23,20 @@ const taskFilter = ref("all");
 const resultFilter = ref("all");
 const selected = ref<Run | null>(null);
 const dialogOpen = ref(false);
+let openedByPush = false;
 
 const filtered = computed(() =>
   runs.value
     .filter((run) => taskFilter.value === "all" || run.taskId === taskFilter.value)
     .filter((run) => {
-      if (resultFilter.value === "failed") return run.verdict === "failed";
-      if (resultFilter.value === "passed") return run.verdict === "passed";
-      if (resultFilter.value === "running") return run.status === "running";
-      if (resultFilter.value === "interrupted") return run.status === "interrupted";
-      if (resultFilter.value === "cancelled") return run.status === "cancelled";
+      const value = resultFilter.value;
+      if (["passed", "failed", "incomplete", "not_applicable"].includes(value)) {
+        return run.verdict === value;
+      }
+      if (value === "execution_error") return run.status === "execution_error";
+      if (["running", "interrupted", "cancelled"].includes(value)) {
+        return run.status === value;
+      }
       return true;
     }),
 );
@@ -69,7 +73,22 @@ function planLabel(run: Run): string {
 function openRun(run: Run): void {
   selected.value = run;
   dialogOpen.value = true;
-  void router.replace({ query: { ...route.query, run: run.id } });
+  openedByPush = true;
+  void router.push({ query: { ...route.query, run: run.id } });
+}
+
+function openRunResult(): void {
+  if (!selected.value) {
+    return;
+  }
+  void router.push(
+    `/projects/${projectId.value}/tasks/${selected.value.taskId}/result?run=${selected.value.id}`,
+  );
+}
+
+function clearFilters(): void {
+  taskFilter.value = "all";
+  resultFilter.value = "all";
 }
 
 function openReport(reportId: string): void {
@@ -92,11 +111,17 @@ watch(
 );
 
 watch(dialogOpen, (open) => {
-  if (!open && route.query.run) {
-    const query = { ...route.query };
-    delete query.run;
-    void router.replace({ query });
+  if (open || !route.query.run) {
+    return;
   }
+  if (openedByPush) {
+    openedByPush = false;
+    router.back();
+    return;
+  }
+  const query = { ...route.query };
+  delete query.run;
+  void router.replace({ query });
 });
 </script>
 
@@ -124,11 +149,18 @@ watch(dialogOpen, (open) => {
         <span>结果</span>
         <select v-model="resultFilter" aria-label="按结果筛选历史">
           <option value="all">全部结果</option>
-          <option value="failed">失败</option>
-          <option value="passed">通过</option>
-          <option value="running">运行中</option>
-          <option value="cancelled">已取消</option>
-          <option value="interrupted">中断</option>
+          <optgroup label="结论">
+            <option value="passed">通过</option>
+            <option value="failed">失败</option>
+            <option value="incomplete">未完成</option>
+            <option value="not_applicable">不适用</option>
+          </optgroup>
+          <optgroup label="状态">
+            <option value="running">运行中</option>
+            <option value="cancelled">已取消</option>
+            <option value="interrupted">中断</option>
+            <option value="execution_error">执行出错</option>
+          </optgroup>
         </select>
       </label>
       <span class="section-note">{{ filtered.length }} 次运行</span>
@@ -156,7 +188,7 @@ watch(dialogOpen, (open) => {
               <span class="row-title">
                 {{ taskFor(run)?.title ?? "任务已归档" }}
                 <span
-                  v-if="taskFor(run)?.currentRunId === run.id && taskFor(run)?.stage === 'result'"
+                  v-if="taskFor(run)?.currentRunId === run.id"
                   class="badge is-accent"
                   >当前</span
                 >
@@ -167,6 +199,12 @@ watch(dialogOpen, (open) => {
               </span>
             </span>
             <span class="row-side">
+              <span
+                class="status-text"
+                :class="`is-${run.status === 'interrupted' ? 'blocked' : run.verdict}`"
+              >
+                {{ run.status === "interrupted" ? "中断" : VERDICT_LABEL[run.verdict] }}
+              </span>
               {{ run.counts.passed }} 通过 · {{ run.counts.failed }} 失败 ·
               {{ run.counts.incomplete }} 未完成
             </span>
@@ -185,12 +223,14 @@ watch(dialogOpen, (open) => {
       "
     >
       <button
+        v-if="runs.length === 0"
         class="btn btn-sm"
         type="button"
         @click="router.push(`/projects/${projectId}/tasks/new`)"
       >
         开始测试
       </button>
+      <button v-else class="btn btn-sm" type="button" @click="clearFilters">清空筛选</button>
     </EmptyState>
 
     <RunHistoryDialog
@@ -199,6 +239,7 @@ watch(dialogOpen, (open) => {
       :task="selected ? taskFor(selected) : null"
       :report="selected && project ? latestReportForRun(project, selected.id) : null"
       @open-report="openReport"
+      @open-result="openRunResult"
     />
   </div>
 </template>

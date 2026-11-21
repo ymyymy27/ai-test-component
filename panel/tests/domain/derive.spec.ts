@@ -37,6 +37,24 @@ describe("derived results", () => {
     expect(unselectedItems(seeded.task, run.scope.acceptanceItemIds)).toHaveLength(3);
   });
 
+  it("keeps an L1 failure in the fallback conclusion", async () => {
+    const seeded = await completedRun(["01"]);
+    const run = seeded.task.runs[0] as Run;
+    run.l1 = [
+      {
+        key: "build",
+        name: "构建",
+        method: "python -m compileall",
+        result: "failed",
+        detail: "",
+        time: "",
+        reason: "构建失败",
+      },
+    ];
+    expect(conclusionForRun(run)).toContain("项目级检查未通过");
+    expect(conclusionForRun(run)).toContain("结论为失败");
+  });
+
   it("does not aggregate a failed first run into passed", async () => {
     const seeded = await completedRun(["03"]);
     const run = seeded.task.runs[0] as Run;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { durationText } from "@/domain/ids";
 import type { Run } from "@/domain/types";
 
 const props = defineProps<{
@@ -33,7 +34,7 @@ const currentItem = computed(() =>
         <p class="page-kicker">运行中</p>
         <p class="page-subtitle">
           已完成 <strong class="num">{{ done }}</strong> /
-          <strong class="num">{{ total }}</strong> 条检查 · {{ Math.floor(elapsedMs / 1000) }} 秒
+          <strong class="num">{{ total }}</strong> 条用例检查 · {{ durationText(elapsedMs / 1000) }}
         </p>
       </div>
       <span v-if="run.simulated" class="badge is-accent">本地模拟</span>
@@ -52,7 +53,10 @@ const currentItem = computed(() =>
       </div>
       <span class="progress-text">{{ done }} / {{ total }}</span>
     </div>
-    <div class="current-case" aria-live="polite">
+    <div class="current-case">
+      <span class="visually-hidden" aria-live="polite">
+        {{ current ? `正在执行 ${current.title}` : "正在收尾" }}
+      </span>
       <span class="current-case-label">正在执行</span>
       <span class="current-case-title">{{ current?.title || "正在收尾" }}</span>
       <span class="current-case-meta">

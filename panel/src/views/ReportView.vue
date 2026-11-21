@@ -88,6 +88,13 @@ const layers = computed(() => {
 });
 
 onMounted(async () => {
+  if (task.value && workspace.currentTask?.id !== task.value.id) {
+    try {
+      await workspace.setActiveTask(projectId.value, task.value.id);
+    } catch {
+      // store 已提示。
+    }
+  }
   if (!report.value) {
     loadingReport.value = true;
     try {
@@ -245,16 +252,19 @@ function bytesText(bytes: number): string {
       :subtitle="`${project?.name ?? ''} · ${task.title} · 第 ${report.version} 版 · ${new Date(report.generatedAt).toLocaleString('zh-CN')}`"
     >
       <template #actions>
+        <span v-if="exportResult" class="report-export-receipt">
+          已导出 {{ exportResult.filename }}
+        </span>
         <button
           v-if="run && task"
-          class="btn btn-sm"
+          class="btn btn-sm btn-ghost"
           type="button"
-          @click="router.push(`/projects/${projectId}/tasks/${task.id}/result`)"
+          @click="router.push(`/projects/${projectId}/tasks/${task.id}/result?run=${report.runId}`)"
         >
           返回运行结果
         </button>
         <button
-          class="btn btn-sm"
+          class="btn btn-sm btn-ghost"
           type="button"
           :disabled="regenerating"
           :aria-busy="regenerating"
@@ -262,7 +272,9 @@ function bytesText(bytes: number): string {
         >
           {{ regenerating ? "正在生成…" : "重新生成" }}
         </button>
-        <button class="btn btn-sm" type="button" @click="exportReport">导出 Markdown</button>
+        <button class="btn btn-sm btn-primary" type="button" @click="exportReport">
+          导出 Markdown
+        </button>
       </template>
     </PageHeader>
 
@@ -297,7 +309,20 @@ function bytesText(bytes: number): string {
           <p class="result-verdict" :class="`is-${report.verdict}`">
             {{ VERDICT_LABEL[report.verdict] }}
           </p>
+          <p class="report-coverage">
+            本次 <strong class="num">{{ report.coverage.selected }}</strong> /
+            <strong class="num">{{ report.coverage.applicable }}</strong> 项 ·
+            未纳入 {{ Math.max(0, report.coverage.applicable - report.coverage.selected) }} 项
+          </p>
           <p class="page-subtitle">{{ report.conclusion }}</p>
+          <div class="report-trust">
+            <span class="badge is-neutral">证据 {{ report.evidenceIndex.length }}</span>
+            <span class="badge is-neutral">调用链 {{ report.link?.nodes.length ?? 0 }} 节点</span>
+            <span class="badge is-neutral">模拟 {{ report.mock.mock }} 条</span>
+            <span class="badge" :class="report.mock.realChain ? 'is-pass' : 'is-warn'">
+              真实链路{{ report.mock.realChain ? "通过" : "未通过" }}
+            </span>
+          </div>
         </div>
         <div class="result-counts" role="group" aria-label="报告计数">
           <div class="result-count is-passed">
@@ -359,7 +384,7 @@ function bytesText(bytes: number): string {
           </tbody>
         </table>
       </div>
-      <details v-if="report.uncoveredItems.length" class="unselected-block">
+      <details v-if="report.uncoveredItems.length" class="unselected-block" open>
         <summary>
           未纳入本次 {{ report.uncoveredItems.length }} 项 <span class="muted">不计入结论</span>
         </summary>
@@ -367,7 +392,7 @@ function bytesText(bytes: number): string {
           <li v-for="item in report.uncoveredItems" :key="item">{{ item }}</li>
         </ul>
       </details>
-      <details v-if="report.unverifiedItems.length" class="unselected-block">
+      <details v-if="report.unverifiedItems.length" class="unselected-block" open>
         <summary>
           未核实预期 {{ report.unverifiedItems.length }} 条
           <span class="muted">执行通过也按阻塞计</span>
@@ -376,7 +401,7 @@ function bytesText(bytes: number): string {
           <li v-for="item in report.unverifiedItems" :key="item">{{ item }}</li>
         </ul>
       </details>
-      <details v-if="report.planWarnings?.length" class="unselected-block">
+      <details v-if="report.planWarnings?.length" class="unselected-block" open>
         <summary>计划警告 {{ report.planWarnings.length }} 条</summary>
         <ul class="list-plain">
           <li v-for="item in report.planWarnings ?? []" :key="item">{{ item }}</li>
@@ -439,7 +464,16 @@ function bytesText(bytes: number): string {
           <tbody>
             <tr v-for="testCase in report.caseDetails" :key="testCase.caseId">
               <td class="cell-num" data-label="验收项">{{ testCase.itemNo }}</td>
-              <td class="cell-main" data-label="用例">{{ testCase.title }}</td>
+              <td class="cell-main" data-label="用例">
+                <details class="case-report-detail">
+                  <summary>{{ testCase.title }}</summary>
+                  <p><strong>预期</strong>：{{ testCase.expected || "未记录" }}</p>
+                  <p><strong>实际</strong>：{{ testCase.actual || "未记录" }}</p>
+                  <p v-if="testCase.analysis">
+                    <strong>分析</strong>：{{ testCase.analysis.observed }}
+                  </p>
+                </details>
+              </td>
               <td data-label="检查方式">{{ testCase.method }}</td>
               <td data-label="结果">{{ statusText(testCase.result) }}</td>
               <td data-label="证据">
@@ -456,8 +490,9 @@ function bytesText(bytes: number): string {
       <p v-else class="doc-note">这一版没有保留用例明细。</p>
     </section>
 
-    <section v-if="issues.length" class="section">
+    <section class="section">
       <h2 class="section-title-lg">问题</h2>
+      <p v-if="!issues.length" class="doc-note">本次运行没有产生问题。</p>
       <div v-if="issues.length" class="list-plain">
         <p v-for="issue in issues" :key="issue.id">
           <button

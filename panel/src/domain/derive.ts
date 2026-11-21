@@ -152,6 +152,9 @@ export function conclusionForRun(run: Run): string {
   }
   const unselected = Math.max(0, counts.applicable - counts.selected);
   const base = `本次 ${counts.selected} 项中，通过 ${counts.passed} 项、失败 ${counts.failed} 项、未完成 ${counts.incomplete} 项。`;
+  if (run.l1.some((check) => ["failed", "blocked", "error"].includes(check.result))) {
+    return `${base}项目级检查未通过，本次结论为失败；项目级检查不计入验收项覆盖。`;
+  }
   if (unselected > 0) {
     const suffix = "未纳入的验收项不计入本次结论。";
     if (run.verdict === "passed") {

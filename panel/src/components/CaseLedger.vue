@@ -2,7 +2,7 @@
 import { computed, nextTick, type ComponentPublicInstance } from "vue";
 
 import { effectiveCaseResult, worstResult } from "@/domain/derive";
-import type { CaseResult, Run, RunItem } from "@/domain/types";
+import type { CaseResult, Run, RunCase, RunItem } from "@/domain/types";
 import CaseDetail from "./CaseDetail.vue";
 import Icon from "./Icon.vue";
 import StatusMark from "./StatusMark.vue";
@@ -15,11 +15,12 @@ const props = withDefaults(
     filter?: "all" | "problems" | "unfinished";
     allowManual?: boolean;
     manualBusyCaseId?: string;
+    running?: boolean;
   }>(),
-  { filter: "all", allowManual: false, manualBusyCaseId: "" },
+  { filter: "all", allowManual: false, manualBusyCaseId: "", running: false },
 );
 
-const emit = defineEmits<{ manual: [caseId: string] }>();
+const emit = defineEmits<{ manual: [caseId: string]; resetFilter: []; evidence: [caseId: string] }>();
 
 const elementMap = new Map<string, HTMLElement>();
 
@@ -32,7 +33,7 @@ const visibleItems = computed(() => {
     if (props.filter === "problems") {
       return ["failed", "blocked", "error"].includes(outcome);
     }
-    return outcome !== "passed";
+    return ["not_run", "manual_pending", "blocked"].includes(outcome);
   });
 });
 
@@ -42,8 +43,12 @@ const firstProblemId = computed(
       ?.itemId ?? "",
 );
 
+function belongsTo(testCase: RunCase, itemId: string): boolean {
+  return testCase.caseItemIds?.includes(itemId) ?? testCase.itemId === itemId;
+}
+
 function resultFor(itemId: string): CaseResult {
-  const cases = props.run.cases.filter((testCase) => testCase.itemId === itemId);
+  const cases = props.run.cases.filter((testCase) => belongsTo(testCase, itemId));
   if (cases.length === 0) {
     return "not_run";
   }
@@ -51,7 +56,7 @@ function resultFor(itemId: string): CaseResult {
 }
 
 function casesFor(itemId: string) {
-  return props.run.cases.filter((testCase) => testCase.itemId === itemId);
+  return props.run.cases.filter((testCase) => belongsTo(testCase, itemId));
 }
 
 function setItemRef(itemId: string, element: Element | ComponentPublicInstance | null): void {
@@ -90,7 +95,10 @@ defineExpose({ focusItem });
           <span class="ledger-text">{{ item.text }}</span>
           <span class="ledger-state">
             <StatusMark :result="resultFor(item.itemId)" />
-            <StatusText :result="resultFor(item.itemId)" />
+            <StatusText
+              :result="resultFor(item.itemId)"
+              :label="running && resultFor(item.itemId) === 'not_run' ? '待执行' : ''"
+            />
           </span>
           <Icon name="chevron-right" :size="14" class="ledger-chevron" />
         </summary>
@@ -103,10 +111,17 @@ defineExpose({ focusItem });
             :allow-manual="allowManual"
             :manual-busy="manualBusyCaseId === testCase.id"
             @manual="emit('manual', $event)"
+            @evidence="emit('evidence', $event)"
           />
           <p v-if="casesFor(item.itemId).length === 0" class="doc-note">这个验收项没有用例。</p>
         </div>
       </details>
+    </li>
+    <li v-if="!visibleItems.length" class="ledger-empty">
+      <p class="doc-note">
+        当前筛选没有验收项。
+        <button class="link-btn" type="button" @click="emit('resetFilter')">回到全部</button>
+      </p>
     </li>
   </ol>
 </template>

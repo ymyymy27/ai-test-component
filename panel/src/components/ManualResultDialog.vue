@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
 
+import Icon from "./Icon.vue";
+
 import type { RunCase } from "@/domain/types";
 import type { EvidenceInput } from "@/repositories/ProjectRepository";
 import { fileToEvidence } from "@/services/evidenceFiles";
@@ -17,7 +19,7 @@ const emit = defineEmits<{
 
 const open = defineModel<boolean>({ default: false });
 const dialogRef = ref<HTMLDialogElement | null>(null);
-const result = ref<"passed" | "failed">("passed");
+const result = ref<"" | "passed" | "failed">("");
 const note = ref("");
 const files = ref<File[]>([]);
 const error = ref("");
@@ -29,7 +31,7 @@ watch(open, async (value) => {
     return;
   }
   if (value) {
-    result.value = "passed";
+    result.value = "";
     note.value = "";
     files.value = [];
     error.value = "";
@@ -57,6 +59,10 @@ async function save(): Promise<void> {
   if (!props.testCase) {
     return;
   }
+  if (!result.value) {
+    error.value = "先选择通过或失败。";
+    return;
+  }
   if (files.value.length > 0 && note.value.trim() === "") {
     error.value = "附证据时写一句说明，方便复查。";
     return;
@@ -67,7 +73,7 @@ async function save(): Promise<void> {
       files.value.map((file) => fileToEvidence(file, note.value.trim(), props.testCase?.id ?? "")),
     );
     emit("save", {
-      result: result.value,
+      result: result.value as "passed" | "failed",
       note: note.value.trim(),
       evidence,
     });
@@ -90,6 +96,7 @@ function onDialogClick(event: MouseEvent): void {
     ref="dialogRef"
     class="dialog"
     aria-labelledby="manual-dialog-title"
+    aria-describedby="manual-dialog-desc"
     @cancel.prevent="close"
     @close="open = false"
     @click="onDialogClick"
@@ -98,30 +105,35 @@ function onDialogClick(event: MouseEvent): void {
       <header class="dialog-head">
         <h2 id="manual-dialog-title" class="dialog-title">记录人工结果</h2>
         <button class="icon-btn" type="button" aria-label="关闭" @click="close">
-          <svg
-            viewBox="0 0 16 16"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
-          </svg>
+          <Icon name="close" :size="15" />
         </button>
       </header>
-      <p class="dialog-text">{{ testCase?.title }}</p>
-      <div class="field">
-        <span class="field-label">结果</span>
+      <p id="manual-dialog-desc" class="dialog-text">{{ testCase?.title }}</p>
+      <dl v-if="testCase" class="dialog-context">
+        <div>
+          <dt>预期</dt>
+          <dd>{{ testCase.expected || "未记录" }}</dd>
+        </div>
+        <div>
+          <dt>实际</dt>
+          <dd>{{ testCase.actual || "未记录" }}</dd>
+        </div>
+        <div>
+          <dt>已有证据</dt>
+          <dd>{{ testCase.evidence.length }} 条</dd>
+        </div>
+      </dl>
+      <fieldset class="field">
+        <legend class="field-label">结果</legend>
         <label class="checkline">
-          <input v-model="result" type="radio" value="passed" />
+          <input v-model="result" name="manual-result" type="radio" value="passed" />
           <span>通过</span>
         </label>
         <label class="checkline">
-          <input v-model="result" type="radio" value="failed" />
+          <input v-model="result" name="manual-result" type="radio" value="failed" />
           <span>失败</span>
         </label>
-      </div>
+      </fieldset>
       <div class="field" :class="{ 'has-error': error }">
         <label for="manual-note">说明 <span class="optional">附证据时必填</span></label>
         <textarea
@@ -135,10 +147,17 @@ function onDialogClick(event: MouseEvent): void {
         <p v-if="error" id="manual-error" class="field-error" role="alert">{{ error }}</p>
       </div>
       <div v-if="allowFiles" class="field">
-        <label for="manual-files">证据文件 <span class="optional">选填</span></label>
-        <input id="manual-files" type="file" multiple @change="onFiles" />
+        <span class="field-label">证据文件 <span class="optional">选填</span></span>
+        <input
+          id="manual-files"
+          class="visually-hidden"
+          type="file"
+          multiple
+          @change="onFiles"
+        />
+        <label class="btn btn-sm file-picker" for="manual-files">选择文件</label>
         <p v-if="files.length" class="field-hint">
-          已选 {{ files.length }} 个文件；只登记文件名、大小与摘要，不读取正文。
+          已选 {{ files.length }} 个：{{ files.map((file) => file.name).join("、") }}；只登记元数据。
         </p>
       </div>
       <p v-else class="field-hint">

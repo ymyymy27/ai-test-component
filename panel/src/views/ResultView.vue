@@ -34,7 +34,19 @@ const project = computed(() => workspace.currentProject);
 const task = computed<Task | null>(
   () => project.value?.tasks.find((entry) => entry.id === taskId.value) ?? null,
 );
-const run = computed<Run | null>(() => (task.value ? currentRun(task.value) : null));
+const run = computed<Run | null>(() => {
+  if (!task.value) {
+    return null;
+  }
+  const requested = String(route.query.run ?? "");
+  if (requested) {
+    const found = task.value.runs.find((entry) => entry.id === requested);
+    if (found) {
+      return found;
+    }
+  }
+  return currentRun(task.value);
+});
 const plan = computed(() => (task.value ? currentPlan(task.value) : null));
 const environmentRows = computed(() => {
   const environment = run.value?.environment ?? {};
@@ -115,7 +127,11 @@ const problemCount = computed(
 );
 const unfinishedCount = computed(
   () =>
-    items.value.filter((item) => (outcomes.value[item.itemId] ?? "not_run") !== "passed").length,
+    items.value.filter((item) =>
+      ["not_run", "manual_pending", "blocked"].includes(
+        outcomes.value[item.itemId] ?? "not_run",
+      ),
+    ).length,
 );
 const reports = computed(() =>
   project.value && run.value ? reportsForRun(project.value, run.value.id) : [],
@@ -191,6 +207,19 @@ async function saveManual(input: {
 function openEvidence(): void {
   evidenceCaseId.value = "";
   evidenceOpen.value = true;
+}
+
+function openEvidenceFor(caseId: string): void {
+  evidenceCaseId.value = caseId;
+  evidenceOpen.value = true;
+}
+
+async function focusFromSummary(itemId: string): Promise<void> {
+  if (filter.value !== "all") {
+    filter.value = "all";
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  await caseLedgerRef.value?.focusItem(itemId);
 }
 
 async function saveEvidence(evidence: EvidenceInput[]): Promise<void> {
@@ -348,7 +377,7 @@ function rerunLabel(): string {
       </div>
     </section>
 
-    <ResultSummary :run="run" :task="task" @select="caseLedgerRef?.focusItem($event)" />
+    <ResultSummary :run="run" :task="task" @select="focusFromSummary" />
 
     <section class="section">
       <div class="section-head">
@@ -370,6 +399,7 @@ function rerunLabel(): string {
       :report="latestReport"
       :version-count="reports.length"
       :run-status="run.status"
+      :postprocess="run.postprocess"
       @open="(reportId) => router.push(`/projects/${projectId}/reports/${reportId}`)"
       @regenerate="regenerate"
       @export="exportReport"
@@ -393,7 +423,7 @@ function rerunLabel(): string {
           :aria-pressed="filter === 'problems'"
           @click="filter = 'problems'"
         >
-          只看问题<span class="filter-count">{{ problemCount }}</span>
+          只看未通过<span class="filter-count">{{ problemCount }}</span>
         </button>
         <button
           class="filter-btn"
@@ -419,9 +449,11 @@ function rerunLabel(): string {
       allow-manual
       :manual-busy-case-id="manualCase?.id ?? ''"
       @manual="openManual"
+      @evidence="openEvidenceFor"
+      @reset-filter="filter = 'all'"
     />
 
-    <details v-if="unselected.length" class="unselected-block">
+    <details v-if="unselected.length" class="unselected-block" open>
       <summary>未纳入本次 {{ unselected.length }} 项 <span class="muted">不计入结论</span></summary>
       <ul class="list-plain">
         <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>

@@ -5,6 +5,7 @@ defineProps<{
   report: Report | null;
   versionCount: number;
   runStatus: RunStatus;
+  postprocess?: "pending" | "running" | "done" | "error";
 }>();
 
 const emit = defineEmits<{
@@ -27,9 +28,11 @@ const emit = defineEmits<{
       <span class="report-strip-title">还没有报告</span>
       <span class="report-strip-meta">
         {{
-          runStatus === "interrupted"
-            ? "中断运行没有报告。"
-            : "运行结束后会生成报告；也可以现在重新生成。"
+          postprocess === "pending" || postprocess === "running"
+            ? "报告生成中；完成后这里会自动出现。"
+            : runStatus === "interrupted"
+              ? "运行已中断，报告尚未生成。"
+              : "运行结束后会生成报告；也可以现在生成。"
         }}
       </span>
     </div>
@@ -41,8 +44,21 @@ const emit = defineEmits<{
         导出 Markdown
       </button>
     </template>
-    <button v-else class="btn btn-sm" type="button" @click="emit('regenerate')">
-      重新生成报告
+    <button
+      v-else
+      class="btn btn-sm"
+      type="button"
+      :disabled="postprocess === 'pending' || postprocess === 'running'"
+      :aria-busy="postprocess === 'pending' || postprocess === 'running'"
+      @click="emit('regenerate')"
+    >
+      {{
+        postprocess === "pending" || postprocess === "running"
+          ? "报告生成中…"
+          : runStatus === "interrupted"
+            ? "生成报告"
+            : "重新生成报告"
+      }}
     </button>
   </div>
 </template>

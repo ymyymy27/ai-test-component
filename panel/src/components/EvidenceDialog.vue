@@ -118,9 +118,19 @@ function onDialogClick(event: MouseEvent): void {
         <input id="evidence-note" v-model="note" type="text" maxlength="120" />
       </div>
       <div class="field" :class="{ 'has-error': error }">
-        <label for="evidence-files">证据文件</label>
-        <input id="evidence-files" type="file" multiple @change="onFiles" />
-        <p v-if="files.length" class="field-hint">已选 {{ files.length }} 个文件。</p>
+        <span class="field-label">证据文件</span>
+        <input
+          id="evidence-files"
+          class="visually-hidden"
+          type="file"
+          multiple
+          @change="onFiles"
+        />
+        <label class="btn btn-sm file-picker" for="evidence-files">选择文件</label>
+        <p v-if="files.length" class="field-hint">
+          已选 {{ files.length }} 个：{{ files.map((file) => file.name).join("、") }}
+        </p>
+        <p v-else class="field-hint">还没有选择文件。</p>
         <p v-if="error" class="field-error" role="alert">{{ error }}</p>
       </div>
       <footer class="dialog-actions">

@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openReport: [reportId: string];
+  openResult: [];
 }>();
 
 const open = defineModel<boolean>({ default: false });
@@ -137,6 +138,7 @@ function onDialogClick(event: MouseEvent): void {
       </p>
       <footer class="dialog-actions">
         <button class="btn" type="button" @click="close">关闭</button>
+        <button class="btn" type="button" @click="emit('openResult')">查看运行结果</button>
         <button v-if="report" class="btn btn-primary" type="button" @click="openReport">
           查看报告
         </button>

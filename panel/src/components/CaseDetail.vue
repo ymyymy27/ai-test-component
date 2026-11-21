@@ -16,7 +16,7 @@ const props = withDefaults(
   { allowManual: false, manualBusy: false },
 );
 
-const emit = defineEmits<{ manual: [caseId: string] }>();
+const emit = defineEmits<{ manual: [caseId: string]; evidence: [caseId: string] }>();
 
 const bad = computed(() => ["failed", "blocked", "error"].includes(props.result));
 </script>
@@ -34,7 +34,7 @@ const bad = computed(() => ["failed", "blocked", "error"].includes(props.result)
     <div class="case-compare">
       <div class="case-col">
         <span class="case-label">预期</span>
-        <span class="case-value">{{ testCase.expected }}</span>
+        <span class="case-value">{{ testCase.expected || "未记录" }}</span>
       </div>
       <div class="case-col">
         <span class="case-label">实际</span>
@@ -45,18 +45,20 @@ const bad = computed(() => ["failed", "blocked", "error"].includes(props.result)
     </div>
     <p v-if="testCase.message" class="case-message">{{ testCase.message }}</p>
     <div v-if="testCase.evidence.length" class="evidence-row">
-      <span
+      <button
         v-for="evidence in testCase.evidence"
         :key="evidence.id"
         class="evidence-chip"
+        type="button"
         :class="{ 'is-missing': evidence.missing, 'is-truncated': evidence.truncated }"
         :title="`${evidence.mediaType} · ${evidence.bytes} 字节 · ${evidence.sha256}`"
+        @click="emit('evidence', testCase.id)"
       >
         <Icon name="file" :size="12" />
         {{ evidence.name }}
         <template v-if="evidence.missing"> · 已缺失</template>
         <template v-else-if="evidence.truncated"> · 已截断</template>
-      </span>
+      </button>
     </div>
     <ol v-if="testCase.manualSteps.length" class="list-plain manual-steps">
       <li v-for="(step, index) in testCase.manualSteps" :key="index">
