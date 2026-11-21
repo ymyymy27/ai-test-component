@@ -4,6 +4,7 @@ import { computed } from "vue";
 import { durationText } from "@/domain/ids";
 import { VERDICT_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
+import EmptyState from "./EmptyState.vue";
 import StatusMark from "./StatusMark.vue";
 
 const props = defineProps<{
@@ -47,10 +48,15 @@ const rows = computed(() =>
         </span>
       </span>
       <span class="row-side">
-        {{ row.run.counts.passed }} 通过 · {{ row.run.counts.failed }} 失败
+        {{ row.run.counts.passed }} 通过 · {{ row.run.counts.failed }} 失败 ·
+        {{ row.run.counts.incomplete }} 未完成
       </span>
       <span class="row-side">{{ durationText(row.run.elapsedMs / 1000) }}</span>
     </button>
   </div>
-  <p v-else class="doc-note">还没有运行记录。完成一次测试后，结果与报告会留在这里。</p>
+  <EmptyState
+    v-else
+    title="还没有运行记录"
+    text="完成一次测试后，结果与报告会留在这里。"
+  />
 </template>

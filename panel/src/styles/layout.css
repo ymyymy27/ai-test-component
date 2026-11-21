@@ -619,6 +619,10 @@
 }
 
 /* ---------- page frame ---------- */
+.page-wide {
+  max-width: 1040px;
+}
+
 .page {
   width: min(100%, var(--content-max));
   margin: 0 auto;
@@ -1033,11 +1037,19 @@ h3.settings-title {
     background: rgba(15, 23, 20, 0.34);
   }
 
+  .sidebar-search input {
+    min-height: 40px;
+  }
+
+  .side-task-menu button {
+    min-height: 40px;
+  }
+
   .sidebar-toggle {
     display: inline-grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
@@ -1162,8 +1174,7 @@ h3.settings-title {
   }
 
   .breadcrumb-back-separator {
-    display: inline;
-    color: var(--line-strong);
+    display: none;
   }
 
   .breadcrumb-current {
@@ -1176,7 +1187,9 @@ h3.settings-title {
   }
 
   .env-button .env-text {
-    display: none;
+    display: inline;
+    font-size: var(--text-11);
+    white-space: nowrap;
   }
 
   .actionbar-actions .btn {

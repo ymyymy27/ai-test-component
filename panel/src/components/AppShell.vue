@@ -74,7 +74,20 @@ const backRoute = computed(() => {
   }
   return overview;
 });
-const missingCount = computed(() => missingEnvironmentCount(workspace.environment));
+const missingCount = computed(() =>
+  workspace.environment.length ? missingEnvironmentCount(workspace.environment) : null,
+);
+
+watch(
+  () => ui.envOpen,
+  async (open) => {
+    if (!open) {
+      return;
+    }
+    await nextTick();
+    envPopoverRef.value?.querySelector<HTMLElement>("a, button")?.focus();
+  },
+);
 const taskRoute = computed(() => {
   const current = task.value;
   if (!current || !current.id || !project.value) {
@@ -142,7 +155,12 @@ async function openQuick(projectIdValue: string): Promise<void> {
 }
 
 async function selectProject(projectIdValue: string): Promise<void> {
-  await workspace.setCurrentProject(projectIdValue);
+  try {
+    await workspace.setCurrentProject(projectIdValue);
+  } catch (error) {
+    ui.showToast(error instanceof Error ? error.message : "切换项目失败，请重试。", "error");
+    return;
+  }
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/overview`);
 }
@@ -293,7 +311,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <a class="skip-link" href="#main-content" @click="skipToMain">跳到主要内容</a>
+  <a
+    v-if="!(ui.narrow && ui.sidebarOpen)"
+    class="skip-link"
+    href="#main-content"
+    @click="skipToMain"
+  >
+    跳到主要内容
+  </a>
   <div class="app-shell">
     <ProjectSidebar
       ref="sidebarRef"
@@ -336,6 +361,7 @@ onBeforeUnmount(() => {
         :back-route="backRoute"
         :section-title="sectionTitle"
         :missing-count="missingCount"
+        :env-open="ui.envOpen"
         :sidebar-open="ui.sidebarOpen"
         @toggle-sidebar="toggleSidebar"
         @toggle-env="ui.toggleEnv"
@@ -346,6 +372,7 @@ onBeforeUnmount(() => {
         ref="envPopoverRef"
         class="env-popover"
         role="region"
+        tabindex="-1"
         aria-label="环境自检"
       >
         <h2>环境自检</h2>
@@ -356,13 +383,19 @@ onBeforeUnmount(() => {
         </div>
         <p class="field-hint env-popover-note">
           {{
-            missingCount > 0
-              ? `${missingCount} 项未接入；本地记录、证据与报告仍可用。`
-              : "全部检查通过。"
+            missingCount === null
+              ? "还没有检查结果；打开设置重新检查。"
+              : missingCount > 0
+                ? `${missingCount} 项未接入；本地记录、证据与报告仍可用。`
+                : "全部检查通过。"
           }}
         </p>
-        <RouterLink v-if="projectId" :to="`/projects/${projectId}/settings`" class="link-btn">
-          打开设置
+        <RouterLink
+          v-if="projectId"
+          :to="`/projects/${projectId}/settings?section=settings-environment`"
+          class="link-btn"
+        >
+          打开环境设置
         </RouterLink>
       </div>
       <div class="workspace-main">

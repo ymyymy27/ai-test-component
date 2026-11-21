@@ -301,7 +301,6 @@ defineExpose({ focusSearch, focusClose });
         <button
           class="side-project-row"
           type="button"
-          :aria-current="project.id === currentProjectId ? 'page' : undefined"
           :aria-expanded="
             project.id === currentProjectId ? !isProjectCollapsed(project.id) : undefined
           "
@@ -309,7 +308,7 @@ defineExpose({ focusSearch, focusClose });
             project.id === currentProjectId ? `project-body-${project.id}` : undefined
           "
           :title="
-            project.id === currentProjectId && section === 'overview'
+            project.id === currentProjectId
               ? isProjectCollapsed(project.id)
                 ? '点击展开项目内容'
                 : '点击收起项目内容'
@@ -368,6 +367,7 @@ defineExpose({ focusSearch, focusClose });
                 <span class="side-nav-label">运行记录</span>
                 <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
               </button>
+              <div class="sidebar-section-label"><span>项目设置</span></div>
               <button
                 class="side-nav-item"
                 type="button"

@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 
 import { createProject, test } from "./fixtures";
 
-test("概览页两栏互换且侧栏四个入口为纵向列表", async ({ page }) => {
+test("概览页两栏互换且侧栏入口为纵向列表", async ({ page }) => {
   await createProject(page, "概览布局验证", "D:/work/overview-layout");
 
   const grid = page.locator(".overview-grid");
@@ -15,13 +15,14 @@ test("概览页两栏互换且侧栏四个入口为纵向列表", async ({ page 
   await expect(grid.locator(".overview-feed")).toContainText("最近活动");
 
   const nav = page.locator(".side-nav");
-  await expect(nav.getByRole("button")).toHaveCount(4);
+  await expect(nav.getByRole("button")).toHaveCount(5);
   await expect(page.locator(".side-task-toggle")).toHaveCount(0);
   await expect(nav).toContainText("概览");
   await expect(nav).toContainText("问题");
   await expect(nav).toContainText("运行记录");
+  await expect(nav).toContainText("快速检查");
   await expect(nav).toContainText("设置");
-  await expect(nav.locator("button svg")).toHaveCount(4);
+  await expect(nav.locator("button svg")).toHaveCount(5);
   await expect(nav.getByRole("button", { name: /概览/ })).toHaveClass(/is-active/);
 
   const display = await nav.evaluate((element) => getComputedStyle(element).display);

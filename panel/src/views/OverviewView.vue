@@ -2,15 +2,15 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 
-import ErrorState from "@/components/ErrorState.vue";
-import LoadingState from "@/components/LoadingState.vue";
 import ModuleEditorDialog from "@/components/ModuleEditorDialog.vue";
 import ProjectOverview from "@/components/ProjectOverview.vue";
 import type { Module } from "@/domain/types";
+import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
 const router = useRouter();
 const workspace = useWorkspaceStore();
+const ui = useUiStore();
 const moduleOpen = ref(false);
 const editingModule = ref<Module | null>(null);
 
@@ -86,6 +86,10 @@ async function toggleFeature(featureName: string, ignored: boolean): Promise<voi
   }
   try {
     await workspace.setFeatureIgnored(projectId.value, featureName, ignored);
+    ui.showToast(
+      ignored ? "已忽略该业务功能；可在“已忽略”列表恢复。" : "业务功能已恢复。",
+      "info",
+    );
   } catch {
     // store 已提示。
   }
@@ -108,17 +112,7 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
 </script>
 
 <template>
-  <div v-if="!project" class="page">
-    <LoadingState v-if="workspace.status === 'loading'" />
-    <ErrorState
-      v-else
-      title="项目不可用"
-      :text="workspace.error || '这个项目可能已被移除。'"
-      retry-label="重新读取"
-      @retry="workspace.bootstrap()"
-    />
-  </div>
-  <div v-else>
+  <div v-if="project">
     <ProjectOverview
       :project="project"
       :analyzing="analyzing"

@@ -7,7 +7,6 @@ import type { Task } from "@/domain/types";
 
 const props = defineProps<{
   task: Task;
-  openIssueCount: number;
   runningElsewhere: boolean;
 }>();
 
@@ -17,6 +16,22 @@ const plan = computed(() => currentPlan(props.task));
 const run = computed(() => currentRun(props.task));
 const isDraft = computed(() => props.task.stage === "fresh");
 const title = computed(() => (isDraft.value ? "新任务 · 待确认目标" : props.task.title));
+const tone = computed(() => {
+  if (isDraft.value) {
+    return "warn";
+  }
+  if (props.task.stage === "running") {
+    return "accent";
+  }
+  if (props.task.stage === "result" && run.value) {
+    return run.value.verdict === "failed"
+      ? "fail"
+      : run.value.verdict === "passed"
+        ? "pass"
+        : "warn";
+  }
+  return "neutral";
+});
 const state = computed(() => {
   if (isDraft.value) {
     return "待定目标";
@@ -36,9 +51,7 @@ const action = computed(() => {
   }
   switch (props.task.stage) {
     case "scope":
-      return props.task.origin === "goal" && props.task.plans.length === 0
-        ? "查看计划"
-        : "继续选范围";
+      return "继续选范围";
     case "planned":
       return "确认计划";
     case "running":
@@ -56,7 +69,6 @@ const meta = computed(() => {
   } else {
     parts.push("还没有计划");
   }
-  parts.push(`${props.openIssueCount} 个未关闭问题`);
   if (props.runningElsewhere) {
     parts.push("其他任务运行中，暂时不能切换");
   }
@@ -66,7 +78,7 @@ const meta = computed(() => {
 
 <template>
   <div class="current-task-strip">
-    <span class="side-status-dot" :class="isDraft ? 'is-warn' : 'is-ok'" aria-hidden="true"></span>
+    <span class="side-status-dot" :class="`is-${tone}`" aria-hidden="true"></span>
     <span class="current-task-main">
       <span class="analysis-strip-title">{{ title }}</span>
       <span class="analysis-strip-text">{{ meta }}</span>

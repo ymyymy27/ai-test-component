@@ -76,7 +76,7 @@ const router = createRouter({
       path: "/",
       name: "root",
       component: () => import("@/views/RootRedirectView.vue"),
-      meta: { title: "AI 测试" },
+      meta: { title: "" },
     },
     {
       path: "/setup",
@@ -211,7 +211,12 @@ router.beforeEach(async (to) => {
     return notFound(to);
   }
   if (store.currentProjectId !== projectId) {
-    await store.setCurrentProject(projectId);
+    try {
+      await store.setCurrentProject(projectId);
+    } catch {
+      ui.showToast("切换项目失败，请重试。", "error");
+      return false;
+    }
   }
   const activeRunTask = runningTask(project);
   if (activeRunTask && ["new-task", "quick-check"].includes(String(to.name))) {

@@ -12,8 +12,8 @@ test("跳转链接、aria-current 和主内容焦点可用", async ({ page }) =>
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
 
-  const currentProject = page.locator('.side-project-row[aria-current="page"]');
-  await expect(currentProject).toContainText("无障碍验证");
+  const currentProject = page.locator(".side-project-row").filter({ hasText: "无障碍验证" });
+  await expect(currentProject).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator(".breadcrumb-current")).toContainText("项目概览");
 });
 

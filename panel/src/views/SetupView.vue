@@ -2,7 +2,6 @@
 import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
-import ErrorState from "@/components/ErrorState.vue";
 import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { validateProjectForm, type ProjectFormErrors } from "@/domain/validation";
@@ -88,6 +87,14 @@ async function submit(): Promise<void> {
   }
 }
 
+async function retryRead(): Promise<void> {
+  try {
+    await workspace.bootstrap();
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function clearAndRetry(): Promise<void> {
   const answer = await ui.askConfirm({
     title: "清空本地面板数据？",
@@ -116,15 +123,15 @@ async function clearAndRetry(): Promise<void> {
       本地演示数据 · 未读取真实仓库
     </p>
 
-    <ErrorState
-      v-if="workspace.status === 'error'"
-      title="本地数据无法读取"
-      :text="workspace.error"
-      retry-label="清空并重新开始"
-      @retry="clearAndRetry"
-    />
+    <div v-if="workspace.status === 'error'" class="notice is-warn" role="alert">
+      <span>本地数据无法读取：{{ workspace.error }}</span>
+      <button class="btn btn-sm" type="button" @click="retryRead">重新读取</button>
+      <button class="btn btn-sm btn-danger" type="button" @click="clearAndRetry">
+        清空本地数据
+      </button>
+    </div>
 
-    <div v-else class="setup-grid">
+    <div class="setup-grid">
       <form class="setup-form" novalidate @submit.prevent="submit">
         <div class="field" :class="{ 'has-error': errors.root }">
           <label for="setup-root">项目目录</label>
@@ -139,13 +146,16 @@ async function clearAndRetry(): Promise<void> {
               spellcheck="false"
               placeholder="D:\work\service"
               :aria-invalid="errors.root ? 'true' : undefined"
-              aria-describedby="setup-root-hint setup-root-error"
+              :aria-describedby="
+                errors.root ? 'setup-root-hint setup-root-error' : 'setup-root-hint'
+              "
+              :disabled="busy"
               @input="clearError('root')"
             />
             <button
               class="btn btn-sm"
               type="button"
-              :disabled="picking"
+              :disabled="picking || busy"
               :title="
                 workspace.mode === 'host'
                   ? '从本机选择项目目录'
@@ -186,7 +196,10 @@ async function clearAndRetry(): Promise<void> {
             autocomplete="off"
             placeholder="例如：数据同步服务"
             :aria-invalid="errors.name ? 'true' : undefined"
-            :aria-describedby="errors.name ? 'setup-name-error' : 'setup-name-hint'"
+            :aria-describedby="
+              errors.name ? 'setup-name-hint setup-name-error' : 'setup-name-hint'
+            "
+            :disabled="busy"
             @input="clearError('name')"
           />
           <p id="setup-name-hint" class="field-hint">最多 40 个字；只用于面板显示。</p>

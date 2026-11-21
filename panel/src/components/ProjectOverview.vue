@@ -13,6 +13,7 @@ import type { Issue, Module, Project } from "@/domain/types";
 import ActivityList from "./ActivityList.vue";
 import CandidateBrief from "./CandidateBrief.vue";
 import CurrentTaskStrip from "./CurrentTaskStrip.vue";
+import EmptyState from "./EmptyState.vue";
 import Icon from "./Icon.vue";
 import ProjectMap from "./ProjectMap.vue";
 import ProjectStats from "./ProjectStats.vue";
@@ -89,7 +90,7 @@ function toggleFeature(name: string, ignored: boolean): void {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page page-wide">
     <header class="page-head">
       <div class="page-head-main">
         <h1 class="page-title">{{ project.name }}</h1>
@@ -104,6 +105,14 @@ function toggleFeature(name: string, ignored: boolean): void {
       </div>
       <div class="page-actions">
         <button
+          v-if="project.candidates.length"
+          class="link-btn"
+          type="button"
+          @click="emit('viewCandidates')"
+        >
+          目标候选 {{ project.candidates.length }} 条
+        </button>
+        <button
           class="btn btn-sm btn-primary"
           type="button"
           :disabled="Boolean(running)"
@@ -112,6 +121,7 @@ function toggleFeature(name: string, ignored: boolean): void {
         >
           开始测试
         </button>
+        <p v-if="running" class="field-hint">运行中不能新建任务；完成或停止后再开始。</p>
       </div>
     </header>
 
@@ -168,7 +178,7 @@ function toggleFeature(name: string, ignored: boolean): void {
 
         <section class="section">
           <div class="section-head">
-            <span class="section-title">未关闭问题</span>
+            <h2 class="section-title">未关闭问题</h2>
             <button class="link-btn" type="button" @click="emit('openIssues')">全部问题</button>
           </div>
           <div v-if="issues.length">
@@ -196,7 +206,11 @@ function toggleFeature(name: string, ignored: boolean): void {
               <Icon class="issue-chevron" name="chevron-right" :size="13" />
             </button>
           </div>
-          <p v-else class="doc-note">当前没有未关闭问题。</p>
+          <EmptyState
+            v-else
+            title="当前没有未关闭问题"
+            text="失败用例会自动归并；也可以人工登记一个已知问题。"
+          />
         </section>
       </div>
 

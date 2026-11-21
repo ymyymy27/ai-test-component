@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import type { Feature, Module, ProjectMap } from "@/domain/types";
 import Icon from "./Icon.vue";
@@ -25,7 +25,10 @@ const ignoredSet = computed(() => new Set(props.ignoredFeatures));
 const activeFeatures = computed(() =>
   props.features.filter((feature) => !ignoredSet.value.has(feature.name)),
 );
-const visibleFeatures = computed(() => activeFeatures.value.slice(0, 4));
+const showAll = ref(false);
+const visibleFeatures = computed(() =>
+  showAll.value ? activeFeatures.value : activeFeatures.value.slice(0, 4),
+);
 const ignoredRows = computed(() =>
   props.features.filter((feature) => ignoredSet.value.has(feature.name)),
 );
@@ -35,7 +38,7 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
 <template>
   <section class="section project-map">
     <div class="section-head">
-      <span class="section-title">项目理解</span>
+      <h2 class="section-title">项目理解</h2>
       <button class="link-btn" type="button" :disabled="busy || analyzing" @click="emit('analyze')">
         {{ analyzing || busy ? "分析中…" : "重新分析" }}
       </button>
@@ -43,6 +46,12 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
     <p class="project-map-stats">
       <strong class="num">{{ activeFeatures.length }}</strong> 个业务功能 ·
       <strong class="num">{{ catalogCount }}</strong> 个可测项
+      <template v-if="activeFeatures.length > 4">
+        · 已显示 {{ visibleFeatures.length }}/{{ activeFeatures.length }}
+        <button class="link-btn" type="button" @click="showAll = !showAll">
+          {{ showAll ? "收起" : "展开" }}
+        </button>
+      </template>
     </p>
     <p v-if="map?.stale" class="notice is-warn">
       <Icon name="warn" :size="14" />
@@ -53,13 +62,15 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
       <div v-for="feature in visibleFeatures" :key="feature.id" class="project-map-row">
         <span>{{ feature.name }}</span>
         <small>{{ feature.modules.join(" · ") }}</small>
-        <em>{{
-          feature.confidence === "high"
-            ? "把握高"
-            : feature.confidence === "medium"
-              ? "把握中"
-              : "把握低"
-        }}</em>
+        <em :class="`is-${feature.confidence}`">
+          {{
+            feature.confidence === "high"
+              ? "把握高"
+              : feature.confidence === "medium"
+                ? "把握中"
+                : "把握低"
+          }}
+        </em>
         <button
           class="link-btn"
           type="button"
@@ -81,7 +92,7 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
       }}
     </p>
 
-    <details v-if="ignoredRows.length" class="project-map-details">
+    <details v-if="ignoredRows.length" class="project-map-details" open>
       <summary>
         <span>已忽略 {{ ignoredRows.length }} 个</span>
       </summary>

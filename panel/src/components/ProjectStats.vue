@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="stats-bar" aria-label="项目统计">
+  <div class="stats-bar" role="group" aria-label="项目统计">
     <div class="stat">
       <span class="stat-value">{{ tasks }}</span>
       <span class="stat-label">任务</span>

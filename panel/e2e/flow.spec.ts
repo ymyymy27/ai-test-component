@@ -133,7 +133,6 @@ test("项目理解可以忽略和恢复业务功能", async ({ page }) => {
   await expect(page.locator(".project-map-stats")).toContainText("2 个业务功能");
   const ignored = page.locator(".project-map-details").filter({ hasText: "已忽略 1 个" });
   await expect(ignored).toBeVisible();
-  await ignored.locator("summary").click();
   await ignored.getByRole("button", { name: "恢复" }).click();
   await expect(page.locator(".project-map-stats")).toContainText("3 个业务功能");
 });

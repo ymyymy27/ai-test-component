@@ -14,6 +14,9 @@ const ui = useUiStore();
 
 async function resolve(): Promise<void> {
   await workspace.bootstrap();
+  if (workspace.status === "error") {
+    return;
+  }
   if (workspace.currentProjectId) {
     await router.replace(`/projects/${workspace.currentProjectId}/overview`);
     return;

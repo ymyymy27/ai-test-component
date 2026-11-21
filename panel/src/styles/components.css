@@ -586,7 +586,7 @@ select {
   display: block;
   overflow: hidden;
   color: var(--ink);
-  font-size: var(--text-12);
+  font-size: var(--text-13);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -624,6 +624,43 @@ select {
 .severity.is-high {
   border-color: var(--fail);
   color: var(--fail);
+}
+
+.project-map-row em.is-low {
+  color: var(--warn);
+}
+
+.side-status-dot.is-accent {
+  background: var(--accent);
+}
+
+.side-status-dot.is-fail {
+  background: var(--fail);
+}
+
+.side-status-dot.is-pass {
+  background: var(--pass);
+}
+
+.side-status-dot.is-neutral {
+  background: var(--line-strong);
+}
+
+.project-map-details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.project-map-details > summary::after {
+  content: "›";
+  color: var(--ink-3);
+  transition: transform var(--motion-fast) ease;
+}
+
+.project-map-details[open] > summary::after {
+  transform: rotate(90deg);
 }
 
 .severity.is-critical {
@@ -1974,7 +2011,19 @@ dialog[open] {
   }
 
   .setup-aside {
-    display: none;
+    padding: var(--space-3) 0 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .setup-aside h2 {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-14);
+  }
+
+  .setup-steps {
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
   }
 }
 

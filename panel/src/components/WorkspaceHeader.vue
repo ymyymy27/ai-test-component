@@ -11,7 +11,8 @@ defineProps<{
   taskRoute: string | null;
   backRoute: string | null;
   sectionTitle: string;
-  missingCount: number;
+  missingCount: number | null;
+  envOpen?: boolean;
   sidebarOpen: boolean;
 }>();
 
@@ -90,10 +91,23 @@ defineExpose({ focusToggle, isEnvButtonTarget });
         type="button"
         aria-label="查看环境自检"
         aria-controls="env-popover"
+        :aria-expanded="envOpen ? 'true' : 'false'"
         @click="emit('toggleEnv')"
       >
-        <span class="env-dot" :class="{ 'is-warn': missingCount > 0 }" aria-hidden="true"></span>
-        <span class="env-text">{{ missingCount > 0 ? `${missingCount} 项缺失` : "环境正常" }}</span>
+        <span
+          class="env-dot"
+          :class="{ 'is-warn': missingCount === null || missingCount > 0 }"
+          aria-hidden="true"
+        ></span>
+        <span class="env-text">
+          {{
+            missingCount === null
+              ? "未检查"
+              : missingCount > 0
+                ? `${missingCount} 项未接入`
+                : "环境正常"
+          }}
+        </span>
       </button>
       <RouterLink
         v-if="projectId"
