@@ -152,14 +152,6 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</h2>
-        <span class="section-note">上方进度按用例计，这里按验收项归组</span>
-      </div>
-      <CaseLedger :run="run" :items="sortedItems" running />
-    </section>
-
     <div class="actionbar">
       <div class="actionbar-inner">
         <div class="actionbar-facts">
@@ -185,5 +177,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</h2>
+        <span class="section-note">上方进度按用例计，这里按验收项归组</span>
+      </div>
+      <CaseLedger :run="run" :items="sortedItems" running />
+    </section>
+
   </div>
 </template>

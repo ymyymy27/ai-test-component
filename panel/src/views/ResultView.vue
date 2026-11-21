@@ -549,6 +549,21 @@ function rerunLabel(): string {
       </button>
     </div>
 
+    <div class="actionbar">
+      <div class="actionbar-inner">
+        <div class="actionbar-facts">
+          <span class="fact-strong"
+            >计划 {{ plan?.no ?? "—" }} · 第 {{ plan?.revision ?? "—" }} 版</span
+          >
+          <span>本次 {{ run.counts.selected }} 项 / 共 {{ run.counts.applicable }} 项</span>
+        </div>
+        <div class="actionbar-actions">
+          <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>
+          <button class="btn" type="button" @click="rerun">{{ rerunLabel() }}</button>
+        </div>
+      </div>
+    </div>
+
     <CaseLedger
       ref="caseLedgerRef"
       :run="run"
@@ -567,21 +582,6 @@ function rerunLabel(): string {
         <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>
       </ul>
     </details>
-
-    <div class="actionbar">
-      <div class="actionbar-inner">
-        <div class="actionbar-facts">
-          <span class="fact-strong"
-            >计划 {{ plan?.no ?? "—" }} · 第 {{ plan?.revision ?? "—" }} 版</span
-          >
-          <span>本次 {{ run.counts.selected }} 项 / 共 {{ run.counts.applicable }} 项</span>
-        </div>
-        <div class="actionbar-actions">
-          <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>
-          <button class="btn" type="button" @click="rerun">{{ rerunLabel() }}</button>
-        </div>
-      </div>
-    </div>
 
     <ManualResultDialog
       v-model="manualOpen"

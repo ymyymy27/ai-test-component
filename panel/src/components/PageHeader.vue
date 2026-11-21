@@ -2,12 +2,14 @@
 defineProps<{
   title: string;
   subtitle?: string;
+  kicker?: string;
 }>();
 </script>
 
 <template>
   <header class="page-head">
     <div class="page-head-main">
+      <p v-if="kicker" class="page-kicker">{{ kicker }}</p>
       <h1 class="page-title">{{ title }}</h1>
       <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
     </div>

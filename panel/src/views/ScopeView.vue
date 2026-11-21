@@ -277,6 +277,7 @@ onMounted(async () => {
   </div>
   <div v-else class="page">
     <PageHeader
+      kicker="本次范围"
       :title="task.title"
       :subtitle="`本次 ${selected.length} 项`"
     >

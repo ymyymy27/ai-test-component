@@ -188,6 +188,7 @@ onBeforeUnmount(() => {
   </div>
   <div v-else-if="!plan" class="page">
     <PageHeader
+      kicker="计划"
       :title="task.title"
       :subtitle="
         task.origin === 'goal' ? '目标已确认，计划尚未生成。' : '这个任务还没有计划。'
