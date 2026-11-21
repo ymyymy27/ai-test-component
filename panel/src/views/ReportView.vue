@@ -27,6 +27,18 @@ function formatTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
 }
 
+function coverageLabel(kind: string | null | undefined): string {
+  return (
+    {
+      direct: "直接",
+      file: "文件级",
+      shared: "共用节点",
+      manual: "人工",
+      unverified: "未验证",
+    }[kind ?? ""] ?? "未记录"
+  );
+}
+
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
@@ -527,6 +539,7 @@ function bytesText(bytes: number): string {
               <th scope="col">验收项</th>
               <th scope="col">用例</th>
               <th scope="col">检查方式</th>
+              <th scope="col">覆盖</th>
               <th scope="col">结果</th>
               <th scope="col">证据</th>
             </tr>
@@ -545,6 +558,7 @@ function bytesText(bytes: number): string {
                 </details>
               </td>
               <td data-label="检查方式">{{ testCase.method }}</td>
+              <td data-label="覆盖">{{ coverageLabel(testCase.coverageKind) }}</td>
               <td data-label="结果">
                 <StatusMark :result="testCase.result" />
                 <StatusText :result="testCase.result" />

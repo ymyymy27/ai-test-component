@@ -141,6 +141,8 @@ class Case(Model):
     depends_on: Literal["build", "service"] | None = None
     script_name: str | None = None
     script_content: str | None = None
+    coverage_kind: Literal["direct", "file", "shared", "manual", "unverified"] | None = None
+    test_nodes: list[str] = Field(default_factory=list)
 
 
 class Scope(Model):

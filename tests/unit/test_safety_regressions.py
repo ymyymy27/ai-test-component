@@ -50,7 +50,13 @@ def _run(cases: list[RunCase]) -> Run:
     )
 
 
-def _case(case_id: str, item: str, *, verified: bool = True) -> Case:
+def _case(
+    case_id: str,
+    item: str,
+    *,
+    verified: bool = True,
+    coverage_kind: str | None = None,
+) -> Case:
     return Case(
         case_id=case_id,
         acceptance_item_id=item,
@@ -58,6 +64,7 @@ def _case(case_id: str, item: str, *, verified: bool = True) -> Case:
         expected="预期",
         expectation_source="验收项原文" if verified else "",
         expectation_verified=verified,
+        coverage_kind=coverage_kind,
     )
 
 
@@ -76,6 +83,34 @@ def test_selected_item_without_case_is_not_a_pass() -> None:
 def test_unverified_expectation_cannot_pass() -> None:
     plan = _plan([_case("c1", "a", verified=False)], ["a"], 1)
     run = _run([RunCase(case_id="c1", result="passed")])
+
+    assert verdict(plan, run) == "incomplete"
+    assert coverage(plan, run)["passed"] == 0
+
+
+def test_file_level_coverage_cannot_pass() -> None:
+    plan = _plan([_case("c1", "a", coverage_kind="file")], ["a"], 1)
+    run = _run([RunCase(case_id="c1", result="passed")])
+
+    assert verdict(plan, run) == "incomplete"
+    assert coverage(plan, run)["passed"] == 0
+
+
+def test_shared_test_node_cannot_pass_each_item() -> None:
+    plan = _plan(
+        [
+            _case("c1", "a", coverage_kind="shared"),
+            _case("c2", "b", coverage_kind="shared"),
+        ],
+        ["a", "b"],
+        2,
+    )
+    run = _run(
+        [
+            RunCase(case_id="c1", result="passed"),
+            RunCase(case_id="c2", result="passed"),
+        ]
+    )
 
     assert verdict(plan, run) == "incomplete"
     assert coverage(plan, run)["passed"] == 0

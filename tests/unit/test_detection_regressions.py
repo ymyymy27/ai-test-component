@@ -20,13 +20,16 @@ from aitest.errors import AiTestError
 from aitest.models import AcceptanceItem, Case, Plan, Run, RunCase, Scope
 from aitest.runners.base import RunnerResult
 from aitest.runtime_commands import (
+    _annotate_case_coverage,
     _broad_test_command,
     _downgrade_broad_business_cases,
     _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
+    _plan_dependencies,
     _prefix_component_command,
     _shared_command_warnings,
     _split_multi_item_cases,
+    _validate_dependencies,
     _validate_plan_cases,
 )
 from aitest.worker import (
@@ -188,6 +191,72 @@ def test_multi_item_case_splits_with_exact_item_sources() -> None:
     assert len(cases) == 2
     assert [c.expectation_source for c in cases] == ["用户注册", "用户列表查询"]
     assert all(c.acceptance_item_ids == [] for c in cases)
+
+
+def test_coverage_kind_distinguishes_direct_file_shared_and_missing() -> None:
+    context = {
+        "test_functions": {
+            "tests/test_users.py": ["test_one", "test_two"],
+        }
+    }
+    direct = Case(
+        case_id="case_direct",
+        acceptance_item_id="item_1",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest tests/test_users.py::test_one",
+    )
+    file_only = Case(
+        case_id="case_file",
+        acceptance_item_id="item_2",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest tests/test_users.py",
+    )
+    missing = Case(
+        case_id="case_missing",
+        acceptance_item_id="item_3",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest tests/test_users.py::nope",
+    )
+    shared = Case(
+        case_id="case_shared",
+        acceptance_item_id="item_4",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest tests/test_users.py::test_two",
+    )
+    shared_other = Case(
+        case_id="case_shared_other",
+        acceptance_item_id="item_5",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest tests/test_users.py::test_two",
+    )
+    notes = _annotate_case_coverage(
+        [direct, file_only, missing, shared, shared_other], context
+    )
+    assert direct.coverage_kind == "direct"
+    assert file_only.coverage_kind == "file"
+    assert missing.coverage_kind == "unverified"
+    assert shared.coverage_kind == "shared"
+    assert "文件级覆盖" in notes["case_file"]
+    assert "共用测试节点" in notes["case_shared"]
+
+
+def test_plan_dependencies_skip_node_only_packages() -> None:
+    cases = [
+        Case(
+            case_id="case_1",
+            acceptance_item_id="item_1",
+            layer="L2",
+            expected="通过",
+            verify_method="command:cd frontend && bun run build",
+            dependencies=["@playwright/test", "bun", "pytest>=8", "playwright"],
+        )
+    ]
+    assert _plan_dependencies(cases) == ["playwright", "pytest>=8"]
 
 
 def test_duplicate_scoped_test_command_is_allowed(tmp_path: Path) -> None:
@@ -354,6 +423,18 @@ def test_e2e_and_dev_server_commands_are_classified() -> None:
         })
         == ""
     )
+
+
+def test_scoped_npm_dependency_is_valid() -> None:
+    case = Case(
+        case_id="case_scoped",
+        acceptance_item_id="item_1",
+        layer="L2",
+        expected="通过",
+        verify_method="command:cd frontend && bun run build",
+        dependencies=["@playwright/test", "pydantic>=2,<3"],
+    )
+    _validate_dependencies(case)
 
 
 def test_missing_leading_tool_is_detected() -> None:

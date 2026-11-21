@@ -473,6 +473,8 @@ export interface ReportCaseDetail {
   result: CaseResult;
   evidence: EvidenceRef[];
   analysis: FailureAnalysis | null;
+  coverageKind?: "direct" | "file" | "shared" | "manual" | "unverified" | null;
+  testNodes?: string[];
 }
 
 export interface Opinion {

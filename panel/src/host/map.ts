@@ -822,6 +822,14 @@ export function mapReport(
       result: asCaseResult(testCase.result),
       evidence: evidence.filter((entry) => refs.includes(entry.id) || refs.includes(entry.name)),
       analysis: null,
+      coverageKind: (str(testCase.coverage_kind) || null) as
+        | "direct"
+        | "file"
+        | "shared"
+        | "manual"
+        | "unverified"
+        | null,
+      testNodes: strList(testCase.test_nodes),
     };
   });
   const caseLayers = layerCounts(

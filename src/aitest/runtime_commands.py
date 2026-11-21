@@ -207,6 +207,9 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "runners": redact_tree(config.get("runners", {}), secrets),
         "l1": redact_tree(config.get("l1", {}), secrets),
         "test_commands": derived["test_commands"],
+        "test_modules": derived.get("test_modules", []),
+        "test_functions": derived.get("test_functions", {}),
+        "test_dependencies": derived.get("test_dependencies", []),
         "smoke_command": derived["smoke_command"],
         "smallest_test": derived["smallest_test"],
         "test_example": redact_tree(example, secrets) if isinstance(example, dict) else None,
@@ -356,8 +359,22 @@ def _validate_verify_method(case: Case) -> None:
     raise _invalid_method(case, f"未知验证方式前缀：{method.split(':', 1)[0]}")
 
 
+_NODE_ONLY_DEPENDENCIES = frozenset({"bun", "npm", "node", "yarn", "pnpm"})
+
+
 def _plan_dependencies(cases: list[Case]) -> list[str]:
-    return sorted({dependency for case in cases for dependency in case.dependencies})
+    """Only Python requirements are auto-installed; Node deps belong to npm/bun."""
+
+    dependencies = {
+        dependency for case in cases for dependency in case.dependencies
+    }
+    return sorted(
+        dependency
+        for dependency in dependencies
+        if not dependency.startswith("@")
+        and re.split(r"[<>=!~\[; ]", dependency.strip(), maxsplit=1)[0].lower()
+        not in _NODE_ONLY_DEPENDENCIES
+    )
 
 
 def _unselected_by_module(
@@ -485,7 +502,12 @@ def _validate_smoke_case(case: Case, allowed_commands: list[str]) -> None:
     raise _invalid_method(case, "冒烟目标只允许 command: 或 pytest:")
 
 
-_SAFE_DEPENDENCY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-\[\]=<>,!~]*$")
+_SAFE_DEPENDENCY = re.compile(
+    r"^@?[A-Za-z0-9][A-Za-z0-9_.\-]*"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9_.\-]*)?"
+    r"(?:\[[A-Za-z0-9,._\-]+\])?"
+    r"(?:[<>=!~][A-Za-z0-9.*+!<>=~,\-]{1,60})?$"
+)
 
 
 def _validate_dependencies(case: Case) -> None:
@@ -678,6 +700,72 @@ def _split_multi_item_cases(
             clone.warnings = []
             result.append(clone)
     return result, split_count
+
+
+_TEST_NODE_RE = re.compile(
+    r"([A-Za-z0-9_./\\-]+\.py)::([A-Za-z0-9_:]+)"
+)
+_TEST_FILE_RE = re.compile(r"([A-Za-z0-9_./\\-]+\.py)\b")
+
+
+def _annotate_case_coverage(
+    cases: list[Case], context: dict[str, Any]
+) -> dict[str, str]:
+    """Classify each case's evidence strength, not just whether it ran."""
+
+    functions = context.get("test_functions")
+    function_map = functions if isinstance(functions, dict) else {}
+    node_items: dict[str, set[str]] = {}
+    notes: dict[str, str] = {}
+    for case in cases:
+        method = case.verify_method.strip()
+        case.test_nodes = []
+        if is_manual_case(case):
+            case.coverage_kind = "manual"
+            continue
+        if method.startswith(("script:", "http:", "junit:", "sql:")):
+            case.coverage_kind = "direct"
+            continue
+        if not method.startswith(("command:", "pytest:")):
+            case.coverage_kind = "unverified"
+            notes[case.case_id] = "未识别的验证方式，无法确认覆盖强度"
+            continue
+        command = method.split(":", 1)[1]
+        node_match = _TEST_NODE_RE.search(command)
+        if node_match:
+            path = node_match.group(1).replace("\\", "/").lstrip("./")
+            node = node_match.group(2)
+            names = function_map.get(path)
+            if isinstance(names, list) and node in names:
+                case.coverage_kind = "direct"
+                case.test_nodes = [f"{path}::{node}"]
+                node_items.setdefault(f"{path}::{node}", set()).update(
+                    case_item_ids(case)
+                )
+            else:
+                case.coverage_kind = "unverified"
+                notes[case.case_id] = f"测试节点不存在：{path}::{node}"
+            continue
+        file_match = _TEST_FILE_RE.search(command)
+        case.coverage_kind = "file" if file_match else "unverified"
+        if file_match:
+            notes[case.case_id] = (
+                f"文件级覆盖：只执行 {file_match.group(1).replace(chr(92), '/')}，"
+                "未定位到具体测试函数"
+            )
+        else:
+            notes[case.case_id] = "命令没有指向测试文件，无法确认逐项断言"
+    for case in cases:
+        if case.coverage_kind != "direct":
+            continue
+        nodes = [node for node in case.test_nodes if len(node_items.get(node, set())) > 1]
+        if nodes:
+            case.coverage_kind = "shared"
+            notes[case.case_id] = (
+                f"共用测试节点：{nodes[0]} 同时用于多个验收项，"
+                "不能证明逐项断言"
+            )
+    return notes
 
 
 def _validate_plan_cases(
@@ -1348,7 +1436,15 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
+    coverage_notes = (
+        _annotate_case_coverage(cases, context) if generated_cases else {}
+    )
     warnings = annotate_cases(cases, task.acceptance_items)
+    for case in cases:
+        note = coverage_notes.get(case.case_id)
+        if note:
+            case.warnings.append(note)
+            warnings.append(f"{case.case_id}：{note}")
     if downgraded_broad:
         warnings.append(
             f"{len(downgraded_broad)} 条整包测试命令已改为人工验证；"

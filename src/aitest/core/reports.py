@@ -244,6 +244,8 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
                 "title": case.title,
                 "expected": case.expected,
                 "expectation_verified": case.expectation_verified,
+                "coverage_kind": case.coverage_kind,
+                "test_nodes": list(case.test_nodes),
                 "warnings": list(case.warnings),
                 "result": effective.get(case.case_id, "not_run"),
                 "evidence_refs": list(run_case.evidence_refs) if run_case is not None else [],

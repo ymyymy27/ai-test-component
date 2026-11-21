@@ -346,6 +346,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 - 业务用例一项一案；模型输出组合用例时按验收项拆分，`expectation_source` 取对应验收项原文，并写“逐项断言仍需人工确认”警告。
 - 业务用例禁止整包命令（含 `cd <目录> && npm test`、`bun run test`、`bunx playwright test` 等）；模型重试后仍只能给出整包命令时转为 `manual` 并写计划警告，不计为自动通过。同一具体命令覆盖多个验收项时也写“文件级通过、逐项断言需人工确认”警告。
 - 发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。
+- 用例记录 `coverage_kind` 与 `test_nodes`：`direct` 指向真实存在的测试函数（`file::test_name`），`file` 只执行整个测试文件，`shared` 是同一测试节点被多个验收项共用，`manual` 为人工验证，`unverified` 无法定位。只有 `direct` 可以在执行通过后计为该项通过；`file`、`shared`、`unverified` 即使命令退出 0 也按 `blocked` 计。
 - `verify_method` 必须合法：
   - `command:` 后非空；
   - `script:` 需要 `script_name` 与 `script_content`；

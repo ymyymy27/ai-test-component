@@ -47,6 +47,14 @@ def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
         ):
             # The case ran, but its expectation was never tied to the item text.
             result = "blocked"
+        if (
+            case is not None
+            and case_item_ids(case)
+            and case.coverage_kind in {"file", "shared", "unverified"}
+            and result == "passed"
+        ):
+            # Whole-file or shared evidence cannot prove this specific item.
+            result = "blocked"
         results[run_case.case_id] = result
     return results
 
