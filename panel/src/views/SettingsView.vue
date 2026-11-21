@@ -38,9 +38,9 @@ const project = computed(() => workspace.currentProject);
 const sections = [
   { id: "settings-profile", label: "项目资料" },
   { id: "settings-config", label: "运行配置" },
-  { id: "settings-environment", label: "环境" },
+  { id: "settings-environment", label: "环境自检" },
   { id: "settings-rules", label: "项目规则" },
-  { id: "settings-github", label: "GitHub" },
+  { id: "settings-github", label: "GitHub 变更" },
   { id: "settings-boundary", label: "数据边界" },
   { id: "settings-appearance", label: "外观" },
   { id: "settings-backup", label: "备份" },

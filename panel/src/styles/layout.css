@@ -896,6 +896,10 @@
   font-weight: 600;
 }
 
+h3.settings-title {
+  font-size: var(--text-14);
+}
+
 .report-details {
   margin: var(--space-5) 0;
   border-top: 1px solid var(--line);
