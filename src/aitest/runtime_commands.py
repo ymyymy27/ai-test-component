@@ -849,6 +849,13 @@ def _plan_signature(
         "project_revision": project.revision,
         "delivery_commit": _delivery_commit(ws, project, task_id),
         "task_contract": task_contract(task),
+        "task_materials": {
+            "scope": task.scope,
+            "inputs": task.inputs,
+            "outputs": task.outputs,
+            "preconditions": list(task.preconditions),
+            "source_map_revision": task.source_map_revision,
+        },
         "rules_version_id": rules_version_id or "",
         "services": services if isinstance(services, dict) else {},
         "l1": l1 if isinstance(l1, dict) else {},
