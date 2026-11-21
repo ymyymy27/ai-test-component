@@ -35,6 +35,8 @@ jobs:
       - run: uv run mypy
       - name: Check current-status docs against code
         run: uv run python scripts/check_docs_facts.py
+      - name: Check audit fix ledger covers every issue
+        run: uv run python scripts/audit_ledger.py --check
       - name: Collect every test module (import errors still fail the job)
         run: uv run pytest --collect-only -q
 
