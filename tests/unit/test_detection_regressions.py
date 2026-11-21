@@ -196,7 +196,7 @@ def test_multi_item_case_splits_with_exact_item_sources() -> None:
 def test_coverage_kind_distinguishes_direct_file_shared_and_missing() -> None:
     context = {
         "test_functions": {
-            "tests/test_users.py": ["test_one", "test_two"],
+            "backend/tests/test_users.py": ["test_one", "test_two"],
         }
     }
     direct = Case(
@@ -243,6 +243,25 @@ def test_coverage_kind_distinguishes_direct_file_shared_and_missing() -> None:
     assert shared.coverage_kind == "shared"
     assert "文件级覆盖" in notes["case_file"]
     assert "共用测试节点" in notes["case_shared"]
+
+    playwright = Case(
+        case_id="case_playwright",
+        acceptance_item_id="item_6",
+        layer="L2",
+        expected="通过",
+        verify_method=(
+            'command:cd frontend && bunx playwright test tests/login.spec.ts '
+            '--grep "Log In button"'
+        ),
+    )
+    _annotate_case_coverage(
+        [playwright],
+        {"playwright_tests": {"frontend/tests/login.spec.ts": ["Log In button"]}},
+    )
+    assert playwright.coverage_kind == "direct"
+    assert playwright.test_nodes == [
+        "tests/login.spec.ts::Log In button"
+    ]
 
 
 def test_plan_dependencies_skip_node_only_packages() -> None:
@@ -368,6 +387,10 @@ def test_missing_command_and_service_are_environment_failures(tmp_path: Path) ->
     )
     assert "环境服务未就绪" in _environment_failure(
         b"OperationalError: could not connect to server: Connection refused", tmp_path
+    )
+    assert "Playwright 浏览器未安装" in _environment_failure(
+        b"Error: browserType.launch: Executable doesn't exist at chromium_headless_shell",
+        tmp_path,
     )
 
 

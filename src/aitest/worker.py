@@ -180,6 +180,9 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     # product failure. A project .env may still override these values above.
     env.setdefault("PYTHONUTF8", "1")
     env.setdefault("PYTHONIOENCODING", "utf-8")
+    # Playwright's HTML reporter otherwise keeps a report server alive after a
+    # failed run, which looks like a hung test command.
+    env.setdefault("PLAYWRIGHT_HTML_OPEN", "never")
     pythonpath: list[str] = []
     for item in [*extra_paths, *inherited_pythonpath]:
         if item and item not in pythonpath:
@@ -948,6 +951,12 @@ def _environment_failure(output: bytes, workdir: Path) -> str:
         or "command not found" in lowered
     ):
         return "环境缺少命令（不计为产品失败）"
+    if "executable doesn't exist" in lowered and (
+        "playwright" in lowered
+        or "chrome-headless" in lowered
+        or "chromium" in lowered
+    ):
+        return "Playwright 浏览器未安装（不计为产品失败）"
     if (
         "connection refused" in lowered
         or "could not connect to server" in lowered
@@ -1112,9 +1121,14 @@ def _execute(
     cancelled: Callable[[], bool] | None = None,
 ) -> tuple[str, list[bytes], str, list[tuple[str, bytes]]]:
     method = case.verify_method or ""
+    command_timeout = 180 if _is_e2e_command(method) else 600
     if method.startswith("command:"):
         result = run_command(
-            method[len("command:") :].strip(), cwd=workdir, env=env, cancelled=cancelled
+            method[len("command:") :].strip(),
+            cwd=workdir,
+            env=env,
+            timeout_seconds=command_timeout,
+            cancelled=cancelled,
         )
     elif method.startswith("script:"):
         name = method[len("script:") :].strip()
@@ -1137,6 +1151,7 @@ def _execute(
                 f'npx playwright test "{script_path}"',
                 cwd=workdir,
                 env=env,
+                timeout_seconds=command_timeout,
                 cancelled=cancelled,
             )
         else:
@@ -1144,7 +1159,11 @@ def _execute(
     elif method.startswith("playwright:"):
         script = method[len("playwright:") :].strip()
         result = run_command(
-            f'npx playwright test "{script}"', cwd=workdir, env=env, cancelled=cancelled
+            f'npx playwright test "{script}"',
+            cwd=workdir,
+            env=env,
+            timeout_seconds=command_timeout,
+            cancelled=cancelled,
         )
     elif method.startswith("http:"):
         try:
@@ -1557,7 +1576,7 @@ def main(argv: list[str] | None = None) -> int:
                         continue
                     ready, missing_deps = _case_dependencies_ready(
                         case_python,
-                        case.dependencies,
+                        python_dependencies(case.dependencies),
                         run_env,
                         dependency_cache,
                     )

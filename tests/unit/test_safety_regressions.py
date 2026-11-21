@@ -116,6 +116,26 @@ def test_shared_test_node_cannot_pass_each_item() -> None:
     assert coverage(plan, run)["passed"] == 0
 
 
+def test_direct_case_can_cover_item_despite_weak_extra_case() -> None:
+    plan = _plan(
+        [
+            _case("c1", "a", coverage_kind="direct"),
+            _case("c2", "a", coverage_kind="file"),
+        ],
+        ["a"],
+        1,
+    )
+    run = _run(
+        [
+            RunCase(case_id="c1", result="passed"),
+            RunCase(case_id="c2", result="passed"),
+        ]
+    )
+
+    assert verdict(plan, run) == "passed"
+    assert coverage(plan, run)["passed"] == 1
+
+
 def test_empty_scope_with_no_cases_is_not_applicable() -> None:
     plan = _plan([], [], 0)
     assert verdict(plan, _run([])) == "not_applicable"

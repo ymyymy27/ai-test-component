@@ -706,6 +706,19 @@ _PLAYWRIGHT_NODE_RE = re.compile(
 )
 
 
+def _mapped_test_value(mapping: object, path: str) -> object:
+    if not isinstance(mapping, dict):
+        return None
+    if path in mapping:
+        return mapping[path]
+    for key, value in mapping.items():
+        if isinstance(key, str) and (
+            key.endswith("/" + path) or path.endswith("/" + key)
+        ):
+            return value
+    return None
+
+
 def _annotate_case_coverage(
     cases: list[Case], context: dict[str, Any]
 ) -> dict[str, str]:
@@ -731,7 +744,7 @@ def _annotate_case_coverage(
                 path = pw_match.group(1).replace("\\", "/").lstrip("./")
                 title = pw_match.group(2)
                 configured = context.get("playwright_tests")
-                titles = configured.get(path) if isinstance(configured, dict) else None
+                titles = _mapped_test_value(configured, path)
                 if isinstance(titles, list) and title in titles:
                     case.coverage_kind = "direct"
                     case.test_nodes = [f"{path}::{title}"]
@@ -757,7 +770,7 @@ def _annotate_case_coverage(
             path = pw_match.group(1).replace("\\", "/").lstrip("./")
             title = pw_match.group(2)
             configured = context.get("playwright_tests")
-            titles = configured.get(path) if isinstance(configured, dict) else None
+            titles = _mapped_test_value(configured, path)
             if isinstance(titles, list) and title in titles:
                 case.coverage_kind = "direct"
                 case.test_nodes = [f"{path}::{title}"]
@@ -772,7 +785,7 @@ def _annotate_case_coverage(
         if node_match:
             path = node_match.group(1).replace("\\", "/").lstrip("./")
             node = node_match.group(2)
-            names = function_map.get(path)
+            names = _mapped_test_value(function_map, path)
             if isinstance(names, list) and node in names:
                 case.coverage_kind = "direct"
                 case.test_nodes = [f"{path}::{node}"]
@@ -1473,6 +1486,12 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
+    cases.sort(
+        key=lambda case: 0
+        if "playwright" in case.verify_method.lower()
+        or "cypress" in case.verify_method.lower()
+        else 1
+    )
     coverage_notes = (
         _annotate_case_coverage(cases, context) if generated_cases else {}
     )

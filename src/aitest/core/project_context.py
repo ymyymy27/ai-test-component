@@ -944,8 +944,17 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
         if (backend / "pyproject.toml").is_file()
         else ""
     ).lower():
+        prestart = (
+            "uv run bash scripts/prestart.sh && "
+            if (backend / "scripts" / "prestart.sh").is_file()
+            else ""
+        )
         services["backend"] = {
-            "start": "cd backend && uv run fastapi dev --host 127.0.0.1 --port 18000",
+            "start": (
+                "cd backend && "
+                + prestart
+                + "uv run fastapi dev --host 127.0.0.1 --port 18000"
+            ),
             "health": "http://127.0.0.1:18000/api/v1/utils/health-check/",
             "timeout_seconds": 180,
         }

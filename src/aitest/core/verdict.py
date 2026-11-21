@@ -68,6 +68,10 @@ def _item_case_results(plan: Plan, run: Run) -> dict[str, list[CaseResult]]:
         ids = case_item_ids(case)
         if not ids:
             continue
+        if case.coverage_kind in {"file", "shared", "unverified"}:
+            # Weak evidence is retained in case details but cannot veto a
+            # direct case for the same item.
+            continue
         result = results.get(case.case_id, "not_run")
         for item_id in ids:
             if item_id in by_item:
