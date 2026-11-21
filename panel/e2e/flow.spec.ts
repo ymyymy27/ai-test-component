@@ -16,6 +16,20 @@ test("选中候选会填入目标并自动生成计划", async ({ page }) => {
     timeout: 15_000,
   });
   await expect(page.locator(".plan-summary")).toContainText("待确认");
+  // 不只等 URL：核对本地落盘的任务与计划确实生成了用例。
+  const stored = (await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("aitest.panel.v1") || "{}"),
+  )) as {
+    projects?: Array<{
+      id: string;
+      tasks?: Array<{ plans?: Array<{ cases?: unknown[] }> }>;
+    }>;
+  };
+  const project = stored.projects?.find((item) => item.id === projectId);
+  expect(project?.tasks?.length).toBe(1);
+  const plans = project?.tasks?.[0]?.plans ?? [];
+  expect(plans.length).toBeGreaterThan(0);
+  expect(plans[0].cases?.length ?? 0).toBeGreaterThan(0);
 });
 
 test("调整范围后取消调整返回计划页", async ({ page }) => {

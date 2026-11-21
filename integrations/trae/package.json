@@ -74,6 +74,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
+    "vscode:prepublish": "npm run build",
     "build:wheel": "node scripts/build-wheel.mjs",
     "build": "npm run check && npm run build:wheel && node scripts/build.mjs",
     "package": "npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix",

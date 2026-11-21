@@ -37,6 +37,7 @@ watch(open, async (value) => {
     if (!dialog.open) {
       dialog.showModal();
     }
+    dialog.querySelector<HTMLElement>("#module-name")?.focus();
   } else if (dialog.open) {
     dialog.close();
   }
@@ -51,6 +52,7 @@ function submit(): void {
     error.value = "模块名称不能为空。";
     return;
   }
+  // 由父级保存成功后关闭；保存失败时保留输入。
   emit("save", {
     name: name.value,
     responsibility: responsibility.value,
@@ -58,7 +60,6 @@ function submit(): void {
     status: status.value,
     dependencies: dependencies.value,
   });
-  open.value = false;
 }
 
 function onDialogClick(event: MouseEvent): void {
@@ -73,6 +74,7 @@ function onDialogClick(event: MouseEvent): void {
     ref="dialogRef"
     class="dialog"
     aria-labelledby="module-dialog-title"
+    aria-describedby="module-dialog-desc"
     @cancel.prevent="close"
     @close="open = false"
     @click="onDialogClick"
@@ -127,7 +129,7 @@ function onDialogClick(event: MouseEvent): void {
           </select>
         </div>
       </div>
-      <p class="field-hint">
+      <p id="module-dialog-desc" class="field-hint">
         模块用于定位和筛选；改模块名称或责任不会使计划过期，改验收项所属模块会使计划过期。
       </p>
       <footer class="dialog-actions">

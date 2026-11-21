@@ -83,6 +83,10 @@ def _write_failure(path: Path, exc: OSError) -> AiTestError:
         return AiTestError(
             "PATH_TOO_LONG", f"路径过长，写入失败：{path}（{exc}）", "缩短工作空间或文件名后重试"
         )
+    if errno in {13, 5}:  # EACCES / ERROR_ACCESS_DENIED
+        return AiTestError(
+            "PERMISSION_DENIED", f"权限不足，写入失败：{path}（{exc}）", "检查目录权限后重试"
+        )
     if isinstance(exc, PermissionError):
         return AiTestError(
             "PERMISSION_DENIED", f"权限不足，写入失败：{path}（{exc}）", "检查目录权限后重试"
@@ -93,16 +97,18 @@ def _write_failure(path: Path, exc: OSError) -> AiTestError:
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    tmp = Path(tmp_name)
+    tmp: Path | None = None
     try:
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+        tmp = Path(tmp_name)
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         _replace_with_retry(tmp, path)
     except OSError as exc:
-        tmp.unlink(missing_ok=True)
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
         raise _write_failure(path, exc) from exc
 
 
@@ -118,6 +124,14 @@ def _replace_with_retry(tmp: Path, path: Path, attempts: int = 20) -> None:
             os.replace(tmp, path)
             return
         except PermissionError as exc:
+            # Windows reports both sharing violations (32) and transient AV /
+            # indexer access denials (5) while replacing; retry both briefly.
+            # Persistent failures still surface as FILE_BUSY below.
+            winerror = getattr(exc, "winerror", None)
+            if os.name == "nt" and winerror not in {None, 5, 32}:
+                raise
+            if os.name != "nt":
+                raise
             last_error = exc
             time.sleep(0.05)
     assert last_error is not None

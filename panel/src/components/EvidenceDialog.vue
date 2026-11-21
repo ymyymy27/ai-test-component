@@ -3,12 +3,17 @@ import { nextTick, ref, watch } from "vue";
 
 import type { RunCase } from "@/domain/types";
 import type { EvidenceInput } from "@/repositories/ProjectRepository";
-import { fileToEvidence } from "@/services/evidenceFiles";
+import {
+  assertMediaBudget,
+  fileToEvidence,
+  type EvidenceFileLimits,
+} from "@/services/evidenceFiles";
 
 const props = defineProps<{
   cases: RunCase[];
   defaultCaseId: string;
   busy: boolean;
+  limits?: EvidenceFileLimits;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +42,7 @@ watch(open, async (value) => {
     if (!dialog.open) {
       dialog.showModal();
     }
+    dialog.querySelector<HTMLElement>("#evidence-case")?.focus();
   } else if (dialog.open) {
     dialog.close();
   }
@@ -60,12 +66,18 @@ async function save(): Promise<void> {
   }
   hashing.value = true;
   try {
+    assertMediaBudget(files.value, props.limits ?? {});
     const evidence = await Promise.all(
-      files.value.map((file) => fileToEvidence(file, note.value.trim(), caseId.value)),
+      files.value.map((file) =>
+        fileToEvidence(file, note.value.trim(), caseId.value, props.limits ?? {}),
+      ),
     );
     emit("save", evidence);
-  } catch {
-    error.value = "读取证据文件失败，换一个文件或稍后重试。";
+  } catch (cause) {
+    error.value =
+      cause instanceof Error && cause.message
+        ? cause.message
+        : "读取证据文件失败，换一个文件或稍后重试。";
   } finally {
     hashing.value = false;
   }
@@ -87,7 +99,12 @@ function onDialogClick(event: MouseEvent): void {
     @close="open = false"
     @click="onDialogClick"
   >
-    <form class="dialog-form" novalidate @submit.prevent="save">
+    <form
+      class="dialog-form"
+      novalidate
+      aria-describedby="evidence-dialog-desc"
+      @submit.prevent="save"
+    >
       <header class="dialog-head">
         <h2 id="evidence-dialog-title" class="dialog-title">补充证据</h2>
         <button class="icon-btn" type="button" aria-label="关闭" @click="close">
@@ -103,7 +120,9 @@ function onDialogClick(event: MouseEvent): void {
           </svg>
         </button>
       </header>
-      <p class="dialog-text">只登记文件名、大小和摘要，不读取文件正文；证据不会改变本次结论。</p>
+      <p id="evidence-dialog-desc" class="dialog-text">
+        读取所选文件计算 SHA-256 摘要，只登记文件名、大小和摘要，不保存文件内容；证据不会改变本次结论。
+      </p>
       <div class="field">
         <label for="evidence-case">关联用例 <span class="optional">选填</span></label>
         <select id="evidence-case" v-model="caseId">

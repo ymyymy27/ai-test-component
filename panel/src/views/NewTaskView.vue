@@ -151,13 +151,17 @@ async function submit(): Promise<void> {
 }
 
 function startQuick(): void {
+  if (submitting.value) {
+    return;
+  }
   void router.push(`/projects/${projectId.value}/quick-check`);
 }
 
 async function startRange(): Promise<void> {
-  if (!project.value || startBusy.value) {
+  if (!project.value || startBusy.value || submitting.value) {
     return;
   }
+  submitting.value = true;
   const when = new Date().toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -174,6 +178,8 @@ async function startRange(): Promise<void> {
     await router.push(`/projects/${projectId.value}/tasks/${task.id}/scope`);
   } catch {
     // store 已提示。
+  } finally {
+    submitting.value = false;
   }
 }
 </script>
@@ -335,7 +341,7 @@ async function startRange(): Promise<void> {
             v-else-if="mode === 'range'"
             class="btn btn-primary"
             type="button"
-            :disabled="!ready || startBusy"
+            :disabled="!ready || startBusy || submitting"
             :title="ready ? undefined : blockedReason"
             @click="startRange"
           >

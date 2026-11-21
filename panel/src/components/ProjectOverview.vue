@@ -189,7 +189,13 @@ function toggleFeature(name: string, ignored: boolean): void {
               type="button"
               @click="emit('openIssue', issue.id)"
             >
-              <span class="severity" :class="{ 'is-high': issue.severity === 'P1' }">
+              <span
+                class="severity"
+                :class="{
+                  'is-critical': issue.severity === 'P0',
+                  'is-high': issue.severity === 'P1',
+                }"
+              >
                 {{ issue.severity }}
               </span>
               <span>

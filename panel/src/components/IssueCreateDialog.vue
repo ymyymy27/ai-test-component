@@ -123,6 +123,7 @@ function onDialogClick(event: MouseEvent): void {
     ref="dialogRef"
     class="dialog"
     aria-labelledby="issue-create-title"
+    aria-describedby="issue-create-desc"
     @cancel.prevent="close"
     @close="open = false"
     @click="onDialogClick"
@@ -140,7 +141,9 @@ function onDialogClick(event: MouseEvent): void {
           <Icon name="close" :size="16" />
         </button>
       </header>
-      <p class="dialog-text">保存后进入“待确认”；关闭仍需一次包含该用例的新通过运行。</p>
+      <p id="issue-create-desc" class="dialog-text">
+        保存后进入“待确认”；关闭仍需一次包含该用例的新通过运行。
+      </p>
       <div class="field" :class="{ 'has-error': titleError }">
         <label for="issue-title">标题 <span class="optional">必填</span></label>
         <input

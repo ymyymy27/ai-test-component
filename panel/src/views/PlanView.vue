@@ -145,6 +145,13 @@ async function adjustScope(): Promise<void> {
 
 function onGlobalKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest('input, textarea, select, [contenteditable="true"], dialog[open]')
+    ) {
+      return;
+    }
     event.preventDefault();
     void start();
   }

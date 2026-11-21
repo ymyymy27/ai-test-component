@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, type ComponentPublicInstance } from "vue";
 
-import { effectiveCaseResult, worstResult } from "@/domain/derive";
+import { displayItemOutcome, effectiveCaseResult, worstResult } from "@/domain/derive";
 import type { CaseResult, Run, RunCase, RunItem } from "@/domain/types";
 import CaseDetail from "./CaseDetail.vue";
 import Icon from "./Icon.vue";
@@ -29,7 +29,7 @@ const visibleItems = computed(() => {
     return props.items;
   }
   return props.items.filter((item) => {
-    const outcome = item.outcome;
+    const outcome = displayItemOutcome(props.run, item.itemId);
     if (props.filter === "problems") {
       return ["failed", "blocked", "error"].includes(outcome);
     }
@@ -39,8 +39,9 @@ const visibleItems = computed(() => {
 
 const firstProblemId = computed(
   () =>
-    visibleItems.value.find((item) => ["failed", "blocked", "error"].includes(item.outcome))
-      ?.itemId ?? "",
+    visibleItems.value.find((item) =>
+      ["failed", "blocked", "error"].includes(displayItemOutcome(props.run, item.itemId)),
+    )?.itemId ?? "",
 );
 
 function belongsTo(testCase: RunCase, itemId: string): boolean {
@@ -48,6 +49,10 @@ function belongsTo(testCase: RunCase, itemId: string): boolean {
 }
 
 function resultFor(itemId: string): CaseResult {
+  // 与顶部计数、筛选使用同一来源：宿主运行以 CLI item_outcomes 为准。
+  if (props.run.items.some((item) => item.itemId === itemId)) {
+    return displayItemOutcome(props.run, itemId);
+  }
   const cases = props.run.cases.filter((testCase) => belongsTo(testCase, itemId));
   if (cases.length === 0) {
     return "not_run";

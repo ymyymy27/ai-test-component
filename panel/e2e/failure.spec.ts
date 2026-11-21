@@ -16,7 +16,6 @@ test("失败用例自动归并问题，重跑通过后关闭门禁生效", async
   await expect(page.locator(".page-subtitle").first()).toContainText("待确认");
 
   await page.getByRole("button", { name: "更新状态" }).click();
-  await page.locator("#issue-next-status").selectOption("in_progress");
   await page.locator("#issue-reason").fill("开始处理");
   await page.getByRole("button", { name: "保存状态" }).click();
   await expect(page.locator(".page-subtitle").first()).toContainText("处理中");
@@ -55,7 +54,6 @@ test("关闭门禁未满足时禁用并说明缺什么", async ({ page }) => {
   await page.locator(".issue-row").first().click();
 
   await page.getByRole("button", { name: "更新状态" }).click();
-  await page.locator("#issue-next-status").selectOption("in_progress");
   await page.locator("#issue-reason").fill("开始处理");
   await page.getByRole("button", { name: "保存状态" }).click();
   await page.getByRole("button", { name: "更新状态" }).click();

@@ -13,12 +13,74 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { cleanEnvironment, spawnFailureCode, spawnProcess, type SpawnFn } from "./process";
+import {
+  cleanEnvironment,
+  safeWorkingDirectory,
+  spawnFailureCode,
+  spawnProcess,
+  stopChild,
+  type SpawnFn,
+} from "./process";
 
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const MAX_TIMEOUT_MS = 900_000;
+/** 临时 payload 上限；面板一次调用不应把整份证据或日志塞进输入文件。 */
+const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024;
 
-export const DEFAULT_TIMEOUT_MS = 30_000;
+/** 默认超时必须显著大于 CLI 的 30 秒锁等待，否则拿到锁的同时就超时。 */
+export const DEFAULT_TIMEOUT_MS = 120_000;
+
+/**
+ * 已知凭据变量（名字像密钥且值足够长）在落盘前替换。
+ * 在 JSON 序列化之前逐个替换字符串值，避免把引号/反斜杠拼进 JSON 结构。
+ */
+function redactSecrets(value: unknown): unknown {
+  const secrets = Object.entries(process.env)
+    .filter(
+      ([name, secret]) =>
+        typeof secret === "string" &&
+        secret.length >= 8 &&
+        /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL)/i.test(name),
+    )
+    .map(([, secret]) => secret as string);
+  if (secrets.length === 0) {
+    return value;
+  }
+  const scrub = (text: string): string => {
+    let output = text;
+    for (const secret of secrets) {
+      output = output.split(secret).join("***");
+    }
+    return output;
+  };
+  const seen = new WeakSet<object>();
+  const walk = (item: unknown): unknown => {
+    if (typeof item === "string") {
+      return scrub(item);
+    }
+    if (Array.isArray(item)) {
+      if (seen.has(item)) {
+        return item;
+      }
+      seen.add(item);
+      return item.map(walk);
+    }
+    if (typeof item === "object" && item !== null) {
+      if (seen.has(item)) {
+        return item;
+      }
+      seen.add(item);
+      const result: Record<string, unknown> = {};
+      for (const [key, nested] of Object.entries(item)) {
+        result[key] = walk(nested);
+      }
+      return result;
+    }
+    return item;
+  };
+  const redacted = walk(value);
+  return typeof redacted === "string" ? scrub(redacted) : redacted;
+}
 
 export interface BridgeConfig {
   /** 解释器路径，来自运行环境发现。 */
@@ -35,6 +97,8 @@ export interface CallOptions {
   /** 只对需要显式确认的命令（run.start、data.cleanup）生效。 */
   readonly confirm?: boolean;
   readonly timeoutMs?: number;
+  /** 面板取消或超时后终止子进程；已产生的副作用由 CLI 记录，不在这里回滚。 */
+  readonly signal?: AbortSignal;
 }
 
 export interface BridgeError {
@@ -59,6 +123,7 @@ interface RunResult {
   readonly stderr: string;
   readonly timedOut: boolean;
   readonly oversized: boolean;
+  readonly aborted?: boolean;
   readonly spawnError?: string;
 }
 
@@ -96,8 +161,9 @@ function normalizeError(raw: unknown): BridgeError | null {
   };
 }
 
-/** 解析 stdout 的第一行合法 JSON 对象；契约要求 CLI 只输出一行。 */
+/** 解析 stdout 最后一个合法 JSON 对象；契约要求 CLI 只输出一行。 */
 function parseEnvelope(raw: string): Record<string, unknown> | null {
+  let found: Record<string, unknown> | null = null;
   for (const line of raw.split(/\r?\n/)) {
     const text = line.trim();
     if (!text) {
@@ -106,13 +172,13 @@ function parseEnvelope(raw: string): Record<string, unknown> | null {
     try {
       const value: unknown = JSON.parse(text);
       if (isRecord(value)) {
-        return value;
+        found = value;
       }
     } catch {
       // 继续尝试下一行；CLI 若把日志写进 stdout，也不会被当成结果。
     }
   }
-  return null;
+  return found;
 }
 
 function runProcess(
@@ -120,13 +186,26 @@ function runProcess(
   command: string,
   args: string[],
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
+    if (signal?.aborted) {
+      resolve({
+        code: null,
+        stdout: "",
+        stderr: "",
+        timedOut: false,
+        oversized: false,
+        aborted: true,
+      });
+      return;
+    }
     let child: ReturnType<SpawnFn>;
     try {
       child = spawnFn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
+        cwd: safeWorkingDirectory(),
         env: cleanEnvironment(),
       });
     } catch (error) {
@@ -147,25 +226,32 @@ function runProcess(
     let stderrBytes = 0;
     let settled = false;
 
+    const onAbort = (): void => {
+      stopChild(child);
+      finish({ code: null, stdout, stderr, timedOut: false, oversized: false, aborted: true });
+    };
+
     const finish = (result: RunResult): void => {
       if (settled) {
         return;
       }
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
       resolve(result);
     };
     const timer = setTimeout(() => {
-      child.kill();
+      stopChild(child);
       finish({ code: null, stdout, stderr, timedOut: true, oversized: false });
     }, timeoutMs);
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     const collect = (chunk: string, stream: "stdout" | "stderr"): void => {
       const bytes = Buffer.byteLength(chunk, "utf8");
       if (stream === "stdout") {
         stdoutBytes += bytes;
         if (stdoutBytes > MAX_OUTPUT_BYTES) {
-          child.kill();
+          stopChild(child);
           finish({ code: null, stdout: "", stderr: "", timedOut: false, oversized: true });
           return;
         }
@@ -173,7 +259,7 @@ function runProcess(
       } else {
         stderrBytes += bytes;
         if (stderrBytes > MAX_OUTPUT_BYTES) {
-          child.kill();
+          stopChild(child);
           finish({ code: null, stdout: "", stderr: "", timedOut: false, oversized: true });
           return;
         }
@@ -231,14 +317,32 @@ export class Bridge {
     const requestId = randomUUID();
 
     let directory: string | null = null;
+    let serialized: string;
+    try {
+      serialized = JSON.stringify({
+        command,
+        request_id: requestId,
+        payload: redactSecrets(payload),
+      });
+    } catch (error) {
+      // BigInt、循环引用等序列化问题不是磁盘/权限问题，不能报 CLI_IO_FAILED。
+      return failure(
+        "CLI_SERIALIZE_FAILED",
+        `调用参数无法序列化为 JSON（${error instanceof Error ? error.name : "UNKNOWN"}）`,
+        "检查输入里是否含循环引用或 BigInt",
+      );
+    }
+    if (Buffer.byteLength(serialized, "utf8") > MAX_PAYLOAD_BYTES) {
+      return failure(
+        "CLI_PAYLOAD_TOO_LARGE",
+        "调用参数超出大小限制，未写入临时文件",
+        "只传引用或摘要，不要传整份日志/证据正文",
+      );
+    }
     try {
       directory = await mkdtemp(join(tmpdir(), "aitest-bridge-"));
       const inputFile = join(directory, "input.json");
-      await writeFile(
-        inputFile,
-        JSON.stringify({ command, request_id: requestId, payload }),
-        "utf8",
-      );
+      await writeFile(inputFile, serialized, { encoding: "utf8", mode: 0o600 });
       const args = [
         ...(this.config.pythonArgs ?? []),
         "-m",
@@ -250,7 +354,13 @@ export class Bridge {
         inputFile,
         ...(options.confirm ? ["--confirm"] : []),
       ];
-      const result = await runProcess(this.spawnFn, this.config.pythonPath, args, timeoutMs);
+      const result = await runProcess(
+        this.spawnFn,
+        this.config.pythonPath,
+        args,
+        timeoutMs,
+        options.signal,
+      );
       return this.interpret(result, requestId, timeoutMs);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException | null)?.code;
@@ -267,6 +377,13 @@ export class Bridge {
   }
 
   private interpret(result: RunResult, requestId: string, timeoutMs: number): BridgeResult {
+    if (result.aborted) {
+      return failure(
+        "CLI_CANCELLED",
+        "调用已被取消",
+        "先用查询命令确认是否已经生效；需要时再重新提交",
+      );
+    }
     if (result.timedOut) {
       return failure(
         "CLI_TIMEOUT",
@@ -342,9 +459,19 @@ export class Bridge {
         result.code,
       );
     }
+    const echoed = envelope["request_id"];
+    if (echoed !== undefined && echoed !== requestId) {
+      // 失败回执同样校验回显，避免并发/重试时把别人的错误当成自己的。
+      return failure(
+        "CLI_INVALID_JSON",
+        "CLI 失败回执的 request_id 与本次请求不一致",
+        "重新执行；若已有副作用，先用查询命令核对",
+        result.code,
+      );
+    }
     return {
       ok: false,
-      request_id: typeof envelope["request_id"] === "string" ? envelope["request_id"] : requestId,
+      request_id: requestId,
       error,
       exitCode: result.code,
     };

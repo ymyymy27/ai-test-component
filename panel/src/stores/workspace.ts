@@ -88,9 +88,12 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const environment = ref<EnvironmentCheck[]>([]);
   const quickCheck = ref<QuickCheck | null>(null);
   const initialized = ref(false);
+  const quickCheckError = ref("");
   let bootstrapPromise: Promise<void> | null = null;
   const analysisTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const quickCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let hostPollTimer: ReturnType<typeof setInterval> | null = null;
+  let storageListenerInstalled = false;
 
   const mode = computed(() => repo().mode);
   const capabilities = computed(() => repo().capabilities);
@@ -177,6 +180,24 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     useUiStore().showToast(errorMessage(cause), "error");
   }
 
+  function installStorageListener(): void {
+    if (storageListenerInstalled || typeof window === "undefined") {
+      return;
+    }
+    storageListenerInstalled = true;
+    window.addEventListener("storage", (event) => {
+      if (event.key !== "aitest.panel.v1" && event.key !== "aitest.host.ui.v1") {
+        return;
+      }
+      void refreshAll()
+        .then(() => {
+          const current = currentProjectId.value;
+          return current ? refreshProject(current) : null;
+        })
+        .catch((cause) => toastError(cause));
+    });
+  }
+
   async function withBusy<T>(key: string, callback: () => Promise<T>): Promise<T> {
     if (busy.value[key]) {
       throw new Error("操作正在进行，请稍候。");
@@ -236,12 +257,22 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await withBusy(`analysis:${projectId}`, async () => {
       const project = await repo().beginAnalysis(projectId);
       replaceProject(project);
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, ANALYSIS_DELAY_MS);
-      });
-      const analysis = buildProjectAnalysis(project);
-      const saved = await repo().saveAnalysis(projectId, analysis);
-      replaceProject(saved);
+      try {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, ANALYSIS_DELAY_MS);
+        });
+        const analysis = buildProjectAnalysis(project);
+        const saved = await repo().saveAnalysis(projectId, analysis);
+        replaceProject(saved);
+      } catch (cause) {
+        // 失败必须落盘，否则刷新后仍停在“分析中”且无法重试。
+        try {
+          replaceProject(await repo().failAnalysis(projectId, errorMessage(cause)));
+        } catch {
+          // 标记失败本身再失败时保留原错误，由 withBusy 统一提示。
+        }
+        throw cause;
+      }
     });
   }
 
@@ -259,14 +290,21 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       const last = await repo().getLastProjectId();
       const preferred = last && loaded.some((project) => project.id === last) ? last : null;
       currentProjectId.value = preferred ?? loaded[0]?.id ?? null;
-      status.value = "ready";
-      initialized.value = true;
+      // 先完成完整项目读取再标记 initialized；否则读取失败后“重新读取”会直接返回。
       if (currentProjectId.value) {
         const full = await repo().getProject(currentProjectId.value);
-        if (full) {
-          replaceProject(full);
+        if (!full) {
+          throw new RepositoryError(
+            "NOT_FOUND",
+            "项目记录读取失败。",
+            "确认宿主或本地数据可用后重新读取。",
+          );
         }
+        replaceProject(full);
       }
+      status.value = "ready";
+      initialized.value = true;
+      installStorageListener();
       for (const project of projects.value) {
         if (project.analysisStatus === "analyzing") {
           const started = new Date(project.analysisStartedAt || project.createdAt).getTime();
@@ -300,14 +338,34 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
   }
 
-  async function setCurrentProject(projectId: string): Promise<void> {
+  async function setCurrentProject(projectId: string): Promise<Project | null> {
+    const full = await repo().getProject(projectId);
+    if (!full) {
+      throw new RepositoryError(
+        "NOT_FOUND",
+        "项目不存在或已不可读。",
+        "刷新项目列表后重新选择。",
+      );
+    }
+    // 先完成读取再切换；上次项目写入失败不影响本次切换。
+    try {
+      await repo().setLastProjectId(projectId);
+    } catch {
+      useUiStore().showToast("已切换项目，但未能记住上次项目。", "info");
+    }
     currentProjectId.value = projectId;
     quickCheck.value = null;
-    await repo().setLastProjectId(projectId);
-    const full = await repo().getProject(projectId);
-    if (full) {
-      replaceProject(full);
+    quickCheckError.value = "";
+    clearQuickCheckTimers();
+    replaceProject(full);
+    return full;
+  }
+
+  function clearQuickCheckTimers(): void {
+    for (const timer of quickCheckTimers.values()) {
+      clearTimeout(timer);
     }
+    quickCheckTimers.clear();
   }
 
   async function createProject(input: CreateProjectInput): Promise<Project> {
@@ -316,6 +374,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       projects.value.push(project);
       currentProjectId.value = project.id;
       quickCheck.value = null;
+      clearQuickCheckTimers();
       await repo().setLastProjectId(project.id);
       scheduleAnalysis(project, ANALYSIS_DELAY_MS);
       return project;
@@ -357,7 +416,12 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     if (!pick) {
       return null;
     }
-    return pick.call(repo());
+    try {
+      return await pick.call(repo());
+    } catch (cause) {
+      toastError(cause);
+      throw cause;
+    }
   }
 
   async function createTask(projectId: string, input: CreateTaskInput): Promise<Task> {
@@ -762,17 +826,28 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function exportReport(projectId: string, reportId: string) {
-    const result = await repo().exportReport(projectId, reportId);
-    if (result.path) {
-      useUiStore().showToast(`已导出到 ${result.path}`, "success");
+    try {
+      const result = await repo().exportReport(projectId, reportId);
+      if (result.path) {
+        useUiStore().showToast(`已导出到 ${result.path}`, "success");
+        return result;
+      }
+      if (!downloadText(result.filename, result.markdown, "text/markdown")) {
+        throw new RepositoryError(
+          "CONFLICT",
+          "当前环境不能直接下载文件。",
+          "使用桌面浏览器，或在 CLI 执行 report.export 导出。",
+        );
+      }
+      useUiStore().showToast(
+        `已导出 ${result.filename}：${result.bytes} 字节，${result.lines} 行。`,
+        "success",
+      );
       return result;
+    } catch (cause) {
+      toastError(cause);
+      throw cause;
     }
-    downloadText(result.filename, result.markdown, "text/markdown");
-    useUiStore().showToast(
-      `已导出 ${result.filename}：${result.bytes} 字节，${result.lines} 行。`,
-      "success",
-    );
-    return result;
   }
 
   async function saveDelivery(
@@ -894,16 +969,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     if (!getReport) {
       return;
     }
-    const report = await getReport.call(repo(), projectId, reportId);
-    const project = projects.value.find((entry) => entry.id === projectId);
-    if (!project || !report) {
-      return;
-    }
-    const index = project.reports.findIndex((entry) => entry.id === report.id);
-    if (index >= 0) {
-      project.reports[index] = report;
-    } else {
-      project.reports.push(report);
+    try {
+      const report = await getReport.call(repo(), projectId, reportId);
+      const project = projects.value.find((entry) => entry.id === projectId);
+      if (!project || !report) {
+        return;
+      }
+      const index = project.reports.findIndex((entry) => entry.id === report.id);
+      if (index >= 0) {
+        project.reports[index] = report;
+      } else {
+        project.reports.push(report);
+      }
+    } catch (cause) {
+      toastError(cause);
     }
   }
 
@@ -938,13 +1017,18 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function openHostPath(path: string): Promise<void> {
-    const bridge = hostBridge();
-    if (!bridge?.openPath) {
-      throw new RepositoryError("CONFLICT", "宿主不支持打开文件。");
-    }
-    const result = await bridge.openPath(path);
-    if (!result.ok) {
-      throw new RepositoryError("VALIDATION", result.error?.message ?? "无法打开文件。");
+    try {
+      const bridge = hostBridge();
+      if (!bridge?.openPath) {
+        throw new RepositoryError("CONFLICT", "宿主不支持打开文件。");
+      }
+      const result = await bridge.openPath(path);
+      if (!result.ok) {
+        throw new RepositoryError("VALIDATION", result.error?.message ?? "无法打开文件。");
+      }
+    } catch (cause) {
+      toastError(cause);
+      throw cause;
     }
   }
 
@@ -956,28 +1040,47 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     if (project.tasks.some((task) => task.runs.some((run) => run.status === "running"))) {
       throw new RepositoryError("RUN_ACTIVE", "有任务正在运行，完成或停止后再做快速检查。");
     }
+    quickCheckError.value = "";
     const hostRepo = repo();
     if (hostRepo.mode === "host" && hostRepo.runQuickCheck) {
       quickCheck.value = {
         ...buildQuickCheckRun(project),
-        confirmedBy: "本机用户",
-        simulated: true,
+        // 宿主快速检查是真实 CLI 检查，不能标成本地模拟。
+        simulated: false,
+        status: "running",
       };
-      const completed = await hostRepo.runQuickCheck(projectId);
-      quickCheck.value = completed;
-      await refreshProject(projectId);
-      return completed;
+      try {
+        const completed = await hostRepo.runQuickCheck(projectId);
+        quickCheck.value = completed;
+        await refreshProject(projectId);
+        return completed;
+      } catch (cause) {
+        quickCheck.value = null;
+        quickCheckError.value = errorMessage(cause);
+        toastError(cause);
+        throw cause;
+      }
     }
     const quick = buildQuickCheckRun(project);
     quickCheck.value = quick;
-    setTimeout(() => {
+    clearQuickCheckTimers();
+    const timer = setTimeout(() => {
+      quickCheckTimers.delete(projectId);
+      if (currentProjectId.value !== projectId) {
+        return;
+      }
       const completed = completeQuickCheck(project, quick);
       quickCheck.value = completed;
       void repo()
         .recordQuickCheck(projectId, completed)
-        .then((updated) => replaceProject(updated))
+        .then((updated) => {
+          if (currentProjectId.value === projectId) {
+            replaceProject(updated);
+          }
+        })
         .catch((cause) => toastError(cause));
     }, 900);
+    quickCheckTimers.set(projectId, timer);
     return quick;
   }
 
@@ -1006,16 +1109,27 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function backup(): Promise<void> {
-    const payload = await repo().backup();
-    if (payload.result.path) {
-      useUiStore().showToast(`备份已创建：${payload.result.path}`, "success");
-      return;
+    try {
+      const payload = await repo().backup();
+      if (payload.result.path) {
+        useUiStore().showToast(`备份已创建：${payload.result.path}`, "success");
+        return;
+      }
+      if (!downloadBytes(payload.result.filename, payload.data, "application/zip")) {
+        throw new RepositoryError(
+          "CONFLICT",
+          "当前环境不能直接下载备份。",
+          "使用桌面浏览器，或在 CLI 执行 backup.create。",
+        );
+      }
+      useUiStore().showToast(
+        `已导出备份：${payload.result.projects} 个项目，${payload.result.bytes} 字节。`,
+        "success",
+      );
+    } catch (cause) {
+      toastError(cause);
+      throw cause;
     }
-    downloadBytes(payload.result.filename, payload.data, "application/zip");
-    useUiStore().showToast(
-      `已导出备份：${payload.result.projects} 个项目，${payload.result.bytes} 字节。`,
-      "success",
-    );
   }
 
   async function restoreBackup(data: string | ArrayBuffer): Promise<void> {
@@ -1034,6 +1148,8 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     projects.value = [];
     currentProjectId.value = null;
     quickCheck.value = null;
+    quickCheckError.value = "";
+    clearQuickCheckTimers();
     initialized.value = false;
     status.value = "ready";
     error.value = "";
@@ -1055,6 +1171,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     planFailures,
     environment,
     quickCheck,
+    quickCheckError,
     initialized,
     currentProject,
     currentTask,

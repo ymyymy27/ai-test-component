@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
 import ErrorState from "@/components/ErrorState.vue";
@@ -79,6 +79,7 @@ function mergeConfig(base: ReturnType<typeof defaultConfig>, current: ProjectCon
 const configDraft = ref<FullConfig>(mergeConfig(defaultConfig(), {}));
 const advanced = ref("");
 const advancedDirty = ref(false);
+const formDirty = ref(false);
 const configError = ref("");
 let applyingAdvanced = false;
 
@@ -88,8 +89,14 @@ watch(
     if (applyingAdvanced) {
       return;
     }
+    const next = formatJson(configDraft.value);
+    if (next === advanced.value) {
+      return;
+    }
     advancedDirty.value = false;
-    advanced.value = formatJson(configDraft.value);
+    advanced.value = next;
+    // 只有常用项被人工修改才算“表单草稿有未保存修改”；项目加载时的回填不算。
+    formDirty.value = true;
   },
   { deep: true },
 );
@@ -150,6 +157,8 @@ watch(
     profileGoal.value = current.goal;
     configDraft.value = mergeConfig(defaultConfig(), current.config);
     advanced.value = formatJson(configDraft.value);
+    advancedDirty.value = false;
+    formDirty.value = false;
     ruleForm.value = { name: "", version: "", steps: "", aiRules: "", evidence: "" };
     githubForm.value = {
       repo: current.github?.repo ?? "",
@@ -171,6 +180,19 @@ onMounted(async () => {
   }
 });
 
+onBeforeRouteLeave(async () => {
+  if (!advancedDirty.value && !formDirty.value) {
+    return true;
+  }
+  const answer = await ui.askConfirm({
+    title: "离开设置页？",
+    body: "运行配置还有未保存的修改，离开后会丢失。",
+    confirmLabel: "放弃修改并离开",
+    tone: "danger",
+  });
+  return answer !== null;
+});
+
 function selectSection(id: string): void {
   activeSection.value = id;
   if (route.query.section !== id) {
@@ -182,6 +204,7 @@ async function saveProfile(): Promise<void> {
   const name = profileName.value.trim();
   if (!name || name.length > 40) {
     profileError.value = "项目名不能为空，且最多 40 个字。";
+    document.querySelector<HTMLInputElement>("#project-name")?.focus();
     return;
   }
   profileError.value = "";
@@ -209,9 +232,22 @@ async function applyAdvanced(): Promise<void> {
     configError.value = validated.message;
     return;
   }
+  // 只有常用项存在未保存修改且 JSON 合法时才提示；避免错误输入也弹确认。
+  if (formDirty.value) {
+    const answer = await ui.askConfirm({
+      title: "用 JSON 覆盖当前表单草稿？",
+      body: "常用项里尚未保存的修改会被 JSON 内容替换。",
+      confirmLabel: "覆盖并填入",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
   applyingAdvanced = true;
   configDraft.value = mergeConfig(defaultConfig(), validated.config);
   advancedDirty.value = false;
+  formDirty.value = false;
   await nextTick();
   applyingAdvanced = false;
   advanced.value = formatJson(configDraft.value);
@@ -246,6 +282,7 @@ async function saveConfig(): Promise<void> {
   try {
     await workspace.saveConfig(projectId.value, validated.config);
     advancedDirty.value = false;
+    formDirty.value = false;
     advanced.value = formatJson(validated.config);
     markSaved("config");
     ui.showToast("运行配置已保存；旧计划可能在启动时要求重新生成。", "success");
@@ -257,6 +294,7 @@ async function saveConfig(): Promise<void> {
 async function saveRule(): Promise<void> {
   if (!ruleForm.value.name.trim() || !ruleForm.value.version.trim()) {
     ruleError.value = "规则名称和版本不能为空。";
+    document.querySelector<HTMLInputElement>("#rule-name")?.focus();
     return;
   }
   ruleError.value = "";
@@ -312,8 +350,15 @@ function exportRule(rule: RuleVersion): void {
       : ["- 未填写"]),
     "",
   ];
-  downloadText(`${rule.name}-v${rule.version}.md`, lines.join("\n"), "text/markdown");
-  ui.showToast("规则已导出。", "success");
+  const downloaded = downloadText(
+    `${rule.name}-v${rule.version}.md`,
+    lines.join("\n"),
+    "text/markdown",
+  );
+  ui.showToast(
+    downloaded ? "规则已导出。" : "当前环境不能下载文件；请用桌面浏览器重试。",
+    downloaded ? "success" : "error",
+  );
 }
 
 function openRuleImport(): void {
@@ -482,7 +527,7 @@ async function clearData(): Promise<void> {
       title="项目不可用"
       text="回到项目概览重新选择项目。"
       retry-label="回到概览"
-      @retry="router.push('/')"
+      @retry="router.push(projectId ? `/projects/${projectId}/overview` : '/')"
     />
   </div>
   <div v-else class="page">
@@ -1021,7 +1066,13 @@ async function clearData(): Promise<void> {
             </div>
             <div class="boundary-row">
               <span>本机存储</span>
-              <p>项目记录、证据元数据与报告留在浏览器本地存储，不写进被测仓库。</p>
+              <p>
+                {{
+                  workspace.mode === "host"
+                    ? "项目记录、证据元数据与报告由宿主 CLI 写入本机工作空间，不写进被测仓库。"
+                    : "项目记录、证据元数据与报告留在浏览器本地存储，不写进被测仓库。"
+                }}
+              </p>
             </div>
             <div class="boundary-row">
               <span>运行锁</span>

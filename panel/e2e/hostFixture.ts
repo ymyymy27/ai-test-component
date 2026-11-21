@@ -1,12 +1,41 @@
 import { randomUUID } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Page } from "@playwright/test";
 
-export const repoRoot = resolve(process.cwd(), "..");
+const here = dirname(fileURLToPath(import.meta.url));
+export const repoRoot = resolve(here, "../..");
+
+/** Use the repository venv by default; PATH `python` is not a stable target. */
+export const cliPython =
+  process.env.AITEST_E2E_PYTHON ??
+  (process.platform === "win32"
+    ? join(repoRoot, ".venv", "Scripts", "python.exe")
+    : join(repoRoot, ".venv", "bin", "python"));
+
+/** Whether the CLI child will have a model to call (env or user config). */
+export function hasModelCredentials(): boolean {
+  if ((process.env.AITEST_MODEL_KEY ?? "").trim()) {
+    return true;
+  }
+  const appdata = process.env.APPDATA;
+  if (!appdata) {
+    return false;
+  }
+  try {
+    const config = JSON.parse(
+      readFileSync(join(appdata, "aitest", "config.json"), "utf8"),
+    ) as { model?: { api_key?: string } };
+    return Boolean((config.model?.api_key ?? "").trim());
+  } catch {
+    return false;
+  }
+}
 
 export interface HostCallResult {
   ok: boolean;
@@ -55,52 +84,82 @@ export function callCli(
   command: string,
   payload: object,
   confirm = false,
-): HostCallResult {
+): Promise<HostCallResult> {
   const args = ["-m", "aitest.cli", command, "--workspace", workspace];
   if (confirm) {
     args.push("--confirm");
   }
-  const child = spawnSync("python", args, {
-    input: JSON.stringify({ command, request_id: randomUUID(), payload }),
-    encoding: "utf8",
-    env: { ...process.env, PYTHONPATH: join(repoRoot, "src") },
-    timeout: 240_000,
-    windowsHide: true,
-  });
-  const lines = (child.stdout ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  for (const line of lines.reverse()) {
-    try {
-      const parsed = JSON.parse(line) as {
-        ok?: boolean;
-        data?: unknown;
-        error?: { code: string; message: string; next_step?: string };
-      };
-      if (typeof parsed.ok === "boolean") {
-        if (parsed.ok) {
-          return { ok: true, data: parsed.data };
-        }
-        return {
-          ok: false,
-          error: parsed.error ?? {
-            code: "CLI_FAILED",
-            message: child.stderr || "CLI 返回失败",
-          },
-        };
+  return new Promise((resolvePromise) => {
+    const child = spawn(cliPython, args, {
+      env: { ...process.env, PYTHONPATH: join(repoRoot, "src") },
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (result: HostCallResult): void => {
+      if (settled) {
+        return;
       }
-    } catch {
-      // 继续尝试上一行。
-    }
-  }
-  return {
-    ok: false,
-    error: {
-      code: "CLI_NO_OUTPUT",
-      message: child.stderr || `CLI 没有返回 JSON（退出码 ${child.status ?? "null"}）`,
-    },
-  };
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise(result);
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish({ ok: false, error: { code: "CLI_TIMEOUT", message: "CLI 调用超过 240 秒" } });
+    }, 240_000);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error: Error) => {
+      finish({ ok: false, error: { code: "CLI_SPAWN_FAILED", message: String(error) } });
+    });
+    child.on("close", (status: number | null) => {
+      const lines = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      for (const line of lines.reverse()) {
+        try {
+          const parsed = JSON.parse(line) as {
+            ok?: boolean;
+            data?: unknown;
+            error?: { code: string; message: string; next_step?: string };
+          };
+          if (typeof parsed.ok === "boolean") {
+            if (parsed.ok) {
+              finish({ ok: true, data: parsed.data });
+              return;
+            }
+            finish({
+              ok: false,
+              error: parsed.error ?? {
+                code: "CLI_FAILED",
+                message: stderr || "CLI 返回失败",
+              },
+            });
+            return;
+          }
+        } catch {
+          // 继续尝试上一行。
+        }
+      }
+      finish({
+        ok: false,
+        error: {
+          code: "CLI_NO_OUTPUT",
+          message: stderr || `CLI 没有返回 JSON（退出码 ${status ?? "null"}）`,
+        },
+      });
+    });
+    child.stdin.end(JSON.stringify({ command, request_id: randomUUID(), payload }));
+  });
 }
 
 export async function installHost(page: Page, sample: SampleProject): Promise<void> {

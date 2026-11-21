@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { compareItemNo, mapRun, toHostConfig } from "@/host/map";
+import { projectStatus } from "@/domain/derive";
+import type { Plan } from "@/domain/types";
+import {
+  compareItemNo,
+  mapConfirmation,
+  mapProjectSummary,
+  mapQuickCheck,
+  mapRun,
+  toHostConfig,
+} from "@/host/map";
 import type { RunDetail } from "@/host/dto";
+import { HostSidecar } from "@/host/sidecar";
 import type { ProjectConfig } from "@/domain/types";
 
 describe("host config mapping", () => {
@@ -81,5 +91,107 @@ describe("host config mapping", () => {
       caseId: "case_1",
       installed: false,
     });
+  });
+
+  it("does not mark expectations as verified when the plan snapshot is missing", () => {
+    const detail: RunDetail = {
+      run: {
+        run_id: "run_1",
+        plan_id: "plan_1",
+        project_id: "proj_1",
+        scope: { preset: "selected", module_ids: [], acceptance_item_ids: ["item_1"] },
+        status: "completed",
+        started_at: "2026-11-20T20:00:00+08:00",
+        cases: [
+          {
+            case_id: "case_1",
+            attempts: [{ attempt: 1, result: "passed", message: "ok" }],
+            evidence_refs: [],
+            result: "passed",
+          },
+        ],
+        evidence_refs: [],
+        analysis: [],
+        dependency_repairs: [],
+      },
+      outcome: "passed",
+      counts: { selected: 1, applicable: 1, covered: 1, passed: 1, failed: 0, incomplete: 0 },
+      item_outcomes: [{ item_id: "item_1", result: "passed", case_ids: ["case_1"] }],
+      uncovered_items: [],
+      link: null,
+    };
+    const run = mapRun(detail, [], []);
+    expect(run.cases[0]?.itemId).toBe("");
+    expect(run.cases[0]?.expectationVerified).toBe(false);
+    expect(run.items[0]?.outcome).toBe("passed");
+  });
+
+  it("keeps cancelled and execution_error quick check statuses", () => {
+    const base = {
+      run: {
+        run_id: "run_1",
+        plan_id: "plan_1",
+        project_id: "proj_1",
+        scope: { preset: "selected", module_ids: [], acceptance_item_ids: [] },
+        started_at: "2026-11-20T20:00:00+08:00",
+        cases: [],
+        evidence_refs: [],
+        analysis: [],
+        dependency_repairs: [],
+      },
+      outcome: "incomplete",
+      counts: { selected: 0, applicable: 0, covered: 0, passed: 0, failed: 0, incomplete: 0 },
+      item_outcomes: [],
+      uncovered_items: [],
+      link: null,
+    };
+    expect(mapQuickCheck({ ...base, run: { ...base.run, status: "cancelled" } } as RunDetail, "p").status).toBe(
+      "cancelled",
+    );
+    expect(
+      mapQuickCheck(
+        { ...base, run: { ...base.run, status: "execution_error" } } as RunDetail,
+        "p",
+      ).status,
+    ).toBe("execution_error");
+    // 中断不是完成：面板必须按终态显示，不能显示“已完成”。
+    expect(
+      mapQuickCheck({ ...base, run: { ...base.run, status: "interrupted" } } as RunDetail, "p").status,
+    ).toBe("cancelled");
+  });
+
+  it("marks project list summaries as not loaded instead of claiming no tasks", () => {
+    const summary = mapProjectSummary(
+      { project_id: "proj_1", name: "demo", root: "C:/demo" },
+      new HostSidecar(),
+    );
+    expect(summary.summaryOnly).toBe(true);
+    expect(projectStatus(summary)).toEqual({ tone: "neutral", label: "未加载" });
+  });
+
+  it("maps the CLI confirmation returned by run.start without inventing environment or credentials", () => {
+    const plan = {
+      id: "plan_1",
+      revision: 3,
+      scope: { acceptanceItemIds: ["item_1"] },
+    } as unknown as Plan;
+    const confirmation = mapConfirmation(
+      {
+        confirmation_id: "conf_1",
+        confirmed_by: "单元测试",
+        confirmed_at: "2026-11-21T10:00:00+08:00",
+        fingerprint: "abc",
+        plan_revision: 3,
+        side_effects: ["写入运行目录"],
+        dependencies: ["pytest"],
+      },
+      plan,
+    );
+    expect(confirmation.id).toBe("conf_1");
+    expect(confirmation.confirmedBy).toBe("单元测试");
+    expect(confirmation.fingerprint).toBe("abc");
+    expect(confirmation.acceptanceItemIds).toEqual(["item_1"]);
+    expect(confirmation.environment).toEqual({});
+    expect(confirmation.credentials).toEqual({});
   });
 });

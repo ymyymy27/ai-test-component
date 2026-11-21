@@ -534,6 +534,10 @@ export function planCasesForItems(cases: PlanCase[], selectedIds: string[]): Pla
 }
 
 export function projectStatus(project: Project): { tone: string; label: string } {
+  if (project.summaryOnly) {
+    // 列表摘要没有任务与问题明细，不能据此宣称“还没有任务”。
+    return { tone: "neutral", label: "未加载" };
+  }
   if (project.analysisStatus === "analyzing") {
     return { tone: "running", label: "分析中" };
   }
@@ -554,4 +558,85 @@ export function projectStatus(project: Project): { tone: string; label: string }
 
 export function stageForDisplay(task: Task): TaskStage {
   return task.stage;
+}
+
+function asArray<T>(value: T[] | undefined | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asCount(value: number | undefined | null): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * 旧报告或损坏的本地记录可能缺少后来新增的字段。
+ * 读取与导出前统一补默认值，避免视图直接解引用 undefined。
+ */
+export function normalizeReport(report: Report): Report {
+  const coverage = report.coverage ?? ({} as Report["coverage"]);
+  const counts = report.counts ?? ({} as Counts);
+  const layers = report.layers ?? ({} as Report["layers"]);
+  const layer = (key: "L1" | "L2" | "L3") => ({
+    total: asCount(layers[key]?.total),
+    passed: asCount(layers[key]?.passed),
+    failed: asCount(layers[key]?.failed),
+    incomplete: asCount(layers[key]?.incomplete),
+  });
+  return {
+    ...report,
+    counts: {
+      selected: asCount(counts.selected),
+      applicable: asCount(counts.applicable),
+      covered: asCount(counts.covered),
+      passed: asCount(counts.passed),
+      failed: asCount(counts.failed),
+      incomplete: asCount(counts.incomplete),
+    },
+    coverage: {
+      selected: asCount(coverage.selected),
+      applicable: asCount(coverage.applicable),
+      covered: asCount(coverage.covered),
+      unselected: asCount(coverage.unselected),
+    },
+    itemDetails: asArray(report.itemDetails),
+    caseDetails: asArray(report.caseDetails),
+    l1: asArray(report.l1),
+    layers: { L1: layer("L1"), L2: layer("L2"), L3: layer("L3") },
+    issues: asArray(report.issues),
+    mock: {
+      real: asCount(report.mock?.real),
+      mock: asCount(report.mock?.mock),
+      mixed: asCount(report.mock?.mixed),
+      unknown: asCount(report.mock?.unknown),
+      realChain: report.mock?.realChain === true,
+      note: report.mock?.note ?? "",
+      refs: asArray(report.mock?.refs),
+    },
+    analysis: report.analysis ?? {
+      status: "not_generated",
+      reason: "",
+      observed: "",
+      evidenceRefs: [],
+      candidateCauses: [],
+      unverified: [],
+      nextSteps: [],
+    },
+    templates: asArray(report.templates),
+    modules: asArray(report.modules),
+    unmapped: asArray(report.unmapped),
+    uncoveredItems: asArray(report.uncoveredItems),
+    unverifiedItems: asArray(report.unverifiedItems),
+    planWarnings: asArray(report.planWarnings),
+    evidenceIndex: asArray(report.evidenceIndex),
+    source: {
+      runTime: report.source?.runTime ?? "",
+      planLabel: report.source?.planLabel ?? "计划快照缺失",
+      rulesLabel: report.source?.rulesLabel ?? "未绑定规则",
+      commit: report.source?.commit ?? "未记录",
+      model: report.source?.model ?? "未记录",
+      github: report.source?.github ?? "未连接",
+    },
+    summary: report.summary ?? "",
+    opinion: report.opinion ?? null,
+  };
 }

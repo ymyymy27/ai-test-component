@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
@@ -30,12 +30,25 @@ const createGate = computed(() => {
   return hasRunCase ? "" : "还没有可绑定的运行用例；先完成一次运行再登记问题。";
 });
 const issues = computed(() => workspace.projectIssues);
-const status = ref<"all" | IssueStatus>("all");
-const taskFilter = ref("all");
-const query = ref("");
-const severityFilter = ref<"all" | Issue["severity"]>("all");
-const unstableOnly = ref(false);
-const sort = ref<"severity" | "recent">("severity");
+const queryText = (key: string): string =>
+  typeof route.query[key] === "string" ? String(route.query[key]) : "";
+const status = ref<"all" | IssueStatus>(
+  (["pending", "in_progress", "retest", "closed"] as const).includes(
+    queryText("status") as IssueStatus,
+  )
+    ? (queryText("status") as IssueStatus)
+    : "all",
+);
+const taskFilter = ref(queryText("task") || "all");
+const query = ref(queryText("q"));
+const severityFilter = ref<"all" | Issue["severity"]>(
+  (["P0", "P1", "P2", "P3"] as const).includes(queryText("severity") as Issue["severity"])
+    ? (queryText("severity") as Issue["severity"])
+    : "all",
+);
+const unstableOnly = ref(queryText("unstable") === "1");
+const sort = ref<"severity" | "recent">(queryText("sort") === "recent" ? "recent" : "severity");
+const limit = ref(40);
 const createOpen = ref(false);
 
 const statuses: Array<"all" | IssueStatus> = ["all", "pending", "in_progress", "retest", "closed"];
@@ -78,6 +91,30 @@ const filtered = computed(() => {
       : lastIssueOccurrence(second).localeCompare(lastIssueOccurrence(first));
   });
 });
+
+const visibleIssues = computed(() => filtered.value.slice(0, limit.value));
+
+watch(
+  [status, taskFilter, severityFilter, unstableOnly, sort, query],
+  () => {
+    limit.value = 40;
+    const next = { ...route.query };
+    const set = (key: string, value: string): void => {
+      if (!value || value === "all") {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+    };
+    set("status", status.value);
+    set("task", taskFilter.value);
+    set("severity", severityFilter.value);
+    set("q", query.value.trim());
+    set("unstable", unstableOnly.value ? "1" : "");
+    set("sort", sort.value === "recent" ? "recent" : "");
+    void router.replace({ query: next });
+  },
+);
 
 const initialTaskId = computed(() =>
   taskFilter.value !== "all" ? taskFilter.value : (workspace.currentTask?.id ?? ""),
@@ -213,12 +250,18 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
         <span class="section-note">{{ filtered.length }} 个结果</span>
       </div>
 
-      <IssueTable
-        v-if="filtered.length"
-        :issues="filtered"
-        :tasks="project.tasks"
-        @open="(issueId) => router.push(`/projects/${projectId}/issues/${issueId}`)"
-      />
+      <template v-if="filtered.length">
+        <IssueTable
+          :issues="visibleIssues"
+          :tasks="project.tasks"
+          @open="(issueId) => router.push(`/projects/${projectId}/issues/${issueId}`)"
+        />
+        <div v-if="filtered.length > visibleIssues.length" class="form-actions">
+          <button class="btn btn-sm" type="button" @click="limit += 40">
+            再显示 {{ Math.min(40, filtered.length - visibleIssues.length) }} 个
+          </button>
+        </div>
+      </template>
       <EmptyState v-else title="这个筛选下没有问题" text="切回全部状态或清空搜索，查看其他问题。">
         <button
           class="btn btn-sm"

@@ -17,14 +17,22 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { request as httpsRequest } from "node:https";
 
-import { cleanEnvironment, spawnFailureCode, spawnProcess, type SpawnFn } from "./process";
+import {
+  cleanEnvironment,
+  safeWorkingDirectory,
+  spawnFailureCode,
+  spawnProcess,
+  stopChild,
+  type SpawnFn,
+} from "./process";
 
 const PROBE_TIMEOUT_MS = 15_000;
 const MAX_PROBE_OUTPUT_BYTES = 64 * 1024;
@@ -74,6 +82,8 @@ export interface CandidateCheck {
   readonly versionOk?: boolean;
   /** 给人看的失败原因；版本过低与 import 失败分开。 */
   readonly detail?: string;
+  /** 失败类别：超时/不存在/版本/缺包/输出异常，供调用方给出不同结论。 */
+  readonly failure?: "timeout" | "missing" | "version" | "package" | "output" | "spawn";
 }
 
 export interface RuntimeCheck {
@@ -95,11 +105,13 @@ function workspaceVenv(workspacePath: string): string {
 }
 
 export function pythonCandidates(settings: RuntimeSettings): RuntimeCandidate[] {
-  const candidates: RuntimeCandidate[] = [];
   const setting = (settings.pythonPath ?? "").trim();
   if (setting) {
-    candidates.push({ source: "setting", command: setting, args: [] });
+    // 显式设置的解释器不会被自动替换：失败即停并返回原因，
+    // 否则用户以为在用指定环境，实际却跑在别的解释器上。
+    return [{ source: "setting", command: setting, args: [] }];
   }
+  const candidates: RuntimeCandidate[] = [];
   const workspace = (settings.workspacePath ?? "").trim();
   if (workspace) {
     const path = workspaceVenv(workspace);
@@ -150,13 +162,19 @@ function parseProbe(raw: string): Record<string, unknown> | null {
   return null;
 }
 
-function runProbe(spawnFn: SpawnFn, command: string, args: string[]): Promise<ProbeOutput> {
+function runProbe(
+  spawnFn: SpawnFn,
+  command: string,
+  args: string[],
+  timeoutMs: number = PROBE_TIMEOUT_MS,
+): Promise<ProbeOutput> {
   return new Promise<ProbeOutput>((resolve) => {
     let child: ReturnType<SpawnFn>;
     try {
       child = spawnFn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
+        cwd: safeWorkingDirectory(),
         env: cleanEnvironment(),
       });
     } catch (error) {
@@ -182,16 +200,16 @@ function runProbe(spawnFn: SpawnFn, command: string, args: string[]): Promise<Pr
       resolve(result);
     };
     const timer = setTimeout(() => {
-      child.kill();
+      stopChild(child);
       finish({ timedOut: true, oversized: false, code: null, stdout });
-    }, PROBE_TIMEOUT_MS);
+    }, timeoutMs);
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
       bytes += Buffer.byteLength(chunk, "utf8");
       if (bytes > MAX_PROBE_OUTPUT_BYTES) {
-        child.kill();
+        stopChild(child);
         finish({ timedOut: false, oversized: true, code: null, stdout: "" });
         return;
       }
@@ -217,30 +235,49 @@ function runProbe(spawnFn: SpawnFn, command: string, args: string[]): Promise<Pr
 async function checkCandidate(
   spawnFn: SpawnFn,
   candidate: RuntimeCandidate,
+  probeTimeoutMs: number = PROBE_TIMEOUT_MS,
 ): Promise<CandidateCheck> {
   const base = { source: candidate.source, command: candidate.command };
   if (candidate.missing) {
-    return { ...base, ok: false, detail: "工作区 .venv 解释器不存在" };
+    return { ...base, ok: false, failure: "missing", detail: "工作区 .venv 解释器不存在" };
   }
-  const probe = await runProbe(spawnFn, candidate.command, [
-    ...candidate.args,
-    "-c",
-    PROBE_SCRIPT,
-  ]);
+  const probeOnce = () =>
+    runProbe(spawnFn, candidate.command, [...candidate.args, "-c", PROBE_SCRIPT], probeTimeoutMs);
+  let probe = await probeOnce();
+  if (probe.timedOut) {
+    // 首次冷启动（杀毒/磁盘）可能超过 15 秒；重试一次再判断，避免误判成“没有解释器”。
+    probe = await probeOnce();
+  }
   if (probe.spawnError) {
-    return { ...base, ok: false, detail: `无法启动（${probe.spawnError}）` };
+    return {
+      ...base,
+      ok: false,
+      failure: "spawn",
+      detail: `无法启动（${probe.spawnError}）`,
+    };
   }
   if (probe.timedOut) {
-    return { ...base, ok: false, detail: "环境检查超时" };
+    return {
+      ...base,
+      ok: false,
+      failure: "timeout",
+      detail: "环境检查超时（已重试）",
+    };
   }
   if (probe.oversized) {
-    return { ...base, ok: false, detail: "检查输出超出限制" };
+    return {
+      ...base,
+      ok: false,
+      failure: "output",
+      detail: "检查输出超出限制",
+    };
   }
   const info = parseProbe(probe.stdout);
   if (info === null) {
     return {
       ...base,
       ok: false,
+      failure: "output",
       detail: probe.code === 0 ? "检查输出不是合法 JSON" : `退出码 ${probe.code}`,
     };
   }
@@ -249,10 +286,24 @@ async function checkCandidate(
   const minor = typeof info["minor"] === "number" ? info["minor"] : 0;
   const packageVersion = typeof info["aitest"] === "string" ? info["aitest"] : undefined;
   if (major < 3 || (major === 3 && minor < 11)) {
-    return { ...base, ok: false, version, versionOk: false, detail: `Python ${version} 低于 3.11` };
+    return {
+      ...base,
+      ok: false,
+      version,
+      versionOk: false,
+      failure: "version",
+      detail: `Python ${version} 低于 3.11`,
+    };
   }
   if (major > 3 || (major === 3 && minor >= 14)) {
-    return { ...base, ok: false, version, versionOk: false, detail: `Python ${version} 不在支持的 3.11-3.13 范围` };
+    return {
+      ...base,
+      ok: false,
+      version,
+      versionOk: false,
+      failure: "version",
+      detail: `Python ${version} 不在支持的 3.11-3.13 范围`,
+    };
   }
   const importError = info["import_error"];
   if (typeof importError === "string") {
@@ -261,6 +312,7 @@ async function checkCandidate(
       ok: false,
       version,
       versionOk: true,
+      failure: "package",
       detail: `Python ${version} 可用，但 import aitest 失败（${importError}）`,
     };
   }
@@ -273,16 +325,54 @@ async function checkCandidate(
   };
 }
 
+/** 按数字段比较版本（3.9 < 3.13，0.9.0 < 0.10.0）；忽略 pre-release 后缀。 */
+export function compareVersions(left: string, right: string): number {
+  const parse = (value: string): number[] =>
+    value
+      .split(/[+]/)[0]
+      .split(/[.-]/)
+      .map((part) => {
+        const match = /^\d+/.exec(part);
+        return match ? Number.parseInt(match[0], 10) : 0;
+      });
+  const a = parse(left);
+  const b = parse(right);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0);
+    if (diff !== 0) {
+      return diff > 0 ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
 /** 按固定顺序发现解释器；第一个通过全部校验的候选即停止。 */
 export async function findPython(
   settings: RuntimeSettings,
   spawnFn: SpawnFn = spawnProcess,
+  options: { minPackageVersion?: string | null; probeTimeoutMs?: number } = {},
 ): Promise<RuntimeCheck> {
   const checks: CandidateCheck[] = [];
   for (const candidate of pythonCandidates(settings)) {
-    const check = await checkCandidate(spawnFn, candidate);
+    const check = await checkCandidate(spawnFn, candidate, options.probeTimeoutMs);
     checks.push(check);
     if (check.ok) {
+      const minimum = (options.minPackageVersion ?? "").trim();
+      if (
+        minimum &&
+        check.packageVersion !== undefined &&
+        compareVersions(check.packageVersion, minimum) < 0
+      ) {
+        // 旧 CLI 缺少新命令或参数不兼容；明确报版本不符，不把旧包当成可用环境。
+        checks[checks.length - 1] = {
+          ...check,
+          ok: false,
+          failure: "package",
+          detail: `aitest ${check.packageVersion} 低于扩展要求的 ${minimum}`,
+        };
+        continue;
+      }
       return {
         ok: true,
         pythonPath: candidate.command,
@@ -296,7 +386,14 @@ export async function findPython(
     }
   }
 
+  const settingOnly = (settings.pythonPath ?? "").trim() !== "";
   const versionFound = checks.some((check) => check.versionOk === true);
+  const timedOut = checks.length > 0 && checks.every((check) => check.failure === "timeout");
+  const missing = timedOut
+    ? ["Python 3.11+（探测超时）", "aitest 包"]
+    : versionFound
+      ? ["aitest 包"]
+      : ["Python 3.11+", "aitest 包"];
   return {
     ok: false,
     pythonPath: null,
@@ -304,8 +401,10 @@ export async function findPython(
     version: null,
     packageVersion: null,
     candidates: checks,
-    missing: versionFound ? ["aitest 包"] : ["Python 3.11+", "aitest 包"],
-    installHint: INSTALL_HINT,
+    missing,
+    installHint: settingOnly
+      ? `${INSTALL_HINT} 已显式设置 aitest.pythonPath；修正该路径或清空设置后重试。`
+      : INSTALL_HINT,
   };
 }
 
@@ -322,6 +421,10 @@ const METADATA_TIMEOUT_MS = 30_000;
 const EXTRACT_TIMEOUT_MS = 300_000;
 const VENV_TIMEOUT_MS = 180_000;
 const INSTALL_TIMEOUT_MS = 600_000;
+/** 首次自动准备的硬上限；超过即停，不无限占着面板等待。 */
+const PREPARE_DEADLINE_MS = 20 * 60 * 1000;
+/** 运行时目录锁过期时间；崩溃遗留的锁在半小时后可以接管。 */
+const RUNTIME_LOCK_STALE_MS = 30 * 60 * 1000;
 
 /** 便携解释器候选：3.11–3.13 的 x86_64 Windows install_only 包（不含 free-threaded 变体）。 */
 const ASSET_PATTERN = /^cpython-(3\.(?:11|12|13)\.\d+)\+(\d+)-x86_64-pc-windows-msvc-install_only\.tar\.gz$/;
@@ -336,6 +439,8 @@ export interface RuntimeStageResult {
   readonly code?: string;
   /** 给人看的原因；不含 URL、绝对路径或 stderr 原文。 */
   readonly detail?: string;
+  /** 仅影响诊断、不影响最终结果时用 warning（例如缓存过期后重建）。 */
+  readonly severity?: "info" | "warning" | "error";
 }
 
 export interface RuntimeFailure {
@@ -394,6 +499,10 @@ export interface RuntimeDeps {
   /** 每个阶段结束（成功或失败）时回调，便于宿主记录进度。 */
   readonly onStage?: (stage: RuntimeStageResult) => void;
   readonly now?: () => Date;
+  /** 首次准备的总预算；默认 20 分钟。 */
+  readonly deadlineMs?: number;
+  /** 探测超时；测试可缩短，产品默认 15 秒。 */
+  readonly probeTimeoutMs?: number;
 }
 
 interface ReleaseAsset {
@@ -608,6 +717,8 @@ export async function downloadArchive(url: string, destination: string): Promise
     response.resume();
     throw new RuntimeStepError("download", `HTTP_${status}`, `下载运行时失败（HTTP ${status}）`);
   }
+  const declared = Number.parseInt(String(response.headers["content-length"] ?? ""), 10);
+  const expected = Number.isFinite(declared) && declared > 0 ? declared : null;
   const hash = createHash("sha256");
   const stream = createWriteStream(destination);
   let bytes = 0;
@@ -630,9 +741,25 @@ export async function downloadArchive(url: string, destination: string): Promise
         return;
       }
       hash.update(chunk);
-      stream.write(chunk);
+      // 尊重写盘背压：慢磁盘时暂停响应流，避免把整包堆进内存。
+      if (!stream.write(chunk)) {
+        response.pause();
+      }
+    });
+    stream.on("drain", () => {
+      response.resume();
     });
     response.on("end", () => {
+      if (expected !== null && bytes !== expected) {
+        fail(
+          new RuntimeStepError(
+            "download",
+            "DOWNLOAD_INCOMPLETE",
+            `下载字节数与 Content-Length 不一致（${bytes}/${expected}）`,
+          ),
+        );
+        return;
+      }
       stream.end(() => {
         if (!settled) {
           settled = true;
@@ -640,7 +767,17 @@ export async function downloadArchive(url: string, destination: string): Promise
         }
       });
     });
-    response.on("error", () => fail(new RuntimeStepError("download", "NETWORK_FAILED", "下载中断")));
+    response.on("error", () =>
+      fail(
+        expected !== null && bytes !== expected
+          ? new RuntimeStepError(
+              "download",
+              "DOWNLOAD_INCOMPLETE",
+              `下载中断（${bytes}/${expected} 字节）`,
+            )
+          : new RuntimeStepError("download", "NETWORK_FAILED", "下载中断"),
+      ),
+    );
     stream.on("error", (error: Error) => {
       response.destroy();
       fail(new RuntimeStepError("download", "WRITE_FAILED", `写入临时文件失败（${error.name}）`));
@@ -667,6 +804,7 @@ function runCommand(
       child = spawnFn(command, args, {
         stdio: ["ignore", "ignore", "ignore"],
         windowsHide: true,
+        cwd: safeWorkingDirectory(),
         env: cleanEnvironment(),
       });
     } catch (error) {
@@ -683,7 +821,7 @@ function runCommand(
       resolve(outcome);
     };
     const timer = setTimeout(() => {
-      child.kill();
+      stopChild(child);
       finish({ code: null, timedOut: true });
     }, timeoutMs);
     child.on("error", (error: Error) => {
@@ -695,7 +833,7 @@ function runCommand(
   });
 }
 
-/** 已准备好的便携运行时：按目录名倒序取最新一个存在的 venv 解释器。 */
+/** 已准备好的便携运行时：按目录名语义版本倒序取最新一个存在的 venv 解释器。 */
 export function findPreparedPython(
   runtimeHome: string,
   platform: NodeJS.Platform = process.platform,
@@ -708,9 +846,10 @@ export function findPreparedPython(
   }
   const names = entries
     .filter((entry) => entry.isDirectory())
+    // 点开头是锁、隔离区与暂存目录，不是可用运行时。
     .map((entry) => entry.name)
-    .sort()
-    .reverse();
+    .filter((name) => !name.startsWith("."))
+    .sort((left, right) => compareVersions(right, left));
   for (const name of names) {
     const candidate = venvPython(join(runtimeHome, name), platform);
     if (existsSync(candidate)) {
@@ -755,7 +894,7 @@ function locatePortablePython(runtimeDir: string, platform: NodeJS.Platform): st
   return null;
 }
 
-/** VSIX 内 `media/runtime/*.whl`：优先 aitest 自身的 wheel。 */
+/** VSIX 内 `media/runtime/*.whl`：只接受 aitest 自身的 wheel，不把依赖当安装目标。 */
 export function findBundledWheel(wheelDir: string): string | null {
   let names: string[];
   try {
@@ -763,12 +902,19 @@ export function findBundledWheel(wheelDir: string): string | null {
   } catch {
     return null;
   }
-  if (names.length === 0) {
-    return null;
-  }
-  const own = names.filter((name) => /^(ai[_-]?test)/i.test(name)).sort();
-  const chosen = own.length > 0 ? own[own.length - 1] : names.sort()[names.length - 1];
-  return join(wheelDir, chosen);
+  const own = names
+    .filter((name) => {
+      // wheel 文件名首段是规范化发行名：ai_test_component-0.5.0-...
+      const distribution = name.split("-")[0].toLowerCase().replace(/[._]/g, "-");
+      return distribution === "ai-test-component" || distribution === "aitest";
+    })
+    .sort((left, right) => compareVersions(wheelVersionOf(right) ?? "", wheelVersionOf(left) ?? ""));
+  return own.length > 0 ? join(wheelDir, own[0]) : null;
+}
+
+function wheelVersionOf(name: string): string | null {
+  const match = /^[^-]+-(\d+\.\d+(?:\.\d+)?[^-]*)-/.exec(name);
+  return match === null ? null : match[1];
 }
 
 /** 从 wheel 文件名取版本；用于判断已准备的运行目录是否落后于插件自带 wheel。 */
@@ -777,9 +923,7 @@ export function bundledWheelVersion(wheelDir: string): string | null {
   if (wheel === null) {
     return null;
   }
-  const name = basename(wheel);
-  const match = /^[^-]+-(\d+\.\d+(?:\.\d+)?[^-]*)-/.exec(name);
-  return match === null ? null : match[1];
+  return wheelVersionOf(basename(wheel));
 }
 
 function failureCode(error: unknown, fallback: string): string {
@@ -794,11 +938,6 @@ function failureDetail(error: unknown, fallback: string): string {
   return error instanceof RuntimeStepError ? error.message : fallback;
 }
 
-/**
- * 准备便携运行时。只在 `findPython` 全部失败后调用。
- *
- * 阶段失败一律停止，不尝试其他解释器；`failure.stage` 指出卡在哪一步。
- */
 export async function preparePortableRuntime(
   check: RuntimeCheck,
   deps: RuntimeDeps = {},
@@ -811,15 +950,22 @@ export async function preparePortableRuntime(
   const log = deps.log ?? (() => undefined);
   const now = deps.now ?? (() => new Date());
   const stages: RuntimeStageResult[] = [];
+  const deadline = Date.now() + (deps.deadlineMs ?? PREPARE_DEADLINE_MS);
 
   const record = (stage: RuntimeStageResult): void => {
     stages.push(stage);
     deps.onStage?.(stage);
-    log({ phase: "runtime-stage", stage: stage.stage, ok: stage.ok, code: stage.code ?? "" });
+    log({
+      phase: "runtime-stage",
+      stage: stage.stage,
+      ok: stage.ok,
+      code: stage.code ?? "",
+      severity: stage.severity ?? (stage.ok ? "info" : "error"),
+    });
   };
 
   const fail = (stage: RuntimeStage, code: string, detail: string): PreparedRuntime => {
-    record({ stage, ok: false, code, detail });
+    record({ stage, ok: false, code, detail, severity: "error" });
     const diagnosticsPath = writeDiagnostics(runtimeHome, now(), stage, code, detail);
     return {
       check,
@@ -855,9 +1001,18 @@ export async function preparePortableRuntime(
     failure: null,
   });
 
+  const remaining = (): number => deadline - Date.now();
+  const stageTimeout = (budget: number): number => Math.max(1_000, Math.min(budget, remaining()));
+
   // 1. 已经准备过的运行目录：只做本地核验，不联网。
   const prepared = findPreparedPython(runtimeHome, platform);
+  let preparedDir: string | null = null;
   if (prepared !== null) {
+    const segments = prepared.split(/[\\/]/);
+    const venvIndex = segments.lastIndexOf("venv");
+    // `<runtimeDir>/venv/{Scripts|bin}/python(.exe)` → `<runtimeDir>`
+    preparedDir =
+      venvIndex > 0 ? segments.slice(0, venvIndex).join(sep) : dirname(dirname(prepared));
     const verified = await checkCandidate(spawnFn, { source: "portable", command: prepared, args: [] });
     const expected = bundledWheelVersion(wheelDir);
     const current =
@@ -865,172 +1020,289 @@ export async function preparePortableRuntime(
       (expected === null || verified.packageVersion === undefined || verified.packageVersion === expected);
     if (current) {
       record({ stage: "verify", ok: true });
+      clearDiagnostics(runtimeHome);
       return ready(prepared, "portable-cache", verified.version ?? null, verified.packageVersion ?? null);
     }
+    // 过期/损坏只是重建的原因，不是业务错误：不弹错误对话框，等重建结果再说。
     record({
       stage: "verify",
       ok: false,
+      severity: "warning",
       code: verified.ok ? "CACHED_RUNTIME_OUTDATED" : "CACHED_RUNTIME_INVALID",
       detail: verified.ok
         ? `已安装 aitest ${verified.packageVersion ?? "unknown"}，插件自带 ${expected ?? "unknown"}`
         : (verified.detail ?? "运行目录不可用"),
     });
-    // 旧目录不可用或 wheel 版本变化时只重建同一版本目录；其他版本目录保持原样。
   }
 
-  // 2. 解析下载源（含摘要）。缺摘要直接拒绝，不降级到未校验的包。
-  let asset: PortableAsset;
-  try {
-    asset = await (deps.resolveAsset ?? (() => resolvePortableAsset(env)))();
-  } catch (error) {
-    return fail(
-      error instanceof RuntimeStepError ? error.stage : "download",
-      failureCode(error, "ASSET_RESOLVE_FAILED"),
-      failureDetail(error, "无法确定便携运行时下载源"),
-    );
-  }
-
-  const runtimeDir = join(runtimeHome, safeSegment(asset.version));
-  const archive = join(runtimeDir, `python-${safeSegment(asset.version)}.tar.gz`);
-  const partial = `${archive}.part`;
-
-  // 3. 自带 wheel 必须在下载前确认，避免下载完才发现安装材料缺失。
+  // 2. 自带 wheel 必须在下载前确认，避免下载完才发现安装材料缺失。
   const wheel = findBundledWheel(wheelDir);
   if (wheel === null) {
     return fail("install", "WHEEL_MISSING", "VSIX 内未找到 aitest wheel（media/runtime/*.whl）");
   }
 
-  try {
-    mkdirSync(runtimeDir, { recursive: true });
-    rmSync(archive, { force: true });
-    rmSync(partial, { force: true });
-    // 同一版本目录上次失败可能留下半成品；先清掉再重建。
-    rmSync(join(runtimeDir, "python"), { recursive: true, force: true });
-    rmSync(join(runtimeDir, "venv"), { recursive: true, force: true });
-  } catch (error) {
-    return fail("download", failureCode(error, "RUNTIME_DIR_FAILED"), "无法创建运行时目录");
+  // 3. 跨窗口/跨命令互斥：同一运行目录只允许一个准备进程。
+  const lock = acquireRuntimeLock(runtimeHome);
+  if (lock === null) {
+    return fail("download", "RUNTIME_LOCKED", "另一个窗口正在准备运行时，请等待其完成");
   }
 
-  // 4. 下载 + 摘要校验。摘要不符立即删除临时文件并停止。
-  let downloaded: DownloadOutcome;
+  let staging: string | null = null;
+  let attemptedRuntimeDir: string | null = null;
+  let committed = false;
   try {
-    log({ phase: "runtime-download", host: safeHost(asset.url), version: asset.version });
-    downloaded = await (deps.download ?? downloadArchive)(asset.url, partial);
-  } catch (error) {
-    rmSync(partial, { force: true });
-    return fail("download", failureCode(error, "DOWNLOAD_FAILED"), failureDetail(error, "下载运行时失败"));
-  }
-  if (downloaded.bytes <= 0) {
-    rmSync(partial, { force: true });
-    return fail("download", "EMPTY_DOWNLOAD", "下载结果为空");
-  }
-  if (!SHA256_HEX.test(downloaded.sha256) || downloaded.sha256.toLowerCase() !== asset.sha256.toLowerCase()) {
-    rmSync(partial, { force: true });
-    return fail("verify", "SHA256_MISMATCH", "下载文件的 SHA256 与发布摘要不一致");
-  }
-  try {
-    renameSync(partial, archive);
-  } catch (error) {
-    rmSync(partial, { force: true });
-    return fail("download", failureCode(error, "ARCHIVE_RENAME_FAILED"), "无法保存下载的运行时压缩包");
-  }
-  record({ stage: "download", ok: true });
-  record({ stage: "verify", ok: true });
+    if (remaining() <= 0) {
+      return fail("download", "PREPARE_TIMEOUT", "准备运行时的总时间预算已用完");
+    }
 
-  // 5. 解压：Windows 10+ 自带 bsdtar；不为 tar.gz 另找 PowerShell 兼容路径。
-  try {
-    const extracted = await runCommand(
-      spawnFn,
-      "tar",
-      ["-xf", archive, "-C", runtimeDir],
-      EXTRACT_TIMEOUT_MS,
+    // 4. 解析下载源（含摘要）。缺摘要直接拒绝，不降级到未校验的包。
+    let asset: PortableAsset;
+    try {
+      asset = await (deps.resolveAsset ?? (() => resolvePortableAsset(env)))();
+    } catch (error) {
+      return fail(
+        error instanceof RuntimeStepError ? error.stage : "download",
+        failureCode(error, "ASSET_RESOLVE_FAILED"),
+        failureDetail(error, "无法确定便携运行时下载源"),
+      );
+    }
+
+    const runtimeDir = join(runtimeHome, safeSegment(asset.version));
+    attemptedRuntimeDir = runtimeDir;
+    // 每次准备都在隔离目录完成；成功后才原子替换，失败不动已有运行时。
+    staging = join(
+      runtimeHome,
+      `.staging-${safeSegment(asset.version)}-${process.pid}-${Date.now()}`,
     );
-    if (extracted.spawnError) {
-      return fail("extract", "TAR_MISSING", "系统 tar 不可用（需要 Windows 10+ 自带的 tar）");
+    const archive = join(staging, `python-${safeSegment(asset.version)}.tar.gz`);
+    const partial = `${archive}.part`;
+    try {
+      mkdirSync(staging, { recursive: true });
+    } catch (error) {
+      return fail("download", failureCode(error, "RUNTIME_DIR_FAILED"), "无法创建运行时目录");
     }
-    if (extracted.timedOut) {
-      return fail("extract", "EXTRACT_TIMEOUT", "解压超时");
-    }
-    if (extracted.code !== 0) {
-      return fail("extract", "EXTRACT_FAILED", `解压失败（tar 退出码 ${extracted.code ?? "unknown"}）`);
-    }
-  } catch (error) {
-    return fail("extract", failureCode(error, "EXTRACT_FAILED"), failureDetail(error, "解压失败"));
-  }
-  const basePython = locatePortablePython(runtimeDir, platform);
-  if (basePython === null) {
-    return fail("extract", "PYTHON_MISSING", "解压后未找到 python 解释器");
-  }
-  record({ stage: "extract", ok: true });
-  rmSync(archive, { force: true }); // 解压成功即回收临时压缩包。
-  log({ phase: "runtime-extract", version: asset.version });
 
-  // 6. 在便携运行时内建 venv；失败不退回系统解释器。
-  const targetPython = venvPython(runtimeDir, platform);
-  try {
-    const created = await runCommand(
-      spawnFn,
-      basePython,
-      ["-m", "venv", join(runtimeDir, "venv")],
-      VENV_TIMEOUT_MS,
+    // 5. 下载 + 摘要校验。摘要不符立即删除临时文件并停止。
+    let downloaded: DownloadOutcome;
+    try {
+      log({ phase: "runtime-download", host: safeHost(asset.url), version: asset.version });
+      downloaded = await (deps.download ?? downloadArchive)(asset.url, partial);
+    } catch (error) {
+      return fail("download", failureCode(error, "DOWNLOAD_FAILED"), failureDetail(error, "下载运行时失败"));
+    }
+    if (downloaded.bytes <= 0) {
+      return fail("download", "EMPTY_DOWNLOAD", "下载结果为空");
+    }
+    if (!SHA256_HEX.test(downloaded.sha256) || downloaded.sha256.toLowerCase() !== asset.sha256.toLowerCase()) {
+      return fail("verify", "SHA256_MISMATCH", "下载文件的 SHA256 与发布摘要不一致");
+    }
+    try {
+      renameSync(partial, archive);
+    } catch (error) {
+      return fail("download", failureCode(error, "ARCHIVE_RENAME_FAILED"), "无法保存下载的运行时压缩包");
+    }
+    record({ stage: "download", ok: true });
+    record({ stage: "verify", ok: true });
+
+    if (remaining() <= 0) {
+      return fail("extract", "PREPARE_TIMEOUT", "准备运行时的总时间预算已用完");
+    }
+
+    // 6. 解压：Windows 10+ 自带 bsdtar；不为 tar.gz 另找 PowerShell 兼容路径。
+    try {
+      const extracted = await runCommand(
+        spawnFn,
+        "tar",
+        ["-xf", archive, "-C", staging],
+        stageTimeout(EXTRACT_TIMEOUT_MS),
+      );
+      if (extracted.spawnError) {
+        return fail("extract", "TAR_MISSING", "系统 tar 不可用（需要 Windows 10+ 自带的 tar）");
+      }
+      if (extracted.timedOut) {
+        return fail("extract", "EXTRACT_TIMEOUT", "解压超时");
+      }
+      if (extracted.code !== 0) {
+        return fail("extract", "EXTRACT_FAILED", `解压失败（tar 退出码 ${extracted.code ?? "unknown"}）`);
+      }
+    } catch (error) {
+      return fail("extract", failureCode(error, "EXTRACT_FAILED"), failureDetail(error, "解压失败"));
+    }
+    const basePython = locatePortablePython(staging, platform);
+    if (basePython === null) {
+      return fail("extract", "PYTHON_MISSING", "解压后未找到 python 解释器");
+    }
+    record({ stage: "extract", ok: true });
+    rmSync(archive, { force: true }); // 解压成功即回收临时压缩包。
+    log({ phase: "runtime-extract", version: asset.version });
+
+    // 7. 在便携运行时内建 venv；失败不退回系统解释器。
+    const targetPython = venvPython(staging, platform);
+    try {
+      const created = await runCommand(
+        spawnFn,
+        basePython,
+        ["-m", "venv", join(staging, "venv")],
+        stageTimeout(VENV_TIMEOUT_MS),
+      );
+      if (created.spawnError) {
+        return fail("venv", `VENV_${created.spawnError}`, "无法启动便携解释器创建 venv");
+      }
+      if (created.timedOut) {
+        return fail("venv", "VENV_TIMEOUT", "创建 venv 超时");
+      }
+      if (created.code !== 0) {
+        return fail("venv", "VENV_FAILED", `创建 venv 失败（退出码 ${created.code ?? "unknown"}）`);
+      }
+    } catch (error) {
+      return fail("venv", failureCode(error, "VENV_FAILED"), failureDetail(error, "创建 venv 失败"));
+    }
+    if (!existsSync(targetPython)) {
+      return fail("venv", "VENV_PYTHON_MISSING", "venv 创建完成但未找到解释器");
+    }
+    record({ stage: "venv", ok: true });
+
+    // 8. 离线安装自带 wheel：--no-index 只允许本地 wheel 目录，绝不回退到 PyPI。
+    try {
+      const installed = await runCommand(
+        spawnFn,
+        targetPython,
+        [
+          "-m",
+          "pip",
+          "install",
+          "--no-index",
+          "--find-links",
+          wheelDir,
+          "--disable-pip-version-check",
+          wheel,
+        ],
+        stageTimeout(INSTALL_TIMEOUT_MS),
+      );
+      if (installed.spawnError) {
+        return fail("install", `PIP_${installed.spawnError}`, "无法启动 venv 内的 pip");
+      }
+      if (installed.timedOut) {
+        return fail("install", "INSTALL_TIMEOUT", "离线安装超时");
+      }
+      if (installed.code !== 0) {
+        return fail("install", "INSTALL_FAILED", `pip install 失败（退出码 ${installed.code ?? "unknown"}）`);
+      }
+    } catch (error) {
+      return fail("install", failureCode(error, "INSTALL_FAILED"), failureDetail(error, "离线安装失败"));
+    }
+    record({ stage: "install", ok: true });
+
+    // 9. 用与发现阶段相同的探测脚本核验，避免“装完但不可用”被当成成功。
+    const verified = await checkCandidate(spawnFn, { source: "portable", command: targetPython, args: [] });
+    if (!verified.ok) {
+      return fail("verify", "RUNTIME_UNUSABLE", verified.detail ?? "便携运行时安装后不可用");
+    }
+    record({ stage: "verify", ok: true });
+
+    // 10. 原子切换：旧目录保留到新目录就位；切换失败回滚。
+    try {
+      commitRuntime(staging, runtimeDir);
+    } catch (error) {
+      return fail("install", failureCode(error, "RUNTIME_SWITCH_FAILED"), "无法切换到新运行时目录");
+    }
+    staging = null;
+    committed = true;
+    clearDiagnostics(runtimeHome);
+    log({ phase: "runtime-ready", version: verified.version ?? "", source: "portable-new" });
+
+    return ready(
+      venvPython(runtimeDir, platform),
+      "portable-new",
+      verified.version ?? null,
+      verified.packageVersion ?? null,
     );
-    if (created.spawnError) {
-      return fail("venv", `VENV_${created.spawnError}`, "无法启动便携解释器创建 venv");
+  } finally {
+    if (staging !== null) {
+      // 失败路径回收暂存目录（含压缩包），不留下半成品或 500MB 临时材料。
+      rmSync(staging, { recursive: true, force: true });
     }
-    if (created.timedOut) {
-      return fail("venv", "VENV_TIMEOUT", "创建 venv 超时");
+    if (preparedDir !== null && !committed && attemptedRuntimeDir !== null && preparedDir === attemptedRuntimeDir) {
+      // 同一版本目录已损坏/过期且重建失败：隔离它，避免下次仍命中同一个坏目录。
+      quarantineRuntime(preparedDir, log);
     }
-    if (created.code !== 0) {
-      return fail("venv", "VENV_FAILED", `创建 venv 失败（退出码 ${created.code ?? "unknown"}）`);
-    }
-  } catch (error) {
-    return fail("venv", failureCode(error, "VENV_FAILED"), failureDetail(error, "创建 venv 失败"));
+    releaseRuntimeLock(lock);
   }
-  if (!existsSync(targetPython)) {
-    return fail("venv", "VENV_PYTHON_MISSING", "venv 创建完成但未找到解释器");
-  }
-  record({ stage: "venv", ok: true });
+}
 
-  // 7. 离线安装自带 wheel：--no-index 只允许本地 wheel 目录，绝不回退到 PyPI。
+/** 删除上次失败的诊断文件；只有成功准备后才清理，失败时保留供排查。 */
+function clearDiagnostics(runtimeHome: string): void {
+  rmSync(join(runtimeHome, "prepare-failure.json"), { force: true });
+}
+
+/** 用 mkdir 做跨进程锁；遗留锁超过半小时视为可接管。 */
+function acquireRuntimeLock(runtimeHome: string): string | null {
+  const lock = join(runtimeHome, ".runtime.lock");
+  const create = (): boolean => {
+    try {
+      mkdirSync(lock);
+      writeFileSync(join(lock, "owner"), String(process.pid), "utf8");
+      return true;
+    } catch {
+      return false;
+    }
+  };
   try {
-    const installed = await runCommand(
-      spawnFn,
-      targetPython,
-      [
-        "-m",
-        "pip",
-        "install",
-        "--no-index",
-        "--find-links",
-        wheelDir,
-        "--disable-pip-version-check",
-        wheel,
-      ],
-      INSTALL_TIMEOUT_MS,
-    );
-    if (installed.spawnError) {
-      return fail("install", `PIP_${installed.spawnError}`, "无法启动 venv 内的 pip");
+    mkdirSync(runtimeHome, { recursive: true });
+  } catch {
+    return null;
+  }
+  if (create()) {
+    return lock;
+  }
+  try {
+    if (Date.now() - statSync(lock).mtimeMs > RUNTIME_LOCK_STALE_MS) {
+      rmSync(lock, { recursive: true, force: true });
+      if (create()) {
+        return lock;
+      }
     }
-    if (installed.timedOut) {
-      return fail("install", "INSTALL_TIMEOUT", "离线安装超时");
-    }
-    if (installed.code !== 0) {
-      return fail("install", "INSTALL_FAILED", `pip install 失败（退出码 ${installed.code ?? "unknown"}）`);
-    }
+  } catch {
+    // 锁在检查与接管之间被释放：按占用处理。
+  }
+  return null;
+}
+
+function releaseRuntimeLock(lock: string): void {
+  rmSync(lock, { recursive: true, force: true });
+}
+
+/** 把暂存目录换到最终版本目录；失败时恢复旧目录。 */
+function commitRuntime(staging: string, runtimeDir: string): void {
+  const previous = `${runtimeDir}.previous`;
+  rmSync(previous, { recursive: true, force: true });
+  const hadPrevious = existsSync(runtimeDir);
+  if (hadPrevious) {
+    renameSync(runtimeDir, previous);
+  }
+  try {
+    renameSync(staging, runtimeDir);
   } catch (error) {
-    return fail("install", failureCode(error, "INSTALL_FAILED"), failureDetail(error, "离线安装失败"));
+    if (hadPrevious) {
+      renameSync(previous, runtimeDir);
+    }
+    throw error;
   }
-  record({ stage: "install", ok: true });
+  rmSync(previous, { recursive: true, force: true });
+}
 
-  // 8. 用与发现阶段相同的探测脚本核验，避免“装完但不可用”被当成成功。
-  const verified = await checkCandidate(spawnFn, { source: "portable", command: targetPython, args: [] });
-  if (!verified.ok) {
-    return fail("verify", "RUNTIME_UNUSABLE", verified.detail ?? "便携运行时安装后不可用");
+/** 坏目录改名隔离；findPreparedPython 会跳过点开头目录。 */
+function quarantineRuntime(runtimeDir: string, log: (event: Record<string, unknown>) => void): void {
+  try {
+    if (!existsSync(runtimeDir)) {
+      return;
+    }
+    const target = join(dirname(runtimeDir), `.broken-${basename(runtimeDir)}-${Date.now()}`);
+    renameSync(runtimeDir, target);
+    log({ phase: "runtime-quarantine", name: basename(runtimeDir) });
+  } catch {
+    // 隔离失败不影响本次结论；下次仍会重建。
   }
-  record({ stage: "verify", ok: true });
-  log({ phase: "runtime-ready", version: verified.version ?? "", source: "portable-new" });
-
-  return ready(targetPython, "portable-new", verified.version ?? null, verified.packageVersion ?? null);
 }
 
 /** 先发现已合格解释器；都没有才准备便携运行时。成功路径不会触发下载。 */
@@ -1039,8 +1311,19 @@ export async function ensureRuntime(
   deps: RuntimeDeps = {},
 ): Promise<PreparedRuntime> {
   const spawnFn = deps.spawn ?? spawnProcess;
-  const check = await findPython(settings, spawnFn);
+  const platform = deps.platform ?? process.platform;
+  const env = deps.env ?? process.env;
+  const runtimeHome = deps.runtimeHome ?? defaultRuntimeHome(platform, env);
+  const wheelDir = deps.wheelDir ?? join(__dirname, "..", "media", "runtime");
+  // 扩展自带 wheel 的版本就是本次要求的最低 CLI 版本：旧包缺新命令/参数。
+  const minPackageVersion = bundledWheelVersion(wheelDir);
+  const check = await findPython(settings, spawnFn, {
+    minPackageVersion,
+    ...(deps.probeTimeoutMs ? { probeTimeoutMs: deps.probeTimeoutMs } : {}),
+  });
   if (check.ok && check.pythonPath !== null) {
+    // 上次失败留下的诊断会误导排查；找到可用解释器后清理。
+    clearDiagnostics(runtimeHome);
     return {
       check,
       ok: true,
@@ -1055,7 +1338,37 @@ export async function ensureRuntime(
       failure: null,
     };
   }
-  return preparePortableRuntime(check, { ...deps, spawn: spawnFn });
+  const timedOut =
+    check.candidates.length > 0 && check.candidates.every((item) => item.failure === "timeout");
+  if (timedOut) {
+    // 探测超时说明“不知道有没有解释器”，不是“没有”；此时下载运行时可能白装一套。
+    return {
+      check,
+      ok: false,
+      source: "existing",
+      pythonPath: null,
+      pythonArgs: [],
+      version: null,
+      packageVersion: null,
+      missing: check.missing,
+      installHint: check.installHint,
+      stages: [],
+      failure: {
+        stage: "verify",
+        code: "PYTHON_PROBE_TIMEOUT",
+        detail: "解释器探测超时（已重试）；请检查磁盘/杀毒/负载后重试，或显式设置 aitest.pythonPath",
+        diagnosticsPath: null,
+      },
+    };
+  }
+  return preparePortableRuntime(check, {
+    ...deps,
+    spawn: spawnFn,
+    runtimeHome,
+    wheelDir,
+    platform,
+    env,
+  });
 }
 
 function safeHost(url: string): string {

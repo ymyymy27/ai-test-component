@@ -194,6 +194,44 @@ describe("LocalStorageRepository", () => {
     expect(await seeded.repo.listProjects()).toHaveLength(1);
   });
 
+  it("deduplicates the same evidence name and digest in one run", async () => {
+    const seeded = await completedRun(["01"]);
+    const caseId = seeded.task.runs[0]?.cases[0]?.id ?? "";
+    const input = {
+      caseId,
+      name: "server.log",
+      mediaType: "LOG",
+      bytes: 12,
+      sha256: "b".repeat(64),
+      note: "重试不应重复登记",
+    };
+    await seeded.repo.addEvidence(seeded.projectId, seeded.runId, input);
+    await seeded.repo.addEvidence(seeded.projectId, seeded.runId, input);
+    const project = await seeded.repo.getProject(seeded.projectId);
+    const run = project?.tasks.flatMap((task) => task.runs).find((entry) => entry.id === seeded.runId);
+    expect(run?.evidence.filter((entry) => entry.name === "server.log")).toHaveLength(1);
+  });
+
+  it("puts time in backup filenames so same-day backups do not overwrite", async () => {
+    const seeded = await seedProject("D:/work/backup-time", "备份时间");
+    const payload = await seeded.repo.backup();
+    expect(payload.result.filename).toMatch(
+      /^aitest-backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.zip$/,
+    );
+  });
+
+  it("rejects incomplete backup shapes without touching existing data", async () => {
+    const seeded = await seedProject("D:/work/backup-shape", "备份形状");
+    const malformed = JSON.stringify({
+      schemaVersion: 1,
+      savedAt: new Date().toISOString(),
+      lastProjectId: null,
+      projects: [{ id: "p", name: "缺字段", root: "D:/work/x", tasks: [], issues: [], reports: [] }],
+    });
+    await expect(seeded.repo.restore(malformed)).rejects.toMatchObject({ code: "FORMAT" });
+    expect(await seeded.repo.listProjects()).toHaveLength(1);
+  });
+
   it("rejects unsupported local data instead of migrating silently", async () => {
     localStorage.setItem("aitest.panel.v1", "{not-json");
     const repo = new LocalStorageRepository();

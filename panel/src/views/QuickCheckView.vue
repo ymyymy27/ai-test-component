@@ -26,6 +26,7 @@ const latest = computed<QuickCheck | null>(
 const running = computed(() => latest.value?.status === "running");
 const hasResult = computed(() => latest.value?.status === "completed");
 const cancelled = computed(() => latest.value?.status === "cancelled");
+const executionError = computed(() => latest.value?.status === "execution_error");
 const elapsed = ref(0);
 const statusRef = ref<HTMLElement | null>(null);
 const resultRef = ref<HTMLElement | null>(null);
@@ -106,9 +107,12 @@ async function start(): Promise<void> {
   }
   starting.value = true;
   try {
-    await workspace.startQuickCheck(projectId.value);
+    const result = await workspace.startQuickCheck(projectId.value);
     confirmed.value = false;
-    ui.showToast("快速检查已开始；结果单独记录。", "info");
+    ui.showToast(
+      result.status === "running" ? "快速检查已开始；结果单独记录。" : "快速检查已结束。",
+      "info",
+    );
   } catch {
     // store 已提示。
   } finally {
@@ -132,6 +136,18 @@ async function start(): Promise<void> {
       :subtitle="`${project.name} · 项目级检查 · 不进入验收项覆盖`"
     />
 
+    <div v-if="workspace.quickCheckError" class="notice is-warn" role="alert">
+      <span>快速检查失败：{{ workspace.quickCheckError }}</span>
+      <button
+        class="link-btn"
+        type="button"
+        :disabled="!confirmed || starting"
+        @click="start"
+      >
+        重试
+      </button>
+    </div>
+
     <div
       v-if="running"
       ref="statusRef"
@@ -150,7 +166,13 @@ async function start(): Promise<void> {
       </span>
     </div>
 
-    <section ref="resultRef" class="surface-strip quick-result" tabindex="-1">
+    <section
+      ref="resultRef"
+      class="surface-strip quick-result"
+      tabindex="-1"
+      role="status"
+      aria-live="polite"
+    >
       <div class="row-between">
         <div>
           <p class="page-kicker">{{ running ? "正在执行" : hasResult ? "L1 结果" : "检查项" }}</p>
@@ -163,9 +185,11 @@ async function start(): Promise<void> {
                 ? "检查完成前不会写入结果。"
                 : cancelled
                   ? "本次快速检查已取消，未形成结论。"
-                  : hasResult
-                    ? "结果单独保留，不进入验收项覆盖。"
-                    : "确认后开始。"
+                  : executionError
+                    ? "本次快速检查执行出错，未形成结论。"
+                    : hasResult
+                      ? "结果单独保留，供之后对照。"
+                      : "确认后开始。"
             }}
           </p>
         </div>
@@ -200,7 +224,9 @@ async function start(): Promise<void> {
               ? statusText(worstResult(entry.checks.map((item) => item.result)))
               : entry.status === "cancelled"
                 ? "已取消"
-                : "未完成"
+                : entry.status === "execution_error"
+                  ? "执行出错"
+                  : "未完成"
           }}
         </li>
       </ul>

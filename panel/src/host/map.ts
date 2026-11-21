@@ -2,6 +2,7 @@ import type {
   AcceptanceItem,
   Candidate,
   CaseResult,
+  Confirmation,
   Counts,
   Delivery,
   EvidenceRef,
@@ -603,7 +604,8 @@ function mapRunCase(
     method: planCase?.verifyMethod ?? "",
     layer: planCase?.layer ?? "L2",
     expected: planCase?.expected ?? "",
-    expectationVerified: planCase?.expectationVerified ?? true,
+    // 没有计划快照就无法核对预期；不能默认成“已核实”。
+    expectationVerified: planCase?.expectationVerified ?? false,
     dependsOn: planCase?.dependsOn ?? null,
     actual: lastAttempt?.message ?? "",
     result: dto.result,
@@ -812,9 +814,10 @@ export function mapReport(
       result: asCaseResult(testCase.result),
     })),
   );
+  const coverage = isRecord(dto.coverage) ? dto.coverage : {};
   const counts = mapCounts(dto.counts, {
-    selected: num(dto.coverage.selected),
-    applicable: num(dto.coverage.applicable),
+    selected: num(coverage.selected),
+    applicable: num(coverage.applicable),
     covered: 0,
     passed: 0,
     failed: 0,
@@ -853,10 +856,10 @@ export function mapReport(
     counts,
     conclusion: dto.conclusion,
     coverage: {
-      selected: num(dto.coverage.selected),
-      applicable: num(dto.coverage.applicable),
+      selected: num(coverage.selected),
+      applicable: num(coverage.applicable),
       covered: counts.covered,
-      unselected: Math.max(0, num(dto.coverage.applicable) - num(dto.coverage.selected)),
+      unselected: Math.max(0, num(coverage.applicable) - num(coverage.selected)),
     },
     itemDetails,
     caseDetails,
@@ -1150,6 +1153,7 @@ export function mapProjectSummary(
     issues: [],
     reports: [],
     archived: false,
+    summaryOnly: true,
   };
 }
 
@@ -1186,20 +1190,55 @@ export function mapQuickCheck(
 ): QuickCheck {
   const dto = run.run;
   const checks = mapProjectChecks(run.l1);
+  const status =
+    dto.status === "running"
+      ? "running"
+      : dto.status === "cancelled" || dto.status === "interrupted"
+        ? "cancelled"
+        : dto.status === "execution_error"
+          ? "execution_error"
+          : "completed";
   return {
     id: dto.run_id,
     projectId,
     startedAt: dto.started_at,
-    finishedAt: dto.status === "running" ? "" : (dto.heartbeat_at ?? dto.started_at),
-    status: dto.status === "running" ? "running" : "completed",
+    finishedAt: status === "running" ? "" : (dto.heartbeat_at ?? dto.started_at),
+    status,
     confirmedBy: dto.confirmed_by ?? "本机用户",
     checks,
     simulated: false,
   };
 }
 
-export function mapGithub(dto: Record<string, unknown>): GithubSnapshot {
-  const change = isRecord(dto.change) ? dto.change : dto;
+/** run.start 回执里的确认记录；只映射 CLI 返回的事实，不补造环境或凭据。 */
+export function mapConfirmation(
+  dto: {
+    confirmation_id?: string;
+    confirmed_by?: string;
+    confirmed_at?: string;
+    fingerprint?: string;
+    plan_revision?: number;
+    side_effects?: string[];
+    dependencies?: string[];
+  },
+  plan: Plan,
+): Confirmation {
+  return {
+    id: dto.confirmation_id ?? `conf_${plan.id}`,
+    planId: plan.id,
+    planRevision: typeof dto.plan_revision === "number" ? dto.plan_revision : plan.revision,
+    acceptanceItemIds: [...plan.scope.acceptanceItemIds],
+    environment: {},
+    credentials: {},
+    sideEffects: [...(dto.side_effects ?? [])],
+    dependencies: [...(dto.dependencies ?? [])],
+    fingerprint: dto.fingerprint ?? "",
+    confirmedBy: dto.confirmed_by ?? "",
+    confirmedAt: dto.confirmed_at ?? "",
+  };
+}
+
+export function mapGithub(dto: Record<string, unknown>): GithubSnapshot {  const change = isRecord(dto.change) ? dto.change : dto;
   return {
     repo: str(change.repo),
     branch: str(change.branch, "main"),

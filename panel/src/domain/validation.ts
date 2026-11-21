@@ -127,6 +127,15 @@ function findSecretKey(value: unknown, path: string): string {
   return "";
 }
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export type ConfigValidation = { ok: true; config: ProjectConfig } | { ok: false; message: string };
 
 export function validateProjectConfig(raw: unknown): ConfigValidation {
@@ -172,6 +181,25 @@ export function validateProjectConfig(raw: unknown): ConfigValidation {
       const timeout = service[key];
       if (timeout !== undefined && (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0)) {
         return { ok: false, message: "服务超时必须是大于 0 的秒数。" };
+      }
+    }
+    for (const key of ["healthUrl", "health", "baseUrl", "base_url"] as const) {
+      const url = service[key];
+      if (url === undefined || url === null || url === "") {
+        continue;
+      }
+      if (typeof url !== "string" || !isHttpUrl(url)) {
+        return { ok: false, message: `服务地址 ${key} 必须是 http(s) URL。` };
+      }
+    }
+  }
+  const l1 = value.l1;
+  if (l1 && typeof l1 === "object" && !Array.isArray(l1)) {
+    const section = l1 as Record<string, unknown>;
+    for (const key of ["build", "entry", "smokeCommand", "smoke_command"] as const) {
+      const command = section[key];
+      if (command !== undefined && command !== null && typeof command !== "string") {
+        return { ok: false, message: `项目级检查 ${key} 必须是字符串或 null。` };
       }
     }
   }

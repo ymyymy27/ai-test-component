@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { LINK_STATE_LABEL } from "@/domain/labels";
 import type { LinkData, LinkNode } from "@/domain/types";
@@ -113,17 +113,29 @@ function submitLink(): void {
     return;
   }
   try {
-    emit("load", parseLink(raw.value));
-    raw.value = "";
+    const parsed = parseLink(raw.value);
+    emit("load", parsed);
+    // 保存成功时 link 会更新；失败时保留粘贴内容，避免重新输入。
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "链路 JSON 不合法。";
   }
 }
 
+watch(
+  () => props.link,
+  (value, previous) => {
+    if (value && value !== previous) {
+      raw.value = "";
+      error.value = "";
+    }
+  },
+);
+
 function selectNode(value: string): void {
   nodeId.value = value;
   const node = props.link?.nodes.find((entry) => entry.id === value) ?? null;
-  expected.value = node?.state === "failed" ? "failed" : "passed";
+  // 预期必须由人按验收要求填写；用当前状态预填会产生同义反复的通过断言。
+  expected.value = "";
   actual.value = node?.state ?? "";
 }
 
@@ -138,6 +150,11 @@ function assertNode(): void {
   if (!nodeId.value) {
     return;
   }
+  if (!expected.value.trim()) {
+    error.value = "先填写预期值；不要直接使用当前状态，否则断言必然通过。";
+    return;
+  }
+  error.value = "";
   emit("assert", {
     nodeId: nodeId.value,
     expected: expected.value,
@@ -231,9 +248,15 @@ function assertNode(): void {
         </div>
       </div>
       <p v-if="selectedNode" class="field-hint">
-        当前节点状态：{{ LINK_STATE_LABEL[selectedNode.state] }}
+        当前节点状态：{{ LINK_STATE_LABEL[selectedNode.state] }}。预期请按验收要求手写，不要直接复制当前状态。
       </p>
-      <button class="btn btn-sm" type="button" :disabled="busy || !nodeId" @click="assertNode">
+      <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+      <button
+        class="btn btn-sm"
+        type="button"
+        :disabled="busy || !nodeId || !expected.trim()"
+        @click="assertNode"
+      >
         写入断言并重新生成报告
       </button>
     </details>

@@ -23,7 +23,7 @@ media/
 - `aitest.pythonPath`：已安装 `aitest` 的 Python 3.11+ 解释器；留空时自动发现。
 - `aitest.workspacePath`：用户数据工作空间（不是源码目录）。CLI 以 `--workspace` 使用。
 
-发现顺序为设置 → 工作区 `.venv` → `py -3` → `python`，校验版本 ≥3.11 且 `import aitest` 成功。全部失败时自动准备便携运行时：
+显式设置了 `aitest.pythonPath` 时只校验该解释器，失败即停止，不会回退到其他解释器；留空时按 工作区 `.venv` → `py -3` → `python` 发现，校验版本 ≥3.11、`import aitest` 成功且 aitest 版本不低于扩展自带 wheel。全部失败时自动准备便携运行时（探测超时除外：超时会重试一次并报 `PYTHON_PROBE_TIMEOUT`，不误判为“没有解释器”）：
 
 1. 从 GitHub `astral-sh/python-build-standalone` 最新 release 取 CPython 3.11–3.13 的 `x86_64-pc-windows-msvc-install_only.tar.gz`（优先 3.13），下载到 `%APPDATA%/aitest/runtime/<版本>/`；
 2. 用资产自带的 `sha256:` 摘要校验下载文件；发布方没有摘要则拒绝安装，不回退到未校验的包；
@@ -52,20 +52,22 @@ media/
 | 分组 | 白名单命令 |
 | --- | --- |
 | 环境 | `doctor` |
-| 项目 | `project.add`、`project.config`、`project.list`、`project.show` |
-| 任务与模块 | `task.add`、`task.list`、`task.show`、`task.suggest`、`task.update`、`module.suggest`、`module.add` |
+| 项目 | `project.add`、`project.config`、`project.list`、`project.map`、`project.map.refresh`、`project.snapshot`、`project.show`、`project.update` |
+| 任务与模块 | `task.add`、`task.delete`、`task.list`、`task.show`、`task.suggest`、`task.update`、`module.suggest`、`module.add`、`module.update` |
 | 交付与模板 | `delivery.draft`、`delivery.save`、`delivery.show`、`template.list`、`template.apply` |
-| 计划与运行 | `plan.generate`、`plan.show`、`plan.update`、`run.start`、`run.status`、`run.list`、`run.cancel`、`run.manual`、`analysis.run` |
+| 计划与运行 | `plan.generate`、`plan.show`、`plan.update`、`run.start`、`run.quick`、`run.status`、`run.list`、`run.cancel`、`run.manual`、`run.repair`、`analysis.run` |
 | 证据 | `evidence.list`、`evidence.add` |
 | 规则 | `rules.save`、`rules.list`、`rules.show`、`rules.import`、`rules.export`、`rules.bind` |
 | GitHub 与链路 | `github.read`、`link.import`、`link.assert` |
-| 问题 | `issue.list`、`issue.show`、`issue.update`、`issue.close` |
+| 问题 | `issue.add`、`issue.list`、`issue.show`、`issue.update`、`issue.close` |
 | 报告 | `report.generate`、`report.show`、`report.list`、`report.export`、`report.opinion` |
 | 备份 | `backup.create`、`backup.restore` |
 
+白名单共 57 条；`panel/src/host/commands.ts` 接入 55 条，`rules.import` 与 `rules.export` 仍只走 CLI。
+
 `rules.save`、`rules.import`、`rules.export` 与 `link.assert` 虽已放行，但面板没有完整 UI：设置页的“项目规则”只列出、查看和绑定规则；`link.import` 在报告文档里提供“导入调用链日志”；`evidence.add` 在证据查看器里提供“补充证据”。
 
-`run.start` 只有在执行前确认区点击“开始测试”时才带 `--confirm`；其他命令即使请求确认也不会带上。
+`run.start`、`run.quick`、`run.repair` 只有在用户显式确认后才带 `--confirm`；其他命令即使请求确认也不会带上。
 
 `plan.update` 与 `delivery.show` 已在白名单；计划文档里的交付读取/保存仍需真实 Trae 回归，完成前不要把这部分当成已验证。
 
@@ -73,14 +75,14 @@ media/
 
 ```bash
 npm ci
-npm test               # 48 项 bridge/runtime 与扩展接线测试
+npm test               # 94 项 bridge/runtime/process 与扩展接线测试
 npm run build          # 先打 wheel、构建 panel/，再复制到 media/ 并打包扩展入口
 npm run build:wheel    # 只重建 media/runtime 的 aitest wheel 与依赖 wheel
 npm run build:panel    # 只重建面板产物
 npm run package        # 生成 dist/aitest-trae.vsix（含 media/runtime wheel）
 ```
 
-面板资源 URL 会带 `index.html` 内容哈希查询串；重新打包同一扩展版本后，宿主不会命中旧 webview 缓存。
+面板脚本与样式会内联进宿主 webview HTML（不生成带内容哈希的资源 URL）；扩展版本不变时宿主可能复用旧 webview，重新打开面板或重载窗口即可刷新。
 
 安装 VSIX：在 Trae 扩展视图的“...”菜单选择“从 VSIX 安装…”，选中 `dist/aitest-trae.vsix`；安装后从活动栏“AI 测试”或命令面板打开。当前版本 0.5.0。
 

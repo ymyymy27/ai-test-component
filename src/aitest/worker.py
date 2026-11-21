@@ -114,6 +114,10 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     for key, value in os.environ.items():
         if is_secret_field(key):
             continue
+        # 扩展为 CLI 自身 IO 设置的编码变量不应改变被测程序的行为；
+        # 直接 CLI 运行时通常没有这些变量，剔除后两条路径一致。
+        if key in {"PYTHONUTF8", "PYTHONIOENCODING"}:
+            continue
         if key == "PYTHONPATH":
             inherited_pythonpath = [
                 item

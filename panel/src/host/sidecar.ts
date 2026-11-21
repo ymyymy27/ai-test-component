@@ -58,6 +58,15 @@ export class HostSidecar {
 
   constructor() {
     this.state = this.load();
+    // 两个面板（侧栏 webview 与编辑器面板）共享同一个 localStorage 键；
+    // 其他文档写入后重新加载，避免各自长期持有过期内存副本。
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (event) => {
+        if (event.key === KEY) {
+          this.state = this.load();
+        }
+      });
+    }
   }
 
   private load(): HostSidecarState {

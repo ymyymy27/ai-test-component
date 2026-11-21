@@ -8,7 +8,7 @@ import RunHistoryDialog from "@/components/RunHistoryDialog.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import { latestReportForRun } from "@/domain/derive";
 import { durationText } from "@/domain/ids";
-import { VERDICT_LABEL } from "@/domain/labels";
+import { RUN_STATUS_LABEL, VERDICT_LABEL } from "@/domain/labels";
 import type { Run, Task } from "@/domain/types";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -19,27 +19,39 @@ const projectId = computed(() => String(route.params.projectId ?? ""));
 const project = computed(() => workspace.currentProject);
 const tasks = computed(() => project.value?.tasks.filter((task) => task.stage !== "fresh") ?? []);
 const runs = computed(() => workspace.projectRuns);
-const taskFilter = ref("all");
-const resultFilter = ref("all");
+const queryValue = (key: string): string =>
+  typeof route.query[key] === "string" ? String(route.query[key]) : "all";
+const taskFilter = ref(queryValue("task"));
+const resultFilter = ref(queryValue("result"));
 const selected = ref<Run | null>(null);
 const dialogOpen = ref(false);
+const limit = ref(40);
 let openedByPush = false;
 
+function matchesResult(run: Run): boolean {
+  const value = resultFilter.value;
+  if (["passed", "failed", "incomplete", "not_applicable"].includes(value)) {
+    return run.verdict === value;
+  }
+  if (value === "execution_error") return run.status === "execution_error";
+  if (["running", "interrupted", "cancelled"].includes(value)) {
+    return run.status === value;
+  }
+  return true;
+}
+
+const resultScoped = computed(() => runs.value.filter(matchesResult));
+const taskRunCounts = computed(() => {
+  const counts = new Map<string, number>();
+  resultScoped.value.forEach((run) => {
+    counts.set(run.taskId, (counts.get(run.taskId) ?? 0) + 1);
+  });
+  return counts;
+});
 const filtered = computed(() =>
-  runs.value
-    .filter((run) => taskFilter.value === "all" || run.taskId === taskFilter.value)
-    .filter((run) => {
-      const value = resultFilter.value;
-      if (["passed", "failed", "incomplete", "not_applicable"].includes(value)) {
-        return run.verdict === value;
-      }
-      if (value === "execution_error") return run.status === "execution_error";
-      if (["running", "interrupted", "cancelled"].includes(value)) {
-        return run.status === value;
-      }
-      return true;
-    }),
+  resultScoped.value.filter((run) => taskFilter.value === "all" || run.taskId === taskFilter.value),
 );
+const visibleRuns = computed(() => filtered.value.slice(0, limit.value));
 
 function groupOf(run: Run): "今天" | "昨天" | "更早" {
   const date = new Date(run.startedAt);
@@ -55,10 +67,40 @@ const groups = computed(() =>
   (["今天", "昨天", "更早"] as const)
     .map((label) => ({
       label,
-      runs: filtered.value.filter((run) => groupOf(run) === label),
+      runs: visibleRuns.value.filter((run) => groupOf(run) === label),
     }))
     .filter((group) => group.runs.length > 0),
 );
+
+watch(
+  [taskFilter, resultFilter],
+  () => {
+    limit.value = 40;
+    const query = { ...route.query };
+    if (taskFilter.value === "all") {
+      delete query.task;
+    } else {
+      query.task = taskFilter.value;
+    }
+    if (resultFilter.value === "all") {
+      delete query.result;
+    } else {
+      query.result = resultFilter.value;
+    }
+    void router.replace({ query });
+  },
+);
+
+function statusLabel(run: Run): string {
+  return run.status === "completed" ? VERDICT_LABEL[run.verdict] : RUN_STATUS_LABEL[run.status];
+}
+
+function statusTone(run: Run): "blocked" | "error" | "not_run" | Run["verdict"] {
+  if (run.status === "interrupted") return "blocked";
+  if (run.status === "execution_error") return "error";
+  if (run.status === "cancelled") return "not_run";
+  return run.verdict;
+}
 
 function taskFor(run: Run): Task | null {
   return tasks.value.find((task) => task.id === run.taskId) ?? null;
@@ -139,9 +181,9 @@ watch(dialogOpen, (open) => {
       <label class="scope-filter">
         <span>任务</span>
         <select v-model="taskFilter" aria-label="按任务筛选历史">
-          <option value="all">全部任务（{{ runs.length }}）</option>
+          <option value="all">全部任务（{{ tasks.length }} 个）</option>
           <option v-for="task in tasks" :key="task.id" :value="task.id">
-            {{ task.title }}（{{ runs.filter((run) => run.taskId === task.id).length }}）
+            {{ task.title }}（{{ taskRunCounts.get(task.id) ?? 0 }} 次运行）
           </option>
         </select>
       </label>
@@ -180,10 +222,7 @@ watch(dialogOpen, (open) => {
             type="button"
             @click="openRun(run)"
           >
-            <StatusMark
-              :result="run.status === 'interrupted' ? 'blocked' : run.verdict"
-              :label="run.status === 'interrupted' ? '中断' : VERDICT_LABEL[run.verdict]"
-            />
+            <StatusMark :result="statusTone(run)" :label="statusLabel(run)" />
             <span>
               <span class="row-title">
                 {{ taskFor(run)?.title ?? "任务已归档" }}
@@ -199,19 +238,21 @@ watch(dialogOpen, (open) => {
               </span>
             </span>
             <span class="row-side">
-              <span
-                class="status-text"
-                :class="`is-${run.status === 'interrupted' ? 'blocked' : run.verdict}`"
-              >
-                {{ run.status === "interrupted" ? "中断" : VERDICT_LABEL[run.verdict] }}
+              <span class="status-text" :class="`is-${statusTone(run)}`">
+                {{ statusLabel(run) }}
               </span>
-              {{ run.counts.passed }} 通过 · {{ run.counts.failed }} 失败 ·
-              {{ run.counts.incomplete }} 未完成
+              {{ run.counts.selected }}/{{ run.counts.applicable }} 项 · {{ run.counts.passed }} 通过 ·
+              {{ run.counts.failed }} 失败 · {{ run.counts.incomplete }} 未完成
             </span>
             <span class="row-side">{{ durationText(run.elapsedMs / 1000) }}</span>
           </button>
         </div>
       </section>
+      <div v-if="filtered.length > visibleRuns.length" class="form-actions">
+        <button class="btn btn-sm" type="button" @click="limit += 40">
+          再显示 {{ Math.min(40, filtered.length - visibleRuns.length) }} 次
+        </button>
+      </div>
     </div>
     <EmptyState
       v-else

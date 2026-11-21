@@ -14,12 +14,26 @@ export type HostCallResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: HostErrorPayload };
 
+export interface HostProgressEvent {
+  type: "progress";
+  id?: string;
+  phase?: string;
+  stage?: string;
+  ok?: boolean;
+}
+
+export interface HostCallOptions {
+  confirm?: boolean;
+  onProgress?: (event: HostProgressEvent) => void;
+}
+
 export interface HostBridge {
   call(
     command: string,
     payload: object,
-    options?: { confirm?: boolean },
+    options?: HostCallOptions,
   ): Promise<HostCallResult<unknown>>;
+  cancel?(command: string, payload: object, options?: { confirm?: boolean }): void;
   getState(): unknown;
   setState(state: unknown): void;
   getContext?(): unknown;
@@ -41,8 +55,33 @@ declare global {
   }
 }
 
-/** 单次调用的兜底上限；首次运行时准备可能需要下载与离线安装。 */
+/** 单次调用兜底上限；首次运行时准备可能需要下载与离线安装。 */
 const CALL_TIMEOUT_MS = 300_000;
+
+/**
+ * 长命令的等待预算必须覆盖扩展侧超时；否则扩展还在安装/生成，
+ * 面板先报“结果未知”，用户重试会重复安装或重复生成报告。
+ */
+const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
+  "run.start": 120_000,
+  "run.quick": 120_000,
+  "run.repair": 630_000,
+  "backup.create": 630_000,
+  "backup.restore": 630_000,
+  "report.generate": 330_000,
+  "plan.generate": 210_000,
+  "project.map.refresh": 210_000,
+  "delivery.draft": 210_000,
+  "task.add": 210_000,
+  "template.apply": 120_000,
+  "analysis.run": 120_000,
+  "github.read": 150_000,
+  "link.import": 150_000,
+};
+
+function timeoutFor(command: string): number {
+  return COMMAND_TIMEOUT_MS[command] ?? CALL_TIMEOUT_MS;
+}
 
 export class HostError extends Error {
   readonly code: string;
@@ -132,40 +171,71 @@ export async function openHostPath(path: string): Promise<boolean> {
   return Boolean(result.data);
 }
 
-let sequence = 0;
+/** 同一命令 + 参数仍在执行时复用同一个 Promise，避免超时重试造成重复副作用。 */
+const inFlight = new Map<string, Promise<unknown>>();
+
+function callKey(command: string, payload: object, options: HostCallOptions): string {
+  return `${command}\u0000${options.confirm === true ? "1" : "0"}\u0000${JSON.stringify(payload)}`;
+}
 
 export function callHost<T>(
   command: string,
   payload: object = {},
-  options: { confirm?: boolean } = {},
+  options: HostCallOptions = {},
 ): Promise<T> {
   const host = hostBridge();
   if (host === null) {
     return Promise.reject(new HostMissingError());
   }
-  sequence += 1;
-  const label = `${command}#${sequence}`;
-  return new Promise<T>((resolve, reject) => {
+  const key = callKey(command, payload, options);
+  const existing = inFlight.get(key);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+  const promise = new Promise<T>((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => {
-      settled = true;
-      reject(
-        new HostError({
-          code: "PANEL_TIMEOUT",
-          message: "这次操作等待超时，结果未知",
-          next_step: "先刷新状态确认是否已经生效，不要直接重复提交",
-        }),
-      );
-    }, CALL_TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clear = (): void => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    const arm = (): void => {
+      clear();
+      // 宿主每收到一次进度/阶段事件就重置计时：下载、安装与长报告仍在推进时不算超时。
+      timer = setTimeout(() => {
+        settled = true;
+        // 通知扩展终止子进程；查询类命令由用户刷新确认结果。
+        host.cancel?.(command, payload, { confirm: options.confirm === true });
+        reject(
+          new HostError({
+            code: "PANEL_TIMEOUT",
+            message: "这次操作等待超时，结果未知",
+            next_step: "先刷新状态确认是否已经生效，不要直接重复提交",
+          }),
+        );
+      }, timeoutFor(command));
+    };
+    arm();
 
     host
-      .call(command, payload, options)
+      .call(command, payload, {
+        confirm: options.confirm === true,
+        // 始终安装进度回调：宿主的运行时/长命令心跳必须能重置面板计时。
+        onProgress: (event) => {
+          if (!settled) {
+            arm();
+          }
+          options.onProgress?.(event);
+        },
+      })
       .then((result) => {
         if (settled) {
           return;
         }
         settled = true;
-        clearTimeout(timer);
+        clear();
         if (result.ok) {
           resolve(result.data as T);
         } else {
@@ -177,7 +247,7 @@ export function callHost<T>(
           return;
         }
         settled = true;
-        clearTimeout(timer);
+        clear();
         if (error instanceof HostError) {
           reject(error);
           return;
@@ -190,6 +260,13 @@ export function callHost<T>(
           }),
         );
       });
-    void label;
   });
+  inFlight.set(key, promise);
+  const cleanup = (): void => {
+    if (inFlight.get(key) === promise) {
+      inFlight.delete(key);
+    }
+  };
+  promise.then(cleanup, cleanup);
+  return promise;
 }

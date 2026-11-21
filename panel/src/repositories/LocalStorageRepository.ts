@@ -108,16 +108,47 @@ function assertEnvelope(value: unknown): WorkspaceEnvelope {
       "清空本地面板数据后重新建立项目；不做静默迁移。",
     );
   }
-  const valid = value.projects.every(
-    (project) =>
-      isRecord(project) &&
-      typeof project.id === "string" &&
-      typeof project.name === "string" &&
-      typeof project.root === "string" &&
-      Array.isArray(project.tasks) &&
-      Array.isArray(project.issues) &&
-      Array.isArray(project.reports),
-  );
+  const valid = value.projects.every((project) => {
+    if (
+      !isRecord(project) ||
+      typeof project.id !== "string" ||
+      typeof project.name !== "string" ||
+      typeof project.root !== "string" ||
+      !Array.isArray(project.tasks) ||
+      !Array.isArray(project.issues) ||
+      !Array.isArray(project.reports) ||
+      !Array.isArray(project.catalog) ||
+      !Array.isArray(project.candidates) ||
+      !Array.isArray(project.modules) ||
+      !Array.isArray(project.rules) ||
+      !Array.isArray(project.quickChecks) ||
+      !isRecord(project.config)
+    ) {
+      return false;
+    }
+    const tasksValid = project.tasks.every(
+      (task) =>
+        isRecord(task) &&
+        typeof task.id === "string" &&
+        typeof task.title === "string" &&
+        Array.isArray(task.runs) &&
+        Array.isArray(task.plans) &&
+        Array.isArray(task.acceptanceItems),
+    );
+    const runsValid = project.tasks.every(
+      (task) =>
+        Array.isArray(task.runs) &&
+        task.runs.every(
+          (run: unknown) =>
+            isRecord(run) &&
+            typeof run.id === "string" &&
+            typeof run.status === "string" &&
+            Array.isArray(run.cases) &&
+            Array.isArray(run.items),
+        ),
+    );
+    return tasksValid && runsValid;
+  });
   if (!valid) {
     throw new RepositoryError(
       "FORMAT",
@@ -935,6 +966,21 @@ export class LocalStorageRepository implements ProjectRepository {
       if (run.status === "running") {
         throw new RepositoryError("RUN_ACTIVE", "运行中不能补充证据。", "运行结束后再登记。");
       }
+      // 同一运行内同名同摘要只登记一次；批量提交中途失败后重试不会产生重复证据。
+      const existing = run.evidence.find(
+        (entry) => entry.name === input.name && entry.sha256 === input.sha256,
+      );
+      if (existing) {
+        if (input.caseId) {
+          const runCase = run.cases.find(
+            (entry) => entry.id === input.caseId || entry.caseId === input.caseId,
+          );
+          if (runCase && !runCase.evidence.some((entry) => entry.id === existing.id)) {
+            runCase.evidence.push(existing);
+          }
+        }
+        return run;
+      }
       const evidence: EvidenceRef = {
         id: newId("ev"),
         name: input.name,
@@ -1314,7 +1360,7 @@ export class LocalStorageRepository implements ProjectRepository {
       "manifest.json": strToU8(JSON.stringify(manifest, null, 2)),
     });
     const result: BackupResult = {
-      filename: `aitest-backup-${new Date().toISOString().slice(0, 10)}.zip`,
+      filename: `aitest-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.zip`,
       bytes: data.length,
       projects: envelope.projects.length,
       includesEvidence: false,
@@ -1356,7 +1402,22 @@ export class LocalStorageRepository implements ProjectRepository {
       throw new RepositoryError("FORMAT", "备份文件不是合法 JSON 或 ZIP。", "换一个备份文件。");
     }
     const envelope = assertEnvelope(parsed);
-    this.write(envelope);
+    envelope.savedAt = isoNow();
+    const json = JSON.stringify(envelope);
+    const staging = `${this.key}.restore`;
+    try {
+      // 先写临时键再切换主键；空间不足时旧数据保持可读。
+      this.storage.setItem(staging, json);
+      this.storage.setItem(this.key, json);
+      this.storage.removeItem(staging);
+    } catch {
+      this.storage.removeItem(staging);
+      throw new RepositoryError(
+        "STORAGE",
+        "备份写入失败，可能是空间不足。",
+        "旧数据未改动；清理浏览器存储后重试。",
+      );
+    }
     return clone(envelope.projects);
   }
 

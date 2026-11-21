@@ -164,7 +164,12 @@ async function saveBasic(): Promise<void> {
 }
 
 function addItem(): void {
-  const nextNo = String(items.value.length + 1).padStart(2, "0");
+  // 删除中间项后 length+1 会与现有编号重复；取当前最大编号 + 1。
+  const maxNo = items.value.reduce((max, item) => {
+    const value = Number.parseInt(item.no.replace(/\D+/g, ""), 10);
+    return Number.isFinite(value) ? Math.max(max, value) : max;
+  }, 0);
+  const nextNo = String(maxNo + 1).padStart(2, "0");
   items.value.push({
     id: "",
     no: nextNo,

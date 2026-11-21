@@ -105,8 +105,9 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
     } else {
       await workspace.addModule(projectId.value, input);
     }
+    moduleOpen.value = false;
   } catch {
-    // store 已提示。
+    // store 已提示；对话框保留输入，可修改后重试。
   }
 }
 </script>

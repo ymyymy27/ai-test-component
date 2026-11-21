@@ -155,7 +155,7 @@ async function clearAndRetry(): Promise<void> {
             <button
               class="btn btn-sm"
               type="button"
-              :disabled="picking || busy"
+              :disabled="picking || busy || workspace.mode !== 'host'"
               :title="
                 workspace.mode === 'host'
                   ? '从本机选择项目目录'

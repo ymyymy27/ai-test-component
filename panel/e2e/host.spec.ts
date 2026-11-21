@@ -6,6 +6,7 @@ import { expect } from "@playwright/test";
 import { confirmPlan, test } from "./fixtures";
 import {
   cleanupSample,
+  hasModelCredentials,
   installHost,
   makeSampleProject,
   registerHostProject,
@@ -39,6 +40,7 @@ async function latestRun(workspace: string, projectId: string): Promise<Persiste
 }
 
 test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结果、报告", async ({ page }) => {
+  test.skip(!hasModelCredentials(), "需要 AITEST_MODEL_KEY 或用户配置 model.api_key；不静默跳过分析");
   const sample: SampleProject = await makeSampleProject();
   try {
     await installHost(page, sample);

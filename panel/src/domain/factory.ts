@@ -540,6 +540,19 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     }, {}),
   ).map(([name, count]) => ({ name, count }));
   const templateResults: TemplateResult[] = [...task.templates];
+  const layers = layersForRun(run);
+  if (run.l1.length > 0) {
+    // 项目级检查不一定是 run.cases，分层计数必须合并 run.l1。
+    layers.L1 = {
+      total: run.l1.length,
+      passed: run.l1.filter((check) => check.result === "passed").length,
+      failed: run.l1.filter((check) => check.result === "failed" || check.result === "error")
+        .length,
+      incomplete: run.l1.filter(
+        (check) => !["passed", "failed", "error"].includes(check.result),
+      ).length,
+    };
+  }
   const summaryParts = [
     `本次运行包含 ${run.cases.length} 条用例，覆盖 ${run.items.length} 个验收项。`,
     `失败 ${run.counts.failed} 项，未完成 ${run.counts.incomplete} 项，待人工 ${
@@ -587,7 +600,7 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
       };
     }),
     l1: run.l1,
-    layers: layersForRun(run),
+    layers,
     issues: issueIds,
     mock: buildMockSummary(run),
     analysis: buildFailureAnalysis(run),

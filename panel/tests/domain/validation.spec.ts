@@ -58,6 +58,17 @@ describe("project validation", () => {
     expect(validateProjectConfig({ services: { timeoutSeconds: 30 } }).ok).toBe(true);
   });
 
+  it("rejects wrong types for service URLs and L1 commands", () => {
+    expect(validateProjectConfig({ services: { healthUrl: 123 } }).ok).toBe(false);
+    expect(validateProjectConfig({ services: { healthUrl: "not-a-url" } }).ok).toBe(false);
+    expect(
+      validateProjectConfig({ services: { healthUrl: "http://127.0.0.1:8000/health" } }).ok,
+    ).toBe(true);
+    expect(validateProjectConfig({ l1: { build: ["npm", "run", "build"] } }).ok).toBe(false);
+    expect(validateProjectConfig({ l1: { build: "npm run build" } }).ok).toBe(true);
+    expect(validateProjectConfig({ l1: { entry: null } }).ok).toBe(true);
+  });
+
   it("parses one-item-per-line lists", () => {
     expect(parseLineList("a\n b \n\nc")).toEqual(["a", "b", "c"]);
   });

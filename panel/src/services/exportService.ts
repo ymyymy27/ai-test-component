@@ -6,15 +6,18 @@ import {
   statusText,
   VERDICT_LABEL,
 } from "@/domain/labels";
-import { hashText } from "@/domain/ids";
+import { normalizeReport } from "@/domain/derive";
 import type { Project, Report, Task } from "@/domain/types";
+import { sha256HexBytes } from "./sha256";
 
 function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
 }
 
-export function reportMarkdown(project: Project, task: Task, report: Report): string {
+export function reportMarkdown(project: Project, task: Task, rawReport: Report): string {
+  // 旧报告可能缺少后来新增的字段；导出前统一兜底，避免直接读 undefined。
+  const report = normalizeReport(rawReport);
   const lines: string[] = [];
   lines.push(`# 测试报告 · ${project.name}`);
   lines.push("");
@@ -172,13 +175,9 @@ export function reportMarkdown(project: Project, task: Task, report: Report): st
 }
 
 export async function sha256Hex(text: string): Promise<string> {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle) {
-    const data = new TextEncoder().encode(text);
-    const digest = await subtle.digest("SHA-256", data);
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-  return hashText(text).padEnd(64, "0").slice(0, 64);
+  const data = new TextEncoder().encode(text);
+  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return sha256HexBytes(buffer);
 }
 
 export async function exportMetrics(
@@ -196,9 +195,9 @@ export async function exportMetrics(
   };
 }
 
-export function downloadBytes(filename: string, bytes: Uint8Array, mime: string): void {
+export function downloadBytes(filename: string, bytes: Uint8Array, mime: string): boolean {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
-    return;
+    return false;
   }
   const buffer = bytes.buffer.slice(
     bytes.byteOffset,
@@ -213,11 +212,12 @@ export function downloadBytes(filename: string, bytes: Uint8Array, mime: string)
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return true;
 }
 
-export function downloadText(filename: string, text: string, mime: string): void {
+export function downloadText(filename: string, text: string, mime: string): boolean {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
-    return;
+    return false;
   }
   const blob = new Blob([text], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
@@ -228,4 +228,5 @@ export function downloadText(filename: string, text: string, mime: string): void
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return true;
 }

@@ -124,7 +124,11 @@ function onDialogClick(event: MouseEvent): void {
               <td data-label="用例">
                 {{
                   cases
-                    .filter((testCase) => testCase.itemId === item.itemId)
+                    .filter((testCase) =>
+                      [testCase.itemId, ...(testCase.caseItemIds ?? [])]
+                        .filter(Boolean)
+                        .includes(item.itemId),
+                    )
                     .map((testCase) => testCase.title)
                     .join("；") || "—"
                 }}

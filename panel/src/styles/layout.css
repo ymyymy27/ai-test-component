@@ -1219,3 +1219,46 @@ h3.settings-title {
     padding: 0 var(--space-3);
   }
 }
+
+/* 打印报告时去掉导航、吸顶头、操作栏与浮层，只保留正文。 */
+@media print {
+  .sidebar,
+  .sidebar-backdrop,
+  .workspace-head,
+  .actionbar,
+  .toolbar,
+  .filter-bar,
+  .toast,
+  .dialog,
+  .skip-link,
+  .page-actions,
+  .settings-index,
+  .report-details > summary {
+    display: none !important;
+  }
+
+  .workspace,
+  .workspace-main,
+  .main,
+  .page {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .section,
+  .surface-strip,
+  .report-group {
+    break-inside: avoid;
+  }
+
+  details > summary {
+    list-style: none;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+}

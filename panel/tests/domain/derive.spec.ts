@@ -5,7 +5,9 @@ import {
   displayItemOutcome,
   itemOutcome,
   layersForRun,
+  normalizeReport,
   problemRunItems,
+  projectStatus,
   recountRun,
   sideEffectsFor,
   sortedRunItems,
@@ -13,10 +15,81 @@ import {
   verdictForRun,
   worstResult,
 } from "@/domain/derive";
+import { buildReport } from "@/domain/factory";
 import type { Run } from "@/domain/types";
 import { completedRun } from "../fixtures";
 
 describe("derived results", () => {
+  it("marks host list summaries as not loaded instead of empty", () => {
+    expect(
+      projectStatus({
+        id: "p",
+        name: "摘要",
+        root: "D:/work/p",
+        goal: "",
+        createdAt: "",
+        updatedAt: "",
+        analysisStatus: "ready",
+        analysisStartedAt: "",
+        analysisError: "",
+        candidates: [],
+        modules: [],
+        map: null,
+        catalog: [],
+        tasks: [],
+        activeTaskId: null,
+        rules: [],
+        rulesVersionId: null,
+        config: {},
+        github: null,
+        quickChecks: [],
+        issues: [],
+        reports: [],
+        archived: false,
+        summaryOnly: true,
+      }),
+    ).toEqual({ tone: "neutral", label: "未加载" });
+  });
+
+  it("fills missing legacy report fields and keeps the L1 layer from project checks", async () => {
+    const legacy = normalizeReport({
+      id: "rep_old",
+      projectId: "p",
+      taskId: "t",
+      runId: "r",
+      version: 1,
+      generatedAt: "",
+      verdict: "incomplete",
+    } as never);
+    expect(legacy.itemDetails).toEqual([]);
+    expect(legacy.planWarnings).toEqual([]);
+    expect(legacy.layers.L1.total).toBe(0);
+    expect(legacy.coverage.selected).toBe(0);
+
+    const seeded = await completedRun(["01"]);
+    const run = seeded.task.runs[0] as Run;
+    run.l1 = [
+      {
+        key: "build",
+        name: "构建",
+        method: "npm run build",
+        result: "passed",
+        detail: "",
+        time: "",
+      },
+      {
+        key: "smoke",
+        name: "最小测试",
+        method: "npm test",
+        result: "failed",
+        detail: "",
+        time: "",
+      },
+    ];
+    const report = buildReport(seeded.project, seeded.task, run, 1);
+    expect(report.layers.L1).toEqual({ total: 2, passed: 1, failed: 1, incomplete: 0 });
+  });
+
   it("ranks the worst case result deterministically", () => {
     expect(worstResult([])).toBe("not_run");
     expect(worstResult(["passed", "blocked", "failed"])).toBe("failed");

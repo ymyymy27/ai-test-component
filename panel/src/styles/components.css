@@ -842,7 +842,7 @@ select {
 
 .tick {
   width: 24px;
-  height: 16px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 2px;
@@ -1658,6 +1658,15 @@ dialog[open] {
 .toast.is-success {
   background: var(--pass);
   color: var(--on-danger);
+}
+
+/* 暗色主题的通过/失败背景是浅色，白字对比度不足。 */
+[data-theme="dark"] .toast.is-error {
+  color: #2b0f0b;
+}
+
+[data-theme="dark"] .toast.is-success {
+  color: #08251a;
 }
 
 .toast-copy {

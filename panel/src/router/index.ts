@@ -187,7 +187,27 @@ const router = createRouter({
       return savedPosition;
     }
     if (to.hash) {
-      return { el: to.hash, top: 16 };
+      if (typeof document === "undefined") {
+        return { top: 0 };
+      }
+      // 目标元素可能由异步视图渲染；找不到时短暂重试，最后退回顶部而不是抛错。
+      return new Promise<{ el?: string; top: number }>((resolve) => {
+        let attempts = 8;
+        const find = (): void => {
+          const element = document.querySelector(to.hash);
+          if (element) {
+            resolve({ el: to.hash, top: 16 });
+            return;
+          }
+          attempts -= 1;
+          if (attempts <= 0) {
+            resolve({ top: 0 });
+            return;
+          }
+          window.setTimeout(find, 60);
+        };
+        find();
+      });
     }
     return { top: 0 };
   },
@@ -206,13 +226,18 @@ router.beforeEach(async (to) => {
   if (!projectId) {
     return true;
   }
-  const project = store.projects.find((entry) => entry.id === projectId);
+  if (store.status === "error") {
+    // 数据不可用不是“URL 错误”；回到入口显示可重试的错误页。
+    return { name: "root" };
+  }
+  let project = store.projects.find((entry) => entry.id === projectId) ?? null;
   if (!project) {
     return notFound(to);
   }
   if (store.currentProjectId !== projectId) {
     try {
-      await store.setCurrentProject(projectId);
+      // 摘要项目没有任务明细，必须用完整项目重新做后续守卫判断。
+      project = (await store.setCurrentProject(projectId)) ?? project;
     } catch {
       ui.showToast("切换项目失败，请重试。", "error");
       return false;

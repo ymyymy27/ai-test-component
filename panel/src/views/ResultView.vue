@@ -59,6 +59,7 @@ const environmentRows = computed(() => {
 const repairSuggestions = computed(() =>
   (run.value?.dependencySuggestions ?? []).filter((entry) => !entry.installed),
 );
+const repairHistory = computed(() => run.value?.dependencyRepairs ?? []);
 const repairSelection = ref<string[]>([]);
 const repairConfirmed = ref(false);
 watch(
@@ -77,6 +78,8 @@ function toggleRepair(packageName: string): void {
   repairSelection.value = repairSelection.value.includes(packageName)
     ? repairSelection.value.filter((entry) => entry !== packageName)
     : [...repairSelection.value, packageName];
+  // 确认必须对应当前勾选；改选后重新确认。
+  repairConfirmed.value = false;
 }
 
 async function installDependenciesAndRerun(): Promise<void> {
@@ -94,15 +97,30 @@ async function installDependenciesAndRerun(): Promise<void> {
       run.value.id,
       [...repairSelection.value],
     );
-    await rerun();
-  } catch (error) {
-    ui.showToast(
-      error instanceof Error ? error.message : "依赖安装失败，请重试。",
-      "error",
-    );
+  } catch {
+    // store 已提示安装失败；停留在本页保留选择。
+    return;
+  }
+  // 安装成功后生成新的重跑计划；这一步失败与安装失败分开提示。
+  const prepared = await rerun();
+  if (!prepared) {
+    ui.showToast("依赖已安装，但准备重跑计划失败；可稍后点“按未完成项重新生成计划”。", "error");
   }
 }
-const filter = ref<"all" | "problems" | "unfinished">("all");
+const filter = ref<"all" | "problems" | "unfinished">(
+  route.query.filter === "problems" || route.query.filter === "unfinished"
+    ? route.query.filter
+    : "all",
+);
+watch(filter, () => {
+  const query = { ...route.query };
+  if (filter.value === "all") {
+    delete query.filter;
+  } else {
+    query.filter = filter.value;
+  }
+  void router.replace({ query });
+});
 const caseLedgerRef = ref<InstanceType<typeof CaseLedger> | null>(null);
 const manualOpen = ref(false);
 const manualCase = ref<RunCase | null>(null);
@@ -110,6 +128,11 @@ const evidenceOpen = ref(false);
 const evidenceCaseId = ref("");
 
 const items = computed(() => (run.value ? sortedRunItems(run.value) : []));
+const unmappedCases = computed(() =>
+  (run.value?.cases ?? []).filter(
+    (testCase) => !testCase.itemId && (testCase.caseItemIds?.length ?? 0) === 0,
+  ),
+);
 const outcomes = computed<Record<string, CaseResult>>(() => {
   const map: Record<string, CaseResult> = {};
   if (run.value) {
@@ -141,6 +164,10 @@ const unselected = computed(() =>
   task.value && run.value ? unselectedItems(task.value, run.value.scope.acceptanceItemIds) : [],
 );
 const supportsEvidence = computed(() => workspace.capabilities.evidenceFiles);
+const evidenceLimits = computed(() => ({
+  singleFileMb: project.value?.config.evidence?.singleFileMb,
+  mediaMb: project.value?.config.evidence?.mediaMb,
+}));
 const manualBusy = computed(() =>
   manualCase.value ? workspace.busyKey(`manual:${manualCase.value.id}`) : false,
 );
@@ -150,6 +177,13 @@ let disposed = false;
 async function loadReportsUntilReady(): Promise<void> {
   for (let attempt = 0; attempt < 30 && !disposed; attempt += 1) {
     if (!run.value || reports.value.length > 0) {
+      return;
+    }
+    // 中断/取消/执行出错不会再有报告；后处理已失败也不再空轮询。
+    if (
+      ["interrupted", "cancelled", "execution_error"].includes(run.value.status) ||
+      run.value.postprocess === "error"
+    ) {
       return;
     }
     try {
@@ -226,15 +260,30 @@ async function saveEvidence(evidence: EvidenceInput[]): Promise<void> {
   if (!run.value) {
     return;
   }
-  try {
-    for (const input of evidence) {
+  const failed: string[] = [];
+  for (const input of evidence) {
+    try {
       await workspace.addEvidence(projectId.value, run.value.id, input);
+    } catch {
+      failed.push(input.name);
     }
-    await workspace.regenerateReport(projectId.value, run.value.id);
-    evidenceOpen.value = false;
-    ui.showToast(`已登记 ${evidence.length} 个证据文件；报告已更新。`, "success");
-  } catch {
-    // store 已提示。
+  }
+  const saved = evidence.length - failed.length;
+  if (saved > 0) {
+    try {
+      await workspace.regenerateReport(projectId.value, run.value.id);
+    } catch {
+      // store 已提示。
+    }
+  }
+  evidenceOpen.value = false;
+  if (failed.length === 0) {
+    ui.showToast(`已登记 ${saved} 个证据文件；报告已更新。`, "success");
+  } else {
+    ui.showToast(
+      `已登记 ${saved} 个；${failed.length} 个失败：${failed.join("、")}。重试相同文件不会重复登记。`,
+      "error",
+    );
   }
 }
 
@@ -247,9 +296,9 @@ async function adjustScope(): Promise<void> {
   }
 }
 
-async function rerun(): Promise<void> {
+async function rerun(): Promise<boolean> {
   if (!run.value) {
-    return;
+    return false;
   }
   const targetIds =
     run.value.verdict === "failed"
@@ -270,8 +319,10 @@ async function rerun(): Promise<void> {
       targetIds.length > 0 ? targetIds : undefined,
     );
     await router.push(`/projects/${projectId.value}/tasks/${taskId.value}/plan`);
+    return true;
   } catch {
     // store 已提示。
+    return false;
   }
 }
 
@@ -372,10 +423,35 @@ function rerunLabel(): string {
           :aria-busy="repairing"
           @click="installDependenciesAndRerun"
         >
-          {{ repairing ? "正在安装…" : "安装依赖并重跑未完成项" }}
+          {{ repairing ? "正在安装…" : "安装并准备重跑计划" }}
         </button>
       </div>
+      <details v-if="repairHistory.length" class="unselected-block">
+        <summary>依赖修复记录 {{ repairHistory.length }} 次</summary>
+        <ul class="list-plain">
+          <li v-for="entry in repairHistory" :key="`${entry.at}-${entry.confirmedBy}`">
+            {{ new Date(entry.at).toLocaleString("zh-CN") }} · {{ entry.confirmedBy }} ·
+            {{ entry.ok ? "安装成功" : "安装失败" }}
+            <span class="muted">
+              ·
+              {{
+                Object.entries(entry.packages)
+                  .map(([name, version]) => `${name} ${version || "版本未记录"}`)
+                  .join("；") || "没有包版本"
+              }}
+            </span>
+            <span v-if="entry.evidenceRef" class="muted"> · 证据 {{ entry.evidenceRef }}</span>
+          </li>
+        </ul>
+      </details>
     </section>
+
+    <div v-if="unmappedCases.length" class="notice is-warn" role="alert">
+      <span>
+        {{ unmappedCases.length }} 条用例缺少计划快照，无法挂到验收项；预期按未核实处理：
+        {{ unmappedCases.map((testCase) => testCase.id).join("、") }}
+      </span>
+    </div>
 
     <ResultSummary :run="run" :task="task" @select="focusFromSummary" />
 
@@ -480,6 +556,7 @@ function rerunLabel(): string {
       :test-case="manualCase"
       :busy="manualBusy"
       :allow-files="supportsEvidence"
+      :limits="evidenceLimits"
       @save="saveManual"
     />
     <EvidenceDialog
@@ -488,6 +565,7 @@ function rerunLabel(): string {
       :cases="run.cases"
       :default-case-id="evidenceCaseId"
       :busy="workspace.busyKey(`evidence:${run.id}`)"
+      :limits="evidenceLimits"
       @save="saveEvidence"
     />
   </div>

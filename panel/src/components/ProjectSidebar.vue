@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 
 import { projectStatus } from "@/domain/derive";
 import { taskStageLabel } from "@/domain/stateMachine";
@@ -13,6 +14,8 @@ const props = defineProps<{
   runningTaskId: string | null;
   section: string;
   open: boolean;
+  /** 窄屏抽屉打开时把 Tab 焦点限制在侧栏内。 */
+  modal?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -31,13 +34,16 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+const route = useRoute();
 const query = ref("");
+const asideRef = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const menuTaskId = ref<string | null>(null);
 const projectCollapsed = ref<Record<string, boolean>>({});
 const menuRef = ref<HTMLElement | null>(null);
 const menuButtons = new Map<string, HTMLButtonElement>();
+const menuStyle = ref<Record<string, string>>({});
 const PROJECT_COLLAPSE_PREFIX = "aitest.project-collapsed.";
 const renamingTaskId = ref<string | null>(null);
 const renameValue = ref("");
@@ -53,13 +59,17 @@ const visibleProjects = computed(() => {
     .filter(
       (project) =>
         !text ||
+        project.id === props.currentProjectId ||
         project.name.toLowerCase().includes(text) ||
         project.root.toLowerCase().includes(text),
     );
 });
-const tasks = computed(() =>
-  (currentProject.value?.tasks ?? []).filter((task) => task.stage !== "fresh"),
-);
+const tasks = computed(() => {
+  const text = query.value.trim().toLowerCase();
+  return (currentProject.value?.tasks ?? [])
+    .filter((task) => task.stage !== "fresh")
+    .filter((task) => !text || task.title.toLowerCase().includes(text));
+});
 const draft = computed(
   () => currentProject.value?.tasks.find((task) => task.stage === "fresh") ?? null,
 );
@@ -92,8 +102,31 @@ function selectTask(taskId: string): void {
 
 function toggleTaskMenu(taskId: string, event: MouseEvent): void {
   event.stopPropagation();
-  menuTaskId.value = menuTaskId.value === taskId ? null : taskId;
-  if (menuTaskId.value) {
+  const willOpen = menuTaskId.value !== taskId;
+  menuTaskId.value = willOpen ? taskId : null;
+  if (willOpen) {
+    // 浮层移到 body，避免被侧栏滚动容器裁切；靠近底部时向上展开。
+    const button = event.currentTarget;
+    if (button instanceof HTMLElement) {
+      const rect = button.getBoundingClientRect();
+      const width = 148;
+      const estimatedHeight = 128;
+      const left = Math.min(
+        Math.max(8, rect.right - width),
+        Math.max(8, window.innerWidth - width - 8),
+      );
+      const below = rect.bottom + 4;
+      const top =
+        below + estimatedHeight > window.innerHeight
+          ? Math.max(8, rect.top - estimatedHeight - 4)
+          : below;
+      menuStyle.value = {
+        position: "fixed",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+      };
+    }
     void nextTick(() => {
       const first = menuRef.value?.querySelector<HTMLButtonElement>(
         'button[role="menuitem"]:not(:disabled)',
@@ -184,14 +217,81 @@ function commitRename(projectId: string, taskId: string, currentTitle: string): 
 
 function closeMenuOnOutside(event: MouseEvent): void {
   const target = event.target;
-  if (target instanceof Element && target.closest(".side-task-row")) {
+  if (target instanceof Element && target.closest(".side-task-row, .side-task-menu")) {
     return;
   }
   menuTaskId.value = null;
 }
 
-onMounted(() => document.addEventListener("click", closeMenuOnOutside));
-onBeforeUnmount(() => document.removeEventListener("click", closeMenuOnOutside));
+function onMenuFocusout(event: FocusEvent): void {
+  const next = event.relatedTarget;
+  if (next instanceof Node && event.currentTarget instanceof HTMLElement) {
+    if (event.currentTarget.contains(next)) {
+      return;
+    }
+  }
+  menuTaskId.value = null;
+}
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape" && menuTaskId.value) {
+    const taskId = menuTaskId.value;
+    menuTaskId.value = null;
+    void nextTick(() => menuButtons.get(taskId)?.focus());
+  }
+}
+
+function focusableItems(): HTMLElement[] {
+  const root = asideRef.value;
+  if (!root) {
+    return [];
+  }
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    ),
+  ).filter((element) => element.offsetParent !== null || element === document.activeElement);
+}
+
+function onAsideKeydown(event: KeyboardEvent): void {
+  if (!props.modal || event.key !== "Tab") {
+    return;
+  }
+  const items = focusableItems();
+  if (items.length === 0) {
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last?.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first?.focus();
+  }
+}
+
+function clearSearch(): void {
+  query.value = "";
+  searchInput.value?.focus();
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    menuTaskId.value = null;
+  },
+);
+
+onMounted(() => {
+  document.addEventListener("click", closeMenuOnOutside);
+  document.addEventListener("keydown", onDocumentKeydown);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", closeMenuOnOutside);
+  document.removeEventListener("keydown", onDocumentKeydown);
+});
 
 watch(
   () => props.currentProjectId,
@@ -255,7 +355,14 @@ defineExpose({ focusSearch, focusClose });
 </script>
 
 <template>
-  <aside id="project-sidebar" class="sidebar" :class="{ 'is-open': open }" aria-label="项目与任务">
+  <aside
+    id="project-sidebar"
+    ref="asideRef"
+    class="sidebar"
+    :class="{ 'is-open': open }"
+    aria-label="项目与任务"
+    @keydown="onAsideKeydown"
+  >
     <div class="sidebar-brand">
       <span class="sidebar-brand-mark" aria-hidden="true">
         <Icon name="shield" :size="16" />
@@ -274,15 +381,18 @@ defineExpose({ focusSearch, focusClose });
     </div>
 
     <label class="sidebar-search">
-      <span class="visually-hidden">搜索项目</span>
+      <span class="visually-hidden">搜索项目和任务</span>
       <input
         ref="searchInput"
         v-model="query"
         type="search"
-        placeholder="搜索项目或路径"
+        placeholder="搜索项目、路径或任务"
         autocomplete="off"
       />
     </label>
+    <button v-if="query" class="link-btn sidebar-clear-search" type="button" @click="clearSearch">
+      清除搜索
+    </button>
 
     <div class="sidebar-scroll">
       <div class="sidebar-section-label">
@@ -478,41 +588,45 @@ defineExpose({ focusSearch, focusClose });
             >
               <Icon name="more" :size="14" />
             </button>
-            <div
-              v-if="menuTaskId === task.id"
-              :ref="setMenuRef"
-              class="side-task-menu"
-              role="menu"
-              @keydown="onTaskMenuKeydown($event, task.id)"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                :disabled="runningTaskId === task.id"
-                @click="beginRename(task.id, task.title)"
+            <Teleport to="body">
+              <div
+                v-if="menuTaskId === task.id"
+                :ref="setMenuRef"
+                class="side-task-menu"
+                :style="menuStyle"
+                role="menu"
+                @keydown="onTaskMenuKeydown($event, task.id)"
+                @focusout="onMenuFocusout"
               >
-                重命名
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                @click="openTaskDetails(project.id, task.id)"
-              >
-                编辑资料
-              </button>
-              <button
-                class="is-danger"
-                type="button"
-                role="menuitem"
-                :disabled="Boolean(runningTaskId)"
-                @click="menuTaskId = null; emit('deleteTask', project.id, task.id, task.title)"
-              >
-                删除
-              </button>
-            </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  :disabled="runningTaskId === task.id"
+                  @click="beginRename(task.id, task.title)"
+                >
+                  重命名
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  @click="openTaskDetails(project.id, task.id)"
+                >
+                  编辑资料
+                </button>
+                <button
+                  class="is-danger"
+                  type="button"
+                  role="menuitem"
+                  :disabled="Boolean(runningTaskId)"
+                  @click="menuTaskId = null; emit('deleteTask', project.id, task.id, task.title)"
+                >
+                  删除
+                </button>
+              </div>
+            </Teleport>
           </div>
           <p v-if="tasks.length === 0 && !draft" class="side-empty">
-            还没有任务。点“新建”开始。
+            {{ query ? "没有匹配的任务。" : "还没有任务。点“新建”开始。" }}
           </p>
           </div>
         </div>

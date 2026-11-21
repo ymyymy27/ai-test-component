@@ -14,7 +14,8 @@ export default defineConfig({
     viewport: { width: 1200, height: 900 },
   },
   webServer: {
-    command: "pnpm exec vite --port 4173 --strictPort",
+    // 文档与 CI 都用 npm；不要依赖全局 pnpm/corepack。
+    command: "npx vite --port 4173 --strictPort",
     url: "http://localhost:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

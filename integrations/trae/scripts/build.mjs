@@ -33,12 +33,13 @@ await mkdir(panelOut, { recursive: true });
 await cp(panelDist, panelOut, { recursive: true });
 
 // 扩展只打包 Node 入口；面板资源按 media/panel 原样随扩展安装。
-await mkdir("dist", { recursive: true });
+// 所有路径都基于 extensionRoot：从仓库根或任意目录执行都不会写错位置。
+await mkdir(join(extensionRoot, "dist"), { recursive: true });
 await build({
-  entryPoints: ["src/extension.ts"],
+  entryPoints: [join(extensionRoot, "src", "extension.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
   external: ["vscode"],
-  outfile: "dist/extension.js",
+  outfile: join(extensionRoot, "dist", "extension.js"),
 });

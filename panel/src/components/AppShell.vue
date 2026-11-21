@@ -290,23 +290,41 @@ function onDocumentPointer(event: PointerEvent): void {
   ui.closeEnv();
 }
 
+let lastRouteName = String(route.name ?? "");
 watch(
   () => route.fullPath,
   async () => {
     ui.closeEnv();
+    const name = String(route.name ?? "");
+    // 只有页面变化才移动焦点；筛选条件等 query-only 变化不能抢走键盘焦点。
+    if (name === lastRouteName) {
+      return;
+    }
+    lastRouteName = name;
     await nextTick();
     mainRef.value?.focus({ preventScroll: true });
   },
 );
 
+function syncSidebarScrollLock(): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.body.style.overflow = ui.narrow && ui.sidebarOpen ? "hidden" : "";
+}
+
+watch(() => [ui.narrow, ui.sidebarOpen], syncSidebarScrollLock);
+
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
   document.addEventListener("pointerdown", onDocumentPointer);
+  syncSidebarScrollLock();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
   document.removeEventListener("pointerdown", onDocumentPointer);
+  document.body.style.overflow = "";
 });
 </script>
 
@@ -329,6 +347,7 @@ onBeforeUnmount(() => {
       :running-task-id="workspace.runningTask?.id ?? null"
       :section="currentSection"
       :open="ui.sidebarOpen"
+      :modal="ui.narrow && ui.sidebarOpen"
       @select-project="selectProject"
       @open-overview="(id) => openProjectSection(id, 'overview')"
       @open-issues="(id) => openProjectSection(id, 'issues')"
@@ -347,6 +366,7 @@ onBeforeUnmount(() => {
       v-if="ui.sidebarOpen"
       class="sidebar-backdrop"
       type="button"
+      tabindex="-1"
       aria-label="关闭项目与任务"
       @click="closeSidebar"
     ></button>

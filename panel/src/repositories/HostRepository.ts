@@ -42,6 +42,7 @@ import { api, type Api } from "@/host/commands";
 import type { DeliveryDraft, RunDetail, Task as TaskDto } from "@/host/dto";
 import {
   mapCandidate,
+  mapConfirmation,
   mapEvidence,
   mapGithub,
   mapProject,
@@ -574,15 +575,17 @@ export class HostRepository implements ProjectRepository {
       throw new RepositoryError("NOT_FOUND", "计划不存在。");
     }
     const confirmation: Confirmation = {
-      id: `conf_host_${plan.id}`,
+      id: `conf_ui_${plan.id}`,
       planId: plan.id,
       planRevision: plan.revision,
       acceptanceItemIds: [...plan.scope.acceptanceItemIds],
+      // 这里只是确认前的界面状态，不冒充 CLI 记录：真实 environment/credentials
+      // 由 run.start 生成，启动后用 CLI 回执覆盖。
       environment: {},
-      credentials: { source: "CLI", provided: "host" },
+      credentials: {},
       sideEffects: input.sideEffects,
       dependencies: [...new Set(plan.cases.flatMap((testCase) => testCase.dependencies))],
-      fingerprint: `host:${plan.sourceSignature}`,
+      fingerprint: `ui:${plan.sourceSignature}`,
       confirmedBy: input.operator,
       confirmedAt: isoNow(),
     };
@@ -609,6 +612,10 @@ export class HostRepository implements ProjectRepository {
       plan.scope.acceptanceItemIds,
       confirmedBy,
     );
+    if (started.confirmation) {
+      // 启动后以 CLI 生成的确认记录为审计事实，替换确认前的界面状态。
+      this.sidecar.setConfirmation(plan.id, mapConfirmation(started.confirmation, plan));
+    }
     this.sidecar.setStage(taskId, null);
     const run = await this.getRun(projectId, started.run_id);
     if (!run) {
@@ -1031,7 +1038,8 @@ export class HostRepository implements ProjectRepository {
 
   async runQuickCheck(projectId: string): Promise<QuickCheck> {
     const started = await this.client.runQuick(projectId);
-    const deadline = Date.now() + 120_000;
+    // 构建/冒烟可能远超 2 分钟；轮询到终态（或 10 分钟后明确报“仍在运行”）。
+    const deadline = Date.now() + 600_000;
     let detail: RunDetail | null = null;
     while (Date.now() < deadline) {
       detail = await this.client.runStatus(projectId, started.run_id);
@@ -1042,6 +1050,13 @@ export class HostRepository implements ProjectRepository {
     }
     if (!detail) {
       throw new RepositoryError("NOT_FOUND", "快速检查运行不存在。");
+    }
+    if (detail.run.status === "running") {
+      throw new RepositoryError(
+        "RUN_ACTIVE",
+        "快速检查仍在运行，已停止等待",
+        "稍后在项目概览刷新运行状态；不要重复启动",
+      );
     }
     const quick = mapQuickCheck(detail, projectId);
     this.sidecar.addQuickCheck(projectId, quick);
@@ -1114,7 +1129,8 @@ export class HostRepository implements ProjectRepository {
     if (!workspace) {
       throw new RepositoryError("VALIDATION", "宿主没有提供工作空间路径。");
     }
-    const path = `${workspace}/backups/aitest-${new Date().toISOString().slice(0, 10)}.zip`;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const path = `${workspace}/backups/aitest-${stamp}.zip`;
     const result = await this.client.createBackup(path, false);
     const info: BackupResult = {
       filename: basename(result.path),

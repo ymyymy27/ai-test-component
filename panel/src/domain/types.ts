@@ -527,7 +527,7 @@ export interface QuickCheck {
   projectId: string;
   startedAt: string;
   finishedAt: string;
-  status: "running" | "completed" | "cancelled";
+  status: "running" | "completed" | "cancelled" | "execution_error";
   confirmedBy: string;
   checks: ProjectCheck[];
   simulated: boolean;
@@ -612,6 +612,8 @@ export interface Project {
   issues: Issue[];
   reports: Report[];
   archived: boolean;
+  /** 宿主项目列表只返回摘要；摘要里的任务/问题/计数不代表真实状态。 */
+  summaryOnly?: boolean;
 }
 
 export interface WorkspaceEnvelope {

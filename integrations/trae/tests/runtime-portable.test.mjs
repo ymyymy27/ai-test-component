@@ -1,14 +1,15 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
 // 便携运行时准备：下载、解压、venv、离线安装全部注入假实现，不联网、不启动真实宿主。
-const root = resolve("../..");
+// 基于测试文件自身定位仓库根，不依赖调用者的 cwd。
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const base = join(root, ".runtime/tmp");
 await mkdir(base, { recursive: true });
 const fixture = await mkdtemp(join(base, "runtime-portable-"));
@@ -66,6 +67,9 @@ function fakeSpawn(responder = () => ({ spawnError: "ENOENT" })) {
         const error = new Error("spawn failed");
         error.code = outcome.spawnError;
         child.emit("error", error);
+        return;
+      }
+      if (outcome.hang) {
         return;
       }
       if (outcome.stdout) {
@@ -128,7 +132,6 @@ test("an existing qualified interpreter skips download entirely", async () => {
 test("full preparation downloads, verifies, extracts, creates venv and installs the bundled wheel", async () => {
   const { home, wheelDir, wheel } = makeWorkspace("happy");
   const runtimeDir = join(home, VERSION);
-  const basePython = join(runtimeDir, "python", "python.exe");
   const targetPython = join(runtimeDir, "venv", "Scripts", "python.exe");
   const { spawn, calls } = fakeSpawn((command, args) => {
     if (command === "py" || command === "python") {
@@ -140,12 +143,12 @@ test("full preparation downloads, verifies, extracts, creates venv and installs 
       writeFileSync(join(target, "python", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === basePython && args[0] === "-m" && args[1] === "venv") {
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m" && args[1] === "venv") {
       mkdirSync(join(args[2], "Scripts"), { recursive: true });
       writeFileSync(join(args[2], "Scripts", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === targetPython) {
+    if (command.endsWith(join("Scripts", "python.exe"))) {
       return args.includes("-c") ? { stdout: probe() } : { code: 0 };
     }
     return { spawnError: "ENOENT" };
@@ -190,9 +193,12 @@ test("full preparation downloads, verifies, extracts, creates venv and installs 
   assert.equal(install.args.includes(wheelDir), true);
 
   const tar = calls.find((call) => call.command === "tar");
-  assert.deepEqual(tar.args.slice(0, 3), ["-xf", join(runtimeDir, `python-${VERSION}.tar.gz`), "-C"]);
-  // 解压后压缩包被回收，不留 40MB 临时文件。
-  assert.equal(existsSync(join(runtimeDir, `python-${VERSION}.tar.gz`)), false);
+  assert.deepEqual(tar.args.slice(0, 2), ["-xf", tar.args[1]]);
+  assert.match(tar.args[1], new RegExp(`python-${VERSION.replace(/\+/g, "\\+")}\\.tar\\.gz$`));
+  assert.match(tar.args[3], /\.staging-/);
+  // 暂存目录在成功后整体换入版本目录；不留临时压缩包。
+  assert.equal(existsSync(runtimeDir), true);
+  assert.equal(existsSync(targetPython), true);
 });
 
 test("a SHA256 mismatch stops before extraction and removes the temp archive", async () => {
@@ -266,8 +272,6 @@ test("missing system tar reports TAR_MISSING instead of falling back", async () 
 
 test("venv failure reports the venv stage", async () => {
   const { home, wheelDir } = makeWorkspace("venv");
-  const runtimeDir = join(home, VERSION);
-  const basePython = join(runtimeDir, "python", "python.exe");
   const { spawn } = fakeSpawn((command, args) => {
     if (command === "tar") {
       const target = args[args.indexOf("-C") + 1];
@@ -275,7 +279,7 @@ test("venv failure reports the venv stage", async () => {
       writeFileSync(join(target, "python", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === basePython) {
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m") {
       return { code: 1 };
     }
     return { spawnError: "ENOENT" };
@@ -296,11 +300,8 @@ test("venv failure reports the venv stage", async () => {
   assert.equal(result.failure.code, "VENV_FAILED");
 });
 
-test("pip install failure reports the install stage and keeps the venv", async () => {
+test("pip install failure reports the install stage and cleans the staging tree", async () => {
   const { home, wheelDir } = makeWorkspace("install");
-  const runtimeDir = join(home, VERSION);
-  const basePython = join(runtimeDir, "python", "python.exe");
-  const targetPython = join(runtimeDir, "venv", "Scripts", "python.exe");
   const { spawn } = fakeSpawn((command, args) => {
     if (command === "tar") {
       const target = args[args.indexOf("-C") + 1];
@@ -308,12 +309,12 @@ test("pip install failure reports the install stage and keeps the venv", async (
       writeFileSync(join(target, "python", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === basePython) {
-      mkdirSync(join(runtimeDir, "venv", "Scripts"), { recursive: true });
-      writeFileSync(targetPython, "");
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m" && args[1] === "venv") {
+      mkdirSync(join(args[2], "Scripts"), { recursive: true });
+      writeFileSync(join(args[2], "Scripts", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === targetPython) {
+    if (command.endsWith(join("Scripts", "python.exe"))) {
       return { code: 1 };
     }
     return { spawnError: "ENOENT" };
@@ -332,13 +333,14 @@ test("pip install failure reports the install stage and keeps the venv", async (
   assert.equal(result.ok, false);
   assert.equal(result.failure.stage, "install");
   assert.equal(result.failure.code, "INSTALL_FAILED");
-  assert.equal(existsSync(targetPython), true);
+  // 失败不留半成品暂存目录，也不建出“可运行”的版本目录。
+  assert.deepEqual(readdirSync(home).filter((name) => name.startsWith(".staging-")), []);
+  assert.equal(existsSync(join(home, VERSION)), false);
 });
 
 test("environment overrides replace the release lookup", async () => {
   const { home, wheelDir } = makeWorkspace("env");
   const runtimeDir = join(home, "3.12.9+20250101");
-  const basePython = join(runtimeDir, "python", "python.exe");
   const targetPython = join(runtimeDir, "venv", "Scripts", "python.exe");
   const { spawn } = fakeSpawn((command, args) => {
     if (command === "tar") {
@@ -347,12 +349,12 @@ test("environment overrides replace the release lookup", async () => {
       writeFileSync(join(target, "python", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === basePython) {
-      mkdirSync(join(runtimeDir, "venv", "Scripts"), { recursive: true });
-      writeFileSync(targetPython, "");
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m" && args[1] === "venv") {
+      mkdirSync(join(args[2], "Scripts"), { recursive: true });
+      writeFileSync(join(args[2], "Scripts", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === targetPython) {
+    if (command.endsWith(join("Scripts", "python.exe"))) {
       return args.includes("-c") ? { stdout: probe("3.12.9", 3, 12) } : { code: 0 };
     }
     return { spawnError: "ENOENT" };
@@ -450,7 +452,6 @@ test("a broken cached runtime is rebuilt in the same version directory", async (
   const targetPython = join(runtimeDir, "venv", "Scripts", "python.exe");
   mkdirSync(join(runtimeDir, "venv", "Scripts"), { recursive: true });
   writeFileSync(targetPython, "");
-  const basePython = join(runtimeDir, "python", "python.exe");
   const { spawn } = fakeSpawn((command, args) => {
     if (command === "tar") {
       const target = args[args.indexOf("-C") + 1];
@@ -458,14 +459,14 @@ test("a broken cached runtime is rebuilt in the same version directory", async (
       writeFileSync(join(target, "python", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === basePython) {
-      mkdirSync(join(runtimeDir, "venv", "Scripts"), { recursive: true });
-      writeFileSync(targetPython, "");
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m" && args[1] === "venv") {
+      mkdirSync(join(args[2], "Scripts"), { recursive: true });
+      writeFileSync(join(args[2], "Scripts", "python.exe"), "");
       return { code: 0 };
     }
-    if (command === targetPython) {
-      // 缓存核验失败（缺 aitest），安装后核验成功。
-      return args.includes("-c") && existsSync(join(runtimeDir, "python", "python.exe"))
+    if (command.endsWith(join("Scripts", "python.exe"))) {
+      // 暂存目录的 venv 核验成功；旧缓存核验失败（缺 aitest）。
+      return command.includes(".staging-")
         ? { stdout: probe() }
         : { stdout: probe("3.13.7", 3, 13, { import_error: "ModuleNotFoundError" }) };
     }
@@ -486,6 +487,7 @@ test("a broken cached runtime is rebuilt in the same version directory", async (
   assert.equal(result.source, "portable-new");
   assert.equal(result.stages[0].stage, "verify");
   assert.equal(result.stages[0].code, "CACHED_RUNTIME_INVALID");
+  assert.equal(result.stages[0].severity, "warning");
 });
 
 test("selectPortableAsset prefers the newest 3.11–3.13 Windows build with a digest", () => {
@@ -595,6 +597,49 @@ test("findPreparedPython returns the newest prepared venv and defaultRuntimeHome
   );
 });
 
+test("preparation stops at its total deadline instead of waiting forever", async () => {
+  const { home, wheelDir } = makeWorkspace("deadline");
+  const downloads = [];
+  const { spawn } = fakeSpawn();
+  const result = await ensureRuntime(
+    {},
+    {
+      spawn,
+      deadlineMs: 0,
+      resolveAsset: async () => asset(),
+      download: downloader(SHA, downloads),
+      runtimeHome: home,
+      wheelDir,
+      platform: "win32",
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.failure.code, "PREPARE_TIMEOUT");
+  assert.equal(downloads.length, 0);
+});
+
+test("all-timed-out probes stop before downloading a second runtime", async () => {
+  const { home, wheelDir } = makeWorkspace("probe-timeout");
+  const downloads = [];
+  const { spawn, calls } = fakeSpawn(() => ({ hang: true }));
+  const result = await ensureRuntime(
+    {},
+    {
+      spawn,
+      probeTimeoutMs: 20,
+      resolveAsset: async () => asset(),
+      download: downloader(SHA, downloads),
+      runtimeHome: home,
+      wheelDir,
+      platform: "win32",
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.failure.code, "PYTHON_PROBE_TIMEOUT");
+  assert.equal(downloads.length, 0);
+  assert.equal(calls.some((call) => call.command === "tar"), false);
+});
+
 test("discovery still reports a missing interpreter without preparing anything", async () => {
   const { spawn, calls } = fakeSpawn();
   const result = await findPython({}, spawn);
@@ -620,6 +665,150 @@ test("preparePortableRuntime refuses to run when a valid interpreter check is pa
   // 没有 tar/venv 假实现，最终停在 extract 阶段；关键是不联网成功伪造通过。
   assert.equal(result.ok, false);
   assert.equal(result.failure.stage, "extract");
+});
+
+test("findBundledWheel never falls back to a dependency wheel", () => {
+  const dir = join(fixture, "wheel-deps-only");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "pydantic-2.14.4-py3-none-any.whl"), "");
+  writeFileSync(join(dir, "zzz_dependency-1.0-py3-none-any.whl"), "");
+  assert.equal(findBundledWheel(dir), null);
+  assert.equal(bundledWheelVersion(dir), null);
+});
+
+test("findBundledWheel picks the highest aitest version numerically", () => {
+  const dir = join(fixture, "wheel-versions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "ai_test_component-0.9.0-py3-none-any.whl"), "");
+  writeFileSync(join(dir, "ai_test_component-0.10.0-py3-none-any.whl"), "");
+  assert.equal(
+    findBundledWheel(dir),
+    join(dir, "ai_test_component-0.10.0-py3-none-any.whl"),
+  );
+});
+
+test("findPreparedPython orders 3.13 above 3.9 and skips quarantined directories", () => {
+  const home = join(fixture, "prepared-semver");
+  for (const name of ["3.9.18", "3.13.7", ".broken-3.14.0-1"]) {
+    mkdirSync(join(home, name, "venv", "Scripts"), { recursive: true });
+    writeFileSync(join(home, name, "venv", "Scripts", "python.exe"), "");
+  }
+  assert.equal(
+    findPreparedPython(home, "win32"),
+    join(home, "3.13.7", "venv", "Scripts", "python.exe"),
+  );
+});
+
+test("a held runtime lock stops a second preparation before downloading", async () => {
+  const { home, wheelDir } = makeWorkspace("locked");
+  mkdirSync(join(home, ".runtime.lock"), { recursive: true });
+  const downloads = [];
+  const { spawn } = fakeSpawn();
+  const result = await ensureRuntime(
+    {},
+    {
+      spawn,
+      resolveAsset: async () => asset(),
+      download: downloader(SHA, downloads),
+      runtimeHome: home,
+      wheelDir,
+      platform: "win32",
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.failure.code, "RUNTIME_LOCKED");
+  assert.equal(downloads.length, 0);
+});
+
+test("a successful preparation clears the previous failure diagnostics", async () => {
+  const { home, wheelDir } = makeWorkspace("diagnostics");
+  mkdirSync(home, { recursive: true });
+  const diagnostics = join(home, "prepare-failure.json");
+  writeFileSync(diagnostics, JSON.stringify({ stage: "install", code: "OLD" }));
+  const { spawn } = fakeSpawn((command, args) => {
+    if (command === "tar") {
+      const target = args[args.indexOf("-C") + 1];
+      mkdirSync(join(target, "python"), { recursive: true });
+      writeFileSync(join(target, "python", "python.exe"), "");
+      return { code: 0 };
+    }
+    if (command.endsWith(join("python", "python.exe")) && args[0] === "-m" && args[1] === "venv") {
+      mkdirSync(join(args[2], "Scripts"), { recursive: true });
+      writeFileSync(join(args[2], "Scripts", "python.exe"), "");
+      return { code: 0 };
+    }
+    if (command.endsWith(join("Scripts", "python.exe"))) {
+      return args.includes("-c") ? { stdout: probe() } : { code: 0 };
+    }
+    return { spawnError: "ENOENT" };
+  });
+  const result = await ensureRuntime(
+    {},
+    {
+      spawn,
+      resolveAsset: async () => asset(),
+      download: downloader(),
+      runtimeHome: home,
+      wheelDir,
+      platform: "win32",
+    },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(existsSync(diagnostics), false);
+});
+
+test("a broken cached runtime is quarantined after a failed rebuild", async () => {
+  const { home, wheelDir } = makeWorkspace("quarantine");
+  const runtimeDir = join(home, VERSION);
+  mkdirSync(join(runtimeDir, "venv", "Scripts"), { recursive: true });
+  writeFileSync(join(runtimeDir, "venv", "Scripts", "python.exe"), "");
+  const { spawn } = fakeSpawn((command, args) => {
+    if (command.endsWith(join("Scripts", "python.exe"))) {
+      return { stdout: probe("3.13.7", 3, 13, { import_error: "ModuleNotFoundError" }) };
+    }
+    if (command === "tar") {
+      return { code: 1 };
+    }
+    return { spawnError: "ENOENT" };
+  });
+  const result = await ensureRuntime(
+    {},
+    {
+      spawn,
+      resolveAsset: async () => asset(),
+      download: downloader(),
+      runtimeHome: home,
+      wheelDir,
+      platform: "win32",
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(existsSync(runtimeDir), false);
+  assert.equal(
+    readdirSync(home).some((name) => name.startsWith(".broken-3.13.7")),
+    true,
+  );
+});
+
+test("downloadArchive rejects a body shorter than its Content-Length", async () => {
+  const { createServer } = await import("node:http");
+  const server = createServer((request, response) => {
+    response.writeHead(200, { "content-length": "10", connection: "close" });
+    response.end("12345");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  const destination = join(fixture, "download-incomplete.part");
+  try {
+    await assert.rejects(
+      () => downloadArchive(`http://127.0.0.1:${port}/cpython.tar.gz`, destination),
+      (error) => error.code === "DOWNLOAD_INCOMPLETE",
+    );
+    assert.equal(existsSync(destination), false);
+  } finally {
+    server.close();
+  }
 });
 
 test("downloadArchive reports a network error instead of writing a file", async () => {

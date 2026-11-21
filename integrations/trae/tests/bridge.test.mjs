@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
 // 假子进程只验证桥的信封、超时与错误映射；不启动真实 Trae 或真实 CLI。
-const root = resolve("../..");
+// 基于测试文件自身定位仓库根，不依赖调用者的 cwd。
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const base = join(root, ".runtime/tmp");
 await mkdir(base, { recursive: true });
 const fixture = await mkdtemp(join(base, "bridge-unit-"));
@@ -19,7 +20,9 @@ await build({
   format: "esm",
   outfile: join(fixture, "bridge.mjs"),
 });
-const { createBridge } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
+const { createBridge, DEFAULT_TIMEOUT_MS } = await import(
+  pathToFileURL(join(fixture, "bridge.mjs")).href
+);
 
 after(async () => {
   assert.ok(fixture.startsWith(join(base, "bridge-unit-")));
@@ -180,6 +183,87 @@ test("spawn failure carries only a stable OS code", async () => {
   assert.equal(result.error.code, "CLI_SPAWN_FAILED");
   assert.match(result.error.message, /ENOENT/);
   assert.equal(JSON.stringify(result).includes("private-credential-marker"), false);
+});
+
+test("the default timeout is well above the CLI lock wait", () => {
+  assert.ok(DEFAULT_TIMEOUT_MS >= 90_000, `默认超时过短：${DEFAULT_TIMEOUT_MS}`);
+});
+
+test("spawn runs in a safe cwd with Python path overrides removed", async () => {
+  const { spawn, calls } = fakeSpawn(respond(JSON.stringify({ ok: true, data: {} })));
+  const bridge = createBridge(config(), spawn);
+  await bridge.call("doctor", {});
+  const options = calls[0].options;
+  assert.equal(typeof options.cwd, "string");
+  assert.equal((options.cwd ?? "").includes("aitest"), false);
+  assert.equal(options.env.PYTHONPATH, undefined);
+  assert.equal(options.env.PYTHONHOME, undefined);
+  assert.equal(options.env.PYTHONSTARTUP, undefined);
+  assert.equal(options.env.PYTHONSAFEPATH, "1");
+});
+
+test("the last JSON line is the envelope, not an earlier log line", async () => {
+  const { spawn } = fakeSpawn((record, child) => {
+    child.stdout.emit("data", JSON.stringify({ ok: false, error: { code: "LOG", message: "log" } }) + "\n");
+    child.stdout.emit(
+      "data",
+      JSON.stringify({ ok: true, request_id: record.input.request_id, data: { value: 1 } }) + "\n",
+    );
+    child.emit("close", 0);
+  });
+  const result = await createBridge(config(), spawn).call("doctor", {});
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data, { value: 1 });
+});
+
+test("a failure envelope with a foreign request_id is rejected", async () => {
+  const envelope = { ok: false, request_id: "foreign", error: { code: "BUSY", message: "x" } };
+  const { spawn } = fakeSpawn(respond(JSON.stringify(envelope), 1));
+  const result = await createBridge(config(), spawn).call("doctor", {});
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "CLI_INVALID_JSON");
+});
+
+test("serialization and payload size failures are separated from disk errors", async () => {
+  const { spawn, calls } = fakeSpawn(respond(JSON.stringify({ ok: true, data: {} })));
+  const bridge = createBridge(config(), spawn);
+  const cyclic = { name: "x" };
+  cyclic.self = cyclic;
+  const serialization = await bridge.call("doctor", cyclic);
+  assert.equal(serialization.error.code, "CLI_SERIALIZE_FAILED");
+
+  const oversized = await bridge.call("doctor", { text: "x".repeat(2 * 1024 * 1024 + 10) });
+  assert.equal(oversized.error.code, "CLI_PAYLOAD_TOO_LARGE");
+  assert.equal(calls.length, 0);
+});
+
+test("aborting the call kills the child and returns CLI_CANCELLED", async () => {
+  const { spawn, calls } = fakeSpawn(() => {});
+  const bridge = createBridge(config(), spawn);
+  const controller = new AbortController();
+  const pending = bridge.call("run.repair", { run_id: "r" }, { confirm: true, signal: controller.signal });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  controller.abort();
+  const result = await pending;
+  assert.equal(result.error.code, "CLI_CANCELLED");
+  assert.equal(calls[0].child.killed, true);
+});
+
+test("known credential values are redacted before the payload reaches disk", async () => {
+  process.env.AITEST_TEST_TOKEN = "super-secret-value-123";
+  try {
+    let input = null;
+    const { spawn } = fakeSpawn((record, child) => {
+      input = readFileSync(record.args[record.args.indexOf("--input") + 1], "utf8");
+      child.stdout.emit("data", JSON.stringify({ ok: true, data: {} }));
+      child.emit("close", 0);
+    });
+    await createBridge(config(), spawn).call("doctor", { note: "super-secret-value-123" });
+    assert.equal(input.includes("super-secret-value-123"), false);
+    assert.equal(input.includes("***"), true);
+  } finally {
+    delete process.env.AITEST_TEST_TOKEN;
+  }
 });
 
 test("invalid command and missing workspace are rejected before spawning", async () => {

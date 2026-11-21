@@ -349,6 +349,15 @@ export const api = {
     run_id: string;
     status: string;
     scope: { selected: number; applicable: number };
+    confirmation?: {
+      confirmation_id?: string;
+      confirmed_by?: string;
+      confirmed_at?: string;
+      fingerprint?: string;
+      plan_revision?: number;
+      side_effects?: string[];
+      dependencies?: string[];
+    };
   }> {
     return callHost(
       "run.start",

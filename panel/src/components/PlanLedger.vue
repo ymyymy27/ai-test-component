@@ -19,7 +19,9 @@ const groups = computed(() =>
         itemId,
         no: item?.no ?? "",
         text: item?.text ?? "验收项已归档",
-        cases: props.plan.cases.filter((testCase) => testCase.itemId === itemId),
+        cases: props.plan.cases.filter((testCase) =>
+          [testCase.itemId, ...testCase.extraItemIds].filter(Boolean).includes(itemId),
+        ),
       };
     })
     .sort((first, second) => compareItemNo(first.no, second.no)),

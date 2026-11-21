@@ -79,23 +79,69 @@ if (!built) {
   }
 }
 
-const wheels = wheelCandidates(distDir)
-  .map((path) => ({ path, mtime: statSync(path).mtimeMs }))
-  .sort((left, right) => right.mtime - left.mtime);
-if (wheels.length === 0) {
-  console.error(`未在 ${distDir} 找到 wheel，构建失败。`);
+function wheelVersion(name) {
+  const match = /^[^-]+-(\d+\.\d+(?:\.\d+)?[^-]*)-/.exec(name);
+  return match ? match[1] : null;
+}
+
+function isOwnWheel(name) {
+  const distribution = name.split("-")[0].toLowerCase().replace(/[._]/g, "-");
+  return distribution === "ai-test-component" || distribution === "aitest";
+}
+
+function compareVersions(left, right) {
+  const parse = (value) => value.split(/[+.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const a = parse(left ?? "");
+  const b = parse(right ?? "");
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  return 0;
+}
+
+function projectVersion() {
+  const text = readFileSync(join(repoRoot, "pyproject.toml"), "utf8");
+  const match = /^version\s*=\s*"([^"]+)"/m.exec(text);
+  if (!match) {
+    console.error("无法从 pyproject.toml 读取 [project].version，拒绝猜测 wheel 版本。");
+    process.exit(1);
+  }
+  return match[1];
+}
+
+const expectedVersion = projectVersion();
+const ownWheels = wheelCandidates(distDir)
+  .map((path) => {
+    const name = path.split(/[\\/]/).pop() ?? "";
+    return { path, name, version: wheelVersion(name), mtime: statSync(path).mtimeMs };
+  })
+  .filter((entry) => isOwnWheel(entry.name))
+  .sort(
+    (left, right) =>
+      compareVersions(right.version, left.version) || right.mtime - left.mtime,
+  );
+if (ownWheels.length === 0) {
+  console.error(`未在 ${distDir} 找到 aitest 自身 wheel，构建失败。`);
   process.exit(1);
 }
-const source = wheels[0].path;
-const name = source.split(/[\\/]/).pop() ?? "";
-if (!/^ai[_-]?test/i.test(name)) {
-  console.warn(`注意：wheel 文件名 ${name} 不以 aitest 开头；运行时按 *.whl 发现，不影响安装。`);
+// 版本必须与 pyproject.toml 一致；不按 mtime 猜，避免把旧版本打进 VSIX。
+const source = ownWheels.find((entry) => entry.version === expectedVersion) ?? ownWheels[0];
+const name = source.name;
+if (source.version !== expectedVersion) {
+  console.error(
+    `dist 中的 aitest wheel 版本是 ${source.version ?? "unknown"}，` +
+      `但 pyproject.toml 是 ${expectedVersion}；拒绝打包版本不一致的运行时。`,
+  );
+  process.exit(1);
 }
 
 // 只保留最新一份 aitest wheel，避免 VSIX 里堆多个版本。
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
-copyFileSync(source, join(outDir, name));
+copyFileSync(source.path, join(outDir, name));
 console.log(`已放入 media/runtime/${name}`);
 
 // 依赖 wheel：与 aitest wheel 同目录，离线安装时作为 --find-links。

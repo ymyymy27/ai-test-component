@@ -15,7 +15,7 @@ import {
   VERDICT_LABEL,
   statusText,
 } from "@/domain/labels";
-import { reportsForRun } from "@/domain/derive";
+import { normalizeReport, reportsForRun } from "@/domain/derive";
 import type { ExportResult, Issue, LinkData, Report, Run, Task } from "@/domain/types";
 import type { LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
@@ -33,9 +33,10 @@ const ui = useUiStore();
 const projectId = computed(() => String(route.params.projectId ?? ""));
 const reportId = computed(() => String(route.params.reportId ?? ""));
 const project = computed(() => workspace.currentProject);
-const report = computed<Report | null>(
-  () => project.value?.reports.find((entry) => entry.id === reportId.value) ?? null,
-);
+const report = computed<Report | null>(() => {
+  const found = project.value?.reports.find((entry) => entry.id === reportId.value) ?? null;
+  return found ? normalizeReport(found) : null;
+});
 const task = computed<Task | null>(
   () => project.value?.tasks.find((entry) => entry.id === report.value?.taskId) ?? null,
 );
@@ -273,7 +274,7 @@ function bytesText(bytes: number): string {
           {{ regenerating ? "正在生成…" : "重新生成" }}
         </button>
         <button class="btn btn-sm btn-primary" type="button" @click="exportReport">
-          导出 Markdown
+          {{ workspace.mode === "host" ? "导出到工作空间" : "导出 Markdown" }}
         </button>
       </template>
     </PageHeader>
@@ -709,6 +710,9 @@ function bytesText(bytes: number): string {
       <div v-if="exportResult.path" class="notice">
         <span class="mono">{{ exportResult.path }}</span>
         <button class="link-btn" type="button" @click="openExport">用系统程序打开</button>
+        <p class="field-hint">
+          宿主模式由 CLI 写入工作空间文件；面板不提供 Markdown 预览或复制，请在打开的文件中查看。
+        </p>
       </div>
       <details v-else class="unselected-block">
         <summary>Markdown 预览</summary>
