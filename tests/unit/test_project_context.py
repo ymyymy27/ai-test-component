@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aitest.core.project_context import build_project_context
+from aitest.core.project_context import build_project_context, detect_services
 
 
 def _write(path: Path, text: str) -> None:
@@ -64,3 +64,21 @@ def test_nested_test_directories_are_detected_without_root_tests(tmp_path: Path)
     context = build_project_context(root, {})
     assert context["test_modules"] == ["backend.tests.api.test_users"]
     assert context["test_example"]["path"] == "backend/tests/api/test_users.py"
+
+
+def test_detect_services_for_fastapi_vite_compose_stack(tmp_path: Path) -> None:
+    root = _monorepo(tmp_path)
+    _write(
+        root / "compose.yml",
+        "services:\n  db:\n    image: postgres:18\n",
+    )
+    _write(root / "backend/app/main.py", "from fastapi import FastAPI\n")
+    _write(
+        root / "frontend/package.json",
+        '{"scripts": {"dev": "vite"}, "devDependencies": {"vite": "^8"}}',
+    )
+    services = detect_services(root)
+    assert list(services) == ["db", "backend", "frontend"]
+    assert services["db"]["start"] == "docker compose up -d db"
+    assert "uv run fastapi dev" in str(services["backend"]["start"])
+    assert "bunx vite" in str(services["frontend"]["start"])

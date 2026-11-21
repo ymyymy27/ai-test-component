@@ -30,6 +30,7 @@ from aitest.core.evidence import (
 from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
 from aitest.core.project_context import (
+    detect_services,
     package_name,
     python_dependencies,
     test_dependency_specs,
@@ -40,7 +41,7 @@ from aitest.model_config import build_client
 from aitest.models import Attempt, Case, Delivery, Plan, Project, Run, case_item_ids
 from aitest.procutil import process_created_at
 from aitest.runners.base import RunnerResult
-from aitest.runners.command_runner import run_command
+from aitest.runners.command_runner import run_command, terminate_process_tree
 from aitest.runners.http_runner import run_http_sequence
 from aitest.runners.junit import parse_junit
 from aitest.runners.package_install import install_packages
@@ -369,15 +370,15 @@ def _start_service(
     secrets: list[str],
     env: dict[str, str],
     cancelled: Callable[[], bool] | None = None,
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, subprocess.Popen[bytes] | None]:
     health = str(config.get("health") or "").strip()
     initial = _healthy(health)
     if initial is True:
         # The service is already running; use it without taking ownership.
-        return False, True
+        return False, True, None
     start = str(config.get("start") or "").strip()
     if not start:
-        return False, bool(health and initial)
+        return False, bool(health and initial), None
     timeout = _as_float(config.get("timeout_seconds"), 120.0)
     log.parent.mkdir(parents=True, exist_ok=True)
     process = subprocess.Popen(
@@ -397,18 +398,18 @@ def _start_service(
         if cancelled is not None and cancelled():
             with log.open("ab") as handle:
                 handle.write("取消请求已收到，停止等待服务健康\n".encode())
-            return True, False
+            return True, False, process
         if health and _healthy(health) is True:
-            return True, True
+            return True, True, process
         if process.poll() is not None:
             if health:
-                return True, _healthy(health) is True
-            return True, process.returncode == 0
+                return True, _healthy(health) is True, process
+            return True, process.returncode == 0, process
         time.sleep(0.5)
     if not health:
         with log.open("ab") as handle:
             handle.write("未配置 health，超时内无法确认服务就绪\n".encode())
-    return True, False
+    return True, False, process
 
 
 def _stop_service(
@@ -417,30 +418,32 @@ def _stop_service(
     log: Path,
     secrets: list[str],
     env: dict[str, str] | None = None,
+    process: subprocess.Popen[bytes] | None = None,
 ) -> None:
     stop = str(config.get("stop") or "").strip()
-    if not stop:
-        return
-    try:
-        log.parent.mkdir(parents=True, exist_ok=True)
-        process = subprocess.Popen(
-            stop,
-            shell=True,
-            cwd=cwd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        assert process.stdout is not None
-        threading.Thread(
-            target=_pump_output, args=(process.stdout, log, secrets), daemon=True
-        ).start()
-        process.wait(timeout=120)
-    except subprocess.TimeoutExpired:
-        with log.open("ab") as handle:
-            handle.write("停止服务的命令超过 120 秒，未强制结束进程\n".encode())
-    except OSError:
-        return
+    if stop:
+        try:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            stopper = subprocess.Popen(
+                stop,
+                shell=True,
+                cwd=cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            assert stopper.stdout is not None
+            threading.Thread(
+                target=_pump_output, args=(stopper.stdout, log, secrets), daemon=True
+            ).start()
+            stopper.wait(timeout=120)
+        except subprocess.TimeoutExpired:
+            with log.open("ab") as handle:
+                handle.write("停止服务的命令超过 120 秒，改为结束进程树\n".encode())
+        except OSError:
+            pass
+    if process is not None:
+        terminate_process_tree(process)
 
 
 def _write_action(ws: Workspace, entry: dict[str, Any]) -> None:
@@ -1380,6 +1383,23 @@ def main(argv: list[str] | None = None) -> int:
         config = _project_config(ws, args.project)
         secret_list = known_secret_values([config, _project_env_secrets(workdir)])
         service_configs = [] if run.kind == "project_check" else _services(config)
+        if (
+            not service_configs
+            and run.kind != "project_check"
+            and any(_is_e2e_command(case.verify_method) for case in plan.cases)
+        ):
+            detected = detect_services(workdir)
+            if detected:
+                service_configs = list(detected.items())
+                if "backend" in detected:
+                    run_env["VITE_API_URL"] = "http://127.0.0.1:18000"
+                if "frontend" in detected:
+                    frontend_health = str(
+                        detected["frontend"].get("health") or ""
+                    )
+                    if frontend_health:
+                        run_env["PLAYWRIGHT_BASE_URL"] = frontend_health
+                        run_env["FRONTEND_HOST"] = frontend_health
         delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
         evidence_settings = _evidence_settings(config)
         request_id_header = _request_id_header(config)
@@ -1455,7 +1475,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             for name, service_config in service_configs:
                 log_name = f"service-{name}.log" if name else "service.log"
-                started, ok = _start_service(
+                started, ok, service_process = _start_service(
                     service_config,
                     workdir,
                     run_dir / log_name,
@@ -1470,6 +1490,7 @@ def main(argv: list[str] | None = None) -> int:
                         "started": started,
                         "ok": ok,
                         "log": run_dir / log_name,
+                        "process": service_process,
                     }
                 )
             service_ok = all(state["ok"] for state in service_states)
@@ -1751,7 +1772,14 @@ def main(argv: list[str] | None = None) -> int:
             keep = _truthy(state["config"].get("keep_on_failure")) and failed_any
             if state["started"] and not keep:
                 _stop_service(
-                    state["config"], workdir, state["log"], secret_list, run_env
+                    state["config"],
+                    workdir,
+                    state["log"],
+                    secret_list,
+                    run_env,
+                    cast(
+                        subprocess.Popen[bytes] | None, state.get("process")
+                    ),
                 )
         run.heartbeat_at = iso_now()
         _save(run_path, run)

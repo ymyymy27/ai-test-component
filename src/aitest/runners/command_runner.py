@@ -46,6 +46,12 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
         process.kill()
 
 
+def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    """Public wrapper used by the worker when it owns a service process."""
+
+    _kill_process_tree(process)
+
+
 def run_command(
     command: str,
     cwd: Path,

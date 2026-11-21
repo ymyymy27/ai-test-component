@@ -871,6 +871,60 @@ def _health_hosts(services: dict[str, Any]) -> set[str]:
     return hosts
 
 
+def detect_services(root: Path) -> dict[str, dict[str, object]]:
+    """Best-effort local stack for a FastAPI + Vite + Compose repository."""
+
+    services: dict[str, dict[str, object]] = {}
+    compose = next(
+        (
+            root / name
+            for name in ("compose.yml", "compose.yaml", "docker-compose.yml")
+            if (root / name).is_file()
+        ),
+        None,
+    )
+    db_name = ""
+    if compose is not None:
+        try:
+            text = compose.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        if "postgres" in text.lower() and "db:" in text:
+            db_name = "db"
+    if db_name:
+        services[db_name] = {
+            "start": "docker compose up -d db",
+            "stop": "docker compose stop db",
+            "timeout_seconds": 120,
+        }
+    backend = root / "backend"
+    if (backend / "app" / "main.py").is_file() and "fastapi" in (
+        (backend / "pyproject.toml").read_text(encoding="utf-8", errors="replace")
+        if (backend / "pyproject.toml").is_file()
+        else ""
+    ).lower():
+        services["backend"] = {
+            "start": "cd backend && uv run fastapi dev --host 127.0.0.1 --port 18000",
+            "health": "http://127.0.0.1:18000/api/v1/utils/health-check/",
+            "timeout_seconds": 180,
+        }
+    frontend = root / "frontend"
+    package = _read_json(frontend / "package.json")
+    scripts = package.get("scripts")
+    dev_script = scripts.get("dev") if isinstance(scripts, dict) else ""
+    if (
+        isinstance(dev_script, str)
+        and "vite" in dev_script.lower()
+        and (frontend / "playwright.config.ts").is_file()
+    ):
+        services["frontend"] = {
+            "start": "cd frontend && bunx vite --host 127.0.0.1 --port 15173",
+            "health": "http://127.0.0.1:15173",
+            "timeout_seconds": 180,
+        }
+    return services
+
+
 def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     """Return inferred facts used by plan generation."""
     pyproject = _read_toml(root / "pyproject.toml")

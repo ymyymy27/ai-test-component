@@ -697,7 +697,9 @@ def _split_multi_item_cases(
 _TEST_NODE_RE = re.compile(
     r"([A-Za-z0-9_./\\-]+\.py)::([A-Za-z0-9_:]+)"
 )
-_TEST_FILE_RE = re.compile(r"([A-Za-z0-9_./\\-]+\.py)\b")
+_TEST_FILE_RE = re.compile(
+    r"([A-Za-z0-9_./\\-]+\.(?:py|ts|tsx|js|jsx))\b"
+)
 
 
 def _annotate_case_coverage(
@@ -717,6 +719,10 @@ def _annotate_case_coverage(
             continue
         if method.startswith(("script:", "http:", "junit:", "sql:")):
             case.coverage_kind = "direct"
+            continue
+        if method.startswith("playwright:"):
+            case.coverage_kind = "file"
+            notes[case.case_id] = "文件级覆盖：Playwright 脚本包含多个断言，未定位到单个测试"
             continue
         if not method.startswith(("command:", "pytest:")):
             case.coverage_kind = "unverified"
