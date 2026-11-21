@@ -890,6 +890,42 @@
   margin-bottom: var(--space-3);
 }
 
+.save-stamp {
+  align-self: center;
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: var(--text-12);
+}
+
+.settings-subtitle {
+  margin-top: var(--space-4);
+  color: var(--ink);
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+.form-grid > .save-stamp {
+  align-self: center;
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: var(--text-12);
+}
+
+.settings-subtitle {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0 0;
+}
+
+.settings-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
 .settings-title,
 .section-title-lg {
   font-size: var(--text-16);

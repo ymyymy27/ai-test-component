@@ -125,6 +125,17 @@ const busyGithubRead = computed(() => workspace.busyKey(`github-read:${projectId
 
 const backupBusy = ref(false);
 const restoreBusy = ref(false);
+const clearBusy = ref(false);
+const envBusy = ref(false);
+const bindingRuleId = ref("");
+const savedAt = ref<Record<string, string>>({});
+
+function markSaved(key: string): void {
+  savedAt.value[key] = new Date().toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 const restoreInput = ref<HTMLInputElement | null>(null);
 const ruleImportInput = ref<HTMLInputElement | null>(null);
 
@@ -179,6 +190,7 @@ async function saveProfile(): Promise<void> {
       name,
       goal: profileGoal.value,
     });
+    markSaved("profile");
     ui.showToast("项目资料已保存。", "success");
   } catch {
     // store 已提示。
@@ -235,6 +247,7 @@ async function saveConfig(): Promise<void> {
     await workspace.saveConfig(projectId.value, validated.config);
     advancedDirty.value = false;
     advanced.value = formatJson(validated.config);
+    markSaved("config");
     ui.showToast("运行配置已保存；旧计划可能在启动时要求重新生成。", "success");
   } catch {
     // store 已提示。
@@ -256,6 +269,7 @@ async function saveRule(): Promise<void> {
       evidenceRequirements: parseLineList(ruleForm.value.evidence),
     });
     ruleForm.value = { name: "", version: "", steps: "", aiRules: "", evidence: "" };
+    markSaved("rule");
     ui.showToast("规则版本已保存；绑定后新计划才使用它。", "success");
   } catch {
     // store 已提示。
@@ -263,11 +277,23 @@ async function saveRule(): Promise<void> {
 }
 
 async function bindRule(ruleId: string): Promise<void> {
+  bindingRuleId.value = ruleId;
   try {
     await workspace.bindRule(projectId.value, ruleId);
     ui.showToast("规则已绑定；旧计划可能在启动时要求重新生成。", "success");
   } catch {
     // store 已提示。
+  } finally {
+    bindingRuleId.value = "";
+  }
+}
+
+async function refreshEnvironment(): Promise<void> {
+  envBusy.value = true;
+  try {
+    await workspace.refreshEnvironment();
+  } finally {
+    envBusy.value = false;
   }
 }
 
@@ -412,6 +438,9 @@ async function onRestoreFile(event: Event): Promise<void> {
   try {
     const data = await file.arrayBuffer();
     await workspace.restoreBackup(data);
+    if (workspace.currentProjectId) {
+      await router.push(`/projects/${workspace.currentProjectId}/overview`);
+    }
   } catch {
     // store 已提示。
   } finally {
@@ -426,12 +455,24 @@ async function clearData(): Promise<void> {
     body: "会删除本机保存的项目、任务、问题与报告；这个动作不能撤销，不影响被测仓库。",
     confirmLabel: "清空本地数据",
     tone: "danger",
+    requireText: true,
+    textLabel: "输入“清空”",
+    placeholder: "清空",
   });
   if (answer === null) {
     return;
   }
-  await workspace.clearData();
-  await router.push("/setup");
+  if (answer !== "清空") {
+    ui.showToast("确认文字不匹配，未执行清空。", "error");
+    return;
+  }
+  clearBusy.value = true;
+  try {
+    await workspace.clearData();
+    await router.push("/setup");
+  } finally {
+    clearBusy.value = false;
+  }
 }
 </script>
 
@@ -451,7 +492,7 @@ async function clearData(): Promise<void> {
     >
       <template #actions>
         <button
-          class="btn btn-sm"
+          class="btn btn-sm settings-back"
           type="button"
           @click="router.push(`/projects/${projectId}/overview`)"
         >
@@ -459,6 +500,14 @@ async function clearData(): Promise<void> {
         </button>
       </template>
     </PageHeader>
+
+    <p class="doc-note">
+      {{
+        workspace.mode === "host"
+          ? "工作空间由宿主 CLI 管理；面板不直接写业务文件。凭据不写入配置、日志、报告或导出。"
+          : "工作空间位于浏览器本地存储，项目仓库内不留插件数据。凭据不写入配置、日志、报告或导出。"
+      }}
+    </p>
 
     <div class="settings-layout">
       <SettingsIndex :sections="sections" :active="activeSection" @jump="selectSection" />
@@ -517,6 +566,7 @@ async function clearData(): Promise<void> {
               >
                 {{ busyProfile ? "正在保存…" : "保存项目资料" }}
               </button>
+              <span v-if="savedAt.profile" class="save-stamp">已于 {{ savedAt.profile }} 保存</span>
             </div>
           </form>
         </section>
@@ -537,6 +587,7 @@ async function clearData(): Promise<void> {
             </div>
           </div>
           <div class="form-grid">
+            <h3 class="settings-subtitle">构建与项目级检查</h3>
             <div class="field">
               <label for="config-build">构建命令</label>
               <input
@@ -564,6 +615,7 @@ async function clearData(): Promise<void> {
                 placeholder="留空时自动检测"
               />
             </div>
+            <h3 class="settings-subtitle">运行器</h3>
             <div class="field">
               <label for="config-test">测试命令</label>
               <input
@@ -573,6 +625,7 @@ async function clearData(): Promise<void> {
                 placeholder="例如 pytest"
               />
             </div>
+            <h3 class="settings-subtitle">服务</h3>
             <div class="field">
               <label for="config-health">服务健康地址</label>
               <input
@@ -591,6 +644,7 @@ async function clearData(): Promise<void> {
                 placeholder="http://127.0.0.1:8000"
               />
             </div>
+            <h3 class="settings-subtitle">证据</h3>
             <div class="field">
               <label for="config-evidence-file">单文件证据上限（MB）</label>
               <input
@@ -609,6 +663,7 @@ async function clearData(): Promise<void> {
                 min="1"
               />
             </div>
+            <h3 class="settings-subtitle">链路</h3>
             <div class="field">
               <label for="config-log">链路日志路径</label>
               <input
@@ -618,6 +673,7 @@ async function clearData(): Promise<void> {
                 placeholder="留空表示未配置"
               />
             </div>
+            <h3 class="settings-subtitle">模型</h3>
             <div class="field">
               <label for="config-model">模型名</label>
               <input
@@ -639,7 +695,7 @@ async function clearData(): Promise<void> {
             />
             <p v-if="configError" class="field-error" role="alert">{{ configError }}</p>
           </div>
-          <div class="form-actions">
+          <div class="form-actions settings-savebar">
             <button class="btn" type="button" @click="applyAdvanced">解析并填入表单</button>
             <button
               class="btn btn-primary"
@@ -650,6 +706,7 @@ async function clearData(): Promise<void> {
             >
               {{ busyConfig ? "正在保存…" : "保存运行配置" }}
             </button>
+            <span v-if="savedAt.config" class="save-stamp">已于 {{ savedAt.config }} 保存</span>
           </div>
         </section>
 
@@ -665,27 +722,29 @@ async function clearData(): Promise<void> {
               <h2 class="settings-title">环境自检</h2>
               <p class="settings-desc">缺失只影响对应能力，本地记录与报告仍可用。</p>
             </div>
-            <button class="btn btn-sm" type="button" @click="workspace.refreshEnvironment()">
-              重新检查
+            <button
+              class="btn btn-sm"
+              type="button"
+              :disabled="envBusy"
+              :aria-busy="envBusy"
+              @click="refreshEnvironment"
+            >
+              {{ envBusy ? "正在检查…" : "重新检查" }}
             </button>
           </div>
-          <div class="env-list">
+          <div v-if="workspace.environment.length" class="env-list">
             <div v-for="check in workspace.environment" :key="check.key" class="env-row">
               <span class="env-name">{{ check.name }}</span>
               <span class="env-value">{{ check.value }}</span>
               <span class="env-state" :class="{ 'is-missing': !check.ok }">
                 {{ check.ok ? "通过" : "缺失" }}
               </span>
+              <span v-if="!check.ok && (check.detail || check.repair)" class="env-detail">
+                {{ check.detail }}<template v-if="check.repair"> · {{ check.repair }}</template>
+              </span>
             </div>
           </div>
-          <div
-            v-for="check in workspace.environment.filter((item) => !item.ok)"
-            :key="`${check.key}-repair`"
-            class="env-repair"
-          >
-            <strong>{{ check.name }}</strong>：{{ check.detail }}
-            <template v-if="check.repair"> · {{ check.repair }}</template>
-          </div>
+          <p v-else class="doc-note">还没有检查结果；点“重新检查”读取当前环境。</p>
         </section>
 
         <section
@@ -714,20 +773,23 @@ async function clearData(): Promise<void> {
           <div class="rule-list">
             <div v-for="rule in project.rules" :key="rule.id" class="rule-row">
               <span class="rule-name">{{ rule.name }}</span>
-              <span class="rule-meta"
-                >v{{ rule.version }} ·
-                {{ rule.id === project.rulesVersionId ? "已绑定" : "历史版本" }}</span
-              >
+              <span class="rule-meta">
+                <span class="badge" :class="rule.id === project.rulesVersionId ? 'is-accent' : ''">
+                  {{ rule.id === project.rulesVersionId ? "已绑定" : "历史版本" }}
+                </span>
+                v{{ rule.version }}
+              </span>
               <span class="rule-actions">
-                <button class="link-btn" type="button" @click="exportRule(rule)">导出</button>
+                <button class="btn btn-sm" type="button" @click="exportRule(rule)">导出</button>
                 <button
                   v-if="rule.id !== project.rulesVersionId"
-                  class="link-btn"
+                  class="btn btn-sm"
                   type="button"
-                  :disabled="workspace.busyKey(`rule-bind:${projectId}`)"
+                  :disabled="Boolean(bindingRuleId)"
+                  :aria-busy="bindingRuleId === rule.id"
                   @click="bindRule(rule.id)"
                 >
-                  绑定
+                  {{ bindingRuleId === rule.id ? "绑定中…" : "绑定" }}
                 </button>
               </span>
               <details class="rule-detail">
@@ -757,9 +819,19 @@ async function clearData(): Promise<void> {
               </div>
               <div class="field">
                 <label for="rule-version">版本</label>
-                <input id="rule-version" v-model="ruleForm.version" type="text" maxlength="20" />
+                <input
+                  id="rule-version"
+                  v-model="ruleForm.version"
+                  type="text"
+                  maxlength="20"
+                  :aria-invalid="ruleError ? 'true' : undefined"
+                  :aria-describedby="ruleError ? 'rule-error' : undefined"
+                />
               </div>
             </div>
+            <p v-if="ruleError" id="rule-error" class="field-error" role="alert">
+              {{ ruleError }}
+            </p>
             <div class="field">
               <label for="rule-steps">步骤</label>
               <textarea
@@ -779,7 +851,6 @@ async function clearData(): Promise<void> {
                 <textarea id="rule-evidence" v-model="ruleForm.evidence" rows="3" />
               </div>
             </div>
-            <p v-if="ruleError" class="field-error" role="alert">{{ ruleError }}</p>
             <div class="form-actions">
               <button
                 class="btn btn-primary"
@@ -789,6 +860,7 @@ async function clearData(): Promise<void> {
               >
                 {{ busyRule ? "正在保存…" : "保存规则版本" }}
               </button>
+              <span v-if="savedAt.rule" class="save-stamp">已于 {{ savedAt.rule }} 保存</span>
             </div>
           </form>
         </section>
@@ -1058,28 +1130,23 @@ async function clearData(): Promise<void> {
               />
             </template>
             <span class="backup-meta">
-              {{
-                workspace.capabilities.browserBackup
-                  ? "本地 ZIP · 不打包证据 · 真实 CLI 备份仍由命令行完成"
-                  : "备份写入宿主工作空间；恢复与清理由 CLI 完成"
-              }}
+              {{ workspace.capabilities.browserBackup ? "本地 ZIP" : "宿主工作空间" }}
             </span>
           </div>
+          <h3 class="settings-subtitle">危险操作</h3>
           <div v-if="workspace.capabilities.browserBackup" class="backup-row">
-            <button class="btn btn-sm btn-danger" type="button" @click="clearData">
-              清空本地数据
+            <button
+              class="btn btn-sm btn-danger"
+              type="button"
+              :disabled="clearBusy"
+              :aria-busy="clearBusy"
+              @click="clearData"
+            >
+              {{ clearBusy ? "正在清空…" : "清空本地数据" }}
             </button>
             <span class="backup-meta">删除本机保存的项目、任务、问题与报告；不影响被测仓库。</span>
           </div>
         </section>
-
-        <p class="doc-note">
-          {{
-            workspace.mode === "host"
-              ? "工作空间由宿主 CLI 管理；面板不直接写业务文件。凭据不写入配置、日志、报告或导出。"
-              : "工作空间位于浏览器本地存储，项目仓库内不留插件数据。凭据不写入配置、日志、报告或导出。"
-          }}
-        </p>
       </div>
     </div>
   </div>

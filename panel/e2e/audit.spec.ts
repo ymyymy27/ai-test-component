@@ -232,6 +232,7 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
 
   await page.locator(".settings-index").getByRole("tab", { name: "备份" }).click();
   await page.getByRole("button", { name: "清空本地数据" }).click();
+  await page.fill("#confirm-dialog-text", "清空");
   await page.locator(".dialog-confirm").click();
   await page.waitForURL(/\/setup/);
   await expect(page.locator("h1").first()).toContainText("建立项目");

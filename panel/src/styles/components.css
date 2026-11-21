@@ -1662,6 +1662,12 @@ dialog[open] {
   color: var(--fail);
 }
 
+.env-detail {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
 .env-repair {
   margin-top: var(--space-2);
   padding: var(--space-2);
@@ -2609,11 +2615,31 @@ dialog[open] {
   padding-top: var(--space-1);
 }
 
+.settings-section details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  cursor: pointer;
+}
+
+.settings-section details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section details > summary::after {
+  content: "›";
+  color: var(--ink-3);
+  transition: transform var(--motion-fast) ease;
+}
+
+.settings-section details[open] > summary::after {
+  transform: rotate(90deg);
+}
+
 .rule-detail > summary {
   color: var(--ink-3);
   font-size: var(--text-12);
-  list-style: none;
-  cursor: pointer;
 }
 
 .rule-detail > summary::-webkit-details-marker {
