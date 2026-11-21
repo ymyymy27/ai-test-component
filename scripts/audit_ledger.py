@@ -3,7 +3,8 @@
 用法：
   python scripts/audit_ledger.py --init    # 首次生成台账（已存在则拒绝，--force 覆盖）
   python scripts/audit_ledger.py --check   # 校验台账与文档条目一一对应
-  python scripts/audit_ledger.py --require-closed  # 发布前门禁：不允许未开始/修复中/待验/需决策
+  python scripts/audit_ledger.py --require-closed  # 发布门禁：不允许未关闭条目
+  python scripts/audit_ledger.py --set PR-001 --status 已验 --commit abc123 --evidence "pytest ..."
 
 台账状态：
   未开始 / 修复中 / 已修复待验 / 已验 / 不修 / 需决策
@@ -35,8 +36,7 @@ _ITEM_05_BULLET = re.compile(r"^- \*\*(补-F[VSD]\d+) ([^*]+?)\*\*")
 _SECTION_06 = re.compile(r"^## ([一二三四五六七八九十]+)、(.+)$")
 _ITEM_06 = re.compile(r"^- (PR-\d+) (.+)$")
 _LEDGER_ROW = re.compile(
-    r"^\| ([^|]+?) \| (.*?) \| (.*?) \| (.*?) \| "
-    r"(.*?) \| (.*?) \| (.*?) \| (.*?) \|$"
+    r"^\| ([^|]+?) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \|$"
 )
 _ISSUE_ID = re.compile(r"^(?:[BFET]-\d+|补-[BFET]\d+|补-F[VSD]\d+|PR-\d+)$")
 
@@ -95,9 +95,23 @@ def extract_issues() -> list[Issue]:
     return issues
 
 
-def render_ledger(issues: list[Issue]) -> str:
-    count_05 = sum(1 for issue in issues if issue.source == "05")
-    count_06 = sum(1 for issue in issues if issue.source == "06")
+def rows_from_issues(issues: list[Issue]) -> list[dict[str, str]]:
+    return [
+        {
+            "id": issue.issue_id,
+            "source": issue.source,
+            "area": issue.area,
+            "title": issue.title,
+            "status": "未开始",
+            "commit": "",
+            "evidence": "",
+            "note": "",
+        }
+        for issue in issues
+    ]
+
+
+def render_ledger(rows: list[dict[str, str]]) -> str:
     lines = [
         "# 问题修复台账（2026-11-21）",
         "",
@@ -115,25 +129,34 @@ def render_ledger(issues: list[Issue]) -> str:
         "- `不修`：必须在“备注”写明理由与决策人，不允许空理由关闭。",
         "- `需决策`：需要产品或范围决定；备注写待决问题，不得当作已处理。",
         "",
+        "状态更新使用 `python scripts/audit_ledger.py --set 编号 [编号...] --status 已验 "
+        "--commit <hash> --evidence <证据>`，脚本会同步重算汇总。",
         "发布门禁执行 `python scripts/audit_ledger.py --require-closed`：只允许 `已验` 与 `不修`。",
         "",
         "## 汇总",
         "",
         "| 来源 | 条目数 | 未开始 | 修复中 | 已修复待验 | 已验 | 不修 | 需决策 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
-        f"| 05 全量审查 | {count_05} | {count_05} | 0 | 0 | 0 | 0 | 0 |",
-        f"| 06 逐页复查 | {count_06} | {count_06} | 0 | 0 | 0 | 0 | 0 |",
-        f"| 合计 | {len(issues)} | {len(issues)} | 0 | 0 | 0 | 0 | 0 |",
-        "",
-        "## 台账",
-        "",
-        "| 编号 | 来源 | 范围 | 条目 | 状态 | 修复提交 | 验证证据 | 备注 |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for issue in issues:
+    for source, label in (("05", "05 全量审查"), ("06", "06 逐页复查")):
+        subset = [row for row in rows if row["source"] == source]
+        cells = [str(sum(1 for row in subset if row["status"] == status)) for status in STATUSES]
+        lines.append(f"| {label} | {len(subset)} | " + " | ".join(cells) + " |")
+    total_cells = [str(sum(1 for row in rows if row["status"] == status)) for status in STATUSES]
+    lines.append(f"| 合计 | {len(rows)} | " + " | ".join(total_cells) + " |")
+    lines.extend(
+        [
+            "",
+            "## 台账",
+            "",
+            "| 编号 | 来源 | 范围 | 条目 | 状态 | 修复提交 | 验证证据 | 备注 |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    for row in rows:
         lines.append(
-            f"| {issue.issue_id} | {issue.source} | {issue.area} | "
-            f"{issue.title} | 未开始 |  |  |  |"
+            f"| {row['id']} | {row['source']} | {row['area']} | {row['title']} | "
+            f"{row['status']} | {row['commit']} | {row['evidence']} | {row['note']} |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -161,6 +184,33 @@ def parse_ledger() -> list[dict[str, str]]:
             }
         )
     return rows
+
+
+def update_rows(
+    ids: list[str],
+    status: str,
+    commit: str | None,
+    evidence: str | None,
+    note: str | None,
+) -> None:
+    if status not in STATUSES:
+        raise SystemExit(f"状态非法：{status}")
+    rows = parse_ledger()
+    existing = {row["id"] for row in rows}
+    missing = [issue_id for issue_id in ids if issue_id not in existing]
+    if missing:
+        raise SystemExit(f"台账中没有这些条目：{', '.join(missing)}")
+    for row in rows:
+        if row["id"] not in ids:
+            continue
+        row["status"] = status
+        if commit is not None:
+            row["commit"] = commit
+        if evidence is not None:
+            row["evidence"] = evidence
+        if note is not None:
+            row["note"] = note
+    LEDGER.write_text(render_ledger(rows), encoding="utf-8", newline="\n")
 
 
 def check(require_closed: bool = False) -> list[str]:
@@ -203,8 +253,7 @@ def check(require_closed: bool = False) -> list[str]:
 
 def print_summary() -> None:
     rows = parse_ledger()
-    total = len(rows)
-    print(f"台账条目：{total}")
+    print(f"台账条目：{len(rows)}")
     for status in STATUSES:
         count = sum(1 for row in rows if row["status"] == status)
         print(f"  {status}: {count}")
@@ -216,13 +265,28 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="配合 --init 覆盖已有台账")
     parser.add_argument("--check", action="store_true", help="校验台账与文档一致（默认）")
     parser.add_argument("--require-closed", action="store_true", help="发布门禁：不允许未关闭条目")
+    parser.add_argument("--set", nargs="+", metavar="ID", help="更新指定条目的状态")
+    parser.add_argument("--status", choices=STATUSES, help="配合 --set 的新状态")
+    parser.add_argument("--commit", default=None, help="修复提交")
+    parser.add_argument("--evidence", default=None, help="验证证据")
+    parser.add_argument("--note", default=None, help="备注")
     args = parser.parse_args()
+
+    if args.set:
+        if not args.status:
+            print("--set 必须同时给出 --status", file=sys.stderr)
+            return 2
+        update_rows(args.set, args.status, args.commit, args.evidence, args.note)
+        print_summary()
+        print("台账已更新")
+        return 0
 
     if args.init:
         if LEDGER.exists() and not args.force:
             print(f"台账已存在，拒绝覆盖：{LEDGER}", file=sys.stderr)
             return 2
-        LEDGER.write_text(render_ledger(extract_issues()), encoding="utf-8", newline="\n")
+        ledger_text = render_ledger(rows_from_issues(extract_issues()))
+        LEDGER.write_text(ledger_text, encoding="utf-8", newline="\n")
         print(f"已生成：{LEDGER}")
         print_summary()
         return 0
