@@ -770,10 +770,19 @@ _MODULE_PACKAGES = {
 }
 
 
-def _missing_module_from_output(output: bytes) -> str:
+def _missing_modules_from_output(output: bytes) -> list[str]:
     text = output.decode("utf-8", errors="replace")
-    match = _MISSING_MODULE_RE.search(text)
-    return match.group(1).split(".", 1)[0] if match else ""
+    modules: list[str] = []
+    for match in _MISSING_MODULE_RE.finditer(text):
+        name = match.group(1).split(".", 1)[0]
+        if name and name not in modules:
+            modules.append(name)
+    return modules
+
+
+def _missing_module_from_output(output: bytes) -> str:
+    modules = _missing_modules_from_output(output)
+    return modules[0] if modules else ""
 
 
 def _resolve_dependency_package(
@@ -1487,9 +1496,9 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     if missing_tool:
                         result = "blocked"
-                        outputs = []
+                        outputs: list[bytes] = []
                         message = f"环境缺少命令：{missing_tool}（不计为产品失败）"
-                        artifacts = []
+                        artifacts: list[tuple[str, bytes]] = []
                     elif cached is not None:
                         result, outputs, message, artifacts = cached
                         message = (
@@ -1509,8 +1518,8 @@ def main(argv: list[str] | None = None) -> int:
                         )
                     suggestion: dict[str, str] | None = None
                     if result == "failed" and case.verify_method.startswith("command:"):
-                        missing_module = _missing_module_from_output(b"".join(outputs))
-                        if missing_module:
+                        missing_modules = _missing_modules_from_output(b"".join(outputs))
+                        for missing_module in missing_modules[:3]:
                             candidate = _dependency_suggestion(
                                 ws,
                                 run.project_id,
@@ -1518,15 +1527,17 @@ def main(argv: list[str] | None = None) -> int:
                                 missing_module,
                                 case.verify_method,
                             )
-                            if candidate:
-                                candidate["case_id"] = case.case_id
+                            if not candidate:
+                                continue
+                            candidate["case_id"] = case.case_id
+                            if suggestion is None:
                                 suggestion = candidate
-                                if not any(
-                                    entry.get("module") == candidate["module"]
-                                    and entry.get("package") == candidate["package"]
-                                    for entry in run.dependency_suggestions
-                                ):
-                                    run.dependency_suggestions.append(candidate)
+                            if not any(
+                                entry.get("module") == candidate["module"]
+                                and entry.get("package") == candidate["package"]
+                                for entry in run.dependency_suggestions
+                            ):
+                                run.dependency_suggestions.append(candidate)
                     if captures_screenshots:
                         artifacts = [
                             *artifacts,

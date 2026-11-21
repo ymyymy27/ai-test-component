@@ -35,6 +35,7 @@ from aitest.worker import (
     _missing_command_tool,
     _missing_dependencies,
     _missing_module_from_output,
+    _missing_modules_from_output,
     _resolve_dependency_package,
     _run_env,
     _run_python_script,
@@ -445,3 +446,12 @@ def test_ai_summary_rejects_english_conclusion_words() -> None:
     assert _conclusion_free("All tests passed") is False
     assert _conclusion_free("LGTM") is False
     assert _conclusion_free("ready for release") is False
+
+
+def test_multiple_missing_modules_are_all_collected() -> None:
+    output = (
+        b"ModuleNotFoundError: No module named 'alpha'\n"
+        b"ModuleNotFoundError: No module named 'beta.core'\n"
+        b"ModuleNotFoundError: No module named 'alpha'\n"
+    )
+    assert _missing_modules_from_output(output) == ["alpha", "beta"]
