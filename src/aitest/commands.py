@@ -1664,7 +1664,10 @@ def cached_result(
     path = request_cache_path(ws, request_id, command, payload)
     if not path.is_file():
         return None
-    return read_json(path)
+    try:
+        return read_json(path)
+    except (AiTestError, OSError):
+        return None
 
 
 def store_result(

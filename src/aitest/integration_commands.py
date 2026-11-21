@@ -31,7 +31,13 @@ def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     repo = _text({"repo": _require(payload, "repo")}, "repo")
     ref = _text(payload, "ref", "main")
     result = read_github(repo, ref)
-    target = ws.project_dir(project.project_id) / "github" / f"{result['commit']}.json"
+    commit = str(result.get("commit") or "")
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", commit):
+        raise invalid_request(
+            "GitHub 返回的提交号不合法，未写入快照",
+            "检查仓库与 ref 后重试",
+        )
+    target = ws.project_dir(project.project_id) / "github" / f"{commit}.json"
     write_json(target, result)
     return {
         **result,

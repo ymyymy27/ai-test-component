@@ -37,7 +37,15 @@ def _run(
     runner: Runner, args: list[str], *, quiet: bool = False
 ) -> subprocess.CompletedProcess[str] | None:
     try:
-        result = runner(args, capture_output=True, text=True, timeout=_TIMEOUT_SECONDS, check=False)
+        result = runner(
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_TIMEOUT_SECONDS,
+            check=False,
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         if quiet:
             return None

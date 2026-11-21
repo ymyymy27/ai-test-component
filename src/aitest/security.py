@@ -138,8 +138,9 @@ def ensure_within(root: Path, target: Path) -> Path:
 
 def redact(text: str, secrets: list[str]) -> str:
     result = text
-    for secret in secrets:
-        if secret and len(secret) >= 4:
+    ordered = sorted({secret for secret in secrets if secret}, key=len, reverse=True)
+    for secret in ordered:
+        if len(secret) >= 4:
             result = result.replace(secret, "***")
     for pattern in _SECRET_VALUE_PATTERNS:
         result = pattern.sub("***", result)
