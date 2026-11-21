@@ -211,6 +211,10 @@ export interface Task {
   reviewer?: string;
   acceptance_items: AcceptanceItem[];
   revision: number;
+  stage?: "fresh" | "scope" | "planned" | "running" | "result";
+  previous_stage?: "scope" | "planned" | "running" | "result" | null;
+  current_plan_id?: string | null;
+  current_run_id?: string | null;
 }
 
 export interface TargetCandidate {
@@ -323,6 +327,9 @@ export interface Attempt {
 export interface RunCase {
   case_id: string;
   result: CaseResult;
+  actual?: string;
+  error_type?: string;
+  stack_key?: string;
   attempts: Attempt[];
   evidence_refs: string[];
 }

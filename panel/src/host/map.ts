@@ -609,12 +609,12 @@ function mapRunCase(
     // 没有计划快照就无法核对预期；不能默认成“已核实”。
     expectationVerified: planCase?.expectationVerified ?? false,
     dependsOn: planCase?.dependsOn ?? null,
-    actual: lastAttempt?.message ?? "",
+    actual: dto.actual ?? lastAttempt?.message ?? "",
     result: dto.result,
     evidence: evidence.filter((entry) => refs.has(entry.id) || refs.has(entry.name)),
     message: lastAttempt?.message ?? "",
-    errorType: "",
-    stackKey: "",
+    errorType: dto.error_type ?? "",
+    stackKey: dto.stack_key ?? "",
     attempts: dto.attempts.length,
     manualSteps: dto.attempts.map((attempt, index) => ({
       step: `第 ${index + 1} 次尝试`,
@@ -979,7 +979,9 @@ export function mapTask(
   const latestRun = sortedRuns[0] ?? null;
   const override = sidecar.stage[task.task_id];
   let stage: Task["stage"] = "scope";
-  if (sortedRuns.some((run) => run.status === "running")) {
+  if (task.stage) {
+    stage = task.stage;
+  } else if (sortedRuns.some((run) => run.status === "running")) {
     // 真实运行状态优先于 UI 的“调整范围”覆盖，避免运行中还能新建任务。
     stage = "running";
   } else if (override) {
@@ -1012,14 +1014,20 @@ export function mapTask(
     recommendedItemIds: sidecar.recommended[task.task_id] ?? selected,
     selectedItemIds: selected.filter((id) => applicable.includes(id)),
     stage,
-    previousStage: override?.previousStage ?? null,
+    previousStage: task.previous_stage ?? override?.previousStage ?? null,
     revision: task.revision,
     createdAt: latestPlan?.createdAt ?? latestRun?.startedAt ?? isoNow(),
     updatedAt: latestRun?.startedAt ?? latestPlan?.createdAt ?? isoNow(),
     plans: sortedPlans,
-    currentPlanId: latestPlan?.id ?? null,
+    currentPlanId:
+      task.current_plan_id && sortedPlans.some((plan) => plan.id === task.current_plan_id)
+        ? task.current_plan_id
+        : (latestPlan?.id ?? null),
     runs: sortedRuns,
-    currentRunId: latestRun?.id ?? null,
+    currentRunId:
+      task.current_run_id && sortedRuns.some((run) => run.id === task.current_run_id)
+        ? task.current_run_id
+        : (latestRun?.id ?? null),
     delivery,
     templates: sidecar.templates[task.task_id] ?? latestPlan?.templates ?? [],
   };
