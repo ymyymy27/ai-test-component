@@ -167,7 +167,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `project.update`
 
-入参 `{"project_id", "patch": {...}, "expected_revision": 3}`；返回新修订号。版本冲突返回 `RUN_STATE_CONFLICT`。
+入参 `{"project_id", "patch": {...}, "expected_revision": 3}`；`patch` 只允许 `name`、`goal`、`archived`（布尔）。返回新修订号。版本冲突返回 `RUN_STATE_CONFLICT`。
 
 #### `project.config`
 

@@ -180,6 +180,7 @@ export interface Project {
   name: string;
   root: string;
   goal?: string;
+  archived?: boolean;
   modules: Module[];
   rules_version_id?: string | null;
   revision: number;

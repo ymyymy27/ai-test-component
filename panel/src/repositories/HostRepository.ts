@@ -228,6 +228,7 @@ export class HostRepository implements ProjectRepository {
     await this.client.updateProject(projectId, {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.goal !== undefined ? { goal: patch.goal } : {}),
+      ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
     });
     const project = await this.getProject(projectId);
     if (!project) {

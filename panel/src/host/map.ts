@@ -1129,6 +1129,7 @@ export function mapProject(input: {
     name: project.name,
     root: project.root,
     goal: project.goal ?? "",
+    archived: project.archived ?? false,
     createdAt: project.updated_at ?? isoNow(),
     updatedAt: project.updated_at ?? isoNow(),
     analysisStatus: analysis?.status ?? (projectMap || tasks.length ? "ready" : "idle"),
@@ -1147,7 +1148,6 @@ export function mapProject(input: {
     quickChecks: sidecar.quickChecks[project.project_id] ?? [],
     issues,
     reports,
-    archived: false,
   };
 }
 

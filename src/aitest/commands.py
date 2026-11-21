@@ -544,6 +544,7 @@ def cmd_project_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
                 "root": p.root,
                 "revision": p.revision,
                 "updated_at": p.updated_at,
+                "archived": p.archived,
             }
             for p in ws.list_projects()
         ]
@@ -585,11 +586,11 @@ def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     patch = payload.get("patch")
     if not isinstance(patch, dict):
         raise invalid_request("patch 必须是对象")
-    unknown = sorted(set(patch) - {"name", "goal"})
+    unknown = sorted(set(patch) - {"name", "goal", "archived"})
     if unknown:
         raise invalid_request(
             "project.update 不支持这些字段：" + "、".join(unknown),
-            "只允许修改 name 与 goal",
+            "只允许修改 name、goal 与 archived",
         )
     data = project.model_dump(mode="json")
     secrets = _project_secrets(ws, project.project_id)
@@ -599,6 +600,11 @@ def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             if not isinstance(value, str):
                 raise invalid_request(f"字段必须是字符串：{key}")
             data[key] = redact(value, secrets)
+    if "archived" in patch:
+        value = patch["archived"]
+        if not isinstance(value, bool):
+            raise invalid_request("archived 必须是布尔值")
+        data["archived"] = value
     project = Project.model_validate(data)
     project.revision += 1
     ws.save_project(project)

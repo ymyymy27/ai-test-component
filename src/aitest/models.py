@@ -61,6 +61,7 @@ class Project(Model):
     rules_version_id: str | None = None
     revision: int = 1
     updated_at: str = ""
+    archived: bool = False
 
 
 class AcceptanceItem(Model):
