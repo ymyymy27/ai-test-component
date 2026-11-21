@@ -2115,6 +2115,10 @@ dialog[open] {
     --control-h: 40px;
   }
 
+  .result-head > div:first-child {
+    flex: none;
+  }
+
   .filter-btn {
     min-height: 40px;
   }
@@ -2614,6 +2618,10 @@ dialog[open] {
 @media (max-width: 620px) {
   .result-head {
     flex-direction: column;
+  }
+
+  .result-head > div:first-child {
+    flex: none;
   }
 
   .result-counts {
