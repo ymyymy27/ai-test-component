@@ -132,22 +132,27 @@ def main(argv: list[str] | None = None) -> int:
         _log(f"start {command} workspace={workspace_root}")
         workspace = Workspace(workspace_root)
         workspace.init()
-        if request_id and command in MUTATING:
-            cached = cached_result(workspace, request_id, command, inner)
-            if cached is not None:
-                _write(cached)
-                _log(f"cached {command} in {time.monotonic() - started:.3f}s")
-                return 0
+        def execute() -> tuple[dict[str, Any], bool]:
+            if request_id and command in MUTATING:
+                cached = cached_result(workspace, request_id, command, inner)
+                if cached is not None:
+                    return cached, True
+            result = handler(workspace, inner, confirm)
+            response = {"ok": True, "request_id": request_id, "data": result}
+            if request_id and command in MUTATING:
+                store_result(workspace, request_id, response, command, inner)
+            return response, False
+
         if command in MUTATING and command not in _SELF_LOCKED:
             with workspace.lock(timeout=_lock_timeout(command)):
-                result = handler(workspace, inner, confirm)
+                response, from_cache = execute()
         else:
-            result = handler(workspace, inner, confirm)
-        response = {"ok": True, "request_id": request_id, "data": result}
-        if request_id and command in MUTATING:
-            store_result(workspace, request_id, response, command, inner)
+            response, from_cache = execute()
         _write(response)
-        _log(f"ok {command} in {time.monotonic() - started:.3f}s")
+        if from_cache:
+            _log(f"cached {command} in {time.monotonic() - started:.3f}s")
+        else:
+            _log(f"ok {command} in {time.monotonic() - started:.3f}s")
         return 0
     except AiTestError as exc:
         _write({"ok": False, "request_id": request_id, "error": exc.info.to_dict()})

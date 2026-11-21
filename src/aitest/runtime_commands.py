@@ -2202,6 +2202,8 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         }
     )
     run.environment = after
+    repair["environment_before"] = before
+    repair["environment_after"] = after
     for spec in packages:
         name = _installed_versions_key(spec)
         if name not in run.dependencies:

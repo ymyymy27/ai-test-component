@@ -428,6 +428,13 @@ def _normalize_entry(
     if available:
         refs = [item for item in refs if item in available]
     kind = entry.get("kind")
+    if not available and kind != "unknown":
+        return _unknown(
+            dependency,
+            "没有采样到可核验文件，真实性未判定",
+            read_files=read_files,
+            limit_reached=limit_reached,
+        )
     if not isinstance(kind, str) or kind not in _ALLOWED_KINDS:
         return _unknown(
             dependency,

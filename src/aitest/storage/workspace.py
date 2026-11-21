@@ -48,9 +48,12 @@ class Workspace:
         meta_path = self.root / "workspace.json"
         if meta_path.is_file():
             return read_model(meta_path, WorkspaceMeta)
-        meta = WorkspaceMeta(workspace_id=new_id("ws"), created_at=iso_now())
-        write_model(meta_path, meta)
-        return meta
+        with self.lock():
+            if meta_path.is_file():
+                return read_model(meta_path, WorkspaceMeta)
+            meta = WorkspaceMeta(workspace_id=new_id("ws"), created_at=iso_now())
+            write_model(meta_path, meta)
+            return meta
 
     @contextlib.contextmanager
     def lock(self, timeout: float = 10.0) -> Iterator[None]:

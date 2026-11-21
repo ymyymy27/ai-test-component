@@ -81,6 +81,7 @@ def test_judge_mock_returns_model_verdicts_in_input_order(tmp_path: Path) -> Non
 
 
 def test_judge_mock_marks_missing_dependency_unknown(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", "import requests\n")
     response = {
         "dependencies": [
             {
@@ -98,6 +99,7 @@ def test_judge_mock_marks_missing_dependency_unknown(tmp_path: Path) -> None:
 
 
 def test_judge_mock_degrades_invalid_kind_to_unknown(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", "import requests\n")
     response = {
         "dependencies": [
             {
@@ -114,6 +116,7 @@ def test_judge_mock_degrades_invalid_kind_to_unknown(tmp_path: Path) -> None:
 
 
 def test_judge_mock_degrades_missing_reason_to_unknown(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", "import requests\n")
     response = {
         "dependencies": [
             {"name": "requests", "kind": "real", "evidence_refs": ["src/app.py"]}
