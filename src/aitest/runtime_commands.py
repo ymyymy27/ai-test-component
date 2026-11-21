@@ -209,6 +209,7 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "test_commands": derived["test_commands"],
         "test_modules": derived.get("test_modules", []),
         "test_functions": derived.get("test_functions", {}),
+        "playwright_tests": derived.get("playwright_tests", {}),
         "test_dependencies": derived.get("test_dependencies", []),
         "smoke_command": derived["smoke_command"],
         "smallest_test": derived["smallest_test"],
@@ -700,6 +701,9 @@ _TEST_NODE_RE = re.compile(
 _TEST_FILE_RE = re.compile(
     r"([A-Za-z0-9_./\\-]+\.(?:py|ts|tsx|js|jsx))\b"
 )
+_PLAYWRIGHT_NODE_RE = re.compile(
+    r"([A-Za-z0-9_./\\-]+\.(?:ts|tsx|js|jsx))\s+--grep[= ]+[\"']([^\"']+)[\"']"
+)
 
 
 def _annotate_case_coverage(
@@ -721,14 +725,49 @@ def _annotate_case_coverage(
             case.coverage_kind = "direct"
             continue
         if method.startswith("playwright:"):
+            command = method.split(":", 1)[1]
+            pw_match = _PLAYWRIGHT_NODE_RE.search(command)
+            if pw_match:
+                path = pw_match.group(1).replace("\\", "/").lstrip("./")
+                title = pw_match.group(2)
+                configured = context.get("playwright_tests")
+                titles = configured.get(path) if isinstance(configured, dict) else None
+                if isinstance(titles, list) and title in titles:
+                    case.coverage_kind = "direct"
+                    case.test_nodes = [f"{path}::{title}"]
+                    node_items.setdefault(f"{path}::{title}", set()).update(
+                        case_item_ids(case)
+                    )
+                    continue
+                case.coverage_kind = "unverified"
+                notes[case.case_id] = f"Playwright 测试标题不存在：{path}::{title}"
+                continue
             case.coverage_kind = "file"
-            notes[case.case_id] = "文件级覆盖：Playwright 脚本包含多个断言，未定位到单个测试"
+            notes[case.case_id] = (
+                "文件级覆盖：Playwright 脚本包含多个断言，未定位到单个测试"
+            )
             continue
         if not method.startswith(("command:", "pytest:")):
             case.coverage_kind = "unverified"
             notes[case.case_id] = "未识别的验证方式，无法确认覆盖强度"
             continue
         command = method.split(":", 1)[1]
+        pw_match = _PLAYWRIGHT_NODE_RE.search(command)
+        if pw_match:
+            path = pw_match.group(1).replace("\\", "/").lstrip("./")
+            title = pw_match.group(2)
+            configured = context.get("playwright_tests")
+            titles = configured.get(path) if isinstance(configured, dict) else None
+            if isinstance(titles, list) and title in titles:
+                case.coverage_kind = "direct"
+                case.test_nodes = [f"{path}::{title}"]
+                node_items.setdefault(f"{path}::{title}", set()).update(
+                    case_item_ids(case)
+                )
+            else:
+                case.coverage_kind = "unverified"
+                notes[case.case_id] = f"Playwright 测试标题不存在：{path}::{title}"
+            continue
         node_match = _TEST_NODE_RE.search(command)
         if node_match:
             path = node_match.group(1).replace("\\", "/").lstrip("./")

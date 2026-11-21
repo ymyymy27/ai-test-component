@@ -12,6 +12,7 @@ import json
 import os
 import re
 import tomllib
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -569,9 +570,50 @@ def _component_commands(
     if (component / "playwright.config.ts").is_file() and tests.is_dir():
         playwright = "bunx playwright" if runner == "bun run" else "npx playwright"
         specs = sorted(tests.glob("*.spec.ts"))[:4]
+        titles_by_file = _playwright_tests(project_root)
         for spec in specs:
+            relative_spec = (
+                f"{relative}/tests/{spec.name}"
+                if relative != "."
+                else f"tests/{spec.name}"
+            )
+            for title in titles_by_file.get(relative_spec, [])[:3]:
+                safe_title = title.replace('"', '\\"')
+                commands.append(
+                    f'{prefix}{playwright} test tests/{spec.name} --grep "{safe_title}"'
+                )
             commands.append(f"{prefix}{playwright} test tests/{spec.name}")
     return commands
+
+
+def _playwright_tests(root: Path, *, limit: int = 80) -> dict[str, list[str]]:
+    """Test titles from Playwright spec files for `--grep` targeting."""
+
+    found: dict[str, list[str]] = {}
+    bases = [root / name for name in ("tests", "test", "e2e")]
+    with suppress(OSError):
+        bases.extend(
+            child / name
+            for child in sorted(root.iterdir())
+            if child.is_dir() and (child / "package.json").is_file()
+            for name in ("tests", "test", "e2e")
+        )
+    for base in bases:
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.spec.ts")):
+            if not path.is_file() or "node_modules" in path.parts:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            titles = re.findall(r"\btest\(\s*[\"'`]([^\"'`]+)[\"'`]", text)
+            if titles:
+                found[path.relative_to(root).as_posix()] = titles[:20]
+            if len(found) >= limit:
+                return found
+    return found
 
 
 def _test_function_map(
@@ -894,7 +936,6 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
     if db_name:
         services[db_name] = {
             "start": "docker compose up -d db",
-            "stop": "docker compose stop db",
             "timeout_seconds": 120,
         }
     backend = root / "backend"
@@ -969,6 +1010,7 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         "smallest_test": _smallest_test_file(root, test_dirs) if test_dirs else "",
         "test_modules": _test_modules(root, test_dirs),
         "test_functions": _test_function_map(root, test_dirs),
+        "playwright_tests": _playwright_tests(root),
         "test_dependencies": _unique(declared, 40),
         "test_example": _test_example(root, test_dirs),
         "symbols": _symbol_map(root),

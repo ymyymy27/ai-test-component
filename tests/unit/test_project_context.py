@@ -64,6 +64,10 @@ def test_nested_test_directories_are_detected_without_root_tests(tmp_path: Path)
     context = build_project_context(root, {})
     assert context["test_modules"] == ["backend.tests.api.test_users"]
     assert context["test_example"]["path"] == "backend/tests/api/test_users.py"
+    assert context["playwright_tests"] == {
+        "frontend/tests/login.spec.ts": ["login"]
+    }
+    assert any("--grep" in command for command in context["test_commands"])
 
 
 def test_detect_services_for_fastapi_vite_compose_stack(tmp_path: Path) -> None:

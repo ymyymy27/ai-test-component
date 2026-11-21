@@ -964,6 +964,26 @@ _DEV_SERVER_RE = re.compile(
 )
 
 
+def _adjust_component_command(method: str, workdir: Path) -> str:
+    """Run tool commands from the subproject that owns their config file."""
+
+    if not method.startswith("command:"):
+        return method
+    command = method[len("command:") :].strip()
+    if not re.match(r"^alembic(?:\s|$)", command, re.IGNORECASE):
+        return method
+    if re.search(r"\s-c(?:\s|$)", command):
+        return method
+    try:
+        children = sorted(workdir.iterdir())
+    except OSError:
+        return method
+    for child in children:
+        if child.is_dir() and (child / "alembic.ini").is_file():
+            return f"command:cd {child.name} && {command}"
+    return method
+
+
 def _is_e2e_command(method: str) -> bool:
     return bool(_E2E_COMMAND_RE.search(method))
 
@@ -1372,6 +1392,10 @@ def main(argv: list[str] | None = None) -> int:
         project = read_model(ws.project_path(args.project), Project)
         workdir = Path(project.root)
         cases = {case.case_id: case for case in plan.cases}
+        for plan_case in cases.values():
+            plan_case.verify_method = _adjust_component_command(
+                plan_case.verify_method, workdir
+            )
 
         project_python = _venv_python(workdir)
         run_env = _run_env(workdir, project_python, run.run_id)
