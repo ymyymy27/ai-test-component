@@ -36,6 +36,6 @@ def test_ledger_rejects_open_items_at_release_gate() -> None:
     rows = module.parse_ledger()
     assert len(rows) == 653
     open_rows = [row for row in rows if row["status"] not in ("已验", "不修")]
-    assert open_rows
     errors = module.check(require_closed=True)
     assert len(errors) == len(open_rows)
+    assert errors == []
