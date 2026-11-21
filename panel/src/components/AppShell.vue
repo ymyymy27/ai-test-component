@@ -6,6 +6,7 @@ import { missingEnvironmentCount } from "@/services/environmentService";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import LoadingState from "./LoadingState.vue";
 import ProjectSidebar from "./ProjectSidebar.vue";
 import Toast from "./Toast.vue";
 import WorkspaceHeader from "./WorkspaceHeader.vue";
@@ -359,7 +360,10 @@ onBeforeUnmount(() => {
       </div>
       <div class="workspace-main">
         <main id="main-content" ref="mainRef" class="main" tabindex="-1">
-          <RouterView />
+          <div v-if="workspace.loading && !workspace.initialized" class="page">
+            <LoadingState text="正在读取工作空间…" :lines="3" />
+          </div>
+          <RouterView v-else />
         </main>
       </div>
     </div>

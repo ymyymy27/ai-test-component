@@ -31,4 +31,9 @@ describe("state components", () => {
     expect(wrapper.attributes("aria-busy")).toBe("true");
     expect(wrapper.text()).toContain("正在读取");
   });
+
+  it("can render skeleton lines for long reads", () => {
+    const wrapper = mount(LoadingState, { props: { text: "正在读取", lines: 3 } });
+    expect(wrapper.findAll(".loading-line")).toHaveLength(3);
+  });
 });
