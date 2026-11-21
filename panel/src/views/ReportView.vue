@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
@@ -67,6 +67,13 @@ const opinionBy = ref("本机用户");
 const opinionText = ref("");
 const opinionError = ref("");
 const exportResult = ref<ExportResult | null>(null);
+const detailsOpen = ref(false);
+
+async function revealDetails(): Promise<void> {
+  detailsOpen.value = true;
+  await nextTick();
+  document.querySelector(".report-details")?.scrollIntoView({ block: "start" });
+}
 const loadingReport = ref(false);
 const savingOpinion = ref(false);
 const exporting = ref(false);
@@ -187,6 +194,7 @@ async function importLink(link: LinkData): Promise<void> {
     await workspace.importLink(projectId.value, report.value.runId, link);
     const next = await workspace.regenerateReport(projectId.value, report.value.runId);
     await router.push(`/projects/${projectId.value}/reports/${next.id}`);
+    await revealDetails();
   } catch {
     // store 已提示。
   }
@@ -200,6 +208,7 @@ async function importHostLink(): Promise<void> {
     await workspace.importHostLink(projectId.value, report.value.runId);
     const next = await workspace.regenerateReport(projectId.value, report.value.runId);
     await router.push(`/projects/${projectId.value}/reports/${next.id}`);
+    await revealDetails();
   } catch {
     // store 已提示。
   }
@@ -213,6 +222,7 @@ async function assertLink(input: LinkAssertInput): Promise<void> {
     await workspace.assertLink(projectId.value, report.value.runId, input);
     const next = await workspace.regenerateReport(projectId.value, report.value.runId);
     await router.push(`/projects/${projectId.value}/reports/${next.id}`);
+    await revealDetails();
   } catch {
     // store 已提示。
   }
@@ -604,7 +614,11 @@ function bytesText(bytes: number): string {
 
     </section>
 
-    <details class="report-details">
+    <details
+      class="report-details"
+      :open="detailsOpen"
+      @toggle="detailsOpen = ($event.target as HTMLDetailsElement).open"
+    >
       <summary>
         <span>运行明细</span>
       </summary>

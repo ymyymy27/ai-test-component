@@ -949,7 +949,7 @@ async function clearData(): Promise<void> {
               检查：{{ project.github.checks.join(" · ") }}
             </p>
             <button
-              class="btn btn-sm"
+              class="btn btn-sm btn-danger"
               type="button"
               :disabled="busyGithub"
               @click="clearGithubSnapshot"

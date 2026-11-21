@@ -33,6 +33,17 @@ const taskError = ref("");
 
 const selectedTask = computed(() => props.tasks.find((task) => task.id === taskId.value) ?? null);
 const items = computed(() => selectedTask.value?.acceptanceItems ?? []);
+const coveredItemIds = computed(() => {
+  const covered = new Set<string>();
+  for (const run of selectedTask.value?.runs ?? []) {
+    for (const testCase of run.cases) {
+      for (const itemId of testCase.caseItemIds ?? [testCase.itemId]) {
+        covered.add(itemId);
+      }
+    }
+  }
+  return covered;
+});
 
 watch(open, async (value) => {
   const dialog = dialogRef.value;
@@ -178,8 +189,14 @@ function onDialogClick(event: MouseEvent): void {
           <label for="issue-item">关联验收项 <span class="optional">选填</span></label>
           <select id="issue-item" v-model="itemId">
             <option value="">不关联验收项</option>
-            <option v-for="item in items" :key="item.id" :value="item.id">
+            <option
+              v-for="item in items"
+              :key="item.id"
+              :value="item.id"
+              :disabled="!coveredItemIds.has(item.id)"
+            >
               {{ item.no }} {{ item.text }}
+              {{ coveredItemIds.has(item.id) ? "（有运行覆盖）" : "（无运行覆盖，不能绑定）" }}
             </option>
           </select>
         </div>

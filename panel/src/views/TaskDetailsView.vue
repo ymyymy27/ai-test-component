@@ -518,7 +518,7 @@ function deliveryComplete(): boolean {
         <h2 class="section-title-lg">基本信息</h2>
         <span class="section-note">只改标题、目标、执行人、评审人不会使计划过期</span>
       </div>
-      <form class="settings-form" novalidate @submit.prevent="saveBasic">
+      <form class="task-form" novalidate @submit.prevent="saveBasic">
         <div class="form-grid">
           <div class="field" :class="{ 'has-error': titleError }">
             <label for="task-title">标题</label>
@@ -687,7 +687,7 @@ function deliveryComplete(): boolean {
       <p class="doc-note">
         缺运行命令或提交号不阻止保存；依赖构建/服务的用例会在运行中按阻塞处理并说明原因。
       </p>
-      <form class="settings-form" novalidate @submit.prevent="saveDelivery">
+      <form class="task-form" novalidate @submit.prevent="saveDelivery">
         <div class="form-grid">
           <div class="field">
             <label for="delivery-done">已完成 <span class="optional">一行一条</span></label>
@@ -703,6 +703,23 @@ function deliveryComplete(): boolean {
             />
           </div>
         </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="delivery-commands">运行命令 <span class="optional">一行一条</span></label>
+            <textarea
+              id="delivery-commands"
+              v-model="delivery.runCommands"
+              rows="2"
+              :disabled="running"
+            />
+          </div>
+          <div class="field">
+            <label for="delivery-commit">提交号</label>
+            <input id="delivery-commit" v-model="delivery.commit" type="text" :disabled="running" />
+          </div>
+        </div>
+        <details class="delivery-extra">
+          <summary>补充交付信息（模块、接口、依赖、模拟、测试数据、自测证据）</summary>
         <div class="form-grid">
           <div class="field">
             <label for="delivery-modules">改动模块 <span class="optional">一行一条</span></label>
@@ -721,21 +738,6 @@ function deliveryComplete(): boolean {
               rows="2"
               :disabled="running"
             />
-          </div>
-        </div>
-        <div class="form-grid">
-          <div class="field">
-            <label for="delivery-commands">运行命令 <span class="optional">一行一条</span></label>
-            <textarea
-              id="delivery-commands"
-              v-model="delivery.runCommands"
-              rows="2"
-              :disabled="running"
-            />
-          </div>
-          <div class="field">
-            <label for="delivery-commit">提交号</label>
-            <input id="delivery-commit" v-model="delivery.commit" type="text" :disabled="running" />
           </div>
         </div>
         <div class="form-grid">
@@ -768,6 +770,7 @@ function deliveryComplete(): boolean {
             />
           </div>
         </div>
+        </details>
         <p v-if="deliveryError" class="field-hint">{{ deliveryError }}</p>
         <div class="form-actions">
           <button
