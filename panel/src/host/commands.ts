@@ -491,6 +491,9 @@ export const api = {
     errorType?: string;
     stackKey?: string;
     evidenceRefs?: string[];
+    expected?: string;
+    actual?: string;
+    steps?: string[];
   }): Promise<{ issue_id: string; status: string; occurrences: number }> {
     return callHost("issue.add", {
       project_id: input.projectId,
@@ -498,6 +501,9 @@ export const api = {
       severity: input.severity,
       ...(input.runId ? { run_id: input.runId } : {}),
       ...(input.caseId ? { case_id: input.caseId } : {}),
+      ...(input.expected ? { expected: input.expected } : {}),
+      ...(input.actual ? { actual: input.actual } : {}),
+      ...(input.steps?.length ? { steps: input.steps } : {}),
       ...(input.errorType ? { error_type: input.errorType } : {}),
       ...(input.stackKey ? { stack_key: input.stackKey } : {}),
       ...(input.evidenceRefs ? { evidence_refs: input.evidenceRefs } : {}),
@@ -526,11 +532,13 @@ export const api = {
     projectId: string,
     issueId: string,
     runId: string,
+    reason: string,
   ): Promise<{ issue_id: string; status: string }> {
     return callHost("issue.close", {
       project_id: projectId,
       issue_id: issueId,
       run_id: runId,
+      reason,
     });
   },
 

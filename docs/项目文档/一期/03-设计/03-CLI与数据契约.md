@@ -471,14 +471,14 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 #### `issue.add` / `issue.list` / `issue.show` / `issue.update` / `issue.close`
 
 ```json
-{"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "title": "下单生成两条订单", "severity": "P1", "error_type": "assertionerror", "stack_key": "assert 1 == 2", "evidence_refs": ["evidence/run_1/case_1-0.log"]}
+{"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "title": "下单生成两条订单", "severity": "P1", "error_type": "assertionerror", "stack_key": "assert 1 == 2", "expected": "只生成一条订单", "actual": "生成了两条订单", "steps": ["提交订单", "刷新列表"], "evidence_refs": ["evidence/run_1/case_1-0.log"]}
 ```
 
 - 失败签名 = 用例 ID + 错误类型 + 关键堆栈/断言标识摘要；同一签名返回现有 `issue_id` 并追加带证据的发生记录；
 - `list` 返回 `issue_id/title/status/severity/occurrences`，并附带 `last_at`、`last_result`、`unstable`、`disposition`、`reason`、`verification_run_id`、`last_case_id`、`last_run_id` 供列表展示；
 - `show` 入参 `{"project_id", "issue_id"}`，返回完整问题（含 `occurrences`、证据引用、处置与状态）；
 - `update` 入参 `{"project_id", "issue_id", "status"|"disposition", "severity", "fix_version", "reason"}`；允许的流转是待确认→处理中，处理中→待复测或退回待确认，待复测→处理中或退回待确认，已关闭→处理中（重开必须写原因）。`update` 不能直接把状态改为 `closed`；关闭必须走 `issue.close` 并绑定新运行。非缺陷/重复/延期必须写理由；
-- `close` 入参 `{"project_id", "issue_id", "run_id"}`：问题必须处于 `retest`，运行必须为 `completed`、开始时间晚于问题最后一次发生、包含该用例、有效结果（含预期核实降级）为 `passed` 且有证据，且不能复用问题发生时的运行；`cancelled`、`interrupted`、`execution_error` 或原始 `passed` 但应按 `blocked` 计的运行都不能关闭。否则返回 `RUN_STATE_CONFLICT`。
+- `close` 入参 `{"project_id", "issue_id", "run_id", "reason"}`，`reason` 必填并写入问题记录：问题必须处于 `retest`，运行必须为 `completed`、开始时间晚于问题最后一次发生、包含该用例、有效结果（含预期核实降级）为 `passed` 且有证据，且不能复用问题发生时的运行；`cancelled`、`interrupted`、`execution_error` 或原始 `passed` 但应按 `blocked` 计的运行都不能关闭。否则返回 `RUN_STATE_CONFLICT`。
 
 ### 4.8 报告
 

@@ -2986,6 +2986,12 @@ def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         if isinstance(evidence, list)
         else list(run_case.evidence_refs)
     )
+    raw_steps = payload.get("steps")
+    steps = (
+        [str(item) for item in raw_steps if isinstance(item, str)]
+        if isinstance(raw_steps, list)
+        else []
+    )
     return add_issue(
         ws,
         project.project_id,
@@ -2997,6 +3003,9 @@ def cmd_issue_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         stack_key=_text(payload, "stack_key") or _text(payload, "stack"),
         evidence_refs=refs,
         run_dir=run_dir,
+        steps=steps,
+        expected=_text(payload, "expected"),
+        actual=_text(payload, "actual"),
     )
 
 
@@ -3173,9 +3182,14 @@ def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "回归运行没有证据，不能关闭问题",
             "重跑并确保证据已保存",
         )
+    reason = _text(payload, "reason").strip()
+    if not reason:
+        raise invalid_request("关闭问题需要写理由", "填写关闭依据后再提交")
+    secrets = known_secret_values([load_project_config(ws, project.project_id)])
     issue.status = "closed"
     issue.verification_run_id = run_id
     issue.last_result = "passed"
+    issue.reason = redact(reason, secrets)
     issue.revision += 1
     write_model(path, issue)
     return {

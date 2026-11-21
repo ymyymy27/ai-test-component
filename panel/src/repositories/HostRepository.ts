@@ -802,6 +802,9 @@ export class HostRepository implements ProjectRepository {
       severity: input.severity,
       runId: run.id,
       caseId: runCase.caseId,
+      expected: input.expected,
+      actual: input.actual,
+      steps: input.steps,
     });
     const project = await this.getProject(projectId);
     const issue = project?.issues.find((entry) => entry.id === created.issue_id);
@@ -831,8 +834,9 @@ export class HostRepository implements ProjectRepository {
     projectId: string,
     issueId: string,
     runId: string,
+    reason: string,
   ): Promise<Issue> {
-    await this.client.closeIssue(projectId, issueId, runId);
+    await this.client.closeIssue(projectId, issueId, runId, reason);
     const project = await this.getProject(projectId);
     const issue = project?.issues.find((entry) => entry.id === issueId);
     if (!issue) {
