@@ -20,8 +20,11 @@ from aitest.errors import AiTestError
 from aitest.models import Case, Plan, Run, RunCase, Scope
 from aitest.runners.base import RunnerResult
 from aitest.runtime_commands import (
+    _broad_test_command,
+    _downgrade_broad_business_cases,
     _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
+    _shared_command_warnings,
     _validate_plan_cases,
 )
 from aitest.worker import (
@@ -88,6 +91,52 @@ def test_repeated_whole_suite_command_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(AiTestError) as excinfo:
         _validate_plan_cases(cases, "business", {"root": str(tmp_path)})
     assert "业务用例不能使用整包测试命令" in str(excinfo.value)
+
+
+def test_directory_prefixed_whole_suite_commands_are_recognized() -> None:
+    for method in (
+        "command:cd frontend && bun run test",
+        "command:cd frontend && npm run test",
+        "command:cd backend && uv run pytest",
+        "pytest:python -m pytest -q",
+        "command:cd backend && python -m pytest",
+    ):
+        assert _broad_test_command(method), method
+    assert (
+        _broad_test_command(
+            "command:cd frontend && bunx playwright test tests/login.spec.ts"
+        )
+        == ""
+    )
+
+
+def test_shared_file_command_warns_about_weak_item_mapping() -> None:
+    cases = [
+        Case(
+            case_id=f"case_{index}",
+            acceptance_item_id=f"item_{index}",
+            layer="L2",
+            expected="文件通过",
+            verify_method="command:python -m pytest tests/test_users.py",
+        )
+        for index in (1, 2)
+    ]
+    warnings = _shared_command_warnings(cases)
+    assert warnings
+    assert "文件级通过" in warnings[0]
+
+
+def test_broad_business_case_downgrades_to_manual() -> None:
+    case = Case(
+        case_id="case_1",
+        acceptance_item_id="item_1",
+        layer="L2",
+        expected="前端单元测试通过",
+        verify_method="command:bun run test",
+    )
+    assert _downgrade_broad_business_cases([case]) == ["bun run test"]
+    assert case.verify_method == "manual"
+    assert any("bun run test" in step for step in case.steps)
 
 
 def test_whole_suite_is_allowed_only_as_l1_smoke(tmp_path: Path) -> None:

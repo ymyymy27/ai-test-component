@@ -14,6 +14,7 @@ def test_run_env_pins_utf8_for_windows_projects(monkeypatch, tmp_path: Path) -> 
     env = _run_env(tmp_path, None, "run_env_test")
     assert env["PYTHONUTF8"] == "1"
     assert env["PYTHONIOENCODING"] == "utf-8"
+    assert env["AITEST_PROJECT_ROOT"] == str(tmp_path.resolve())
     # 其他非敏感变量仍按原样继承，避免改变被测程序行为。
     assert env.get("AITEST_TEST_MARKER") == "kept"
 

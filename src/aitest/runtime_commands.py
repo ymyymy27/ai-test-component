@@ -487,17 +487,30 @@ def _broad_test_command(method: str) -> str:
     if not method.startswith(("command:", "pytest:")):
         return ""
     value = " ".join(method.split(":", 1)[1].split())
+    # Directory prefixes must not hide a whole-suite command.
+    while re.match(r"^(?:cd|pushd)\s+[^&;]+\s*(?:&&|;)\s*", value):
+        value = re.sub(r"^(?:cd|pushd)\s+[^&;]+\s*(?:&&|;)\s*", "", value, count=1)
     whole_suite = {
         "python -m pytest",
         "pytest",
+        "uv run pytest",
         "python runtests.py",
         "python manage.py test",
         "npm test",
+        "npm run test",
         "yarn test",
+        "yarn run test",
         "pnpm test",
+        "pnpm run test",
+        "bun test",
+        "bun run test",
         "tox",
         "npx playwright test",
+        "bunx playwright test",
+        "pnpm exec playwright test",
     }
+    if re.fullmatch(r"(?:python(?:3)?\s+-m\s+)?pytest(?:\s+-\S+)*", value):
+        return value
     return value if value in whole_suite else ""
 
 
@@ -571,6 +584,43 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
         )
         removed += 1
     return merged, removed
+
+
+def _shared_command_warnings(cases: list[Case]) -> list[str]:
+    """Warn when one test-file command is treated as proof for several items."""
+
+    bound: dict[str, set[str]] = {}
+    for case in cases:
+        if not case.verify_method.startswith(("command:", "pytest:")):
+            continue
+        command = " ".join(case.verify_method.split(":", 1)[1].split())
+        items = bound.setdefault(command, set())
+        items.update(case_item_ids(case))
+    warnings: list[str] = []
+    for command, items in bound.items():
+        if len(items) < 2:
+            continue
+        warnings.append(
+            f"同一命令覆盖 {len(items)} 个验收项：{command}；"
+            "执行结果是文件级通过，逐项断言需人工确认"
+        )
+        if len(warnings) >= 8:
+            break
+    return warnings
+
+
+def _downgrade_broad_business_cases(cases: list[Case]) -> list[str]:
+    """Turn an unresolvable whole-suite business case into manual verification."""
+
+    downgraded: list[str] = []
+    for case in cases:
+        broad = _broad_test_command(case.verify_method)
+        if not broad or case.layer == "L1":
+            continue
+        case.verify_method = "manual"
+        case.steps = [*case.steps, f"人工执行并核对：{broad}"]
+        downgraded.append(broad)
+    return downgraded
 
 
 def _validate_plan_cases(
@@ -1026,7 +1076,7 @@ def _generation_feedback(
     specific = [
         command
         for command in commands
-        if command.startswith(("python -m pytest ", "pytest ")) and "tests" in command
+        if "tests" in command and not _broad_test_command(f"command:{command}")
     ]
     if specific:
         lines.append("可用具体测试命令（优先使用这些，禁止 npm test 或其他整包命令）：")
@@ -1070,36 +1120,58 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             ]
 
             def _model_raw(feedback: str = "") -> list[dict[str, Any]]:
-                call_context = dict(context)
-                if feedback:
-                    call_context["correction"] = feedback
                 generated: list[dict[str, Any]] = []
-                for item in client.generate_cases(
-                    task.model_dump(mode="json"), selected_items, call_context
-                ):
-                    depends = item.get("depends_on")
-                    first = depends[0] if isinstance(depends, list) and depends else None
-                    generated.append(
-                        {
-                            "acceptance_item_id": item["acceptance_item_id"],
-                            "acceptance_item_ids": item.get("acceptance_item_ids") or [],
-                            "layer": item["layer"],
-                            "title": item.get("title") or "",
-                            "expected": item["expected"],
-                            "expectation_source": item["expectation_source"],
-                            "preconditions": item.get("preconditions") or [],
-                            "steps": item.get("steps") or [],
-                            "dependencies": item.get("dependencies") or [],
-                            "mock_allowed": item.get("mock_allowed", True),
-                            "importance": item.get("importance") or "medium",
-                            "verify_method": _normalize_method(
-                                str(item["verify_method"]), item.get("script_name")
-                            ),
-                            "depends_on": first if first in {"build", "service"} else None,
-                            "script_name": item.get("script_name"),
-                            "script_content": item.get("script_content"),
-                        }
-                    )
+                batch_size = 6 if len(selected_items) > 8 else len(selected_items)
+                for start in range(0, len(selected_items), batch_size):
+                    batch = selected_items[start : start + batch_size]
+                    correction = feedback
+                    batch_cases: list[dict[str, Any]] = []
+                    for attempt in range(2):
+                        call_context = dict(context)
+                        if correction:
+                            call_context["correction"] = correction
+                        try:
+                            batch_cases = list(
+                                client.generate_cases(
+                                    task.model_dump(mode="json"), batch, call_context
+                                )
+                            )
+                            break
+                        except AiTestError as exc:
+                            if (
+                                exc.info.code != "MODEL_OUTPUT_INVALID"
+                                or attempt == 1
+                            ):
+                                raise
+                            correction = _generation_feedback(
+                                batch, context, exc.info.message
+                            )
+                    for item in batch_cases:
+                        depends = item.get("depends_on")
+                        first = depends[0] if isinstance(depends, list) and depends else None
+                        generated.append(
+                            {
+                                "acceptance_item_id": item["acceptance_item_id"],
+                                "acceptance_item_ids": item.get("acceptance_item_ids") or [],
+                                "layer": item["layer"],
+                                "title": item.get("title") or "",
+                                "expected": item["expected"],
+                                "expectation_source": item["expectation_source"],
+                                "preconditions": item.get("preconditions") or [],
+                                "steps": item.get("steps") or [],
+                                "dependencies": item.get("dependencies") or [],
+                                "mock_allowed": item.get("mock_allowed", True),
+                                "importance": item.get("importance") or "medium",
+                                "verify_method": _normalize_method(
+                                    str(item["verify_method"]), item.get("script_name")
+                                ),
+                                "depends_on": first
+                                if first in {"build", "service"}
+                                else None,
+                                "script_name": item.get("script_name"),
+                                "script_content": item.get("script_content"),
+                            }
+                        )
                 return generated
 
             regenerate = _model_raw
@@ -1147,6 +1219,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
+    downgraded_broad: list[str] = []
     for attempt in range(2):
         try:
             _validate_plan_cases(cases, task.intent, context)
@@ -1164,9 +1237,24 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 regenerate is None
                 or not generated_cases
                 or exc.info.code != "INVALID_REQUEST"
-                or attempt == 1
             ):
                 raise
+            if attempt == 1:
+                if "整包测试命令" not in exc.info.message:
+                    raise
+                downgraded_broad = _downgrade_broad_business_cases(cases)
+                if not downgraded_broad:
+                    raise
+                _validate_plan_cases(cases, task.intent, context)
+                preview = Plan(
+                    plan_id="preview",
+                    task_id=task.task_id,
+                    scope=scope,
+                    applicable_count=applicable,
+                    cases=cases,
+                )
+                _ensure_plan_coverage(preview, task)
+                break
             # Give the model the validator's reason (at most twice) instead of
             # failing on a fixable script detail or repeated command.
             raw_cases = regenerate(
@@ -1184,6 +1272,11 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     warnings = annotate_cases(cases, task.acceptance_items)
+    if downgraded_broad:
+        warnings.append(
+            f"{len(downgraded_broad)} 条整包测试命令已改为人工验证；"
+            "项目没有可定位的具体测试，未计入自动通过"
+        )
     if django_dropped:
         warnings.append(
             f"已移除 {len(set(django_dropped))} 条 Django TestCase 脚本用例；"
@@ -1197,6 +1290,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     secret_list = known_secret_values([load_project_config(ws, project.project_id)])
     _redact_cases(cases, secret_list)
     warnings.extend(_project_import_warnings(cases, project))
+    warnings.extend(_shared_command_warnings(cases))
     plan = Plan(
         plan_id=new_id("plan"),
         task_id=task.task_id,
@@ -1267,12 +1361,14 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     _validate_plan_cases(plan.cases, task.intent, context)
     _ensure_plan_coverage(plan, task)
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
+    plan.warnings.extend(_shared_command_warnings(plan.cases))
     ensure_publishable(plan.cases)
     _redact_cases(
         plan.cases,
         known_secret_values([load_project_config(ws, project.project_id)]),
     )
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
+    plan.warnings.extend(_shared_command_warnings(plan.cases))
     revision_path = (
         ws.project_dir(project.project_id) / "plans" / "revisions" / plan.plan_id
     ) / f"{old_plan.revision}.json"
@@ -1338,12 +1434,14 @@ def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     _validate_plan_cases(plan.cases, task.intent, context)
     _ensure_plan_coverage(plan, task)
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
+    plan.warnings.extend(_shared_command_warnings(plan.cases))
     ensure_publishable(plan.cases)
     _redact_cases(
         plan.cases,
         known_secret_values([load_project_config(ws, project.project_id)]),
     )
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
+    plan.warnings.extend(_shared_command_warnings(plan.cases))
     plan.task_contract = task_contract(task)
     plan.task_revision = task.revision
     plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)

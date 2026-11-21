@@ -520,6 +520,44 @@ def _test_modules(root: Path, test_dirs: list[str], *, limit: int = 60) -> list[
     return modules
 
 
+def _component_commands(
+    project_root: Path, component: Path, package: dict[str, Any]
+) -> list[str]:
+    """Concrete build and Playwright commands for a nested frontend package."""
+
+    scripts = package.get("scripts")
+    if not isinstance(scripts, dict):
+        return []
+    relative = component.relative_to(project_root).as_posix()
+    prefix = f"cd {relative} && " if relative != "." else ""
+    if any(
+        (base / name).is_file()
+        for base in (component, project_root)
+        for name in ("bun.lock", "bun.lockb")
+    ):
+        runner = "bun run"
+    elif (component / "pnpm-lock.yaml").is_file() or (
+        project_root / "pnpm-lock.yaml"
+    ).is_file():
+        runner = "pnpm"
+    elif (component / "yarn.lock").is_file() or (
+        project_root / "yarn.lock"
+    ).is_file():
+        runner = "yarn"
+    else:
+        runner = "npm run"
+    commands: list[str] = []
+    if isinstance(scripts.get("build"), str) and scripts["build"].strip():
+        commands.append(f"{prefix}{runner} build")
+    tests = component / "tests"
+    if (component / "playwright.config.ts").is_file() and tests.is_dir():
+        playwright = "bunx playwright" if runner == "bun run" else "npx playwright"
+        specs = sorted(tests.glob("*.spec.ts"))[:4]
+        for spec in specs:
+            commands.append(f"{prefix}{playwright} test tests/{spec.name}")
+    return commands
+
+
 def _specific_test_commands(
     root: Path, test_dirs: list[str], *, limit: int = 8
 ) -> list[str]:
@@ -807,6 +845,10 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         config, pyproject, package, frameworks, test_dirs, root
     )
     test_commands = _unique([*test_commands, *_specific_test_commands(root, test_dirs)])
+    for component, _component_pyproject, component_package in components:
+        test_commands = _unique(
+            [*test_commands, *_component_commands(root, component, component_package)]
+        )
     services = _services_with_health(config.get("services"))
     return {
         "test_commands": test_commands,

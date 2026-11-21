@@ -197,6 +197,7 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     env.pop("PYTHONHOME", None)
     env["AITEST_RUN_ID"] = run_id
     env["AITEST_DATA_PREFIX"] = data_prefix(run_id)
+    env["AITEST_PROJECT_ROOT"] = str(root.resolve())
     return env
 
 
