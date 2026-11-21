@@ -14,11 +14,13 @@ describe("state components", () => {
     expect(wrapper.text()).toContain("还没有任务");
     expect(wrapper.text()).toContain("从概览新建任务");
     expect(wrapper.find("button").exists()).toBe(true);
+    expect(wrapper.find("h2.empty-title").text()).toBe("还没有任务");
   });
 
   it("renders errors with role alert and retry", async () => {
     const wrapper = mount(ErrorState, { props: { title: "读取失败", text: "检查存储。" } });
     expect(wrapper.attributes("role")).toBe("alert");
+    expect(wrapper.find("h2.error-title").text()).toBe("读取失败");
     await wrapper.find("button").trigger("click");
     expect(wrapper.emitted("retry")).toHaveLength(1);
   });

@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 
 import { useUiStore } from "@/stores/ui";
+import Icon from "./Icon.vue";
 
 const ui = useUiStore();
 const dialogRef = ref<HTMLDialogElement | null>(null);
@@ -25,7 +26,9 @@ watch(
         dialog.showModal();
       }
       await nextTick();
-      const target = dialog.querySelector<HTMLElement>("textarea, input, .dialog-confirm");
+      const target =
+        dialog.querySelector<HTMLElement>("textarea, input") ??
+        dialog.querySelector<HTMLElement>(".dialog-cancel");
       target?.focus();
     } else if (dialog.open) {
       dialog.close();
@@ -80,6 +83,7 @@ onBeforeUnmount(() => {
     ref="dialogRef"
     class="dialog"
     aria-labelledby="confirm-dialog-title"
+    aria-describedby="confirm-dialog-body"
     @cancel.prevent="cancel"
     @close="onClose"
     @click="onDialogClick"
@@ -88,19 +92,10 @@ onBeforeUnmount(() => {
       <header class="dialog-head">
         <h2 id="confirm-dialog-title" class="dialog-title">{{ ui.confirmRequest.title }}</h2>
         <button class="icon-btn" type="button" aria-label="关闭" @click="cancel">
-          <svg
-            viewBox="0 0 16 16"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
-          </svg>
+          <Icon name="close" :size="15" />
         </button>
       </header>
-      <p class="dialog-text">{{ ui.confirmRequest.body }}</p>
+      <p id="confirm-dialog-body" class="dialog-text">{{ ui.confirmRequest.body }}</p>
       <div v-if="ui.confirmRequest.requireText" class="field" :class="{ 'has-error': textError }">
         <label for="confirm-dialog-text">{{ ui.confirmRequest.textLabel || "理由" }}</label>
         <textarea
@@ -116,7 +111,7 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <footer class="dialog-actions">
-        <button class="btn" type="button" @click="cancel">
+        <button class="btn dialog-cancel" type="button" @click="cancel">
           {{ ui.confirmRequest.cancelLabel || "取消" }}
         </button>
         <button

@@ -411,7 +411,6 @@ async function clearData(): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="项目"
       title="设置"
       :subtitle="`${project.name} · 环境、规则与运行配置`"
     >

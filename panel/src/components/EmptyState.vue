@@ -7,7 +7,7 @@ defineProps<{
 
 <template>
   <div class="empty-state">
-    <p class="empty-title">{{ title }}</p>
+    <h2 class="empty-title">{{ title }}</h2>
     <p v-if="text" class="empty-text">{{ text }}</p>
     <div v-if="$slots.default" class="empty-actions">
       <slot />

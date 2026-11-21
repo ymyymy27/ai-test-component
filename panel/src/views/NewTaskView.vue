@@ -164,7 +164,6 @@ async function startRange(): Promise<void> {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="测试"
       title="开始测试"
       :subtitle="`${project.name} · 选择一种测试方式`"
     />

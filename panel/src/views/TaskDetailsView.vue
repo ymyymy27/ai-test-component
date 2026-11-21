@@ -296,7 +296,6 @@ function deliveryComplete(): boolean {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="任务资料"
       :title="task.title || '未命名任务'"
       :subtitle="`${project?.name ?? ''} · 第 ${task.revision} 版 · 任务资料、交付说明与检查模板`"
     >

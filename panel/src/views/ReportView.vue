@@ -241,7 +241,6 @@ function bytesText(bytes: number): string {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="报告"
       title="测试报告"
       :subtitle="`${project?.name ?? ''} · ${task.title} · 第 ${report.version} 版 · ${new Date(report.generatedAt).toLocaleString('zh-CN')}`"
     >

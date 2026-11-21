@@ -106,7 +106,6 @@ async function clearAndRetry(): Promise<void> {
 <template>
   <div class="page">
     <PageHeader
-      kicker="项目"
       title="建立项目"
       :subtitle="
         currentProject ? '登记另一个本地目录。' : '选择一个本地目录作为测试项目。'

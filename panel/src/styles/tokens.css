@@ -15,7 +15,8 @@
   --ink-disabled: #98a19a;
 
   --line: #d8ded8;
-  --line-strong: #c3ccc4;
+  --line-strong: #8d9a8f;
+  --backdrop: rgba(15, 23, 20, 0.42);
 
   --accent: #205e53;
   --accent-hover: #184d43;
@@ -44,8 +45,8 @@
   --font-num: "Bahnschrift", "Cascadia Mono", "Consolas", monospace;
   --font-mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
 
-  --text-10: 12px;
-  --text-11: 12px;
+  --text-10: 10px;
+  --text-11: 11px;
   --text-12: 12px;
   --text-13: 13px;
   --text-14: 14px;
@@ -109,7 +110,8 @@
   --ink-disabled: #5b655e;
 
   --line: #2b342d;
-  --line-strong: #414d43;
+  --line-strong: #5f6f63;
+  --backdrop: rgba(0, 0, 0, 0.62);
 
   --accent: #8fd5c2;
   --accent-hover: #a8e5d4;

@@ -50,6 +50,7 @@ export const useUiStore = defineStore("ui", () => {
   const confirmRequest = ref<ConfirmRequest | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  const toastQueue: ToastState[] = [];
   let listenersInstalled = false;
 
   const resolvedTheme = computed<"light" | "dark">(() => {
@@ -122,21 +123,53 @@ export const useUiStore = defineStore("ui", () => {
     envOpen.value = false;
   }
 
-  function showToast(message: string, tone: ToastState["tone"] = "info"): void {
+  function clearToastTimers(): void {
     if (toastTimer) {
       clearTimeout(toastTimer);
+      toastTimer = null;
     }
     if (hideTimer) {
       clearTimeout(hideTimer);
+      hideTimer = null;
     }
-    toast.value = { message, tone };
+  }
+
+  function presentToast(next: ToastState): void {
+    toast.value = next;
     toastVisible.value = true;
-    toastTimer = setTimeout(() => {
-      toastVisible.value = false;
-      hideTimer = setTimeout(() => {
-        toast.value = null;
-      }, 180);
-    }, 3400);
+    toastTimer = setTimeout(dismissToast, 3400);
+  }
+
+  function dismissToast(): void {
+    if (!toastVisible.value) {
+      return;
+    }
+    clearToastTimers();
+    toastVisible.value = false;
+    hideTimer = setTimeout(() => {
+      toast.value = null;
+      const next = toastQueue.shift();
+      if (next) {
+        presentToast(next);
+      }
+    }, 180);
+  }
+
+  function showToast(message: string, tone: ToastState["tone"] = "info"): void {
+    const next: ToastState = { message, tone };
+    if (tone === "error" && toastVisible.value && toast.value?.tone !== "error") {
+      clearToastTimers();
+      presentToast(next);
+      return;
+    }
+    if (toastVisible.value || toast.value) {
+      toastQueue.push(next);
+      if (toastQueue.length > 3) {
+        toastQueue.shift();
+      }
+      return;
+    }
+    presentToast(next);
   }
 
   function askConfirm(options: ConfirmOptions): Promise<string | null> {
@@ -169,6 +202,7 @@ export const useUiStore = defineStore("ui", () => {
     toggleEnv,
     closeEnv,
     showToast,
+    dismissToast,
     askConfirm,
     resolveConfirm,
   };

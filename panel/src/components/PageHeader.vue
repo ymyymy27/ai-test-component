@@ -2,7 +2,6 @@
 defineProps<{
   title: string;
   subtitle?: string;
-  kicker?: string;
 }>();
 </script>
 

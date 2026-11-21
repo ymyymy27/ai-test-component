@@ -105,7 +105,6 @@ watch(dialogOpen, (open) => {
   </div>
   <div v-else class="page">
     <PageHeader
-      kicker="项目"
       title="运行记录"
       :subtitle="`${project.name} · ${runs.length} 次运行 · 记录只读`"
     />

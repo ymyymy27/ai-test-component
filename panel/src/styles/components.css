@@ -14,7 +14,6 @@
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
-  box-shadow: var(--shadow-1);
 }
 
 .btn:hover {
@@ -1393,7 +1392,7 @@ dialog {
 }
 
 dialog::backdrop {
-  background: rgba(15, 23, 20, 0.4);
+  background: var(--backdrop);
 }
 
 dialog[open] {
@@ -1420,10 +1419,30 @@ dialog[open] {
 }
 
 .dialog-head {
+  position: sticky;
+  top: calc(-1 * var(--space-4));
+  z-index: 2;
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  background: var(--surface);
 }
+
+.dialog-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  background: var(--surface);
+}
+
 
 .dialog-title {
   min-width: 0;
@@ -1437,12 +1456,6 @@ dialog[open] {
   line-height: 1.6;
 }
 
-.dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
 
 .toast {
   position: fixed;
@@ -1456,9 +1469,12 @@ dialog[open] {
   background: var(--ink);
   color: var(--surface);
   box-shadow: var(--shadow-pop);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   font-size: var(--text-12);
   line-height: 1.5;
-  pointer-events: none;
+  pointer-events: auto;
   opacity: 0;
   transform: translateY(-6px);
   transition:
@@ -1474,6 +1490,30 @@ dialog[open] {
 .toast.is-error {
   background: var(--fail);
   color: var(--on-danger);
+}
+
+.toast.is-success {
+  background: var(--pass);
+  color: var(--on-danger);
+}
+
+.toast-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: -2px -6px -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-14);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 /* ---------- tabs / filters ---------- */
@@ -1901,6 +1941,10 @@ dialog[open] {
 }
 
 @media (max-width: 620px) {
+  :root {
+    --control-h: 40px;
+  }
+
   .btn {
     min-height: 40px;
   }

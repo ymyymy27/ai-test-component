@@ -18,6 +18,12 @@ describe("status components", () => {
     expect(unselected.find("path").exists()).toBe(true);
   });
 
+  it("can expose a screen-reader label without duplicating visible text", () => {
+    const wrapper = mount(StatusMark, { props: { result: "passed", label: "通过" } });
+    expect(wrapper.attributes("aria-hidden")).toBeUndefined();
+    expect(wrapper.find(".visually-hidden").text()).toBe("通过");
+  });
+
   it("always pairs a shape with text", () => {
     expect(mount(StatusText, { props: { result: "passed" } }).text()).toBe("通过");
     expect(mount(StatusText, { props: { result: "failed" } }).text()).toBe("失败");

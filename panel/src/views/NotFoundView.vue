@@ -13,7 +13,7 @@ const projectId = computed(() => workspace.currentProjectId);
 
 <template>
   <div class="page">
-    <PageHeader title="页面不存在" kicker="404" :subtitle="`没有找到 ${route.fullPath}`" />
+    <PageHeader title="页面不存在" :subtitle="`没有找到 ${route.fullPath}`" />
     <EmptyState title="这个地址没有对应页面" text="检查地址，或回到项目概览继续。">
       <RouterLink v-if="projectId" class="btn btn-sm" :to="`/projects/${projectId}/overview`">
         回到项目概览

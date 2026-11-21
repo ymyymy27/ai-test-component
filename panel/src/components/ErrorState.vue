@@ -17,7 +17,7 @@ const emit = defineEmits<{ retry: [] }>();
 
 <template>
   <div class="error-state" role="alert">
-    <p class="error-title">{{ title }}</p>
+    <h2 class="error-title">{{ title }}</h2>
     <p class="error-text">{{ text }}</p>
     <div class="empty-actions">
       <button class="btn btn-sm" type="button" @click="emit('retry')">{{ retryLabel }}</button>

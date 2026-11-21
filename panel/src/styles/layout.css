@@ -638,7 +638,11 @@
 }
 
 .page-kicker {
-  display: none;
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-12);
+  font-weight: 600;
 }
 
 .page-title {

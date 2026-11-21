@@ -124,7 +124,6 @@ function openReport(target: Run | null): void {
 <template>
   <div v-if="issue" class="page">
     <PageHeader
-      kicker="问题详情"
       :title="issue.title"
       :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${issue.occurrences.length} 次 · 最近 ${new Date(issue.updatedAt).toLocaleString('zh-CN')}`"
     >
