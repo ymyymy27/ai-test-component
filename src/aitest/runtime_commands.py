@@ -1016,6 +1016,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条可用验收项")
     scope.acceptance_item_ids = list(selected)
     context = _project_context(project, ws)
+    context = redact_tree(
+        context, known_secret_values([load_project_config(ws, project.project_id)])
+    )
     raw_cases = payload.get("cases")
     regenerate = None
     if not isinstance(raw_cases, list) or not raw_cases:
