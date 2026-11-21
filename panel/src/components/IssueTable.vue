@@ -21,10 +21,26 @@ const rows = computed(() =>
       issue,
       taskTitle: task?.title ?? "任务已归档",
       planLabel: plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划已归档",
-      runLabel: run ? new Date(run.startedAt).toLocaleString("zh-CN") : "运行已归档",
+      runLabel: issue.runId
+        ? run
+          ? new Date(run.startedAt).toLocaleString("zh-CN")
+          : "运行已归档"
+        : "未绑定运行",
+      lastAt: issue.occurrences.length
+        ? new Date(issue.occurrences[issue.occurrences.length - 1]?.time ?? "").toLocaleString(
+            "zh-CN",
+          )
+        : "人工登记 · 未发生",
     };
   }),
 );
+
+function statusTone(status: Issue["status"]): string {
+  if (status === "closed") return "is-neutral";
+  if (status === "in_progress") return "is-accent";
+  if (status === "retest") return "is-neutral";
+  return "is-warn";
+}
 </script>
 
 <template>
@@ -36,20 +52,24 @@ const rows = computed(() =>
       type="button"
       @click="emit('open', row.issue.id)"
     >
-      <span class="severity" :class="{ 'is-high': row.issue.severity === 'P1' }">
+      <span
+        class="severity"
+        :class="{ 'is-critical': row.issue.severity === 'P0', 'is-high': row.issue.severity === 'P1' }"
+      >
         {{ row.issue.severity }}
       </span>
       <span>
-        <span class="row-title">{{ row.issue.title }}</span>
+        <span class="row-title" :title="row.issue.title">{{ row.issue.title }}</span>
         <span class="row-meta">
           <span>{{ row.taskTitle }}</span>
           <span>{{ row.planLabel }}</span>
           <span>{{ row.runLabel }}</span>
+          <span>{{ row.lastAt }}</span>
           <span>发生 {{ row.issue.occurrences.length }} 次</span>
           <span v-if="row.issue.unstable" class="badge is-warn">疑似不稳定</span>
         </span>
       </span>
-      <span class="badge" :class="row.issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
+      <span class="badge" :class="statusTone(row.issue.status)">
         {{ ISSUE_STATUS_LABEL[row.issue.status] }}
       </span>
       <Icon class="issue-chevron" name="chevron-right" :size="13" />

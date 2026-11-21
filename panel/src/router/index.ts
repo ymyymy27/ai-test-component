@@ -19,13 +19,17 @@ function taskIdOf(to: RouteLocationNormalized): string {
   return String(to.params.taskId ?? "");
 }
 
-function notFound(path: string): {
+function notFound(to: RouteLocationNormalized): {
   name: "not-found";
   params: { pathMatch: string[] };
+  query: RouteLocationNormalized["query"];
+  hash: string;
 } {
   return {
     name: "not-found",
-    params: { pathMatch: path.split("/").filter(Boolean) },
+    params: { pathMatch: to.path.split("/").filter(Boolean) },
+    query: to.query,
+    hash: to.hash,
   };
 }
 
@@ -204,7 +208,7 @@ router.beforeEach(async (to) => {
   }
   const project = store.projects.find((entry) => entry.id === projectId);
   if (!project) {
-    return notFound(to.path);
+    return notFound(to);
   }
   if (store.currentProjectId !== projectId) {
     await store.setCurrentProject(projectId);
@@ -226,7 +230,7 @@ router.beforeEach(async (to) => {
   }
   const task = findTask(project, taskId);
   if (!task) {
-    return notFound(to.path);
+    return notFound(to);
   }
   if (
     activeRunTask &&

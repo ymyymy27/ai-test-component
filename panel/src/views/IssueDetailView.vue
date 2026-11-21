@@ -6,7 +6,7 @@ import ErrorState from "@/components/ErrorState.vue";
 import IssueStatusDialog from "@/components/IssueStatusDialog.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { issueCloseGate } from "@/domain/derive";
-import { DISPOSITION_LABEL, ISSUE_STATUS_LABEL, SEVERITY_LABEL, statusText } from "@/domain/labels";
+import { DISPOSITION_LABEL, ISSUE_STATUS_LABEL, statusText } from "@/domain/labels";
 import type { Issue, IssueDisposition, IssueStatus, Run, Task } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -40,20 +40,28 @@ const verificationRun = computed<Run | null>(() => {
 const issueItemNo = computed(
   () => task.value?.acceptanceItems.find((item) => item.id === issue.value?.itemId)?.no ?? "—",
 );
-const severityText = computed(() => (issue.value ? SEVERITY_LABEL[issue.value.severity] : ""));
+const occurrenceCount = computed(
+  () => issue.value?.occurrences.filter((entry) => entry.result !== "passed").length ?? 0,
+);
 const statusOpen = ref(false);
+const statusError = ref("");
 const closing = ref(false);
 
-function reportFor(target: Run | null): string | null {
-  if (!target || target.reportIds.length === 0) {
-    return null;
-  }
-  return target.reportIds[target.reportIds.length - 1] ?? null;
-}
-
 function runLabel(runId: string): string {
+  if (!runId) {
+    return "未绑定运行";
+  }
   const found = task.value?.runs.find((entry) => entry.id === runId);
   return found ? new Date(found.startedAt).toLocaleString("zh-CN") : "运行已归档";
+}
+
+function openResult(target: Run | null): void {
+  if (!target) {
+    return;
+  }
+  void router.push(
+    `/projects/${projectId.value}/tasks/${target.taskId}/result?run=${target.id}`,
+  );
 }
 
 async function saveStatus(input: {
@@ -68,9 +76,14 @@ async function saveStatus(input: {
     await workspace.updateIssue(projectId.value, issue.value.id, input);
     statusOpen.value = false;
     ui.showToast("问题状态已更新。", "success");
-  } catch {
-    // store 已提示。
+  } catch (error) {
+    statusError.value = error instanceof Error ? error.message : "状态更新失败，请重试。";
   }
+}
+
+function openStatus(): void {
+  statusError.value = "";
+  statusOpen.value = true;
 }
 
 async function closeIssue(): Promise<void> {
@@ -112,22 +125,19 @@ async function rerun(): Promise<void> {
     // store 已提示。
   }
 }
-
-function openReport(target: Run | null): void {
-  const reportId = reportFor(target);
-  if (reportId) {
-    void router.push(`/projects/${projectId.value}/reports/${reportId}`);
-  }
-}
 </script>
 
 <template>
   <div v-if="issue" class="page">
     <PageHeader
       :title="issue.title"
-      :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${issue.occurrences.length} 次 · 最近 ${new Date(issue.updatedAt).toLocaleString('zh-CN')}`"
+      :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${occurrenceCount} 次 · 最近 ${new Date(issue.updatedAt).toLocaleString('zh-CN')}`"
     >
       <template #actions>
+        <span class="badge" :class="issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
+          {{ ISSUE_STATUS_LABEL[issue.status] }}
+        </span>
+        <span v-if="issue.unstable" class="badge is-warn">疑似不稳定</span>
         <button
           class="btn btn-sm"
           type="button"
@@ -135,40 +145,44 @@ function openReport(target: Run | null): void {
         >
           全部问题
         </button>
-        <span v-if="issue.unstable" class="badge is-warn">疑似不稳定</span>
-        <button class="btn btn-sm" type="button" @click="statusOpen = true">更新状态</button>
-        <button
-          v-if="issue.status === 'retest'"
-          class="btn btn-sm btn-primary"
-          type="button"
-          :disabled="!gate?.ok || closing"
-          :aria-busy="closing"
-          :title="gate?.ok ? undefined : gate?.reason"
-          @click="closeIssue"
-        >
-          {{ closing ? "正在关闭…" : "关闭问题" }}
-        </button>
+        <button class="btn btn-sm" type="button" @click="openStatus">更新状态</button>
       </template>
     </PageHeader>
 
     <section class="section">
       <dl class="info-grid binding-grid">
         <div class="info-cell">
-          <dt>项目</dt>
-          <dd>{{ project?.name }}</dd>
-        </div>
-        <div class="info-cell">
           <dt>任务</dt>
-          <dd>{{ task?.title ?? "任务已归档" }}</dd>
+          <dd>
+            <button
+              v-if="task"
+              class="link-btn"
+              type="button"
+              @click="router.push(`/projects/${projectId}/tasks/${task.id}/details`)"
+            >
+              {{ task.title }}
+            </button>
+            <template v-else>任务已归档</template>
+          </dd>
         </div>
         <div class="info-cell">
           <dt>计划</dt>
-          <dd>{{ plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划已归档" }}</dd>
+          <dd>
+            <button
+              v-if="plan"
+              class="link-btn"
+              type="button"
+              @click="router.push(`/projects/${projectId}/tasks/${task?.id}/plan`)"
+            >
+              计划 {{ plan.no }} · 第 {{ plan.revision }} 版
+            </button>
+            <template v-else>计划已归档</template>
+          </dd>
         </div>
         <div class="info-cell">
           <dt>运行</dt>
           <dd>
-            <button v-if="reportFor(run)" class="link-btn" type="button" @click="openReport(run)">
+            <button v-if="run" class="link-btn" type="button" @click="openResult(run)">
               {{ runLabel(issue.runId) }}
             </button>
             <template v-else>{{ runLabel(issue.runId) }}</template>
@@ -177,10 +191,6 @@ function openReport(target: Run | null): void {
         <div class="info-cell">
           <dt>验收项</dt>
           <dd>{{ issueItemNo }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>严重度</dt>
-          <dd>{{ severityText }}</dd>
         </div>
       </dl>
     </section>
@@ -215,6 +225,7 @@ function openReport(target: Run | null): void {
               <th scope="col">运行</th>
               <th scope="col">结果</th>
               <th scope="col">说明</th>
+              <th scope="col">证据</th>
             </tr>
           </thead>
           <tbody>
@@ -225,6 +236,9 @@ function openReport(target: Run | null): void {
               <td data-label="运行">{{ runLabel(entry.runId) }}</td>
               <td data-label="结果">{{ statusText(entry.result) }}</td>
               <td data-label="说明">{{ entry.note }}</td>
+              <td data-label="证据">
+                {{ entry.evidenceRefs.length ? entry.evidenceRefs.join("、") : "—" }}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -274,21 +288,40 @@ function openReport(target: Run | null): void {
         >
           关闭问题
         </button>
-        <button class="btn" type="button" @click="rerun">去重跑这一项</button>
+        <button
+          class="btn"
+          type="button"
+          :disabled="!issue.itemId"
+          :title="issue.itemId ? undefined : '未绑定验收项，无法按项重跑'"
+          @click="rerun"
+        >
+          {{ issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
+        </button>
       </div>
     </section>
     <section v-else-if="issue.status !== 'closed'" class="section">
       <p class="doc-note">问题进入“待复测”后，才能绑定新运行关闭；当前可以先更新状态。</p>
-      <button class="btn btn-sm" type="button" @click="rerun">去重跑这一项</button>
+      <button
+        class="btn btn-sm"
+        type="button"
+        :disabled="!issue.itemId"
+        :title="issue.itemId ? undefined : '未绑定验收项，无法按项重跑'"
+        @click="rerun"
+      >
+        {{ issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
+      </button>
     </section>
     <section v-else class="section">
-      <p class="doc-note">问题已关闭。如果同一问题再次出现，更新状态并写重开原因。</p>
+      <h2 class="section-title-lg">重新打开</h2>
+      <p class="doc-note">问题已关闭。如果同一问题再次出现，重新打开并写原因。</p>
+      <button class="btn btn-sm" type="button" @click="openStatus">重新打开问题</button>
     </section>
 
     <IssueStatusDialog
       v-model="statusOpen"
       :issue="issue"
       :busy="workspace.busyKey(`issue:${issue.id}`)"
+      :server-error="statusError"
       @save="saveStatus"
     />
   </div>

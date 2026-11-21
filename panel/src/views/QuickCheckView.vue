@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/PageHeader.vue";
-import { statusText } from "@/domain/labels";
 import StatusMark from "@/components/StatusMark.vue";
-import type { ProjectCheck, QuickCheck } from "@/domain/types";
+import { worstResult } from "@/domain/derive";
+import { statusText } from "@/domain/labels";
+import type { CaseResult, ProjectCheck, QuickCheck } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -24,6 +25,12 @@ const latest = computed<QuickCheck | null>(
 );
 const running = computed(() => latest.value?.status === "running");
 const hasResult = computed(() => latest.value?.status === "completed");
+const cancelled = computed(() => latest.value?.status === "cancelled");
+const elapsed = ref(0);
+const statusRef = ref<HTMLElement | null>(null);
+const resultRef = ref<HTMLElement | null>(null);
+let timer: ReturnType<typeof setInterval> | null = null;
+
 const previewChecks = computed<ProjectCheck[]>(() => {
   const p = project.value;
   const now = new Date().toISOString();
@@ -31,30 +38,67 @@ const previewChecks = computed<ProjectCheck[]>(() => {
     {
       key: "build",
       name: "构建",
-      method: p?.config.l1?.build || "自动检测构建命令",
+      method: p?.config.l1?.build ? `已配置：${p.config.l1.build}` : "未配置，将自动检测",
       result: "not_run",
-      detail: "等待检查",
+      detail: "",
       time: now,
     },
     {
       key: "entry",
       name: "启动入口",
-      method: p?.config.l1?.entry || "自动检测启动入口",
+      method: p?.config.l1?.entry ? `已配置：${p.config.l1.entry}` : "未配置，将自动检测",
       result: "not_run",
-      detail: "等待检查",
+      detail: "",
       time: now,
     },
     {
       key: "smoke",
       name: "最小测试",
-      method: p?.config.l1?.smokeCommand || "运行已有最小测试",
+      method: p?.config.l1?.smokeCommand
+        ? `已配置：${p.config.l1.smokeCommand}`
+        : "未配置，将运行已有最小测试",
       result: "not_run",
-      detail: "等待检查",
+      detail: "",
       time: now,
     },
   ];
 });
 const checks = computed(() => latest.value?.checks ?? previewChecks.value);
+const quickVerdict = computed<CaseResult>(() => {
+  if (!checks.value.length) {
+    return "not_run";
+  }
+  return worstResult(checks.value.map((check) => check.result));
+});
+const historyChecks = computed(() => project.value?.quickChecks.slice(1, 4) ?? []);
+const missingEnvironment = computed(
+  () => workspace.environment.filter((check) => !check.ok).length,
+);
+
+watch(
+  running,
+  (value) => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    if (value) {
+      elapsed.value = 0;
+      timer = setInterval(() => {
+        elapsed.value += 1;
+      }, 1000);
+      void nextTick(() => statusRef.value?.focus());
+    } else {
+      void nextTick(() => resultRef.value?.focus());
+    }
+  },
+);
+
+onBeforeUnmount(() => {
+  if (timer) {
+    clearInterval(timer);
+  }
+});
 
 async function start(): Promise<void> {
   if (!confirmed.value || starting.value || running.value) {
@@ -64,7 +108,7 @@ async function start(): Promise<void> {
   try {
     await workspace.startQuickCheck(projectId.value);
     confirmed.value = false;
-    ui.showToast("快速检查已开始；不进入验收项覆盖。", "info");
+    ui.showToast("快速检查已开始；结果单独记录。", "info");
   } catch {
     // store 已提示。
   } finally {
@@ -88,27 +132,40 @@ async function start(): Promise<void> {
       :subtitle="`${project.name} · 项目级检查 · 不进入验收项覆盖`"
     />
 
-    <div v-if="running" class="analysis-strip" role="status" aria-live="polite" aria-busy="true">
+    <div
+      v-if="running"
+      ref="statusRef"
+      class="analysis-strip"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      tabindex="-1"
+    >
       <span class="spinner" aria-hidden="true"></span>
       <span class="candidate-brief-main">
         <span class="analysis-strip-title">正在执行快速检查</span>
-        <span class="analysis-strip-text"
-          >只检查构建、启动入口和最小测试；不会创建任务或验收项。</span
-        >
+        <span class="analysis-strip-text">
+          已运行 {{ elapsed }} 秒；只检查构建、启动入口和最小测试。
+        </span>
       </span>
     </div>
 
-    <section class="surface-strip quick-result">
+    <section ref="resultRef" class="surface-strip quick-result" tabindex="-1">
       <div class="row-between">
         <div>
           <p class="page-kicker">{{ running ? "正在执行" : hasResult ? "L1 结果" : "检查项" }}</p>
+          <p v-if="hasResult" class="quick-verdict-result" :class="`is-${quickVerdict}`">
+            {{ statusText(quickVerdict) }}
+          </p>
           <p class="page-subtitle">
             {{
               running
                 ? "检查完成前不会写入结果。"
-                : hasResult
-                  ? "结果单独保留，不进入验收项覆盖。"
-                  : "确认后开始。"
+                : cancelled
+                  ? "本次快速检查已取消，未形成结论。"
+                  : hasResult
+                    ? "结果单独保留，不进入验收项覆盖。"
+                    : "确认后开始。"
             }}
           </p>
         </div>
@@ -119,7 +176,7 @@ async function start(): Promise<void> {
           <StatusMark :result="check.result === 'not_run' && running ? 'not_run' : check.result" />
           <span class="check-name">{{ check.name }}</span>
           <span class="check-method">{{ check.method }}</span>
-          <span class="status-text" :class="`is-${check.result}`">
+          <span class="status-text quick-status" :class="`is-${check.result}`">
             {{
               check.result === "not_run" ? (running ? "等待" : "未运行") : statusText(check.result)
             }}
@@ -133,19 +190,40 @@ async function start(): Promise<void> {
       </p>
     </section>
 
-    <p class="doc-note">
-      快速检查只验证构建、启动入口和最小测试，不选择业务功能，不生成验收项，也不把结果算作验收通过。
-      结果单独保存在项目记录里，不进入历史运行列表。
-    </p>
+    <details v-if="historyChecks.length" class="quick-history">
+      <summary>最近 {{ historyChecks.length }} 次快速检查</summary>
+      <ul class="list-plain">
+        <li v-for="entry in historyChecks" :key="entry.id">
+          {{ new Date(entry.finishedAt || entry.startedAt).toLocaleString("zh-CN") }} ·
+          {{
+            entry.status === "completed"
+              ? statusText(worstResult(entry.checks.map((item) => item.result)))
+              : entry.status === "cancelled"
+                ? "已取消"
+                : "未完成"
+          }}
+        </li>
+      </ul>
+    </details>
 
     <section v-if="!running" class="section">
+      <ul class="list-plain quick-commands">
+        <li v-for="check in previewChecks" :key="check.key">
+          {{ check.name }}：{{ check.method }}
+        </li>
+      </ul>
+      <p class="field-hint">
+        环境：{{ missingEnvironment ? `缺失 ${missingEnvironment} 项，只影响对应能力` : "已检查" }} ·
+        确认人：本机用户
+      </p>
       <label class="checkline" for="quick-confirm">
         <input id="quick-confirm" v-model="confirmed" type="checkbox" />
-        <span>我已确认执行构建、启动入口和最小测试；快速检查仍是一次正式运行。</span>
+        <span>我已确认执行以上项目级检查。</span>
       </label>
       <div class="form-actions">
         <button
-          class="btn btn-primary"
+          class="btn"
+          :class="{ 'btn-primary': !hasResult }"
           type="button"
           :disabled="!confirmed || starting"
           :aria-busy="starting"
@@ -160,7 +238,12 @@ async function start(): Promise<void> {
         >
           返回项目
         </button>
-        <button class="btn" type="button" @click="router.push(`/projects/${projectId}/tasks/new`)">
+        <button
+          class="btn"
+          :class="{ 'btn-primary': hasResult }"
+          type="button"
+          @click="router.push(`/projects/${projectId}/tasks/new`)"
+        >
           开始正式测试
         </button>
       </div>
@@ -176,7 +259,7 @@ async function start(): Promise<void> {
       </button>
     </div>
 
-    <div v-if="hasResult" class="notice">
+    <div v-if="hasResult" class="notice" role="status" aria-live="polite">
       <span>快速检查完成；结果只对项目级检查成立，不代表任何验收项通过。</span>
     </div>
   </div>

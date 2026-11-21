@@ -26,8 +26,11 @@
 
 .btn:disabled,
 .btn[aria-disabled="true"] {
-  opacity: 0.55;
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
   box-shadow: none;
+  opacity: 1;
 }
 
 .btn[aria-busy="true"] {
@@ -621,6 +624,17 @@ select {
 .severity.is-high {
   border-color: var(--fail);
   color: var(--fail);
+}
+
+.severity.is-critical {
+  border-color: var(--fail);
+  background: var(--fail-bg);
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.issue-row .row-title {
+  font-size: var(--text-13);
 }
 
 /* ---------- ledger / cases ---------- */
@@ -1324,6 +1338,15 @@ select {
 }
 
 @media (max-width: 620px) {
+  .issue-filter .scope-filter,
+  .issue-filter .scope-filter-search {
+    flex: 1 1 calc(50% - var(--space-2));
+  }
+
+  .issue-filter .section-note {
+    width: 100%;
+  }
+
   .scope-count,
   .scope-controls {
     width: 100%;
@@ -2707,6 +2730,53 @@ dialog[open] {
   font-family: var(--font-mono);
   font-size: var(--text-12);
   line-height: 1.6;
+}
+
+.quick-verdict-result {
+  margin: 2px 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--text-25);
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.quick-verdict-result.is-passed {
+  color: var(--pass);
+}
+
+.quick-verdict-result.is-failed,
+.quick-verdict-result.is-error {
+  color: var(--fail);
+}
+
+.quick-verdict-result.is-blocked,
+.quick-verdict-result.is-not_run {
+  color: var(--warn);
+}
+
+.quick-status {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.quick-history {
+  margin: var(--space-3) 0;
+  color: var(--ink-2);
+  font-size: var(--text-12);
+}
+
+.quick-history summary {
+  cursor: pointer;
+}
+
+.quick-commands {
+  margin-bottom: var(--space-2);
+}
+
+.quick-commands li {
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  overflow-wrap: anywhere;
 }
 
 .quick-result {

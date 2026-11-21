@@ -33,31 +33,40 @@ const issues = computed(() => workspace.projectIssues);
 const status = ref<"all" | IssueStatus>("all");
 const taskFilter = ref("all");
 const query = ref("");
+const severityFilter = ref<"all" | Issue["severity"]>("all");
+const unstableOnly = ref(false);
 const sort = ref<"severity" | "recent">("severity");
 const createOpen = ref(false);
 
 const statuses: Array<"all" | IssueStatus> = ["all", "pending", "in_progress", "retest", "closed"];
 
+const scoped = computed(() => {
+  const text = query.value.trim().toLowerCase();
+  return issues.value
+    .filter((issue) => taskFilter.value === "all" || issue.taskId === taskFilter.value)
+    .filter((issue) => severityFilter.value === "all" || issue.severity === severityFilter.value)
+    .filter((issue) => !unstableOnly.value || issue.unstable)
+    .filter(
+      (issue) =>
+        !text ||
+        issue.title.toLowerCase().includes(text) ||
+        issue.actual.toLowerCase().includes(text) ||
+        issue.expected.toLowerCase().includes(text),
+    );
+});
+
 const counts = computed(() => {
-  const map: Record<string, number> = { all: issues.value.length };
-  issues.value.forEach((issue) => {
+  const map: Record<string, number> = { all: scoped.value.length };
+  scoped.value.forEach((issue) => {
     map[issue.status] = (map[issue.status] ?? 0) + 1;
   });
   return map;
 });
 
 const filtered = computed(() => {
-  const text = query.value.trim().toLowerCase();
-  const list = issues.value
-    .filter((issue) => status.value === "all" || issue.status === status.value)
-    .filter((issue) => taskFilter.value === "all" || issue.taskId === taskFilter.value)
-    .filter(
-      (issue) =>
-        !text ||
-        issue.title.toLowerCase().includes(text) ||
-        issue.actual.toLowerCase().includes(text) ||
-        issue.signature.toLowerCase().includes(text),
-    );
+  const list = scoped.value.filter(
+    (issue) => status.value === "all" || issue.status === status.value,
+  );
   const severityRank: Record<Issue["severity"], number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
   return [...list].sort((first, second) => {
     if (sort.value === "recent") {
@@ -70,7 +79,9 @@ const filtered = computed(() => {
   });
 });
 
-const initialTaskId = computed(() => workspace.currentTask?.id ?? tasks.value[0]?.id ?? "");
+const initialTaskId = computed(() =>
+  taskFilter.value !== "all" ? taskFilter.value : (workspace.currentTask?.id ?? ""),
+);
 
 function openCreate(): void {
   if (tasks.value.length === 0) {
@@ -84,6 +95,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
   try {
     const issue = await workspace.createIssue(projectId.value, input);
     createOpen.value = false;
+    ui.showToast("问题已登记；相同失败签名会合并到现有问题。", "success");
     await router.push(`/projects/${projectId.value}/issues/${issue.id}`);
   } catch {
     // store 已提示。
@@ -100,7 +112,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
   <div v-else class="page">
     <PageHeader
       title="问题清单"
-      :subtitle="`${project.name} · ${counts.all ?? 0} 个问题 · 关闭必须绑定新运行`"
+      :subtitle="`${project.name} · ${issues.length} 个问题`"
     >
       <template #actions>
         <button
@@ -112,6 +124,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
         >
           登记问题
         </button>
+        <p v-if="createGate" class="field-hint">{{ createGate }}</p>
       </template>
     </PageHeader>
 
@@ -124,7 +137,14 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
           : '先建立任务，问题才有归属。'
       "
     >
-      <button v-if="tasks.length" class="btn btn-sm" type="button" @click="openCreate">
+      <button
+        v-if="tasks.length"
+        class="btn btn-sm"
+        type="button"
+        :disabled="Boolean(createGate)"
+        :title="createGate || undefined"
+        @click="openCreate"
+      >
         登记第一个问题
       </button>
       <button
@@ -152,13 +172,27 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
           <span class="filter-count">{{ counts[item] ?? 0 }}</span>
         </button>
       </div>
-      <div class="toolbar">
+      <div class="toolbar issue-filter">
         <label class="scope-filter">
           <span>任务</span>
           <select v-model="taskFilter" aria-label="按任务筛选问题">
             <option value="all">全部任务</option>
             <option v-for="task in tasks" :key="task.id" :value="task.id">{{ task.title }}</option>
           </select>
+        </label>
+        <label class="scope-filter">
+          <span>严重度</span>
+          <select v-model="severityFilter" aria-label="按严重度筛选问题">
+            <option value="all">全部</option>
+            <option value="P0">P0</option>
+            <option value="P1">P1</option>
+            <option value="P2">P2</option>
+            <option value="P3">P3</option>
+          </select>
+        </label>
+        <label class="checkline issue-unstable">
+          <input v-model="unstableOnly" type="checkbox" />
+          <span>只看疑似不稳定</span>
         </label>
         <label class="scope-filter">
           <span>排序</span>
@@ -172,7 +206,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
           <input
             v-model="query"
             type="search"
-            placeholder="标题、实际或签名"
+            placeholder="标题、实际或预期"
             aria-label="搜索问题"
           />
         </label>
@@ -192,6 +226,8 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
           @click="
             status = 'all';
             taskFilter = 'all';
+            severityFilter = 'all';
+            unstableOnly = false;
             query = '';
           "
         >

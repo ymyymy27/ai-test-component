@@ -34,6 +34,7 @@ const currentSection = computed(() => {
   if (name === "overview") return "overview";
   if (name === "issues" || name === "issue-detail") return "issues";
   if (name === "history") return "history";
+  if (name === "quick-check") return "quick";
   if (name === "settings") return "settings";
   return "";
 });
@@ -133,6 +134,11 @@ async function openProjectSection(
 ): Promise<void> {
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/${section}`);
+}
+
+async function openQuick(projectIdValue: string): Promise<void> {
+  ui.closeSidebar();
+  await router.push(`/projects/${projectIdValue}/quick-check`);
 }
 
 async function selectProject(projectIdValue: string): Promise<void> {
@@ -302,6 +308,7 @@ onBeforeUnmount(() => {
       @open-overview="(id) => openProjectSection(id, 'overview')"
       @open-issues="(id) => openProjectSection(id, 'issues')"
       @open-history="(id) => openProjectSection(id, 'history')"
+      @open-quick="openQuick"
       @select-task="selectTask"
       @new-task="newTask"
       @add-project="addProject"

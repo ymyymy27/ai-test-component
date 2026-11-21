@@ -56,7 +56,7 @@ export function applyIssueUpdate(
     severity: patch.severity ?? issue.severity,
     disposition:
       status === "retest"
-        ? (patch.disposition ?? issue.disposition ?? "fixed")
+        ? (patch.disposition ?? null)
         : reopening
           ? null
           : patch.disposition === undefined

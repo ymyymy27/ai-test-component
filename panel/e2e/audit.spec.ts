@@ -65,6 +65,7 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   await expect(page.locator(".scope-summary")).toContainText("/");
 
   await page.getByRole("button", { name: "清空", exact: true }).click();
+  await page.locator(".dialog-confirm").click();
   await expect(page.locator(".scope-summary")).toContainText("本次 0 /");
   await expect(page.getByRole("button", { name: "生成计划" })).toBeDisabled();
   await page.getByRole("button", { name: "全量" }).click();
@@ -90,7 +91,7 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   await page.waitForURL(/\/result/, { timeout: 20_000 });
   await expect(page.locator(".result-verdict")).toBeVisible();
 
-  for (const label of ["只看问题", "未完成", "全部"]) {
+  for (const label of ["只看未通过", "未完成", "全部"]) {
     await page.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
   await expect(page.getByRole("button", { name: /^全部/ })).toHaveAttribute("aria-pressed", "true");
@@ -144,7 +145,6 @@ test("审计：问题登记、筛选与状态流转", async ({ page }) => {
   await expect(page.locator("h1").first()).toContainText("审计登记的问题");
 
   await page.getByRole("button", { name: "更新状态" }).click();
-  await page.selectOption("#issue-next-status", "in_progress");
   await page.fill("#issue-reason", "开始处理");
   await page.getByRole("button", { name: "保存状态" }).click();
   await expect(page.locator("body")).toContainText("处理中");
@@ -177,6 +177,7 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
   await page.getByRole("button", { name: "保存验收项" }).click();
   await expect(page.locator(".toast")).toContainText("验收项已保存");
   await page.locator(".acceptance-edit-row").last().getByRole("button", { name: "删除" }).click();
+  await page.locator(".dialog-confirm").click();
   await page.getByRole("button", { name: "保存验收项" }).click();
   await expect(page.locator(".toast")).toContainText("验收项已保存");
 

@@ -9,6 +9,7 @@ import Icon from "./Icon.vue";
 const props = defineProps<{
   issue: Issue | null;
   busy: boolean;
+  serverError?: string;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +23,13 @@ const reason = ref("");
 const disposition = ref<IssueDisposition | null>(null);
 const error = ref("");
 
+const transitionNote = computed(() => {
+  const current = props.issue?.status;
+  if (!current) return "";
+  if (current === "closed") return "重新打开后状态回到“处理中”，需要写重开原因。";
+  if (status.value === "retest") return "进入待复测前，确认修复内容并写理由。";
+  return "状态变化需要写理由；关闭仍要绑定一次新运行。";
+});
 const options = computed<IssueStatus[]>(() => {
   const current = props.issue?.status;
   if (current === "pending") return ["in_progress"];
@@ -94,9 +102,9 @@ function onDialogClick(event: MouseEvent): void {
         </button>
       </header>
       <p class="dialog-text">
-        当前状态：{{ issue ? ISSUE_STATUS_LABEL[issue.status] : "—" }}。关闭问题仍要绑定一次新运行。
+        当前状态：{{ issue ? ISSUE_STATUS_LABEL[issue.status] : "—" }}。{{ transitionNote }}
       </p>
-      <div class="field">
+      <div v-if="options.length > 1" class="field">
         <label for="issue-next-status">目标状态</label>
         <select id="issue-next-status" v-model="status">
           <option v-for="option in options" :key="option" :value="option">
@@ -104,7 +112,10 @@ function onDialogClick(event: MouseEvent): void {
           </option>
         </select>
       </div>
-      <div v-if="status === 'retest' || issue?.status === 'closed'" class="field">
+      <p v-else class="field-hint">
+        目标状态：{{ ISSUE_STATUS_LABEL[options[0] ?? "in_progress"] }}
+      </p>
+      <div v-if="status === 'retest'" class="field">
         <label for="issue-disposition">处置</label>
         <select id="issue-disposition" v-model="disposition">
           <option :value="null">不填写</option>
@@ -125,7 +136,9 @@ function onDialogClick(event: MouseEvent): void {
           :aria-describedby="error ? 'issue-status-error' : undefined"
           @input="error = ''"
         />
-        <p v-if="error" id="issue-status-error" class="field-error" role="alert">{{ error }}</p>
+        <p v-if="error || serverError" id="issue-status-error" class="field-error" role="alert">
+          {{ error || serverError }}
+        </p>
       </div>
       <footer class="dialog-actions">
         <button class="btn" type="button" @click="close">取消</button>

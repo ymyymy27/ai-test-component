@@ -20,6 +20,7 @@ const emit = defineEmits<{
   openOverview: [projectId: string];
   openIssues: [projectId: string];
   openHistory: [projectId: string];
+  openQuick: [projectId: string];
   selectTask: [projectId: string, taskId: string];
   newTask: [projectId: string];
   addProject: [];
@@ -366,6 +367,16 @@ defineExpose({ focusSearch, focusClose });
                 <Icon name="history" :size="14" />
                 <span class="side-nav-label">运行记录</span>
                 <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
+              </button>
+              <button
+                class="side-nav-item"
+                type="button"
+                :class="{ 'is-active': section === 'quick' }"
+                :aria-current="section === 'quick' ? 'page' : undefined"
+                @click="emit('openQuick', project.id)"
+              >
+                <Icon name="shield" :size="14" />
+                <span class="side-nav-label">快速检查</span>
               </button>
               <button
                 class="side-nav-item"

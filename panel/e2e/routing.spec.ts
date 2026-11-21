@@ -50,10 +50,10 @@ test("直接刷新项目、任务、问题、历史、设置和报告路由都�
 test("未知路由进入 404 页面并保留原地址", async ({ page }) => {
   await page.goto("/projects/does-not-exist/overview");
   await expect(page.locator("body")).toContainText("页面不存在");
-  await expect(page.getByRole("link", { name: "项目入口" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "建立项目" })).toBeVisible();
   await expect(page).toHaveURL(/projects\/does-not-exist\/overview/);
 
-  await page.goto("/this/route/does/not/exist");
+  await page.goto("/this/route/does/not/exist?filter=open&x=1#note");
   await expect(page.locator("body")).toContainText("页面不存在");
-  await expect(page).toHaveURL(/this\/route\/does\/not\/exist/);
+  await expect(page).toHaveURL(/this\/route\/does\/not\/exist\?filter=open&x=1#note/);
 });
