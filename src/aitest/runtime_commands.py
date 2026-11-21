@@ -3196,12 +3196,21 @@ def _check_zip_member(name: str) -> str:
     parts = normalized.split("/")
     if normalized != raw:
         raise _invalid_backup(f"备份路径未规范化：{name}")
+    reserved = {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+    }
     if (
         not name
         or normalized.startswith("/")
         or raw.startswith("/")
         or ".." in parts
-        or ":" in parts[0]
+        or ":" in normalized
+        or any(part.endswith((".", " ")) or part.split(".")[0].upper() in reserved for part in parts)
     ):
         raise _invalid_backup(f"备份包含非法路径：{name}")
     return normalized
@@ -3366,7 +3375,11 @@ def cmd_backup_create(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         if not path.is_file() or path == target or path.is_symlink():
             continue
         relative = path.relative_to(ws.root)
-        if path.name == ".workspace.lock" or relative.parts[0] in {"requests", "backups"}:
+        if (
+            path.name == ".workspace.lock"
+            or relative.parts[0] in {"requests", "backups"}
+            or str(relative).replace("\\", "/") == "manifest.json"
+        ):
             continue
         if not include_evidence and ("evidence" in relative.parts or "generated" in relative.parts):
             continue
@@ -3428,13 +3441,16 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
         raise _invalid_backup(f"备份无法打开：{exc}") from exc
     with archive:
         members: dict[str, zipfile.ZipInfo] = {}
+        seen_lower: dict[str, str] = {}
         total_size = 0
         for member in archive.infolist():
             normalized = _check_zip_member(member.filename)
             if member.is_dir():
                 continue
-            if normalized in members:
+            lower = normalized.lower()
+            if normalized in members or lower in seen_lower:
                 raise _invalid_backup(f"备份包含重复条目：{member.filename}")
+            seen_lower[lower] = normalized
             if member.external_attr >> 16 & 0o170000 == 0o120000:
                 raise _invalid_backup(f"备份包含符号链接：{member.filename}")
             total_size += member.file_size
@@ -3464,7 +3480,7 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             if target.exists():
                 target.rmdir()
             os.replace(temp_target, target)
-        except OSError as exc:
+        except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
             shutil.rmtree(temp_target, ignore_errors=True)
             raise _invalid_backup(f"恢复失败：{exc}") from exc
     missing = _missing_evidence(target)
