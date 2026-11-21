@@ -1304,7 +1304,7 @@ def cmd_task_delete(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         for path in reports_dir.glob("*.json"):
             try:
                 data = read_json(path)
-            except (OSError, ValueError):
+            except (AiTestError, OSError, ValueError):
                 continue
             if data.get("run_id") in run_ids:
                 path.unlink(missing_ok=True)
@@ -1318,9 +1318,21 @@ def cmd_task_delete(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
                 issue = read_model(path, Issue)
             except AiTestError:
                 continue
-            if any(occurrence.run_id in run_ids for occurrence in issue.occurrences):
+            linked = [
+                occurrence for occurrence in issue.occurrences if occurrence.run_id in run_ids
+            ]
+            if not linked:
+                continue
+            if len(linked) == len(issue.occurrences):
                 path.unlink(missing_ok=True)
                 removed_issues += 1
+            else:
+                issue.occurrences = [
+                    occurrence
+                    for occurrence in issue.occurrences
+                    if occurrence.run_id not in run_ids
+                ]
+                write_model(path, issue)
 
     for plan_id in plan_ids:
         (plans_dir / f"{plan_id}.json").unlink(missing_ok=True)
@@ -1389,9 +1401,11 @@ def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         data["intent"] = value
     if "preconditions" in patch:
         raw_preconditions = patch["preconditions"]
-        if not isinstance(raw_preconditions, list):
-            raise invalid_request("preconditions 必须是数组")
-        data["preconditions"] = [str(item) for item in raw_preconditions]
+        if not isinstance(raw_preconditions, list) or any(
+            not isinstance(item, str) for item in raw_preconditions
+        ):
+            raise invalid_request("preconditions 必须是字符串数组")
+        data["preconditions"] = [item.strip() for item in raw_preconditions if item.strip()]
     if "acceptance_items" in patch:
         raw_items = patch["acceptance_items"]
         if not isinstance(raw_items, list):
