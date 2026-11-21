@@ -43,6 +43,12 @@ const issueItemNo = computed(
 const occurrenceCount = computed(
   () => issue.value?.occurrences.filter((entry) => entry.result !== "passed").length ?? 0,
 );
+const lastOccurrenceAt = computed(() => {
+  const times =
+    issue.value?.occurrences.map((entry) => new Date(entry.time).getTime()).filter(Number.isFinite) ??
+    [];
+  return times.length ? new Date(Math.max(...times)).toISOString() : issue.value?.updatedAt ?? "";
+});
 const statusOpen = ref(false);
 const statusError = ref("");
 const closing = ref(false);
@@ -139,7 +145,7 @@ async function rerun(): Promise<void> {
   <div v-if="issue" class="page">
     <PageHeader
       :title="issue.title"
-      :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${occurrenceCount} 次 · 最近 ${new Date(issue.updatedAt).toLocaleString('zh-CN')}`"
+      :subtitle="`${issue.severity} · ${ISSUE_STATUS_LABEL[issue.status]} · ${issue.source === 'manual' ? '人工登记' : '自动归并'} · 发生 ${occurrenceCount} 次 · 最近 ${new Date(lastOccurrenceAt).toLocaleString('zh-CN')}`"
     >
       <template #actions>
         <span class="badge" :class="issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
