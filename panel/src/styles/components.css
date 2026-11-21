@@ -993,6 +993,21 @@ select {
   font-size: var(--text-12);
 }
 
+.scope-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.scope-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
 .scope-summary strong {
   color: var(--ink);
   font-family: var(--font-num);
@@ -1118,9 +1133,9 @@ select {
 
 .scope-pending {
   padding: var(--space-3);
-  border: 1px solid var(--line);
+  border: 1px solid var(--warn);
   border-radius: var(--radius-row);
-  background: var(--surface-2);
+  background: var(--warn-bg);
 }
 
 .scope-pending h3 {
@@ -1183,6 +1198,20 @@ select {
   color: var(--ink);
   font-size: var(--text-12);
   overflow-wrap: anywhere;
+}
+
+.side-effects-title {
+  margin-top: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-12);
+  font-weight: 600;
+}
+
+.confirm-env {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-11);
 }
 
 .side-effects {
@@ -1266,6 +1295,12 @@ select {
 }
 
 @media (max-width: 620px) {
+  .scope-count,
+  .scope-controls {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .repair-row {
     grid-template-columns: auto 1fr;
   }

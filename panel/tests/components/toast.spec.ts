@@ -42,10 +42,10 @@ describe("toast feedback", () => {
     const ui = useUiStore();
     const wrapper = mount(Toast);
 
-    ui.showToast("第一条", "info");
+    ui.showToast("保存失败", "error");
     ui.showToast("第二条", "info");
     await tick();
-    expect(ui.toast?.message).toBe("第一条");
+    expect(ui.toast?.message).toBe("保存失败");
 
     await wrapper.find(".toast-close").trigger("click");
     vi.advanceTimersByTime(200);

@@ -13,6 +13,7 @@ const props = defineProps<{
   warningsAcknowledged: boolean;
   busy: boolean;
   startDisabled: boolean;
+  startError?: string;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +34,7 @@ const environmentLine = computed(() => {
     .join(" · ");
 });
 const stale = computed(() => props.plan.stale);
+const missingEnvironment = computed(() => props.environment.filter((check) => !check.ok).length);
 
 function toggle(event: Event): void {
   const target = event.target;
@@ -71,21 +73,36 @@ function toggleWarnings(event: Event): void {
         <dt>依赖</dt>
         <dd>{{ dependencies.length ? dependencies.join("、") : "无额外依赖" }}</dd>
       </div>
+      <div class="confirm-item">
+        <dt>环境</dt>
+        <dd>
+          {{ missingEnvironment ? `缺失 ${missingEnvironment} 项` : "通过" }}
+          <span v-if="environmentLine" class="confirm-env">{{ environmentLine }}</span>
+          <span v-if="missingEnvironment" class="confirm-env">
+            缺失只影响对应能力，本地记录、证据与报告仍可用。
+          </span>
+        </dd>
+      </div>
     </dl>
+    <h3 class="side-effects-title">副作用</h3>
     <ul class="side-effects">
       <li v-for="effect in effects" :key="effect">{{ effect }}</li>
     </ul>
-    <p class="field-hint">{{ environmentLine }}</p>
+    <p v-if="startError" class="field-error" role="alert">{{ startError }}</p>
     <label class="checkline" for="confirm-execution">
       <input
         id="confirm-execution"
         type="checkbox"
         :checked="checked"
         :disabled="startDisabled"
+        aria-describedby="confirm-start-hint"
         @change="toggle"
       />
       <span>我已确认本次范围、依赖和副作用，同意开始测试。</span>
     </label>
+    <p id="confirm-start-hint" class="field-hint">
+      勾选后按 Ctrl / Cmd + Enter 也可以开始；未勾选时不会启动。
+    </p>
     <template v-if="plan.warnings.length">
       <ul class="list-plain confirm-warnings">
         <li v-for="warning in plan.warnings" :key="warning">{{ warning }}</li>

@@ -48,6 +48,16 @@ describe("project validation", () => {
     expect(validateProjectConfig({ model: { apiKey: "x" } }).ok).toBe(false);
   });
 
+  it("rejects non-positive evidence limits and invalid service numbers", () => {
+    expect(validateProjectConfig({ evidence: { singleFileMb: 0 } }).ok).toBe(false);
+    expect(validateProjectConfig({ evidence: { mediaMb: -1 } }).ok).toBe(false);
+    expect(validateProjectConfig({ evidence: { singleFileMb: 20 } }).ok).toBe(true);
+    expect(validateProjectConfig({ services: { port: 70000 } }).ok).toBe(false);
+    expect(validateProjectConfig({ services: { port: 8080 } }).ok).toBe(true);
+    expect(validateProjectConfig({ services: { timeoutSeconds: 0 } }).ok).toBe(false);
+    expect(validateProjectConfig({ services: { timeoutSeconds: 30 } }).ok).toBe(true);
+  });
+
   it("parses one-item-per-line lists", () => {
     expect(parseLineList("a\n b \n\nc")).toEqual(["a", "b", "c"]);
   });

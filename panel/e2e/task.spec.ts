@@ -46,3 +46,15 @@ test("未保存的多个区块可以一次保存", async ({ page }) => {
   await expect(page.locator("#task-title")).toHaveValue("一次保存全部");
   await expect(page.locator("#task-goal")).toHaveValue("统一保存的验证目标");
 });
+
+test("计划过期后可以在计划页原地重新生成", async ({ page }) => {
+  await openDetails(page);
+  const item = page.locator('input[aria-label="验收项文本"]').first();
+  await item.fill(`${await item.inputValue()}（再补充）`);
+  await page.getByRole("button", { name: "保存验收项" }).click();
+  await expect(page.locator(".notice.is-warn")).toBeVisible();
+  await page.goto(page.url().replace(/\/details$/, "/plan"));
+  await expect(page.locator(".plan-summary .badge")).toHaveText("已过期");
+  await page.getByRole("button", { name: "重新生成计划" }).click();
+  await expect(page.locator(".plan-summary .badge")).toHaveText("待确认");
+});

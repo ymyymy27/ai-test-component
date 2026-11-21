@@ -7,6 +7,7 @@ import Icon from "./Icon.vue";
 const props = defineProps<{
   feature: { name: string; items: AcceptanceItem[]; modules: string[] };
   selectedIds: string[];
+  filtered?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -46,7 +47,7 @@ function toggleFeature(): void {
         ref="featureCheckbox"
         type="checkbox"
         :checked="allSelected"
-        :aria-label="`选择业务功能 ${feature.name}`"
+        :aria-label="filtered ? `选择本筛选中的 ${feature.name}` : `选择业务功能 ${feature.name}`"
         @click.stop
         @change="toggleFeature"
       />
@@ -54,7 +55,9 @@ function toggleFeature(): void {
         {{ feature.name }}
         <span class="scope-group-modules">{{ feature.modules.join(" · ") }}</span>
       </span>
-      <span class="scope-group-count">{{ selectedCount }}/{{ feature.items.length }} 项</span>
+      <span class="scope-group-count">
+        {{ selectedCount }}/{{ feature.items.length }} 项<template v-if="filtered">（本筛选）</template>
+      </span>
       <Icon name="chevron-down" :size="14" class="ledger-chevron" />
     </summary>
     <div class="scope-items">

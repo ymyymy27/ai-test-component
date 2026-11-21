@@ -31,12 +31,19 @@ const planError = computed(
   () => workspace.planFailures[taskId.value] ?? "",
 );
 const retryingPlan = computed(() => workspace.busyKey(`plan:${taskId.value}`));
+const starting = computed(() => workspace.busyKey(`start:${taskId.value}`));
+const revising = computed(() => workspace.busyKey(`revise:${taskId.value}`));
+const startError = ref("");
 
 async function retryPlan(): Promise<void> {
   if (!task.value || retryingPlan.value) {
     return;
   }
+  startError.value = "";
   try {
+    if (task.value.stage !== "scope") {
+      await workspace.reviseScope(projectId.value, taskId.value);
+    }
     await workspace.generatePlan(projectId.value, taskId.value);
   } catch {
     // store 已提示；本页显示原因。
@@ -49,9 +56,7 @@ function adjustToRange(): void {
 const planLedgerRef = ref<InstanceType<typeof PlanLedger> | null>(null);
 const checked = ref(false);
 const warningsAcknowledged = ref(false);
-const busy = computed(
-  () => workspace.busyKey(`start:${taskId.value}`) || workspace.busyKey(`revise:${taskId.value}`),
-);
+const busy = computed(() => starting.value || revising.value);
 const stale = computed(() => Boolean(plan.value?.stale));
 const hasWarnings = computed(() => (plan.value?.warnings.length ?? 0) > 0);
 const startDisabled = computed(
@@ -82,6 +87,7 @@ const confirmHint = computed(() => {
   }
   return "";
 });
+const statusBadge = computed(() => (stale.value ? "已过期" : "待确认"));
 const items = computed(() =>
   (plan.value?.scope.acceptanceItemIds ?? [])
     .map((itemId) => {
@@ -116,11 +122,15 @@ async function start(): Promise<void> {
   if (!plan.value || !canStart.value) {
     return;
   }
+  startError.value = "";
   try {
     await workspace.confirmAndStart(projectId.value, taskId.value, plan.value.id);
     await router.push(`/projects/${projectId.value}/tasks/${taskId.value}/run`);
-  } catch {
-    checked.value = false;
+  } catch (cause) {
+    startError.value =
+      cause instanceof Error && cause.message
+        ? `启动失败：${cause.message}`
+        : "启动失败；确认信息仍在，修正后可重试。";
   }
 }
 
@@ -182,9 +192,17 @@ onBeforeUnmount(() => {
         planError ||
         '模型没有返回可发布的计划。可以重试；也可以主动改为范围测试。'
       "
-      :retry-label="retryingPlan ? '正在重试…' : '重试生成计划'"
-      @retry="retryPlan"
+      hide-retry
     >
+      <button
+        class="btn btn-primary btn-sm"
+        type="button"
+        :disabled="retryingPlan"
+        :aria-busy="retryingPlan"
+        @click="retryPlan"
+      >
+        {{ retryingPlan ? "正在重试…" : "重试生成计划" }}
+      </button>
       <button class="btn btn-ghost btn-sm" type="button" @click="adjustToRange">
         调整为范围测试
       </button>
@@ -218,10 +236,15 @@ onBeforeUnmount(() => {
     <div v-if="stale" class="notice is-warn" role="alert">
       <Icon name="warn" :size="14" />
       <span>{{ plan.staleReason || "任务契约已变化，计划过期；重新生成计划后才能启动。" }}</span>
-    </div>
-    <div v-for="warning in plan.warnings" :key="warning" class="notice">
-      <Icon name="info" :size="14" />
-      <span>{{ warning }}</span>
+      <button
+        class="btn btn-sm"
+        type="button"
+        :disabled="retryingPlan"
+        :aria-busy="retryingPlan"
+        @click="retryPlan"
+      >
+        {{ retryingPlan ? "正在重新生成…" : "重新生成计划" }}
+      </button>
     </div>
 
     <section class="surface-strip plan-summary" aria-label="计划摘要">
@@ -233,7 +256,7 @@ onBeforeUnmount(() => {
             {{ plan.cases.length }} 条检查
           </p>
         </div>
-        <span class="badge is-neutral">待确认</span>
+        <span class="badge" :class="stale ? 'is-warn' : 'is-neutral'">{{ statusBadge }}</span>
       </div>
       <CoverageRuler
         :items="items"
@@ -264,6 +287,22 @@ onBeforeUnmount(() => {
       </dl>
     </section>
 
+    <ConfirmationPanel
+      v-if="project"
+      :plan="plan"
+      :task="task"
+      :project="project"
+      :environment="workspace.environment"
+      :checked="checked"
+      :warnings-acknowledged="warningsAcknowledged"
+      :busy="busy"
+      :start-disabled="startDisabled"
+      :start-error="startError"
+      @update:checked="checked = $event"
+      @update:warnings-acknowledged="warningsAcknowledged = $event"
+      @start="start"
+    />
+
     <section class="section">
       <div class="section-head">
         <span class="section-title">计划纳入 {{ plan.scope.acceptanceItemIds.length }} 项</span>
@@ -283,41 +322,32 @@ onBeforeUnmount(() => {
       <span>这个计划没有用例，不能启动；回到范围页重新选择。</span>
     </div>
 
-    <ConfirmationPanel
-      v-if="project"
-      :plan="plan"
-      :task="task"
-      :project="project"
-      :environment="workspace.environment"
-      :checked="checked"
-      :warnings-acknowledged="warningsAcknowledged"
-      :busy="busy"
-      :start-disabled="startDisabled"
-      @update:checked="checked = $event"
-      @update:warnings-acknowledged="warningsAcknowledged = $event"
-      @start="start"
-    />
-
     <div class="actionbar">
       <div class="actionbar-inner">
         <div class="actionbar-facts">
-          <span class="fact-strong">计划 {{ plan.no }} · 第 {{ plan.revision }} 版</span>
-          <span>{{ plan.cases.length }} 条检查 · {{ plan.scope.coverage.selected }} 项验收</span>
-          <span v-if="confirmHint" class="field-hint">{{ confirmHint }}</span>
+          <span v-if="confirmHint" id="plan-start-hint" class="field-hint">{{ confirmHint }}</span>
+          <span v-else class="field-hint">确认后开始；Ctrl / Cmd + Enter 也可。</span>
         </div>
         <div class="actionbar-actions">
-          <button class="btn btn-ghost" type="button" :disabled="busy" @click="adjustScope">
-            调整范围
+          <button
+            class="btn btn-ghost"
+            type="button"
+            :disabled="busy"
+            :aria-busy="revising"
+            @click="adjustScope"
+          >
+            {{ revising ? "正在调整…" : "调整范围" }}
           </button>
           <button
             class="btn btn-primary"
             type="button"
             :disabled="!canStart"
             :title="confirmHint || undefined"
-            :aria-busy="busy"
+            :aria-busy="starting"
+            :aria-describedby="confirmHint ? 'plan-start-hint' : undefined"
             @click="start"
           >
-            {{ busy ? "正在启动…" : "开始测试" }}
+            {{ starting ? "正在启动…" : "开始测试" }}
           </button>
         </div>
       </div>

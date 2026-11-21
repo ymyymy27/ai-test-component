@@ -45,6 +45,7 @@ const groups = computed(() => {
     .filter((group) => group.items.length > 0);
 });
 const selectedSet = computed(() => new Set(selected.value));
+const saveState = ref<"idle" | "saving" | "saved" | "error">("idle");
 const unselected = computed(() => items.value.filter((item) => !selectedSet.value.has(item.id)));
 const unselectedLine = computed(() => {
   const first = unselected.value
@@ -71,7 +72,11 @@ const canDiscard = computed(
 );
 const modeNote = computed(() => {
   if (mode.value === "all") return "当前理解范围内的全部可测内容";
-  if (mode.value === "recommended") return "按目标候选预选，可直接修改";
+  if (mode.value === "recommended") {
+    return (task.value?.recommendedItemIds.length ?? 0) > 0
+      ? "按目标候选预选，可直接修改"
+      : "没有目标候选；推荐范围回退为全量";
+  }
   return "按业务功能逐项选择";
 });
 
@@ -111,10 +116,17 @@ let saveChain: Promise<unknown> = Promise.resolve();
 let saveFailed = false;
 
 function persist(ids: string[]): void {
+  saveState.value = "saving";
   saveChain = saveChain
     .then(() => workspace.selectScope(projectId.value, taskId.value, ids))
+    .then(() => {
+      if (!saveFailed) {
+        saveState.value = "saved";
+      }
+    })
     .catch(() => {
       saveFailed = true;
+      saveState.value = "error";
       selected.value = task.value ? [...task.value.selectedItemIds] : [];
     });
 }
@@ -163,7 +175,16 @@ function selectAll(): void {
   persist(selected.value);
 }
 
-function clearAll(): void {
+async function clearAll(): Promise<void> {
+  const answer = await ui.askConfirm({
+    title: "清空本次范围？",
+    body: "清空后不会启动；可以全选或重新勾选恢复。",
+    confirmLabel: "清空",
+    tone: "danger",
+  });
+  if (answer === null) {
+    return;
+  }
   selected.value = [];
   mode.value = "custom";
   persist(selected.value);
@@ -298,21 +319,27 @@ onMounted(async () => {
       <ScopeModeTabs :mode="mode" :note="modeNote" @change="changeMode" />
 
       <div class="scope-summary">
-        <span>
+        <span class="scope-count" aria-live="polite">
           本次 <strong class="num">{{ selected.length }}</strong> / 当前理解
           <strong class="num">{{ items.length }}</strong> 项
+          <span v-if="unselected.length" class="scope-unselected-count">
+            · 未选 {{ unselected.length }} 项
+          </span>
+          <span v-if="pending.length" class="badge is-warn">待补充 {{ pending.length }}</span>
         </span>
-        <label class="scope-filter">
-          <span>模块</span>
-          <select v-model="moduleFilter" aria-label="按模块筛选验收项">
-            <option value="all">全部模块</option>
-            <option v-for="module in modules" :key="module" :value="module">{{ module }}</option>
-          </select>
-        </label>
-        <span class="scope-tools">
-          <button class="link-btn" type="button" @click="selectAll">全选</button>
-          <button class="link-btn" type="button" @click="clearAll">清空</button>
-        </span>
+        <div class="scope-controls">
+          <label class="scope-filter">
+            <span>模块</span>
+            <select v-model="moduleFilter" aria-label="按模块筛选验收项">
+              <option value="all">全部模块</option>
+              <option v-for="module in modules" :key="module" :value="module">{{ module }}</option>
+            </select>
+          </label>
+          <span class="scope-tools">
+            <button class="link-btn" type="button" @click="selectAll">全选</button>
+            <button class="link-btn" type="button" @click="clearAll">清空</button>
+          </span>
+        </div>
       </div>
 
       <p class="scope-modules">
@@ -326,6 +353,7 @@ onMounted(async () => {
           :key="group.name"
           :feature="group"
           :selected-ids="selected"
+          :filtered="moduleFilter !== 'all'"
           @toggle-item="toggleItem"
           @toggle-feature="toggleFeature"
         />
@@ -348,6 +376,9 @@ onMounted(async () => {
       <div class="actionbar">
         <div class="actionbar-inner">
           <div class="actionbar-facts">
+            <span v-if="saveState === 'saving'" class="field-hint">正在保存范围…</span>
+            <span v-else-if="saveState === 'saved'" class="field-hint">范围已保存</span>
+            <span v-else-if="saveState === 'error'" class="field-error">范围保存失败</span>
             <span>生成后仍可调整；范围变化会生成新计划。</span>
             <span v-if="selected.length === 0" class="field-error"
               >至少选择 1 项才能生成计划。</span

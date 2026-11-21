@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
@@ -337,6 +337,15 @@ async function applyTemplate(templateId: string): Promise<void> {
     // store 已提示。
   }
 }
+
+watch(
+  () => task.value?.updatedAt,
+  () => {
+    if (dirtyCount.value === 0) {
+      reset();
+    }
+  },
+);
 
 async function reviseScope(): Promise<void> {
   try {
