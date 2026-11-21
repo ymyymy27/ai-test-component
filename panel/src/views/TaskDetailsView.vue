@@ -493,7 +493,7 @@ function deliveryComplete(): boolean {
       :subtitle="`${project?.name ?? ''} · 第 ${task.revision} 版 · 任务资料、交付说明与检查模板`"
     >
       <template #actions>
-        <button class="btn btn-sm" type="button" @click="router.push(backTarget)">返回</button>
+        <button class="btn btn-sm" type="button" @click="router.push(backTarget)">返回上一级</button>
       </template>
     </PageHeader>
 

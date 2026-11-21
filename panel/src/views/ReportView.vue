@@ -15,7 +15,6 @@ import {
   LAYER_LABEL,
   TEMPLATE_DISPOSITION_LABEL,
   VERDICT_LABEL,
-  statusText,
 } from "@/domain/labels";
 import { normalizeReport, reportsForRun } from "@/domain/derive";
 import type { EvidenceRef, ExportResult, Issue, LinkData, Report, Run, Task } from "@/domain/types";
@@ -424,7 +423,10 @@ function bytesText(bytes: number): string {
             >
               <td class="cell-num" data-label="编号">{{ item.no }}</td>
               <td class="cell-main" data-label="验收项">{{ item.text }}</td>
-              <td data-label="最差结果">{{ statusText(item.outcome) }}</td>
+              <td data-label="最差结果">
+                <StatusMark :result="item.outcome" />
+                <StatusText :result="item.outcome" />
+              </td>
               <td data-label="用例数">{{ item.caseIds.length }}</td>
             </tr>
           </tbody>
@@ -521,7 +523,10 @@ function bytesText(bytes: number): string {
                 </details>
               </td>
               <td data-label="检查方式">{{ testCase.method }}</td>
-              <td data-label="结果">{{ statusText(testCase.result) }}</td>
+              <td data-label="结果">
+                <StatusMark :result="testCase.result" />
+                <StatusText :result="testCase.result" />
+              </td>
               <td data-label="证据">
                 {{
                   testCase.evidence.length

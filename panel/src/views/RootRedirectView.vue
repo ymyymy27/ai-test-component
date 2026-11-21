@@ -28,7 +28,7 @@ async function clearAndRetry(): Promise<void> {
   const answer = await ui.askConfirm({
     title: "清空本地面板数据？",
     body: "会删除本机保存的项目、任务、问题与报告。这个动作不能撤销；不会影响被测仓库。",
-    confirmLabel: "清空并重新开始",
+    confirmLabel: "清空本地数据",
     tone: "danger",
   });
   if (answer === null) {

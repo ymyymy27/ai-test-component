@@ -36,7 +36,7 @@ export const RESULT_LABEL: Record<CaseResult, string> = {
 };
 
 export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {
-  pending: "待确认",
+  pending: "待核实",
   in_progress: "处理中",
   retest: "待复测",
   closed: "已关闭",

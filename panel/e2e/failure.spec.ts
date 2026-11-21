@@ -13,7 +13,7 @@ test("失败用例自动归并问题，重跑通过后关闭门禁生效", async
   await page.goto(`/projects/${projectId}/issues`);
   await expect(page.locator(".issue-row")).toHaveCount(1);
   await page.locator(".issue-row").first().click();
-  await expect(page.locator(".page-subtitle").first()).toContainText("待确认");
+  await expect(page.locator(".page-subtitle").first()).toContainText("待核实");
 
   await page.getByRole("button", { name: "更新状态" }).click();
   await page.locator("#issue-reason").fill("开始处理");

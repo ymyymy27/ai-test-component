@@ -408,7 +408,7 @@ function rerunLabel(): string {
       aria-label="依赖修复建议"
     >
       <div class="section-head">
-        <span class="section-title">依赖修复建议</span>
+        <h2 class="section-title">依赖修复建议</h2>
       </div>
       <div class="repair-list">
         <label
@@ -489,7 +489,7 @@ function rerunLabel(): string {
     <section v-if="run.l1.length" class="section" aria-labelledby="result-l1-title">
       <div class="section-head">
         <h2 id="result-l1-title" class="section-title">项目级检查</h2>
-        <span class="section-note">不计入验收项覆盖</span>
+        <span class="section-note">项目级检查不计入 S/M 覆盖</span>
       </div>
       <div class="check-list">
         <div v-for="check in run.l1" :key="check.key" class="check-row">

@@ -151,7 +151,7 @@ test("审计：问题登记、筛选与状态流转", async ({ page }) => {
 
   await page.getByRole("button", { name: "全部问题" }).click();
   await page.waitForURL(/\/issues$/);
-  await page.locator(".tabs").getByRole("button", { name: /待确认/ }).click();
+  await page.locator(".tabs").getByRole("button", { name: /待核实/ }).click();
   await page.locator(".tabs").getByRole("button", { name: /处理中/ }).click();
   await page.fill('input[aria-label="搜索问题"]', "审计登记");
   await expect(page.locator(".issue-row")).toHaveCount(1);

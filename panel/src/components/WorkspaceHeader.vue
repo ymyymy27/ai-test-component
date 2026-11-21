@@ -62,7 +62,7 @@ defineExpose({ focusToggle, focusEnv, isEnvButtonTarget });
           aria-label="返回上一级"
         >
           <Icon name="arrow-left" :size="13" />
-          返回
+          返回上一级
         </RouterLink>
         <span class="breadcrumb-back-separator" aria-hidden="true">/</span>
         <RouterLink

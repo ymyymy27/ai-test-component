@@ -2115,6 +2115,10 @@ dialog[open] {
     --control-h: 40px;
   }
 
+  .filter-btn {
+    min-height: 40px;
+  }
+
   .btn {
     min-height: 40px;
   }
@@ -2628,6 +2632,11 @@ dialog[open] {
 }
 
 /* ---------- task details / report extras ---------- */
+.doc-p,
+.page-subtitle {
+  max-width: 46em;
+}
+
 .doc-p {
   color: var(--ink-2);
   font-size: var(--text-13);
@@ -2843,7 +2852,12 @@ dialog[open] {
   display: none;
 }
 
-.rule-detail .doc-p {
+.rule-detail .doc-p,
+.page-subtitle {
+  max-width: 46em;
+}
+
+.doc-p {
   margin-top: var(--space-2);
 }
 

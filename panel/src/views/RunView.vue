@@ -138,8 +138,8 @@ onBeforeUnmount(() => {
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title">项目级检查</span>
-        <span class="section-note">不计入验收项</span>
+        <h2 class="section-title">项目级检查</h2>
+        <span class="section-note">项目级检查不计入 S/M 覆盖</span>
       </div>
       <div class="check-list">
         <div v-for="check in run.l1" :key="check.key" class="check-row">
@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</span>
+        <h2 class="section-title">验收项 · {{ run.scope.acceptanceItemIds.length }} 项</h2>
         <span class="section-note">上方进度按用例计，这里按验收项归组</span>
       </div>
       <CaseLedger :run="run" :items="sortedItems" running />

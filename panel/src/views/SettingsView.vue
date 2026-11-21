@@ -548,7 +548,7 @@ async function clearData(): Promise<void> {
           type="button"
           @click="router.push(`/projects/${projectId}/overview`)"
         >
-          返回项目
+          回到项目概览
         </button>
       </template>
     </PageHeader>
