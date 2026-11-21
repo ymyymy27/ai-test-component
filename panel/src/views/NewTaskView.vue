@@ -36,6 +36,17 @@ const submitting = ref(false);
 const firstTask = computed(
   () => (project.value?.tasks.filter((task) => task.stage !== "fresh").length ?? 0) === 0,
 );
+const writesProjectGoal = computed(() => firstTask.value && !project.value?.goal.trim());
+const candidateCleared = ref(false);
+const blockedReason = computed(() => {
+  if (catalogCount.value === 0) {
+    return "项目还没有可测项；先重新分析或检查验收项。";
+  }
+  if (project.value?.analysisStatus !== "ready") {
+    return analyzing.value ? "正在分析项目，完成后才能创建任务。" : "项目分析未完成，先重新分析。";
+  }
+  return "";
+});
 const candidates = computed(() => project.value?.candidates ?? []);
 const selectedCandidate = computed(
   () => candidates.value.find((candidate) => candidate.id === selectedId.value) ?? null,
@@ -97,6 +108,7 @@ function updateGoal(value: string): void {
   goal.value = value;
   if (selectedCandidate.value && value.trim() !== selectedCandidate.value.title) {
     selectedId.value = null;
+    candidateCleared.value = true;
   }
 }
 
@@ -251,11 +263,24 @@ async function startRange(): Promise<void> {
         </button>
       </div>
     </section>
+    <section v-else-if="mode === 'range'" class="start-hint">
+      <p class="doc-note">
+        进入范围页后从 {{ featureCount }} 个业务功能中勾选验收项；不选不会启动。当前可测项
+        {{ catalogCount }} 个。
+      </p>
+    </section>
+    <section v-else class="start-hint">
+      <p class="doc-note">
+        只做项目级检查：构建、启动入口、最小测试；不建任务，结果不进入验收项覆盖。
+      </p>
+    </section>
 
     <template v-if="mode === 'target'">
       <GoalComposer
         :model-value="goal"
         :busy="startBusy"
+        :can-start="canCreate"
+        :blocked-reason="blockedReason"
         :catalog-count="catalogCount"
         :feature-count="featureCount"
         @update:model-value="updateGoal"
@@ -279,11 +304,20 @@ async function startRange(): Promise<void> {
             </span>
             <span v-else-if="goal.trim()" class="fact-strong">目标 · {{ goal.trim() }}</span>
             <span v-else>写目标或选一个候选</span>
-            <span v-if="!ready" class="field-error">分析完成后可创建带验收项的任务。</span>
-            <span v-else-if="firstTask">确认后写入项目目标</span>
+            <span v-if="!ready" class="field-hint">{{ blockedReason }}</span>
+            <span v-else class="fact-strong">
+              将纳入 {{ selectedCandidate?.itemCount ?? catalogCount }} / {{ catalogCount }} 项
+            </span>
+            <span v-if="writesProjectGoal">确认后写入项目目标</span>
+            <span v-else-if="firstTask">项目目标已存在，本次不改写</span>
             <span v-else>只改本次任务目标</span>
+            <span v-if="candidateCleared" class="field-hint">
+              已改为自定义目标，范围将重新计算。
+            </span>
           </template>
-          <span v-else-if="mode === 'range'" class="fact-strong">进入范围页选择验收项</span>
+          <span v-else-if="mode === 'range'" class="fact-strong">
+            {{ ready ? "进入范围页选择验收项" : blockedReason }}
+          </span>
           <span v-else class="fact-strong">项目级检查 · 不进入验收覆盖</span>
         </div>
         <div class="actionbar-actions">
@@ -295,13 +329,14 @@ async function startRange(): Promise<void> {
             :aria-busy="startBusy"
             @click="submit"
           >
-            {{ startBusy ? "正在创建并生成计划…" : "创建任务并生成计划" }}
+            {{ startBusy ? "正在创建…" : "按此目标创建" }}
           </button>
           <button
             v-else-if="mode === 'range'"
             class="btn btn-primary"
             type="button"
             :disabled="!ready || startBusy"
+            :title="ready ? undefined : blockedReason"
             @click="startRange"
           >
             选择范围

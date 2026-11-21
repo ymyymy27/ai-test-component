@@ -4,6 +4,8 @@ import { computed, nextTick, ref } from "vue";
 const props = defineProps<{
   modelValue: string;
   busy: boolean;
+  canStart: boolean;
+  blockedReason?: string;
   catalogCount: number;
   featureCount: number;
 }>();
@@ -16,6 +18,7 @@ const emit = defineEmits<{
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 const error = ref("");
 const disabled = computed(() => props.busy);
+const remaining = computed(() => 200 - props.modelValue.length);
 
 function update(value: string): void {
   error.value = "";
@@ -36,6 +39,11 @@ function start(): void {
     void nextTick(() => inputRef.value?.focus());
     return;
   }
+  if (!props.canStart) {
+    error.value = props.blockedReason || "当前还不能创建任务。";
+    return;
+  }
+  error.value = "";
   emit("start", goal);
 }
 
@@ -62,6 +70,7 @@ function onKeydown(event: KeyboardEvent): void {
         ref="inputRef"
         :value="modelValue"
         rows="3"
+        maxlength="200"
         placeholder="例如：验证删除标记后批次仍然可读"
         :aria-invalid="error ? 'true' : undefined"
         :aria-describedby="error ? 'goal-error' : 'goal-hint'"
@@ -70,9 +79,22 @@ function onKeydown(event: KeyboardEvent): void {
         @keydown="onKeydown"
       />
       <span id="goal-hint" class="field-hint">
-        写目标或选候选，然后点“开始测试”。Ctrl / Cmd + Enter 也可以。
+        写目标或选候选，然后点“创建任务并生成计划”。Ctrl / Cmd + Enter 也可以。
+        <span class="goal-count">{{ modelValue.length }} / 200</span>
       </span>
       <span v-if="error" id="goal-error" class="field-error" role="alert">{{ error }}</span>
+      <span v-if="remaining <= 20" class="field-hint">还可输入 {{ remaining }} 个字。</span>
     </label>
+    <div class="goal-actions">
+      <button
+        class="btn btn-primary"
+        type="button"
+        :disabled="disabled || !canStart"
+        :aria-busy="busy"
+        @click="start"
+      >
+        {{ busy ? "正在创建并生成计划…" : "创建任务并生成计划" }}
+      </button>
+    </div>
   </section>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 
 import ErrorState from "@/components/ErrorState.vue";
 import Icon from "@/components/Icon.vue";
@@ -40,6 +40,7 @@ const basic = ref({
 });
 const items = ref<AcceptanceItem[]>([]);
 const itemsError = ref("");
+const titleError = ref("");
 const delivery = ref({
   done: "",
   notDone: "",
@@ -132,9 +133,11 @@ async function saveBasic(): Promise<void> {
     return;
   }
   if (!basic.value.title.trim()) {
-    ui.showToast("任务标题不能为空。", "error");
+    titleError.value = "任务标题不能为空。";
+    document.querySelector<HTMLInputElement>("#task-title")?.focus();
     return;
   }
+  titleError.value = "";
   const patch: TaskPatch = {
     title: basic.value.title,
     goal: basic.value.goal,
@@ -175,7 +178,20 @@ function addItem(): void {
   });
 }
 
-function removeItem(index: number): void {
+async function removeItem(index: number): Promise<void> {
+  const item = items.value[index];
+  if (!item) {
+    return;
+  }
+  const answer = await ui.askConfirm({
+    title: "删除这条验收项？",
+    body: `删除「${item.text || "未填写文本"}」后，保存才会生效；可以用取消保留。`,
+    confirmLabel: "删除",
+    tone: "danger",
+  });
+  if (answer === null) {
+    return;
+  }
   items.value.splice(index, 1);
 }
 
@@ -197,6 +213,9 @@ function onModule(item: AcceptanceItem, event: Event): void {
     item.moduleId = target.value || null;
     item.moduleName =
       project.value?.modules.find((module) => module.id === target.value)?.name ?? "未归类";
+    item.featureName =
+      project.value?.map?.features.find((feature) => feature.modules.includes(item.moduleName))
+        ?.name ?? "未归类";
   }
 }
 
@@ -209,6 +228,11 @@ async function saveItems(): Promise<void> {
     itemsError.value = "验收项文本不能为空；先补全或删除空行。";
     const inputs = document.querySelectorAll<HTMLInputElement>('input[aria-label="验收项文本"]');
     inputs[emptyIndex]?.focus();
+    return;
+  }
+  const numbers = items.value.map((item) => item.no.trim());
+  if (numbers.some((no) => !no) || new Set(numbers).size !== numbers.length) {
+    itemsError.value = "验收项编号不能为空或重复；改好后再保存。";
     return;
   }
   itemsError.value = "";
@@ -231,6 +255,21 @@ async function saveItems(): Promise<void> {
 async function draftDelivery(): Promise<void> {
   if (!task.value || running.value) {
     return;
+  }
+  if (
+    delivery.value.done.trim() ||
+    delivery.value.notDone.trim() ||
+    delivery.value.selfTestEvidence.trim()
+  ) {
+    const answer = await ui.askConfirm({
+      title: "用草稿覆盖当前交付说明？",
+      body: "已填写的交付内容会被草稿替换；取消可保留手工内容。",
+      confirmLabel: "覆盖",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
   }
   try {
     const draft = await workspace.draftDelivery(projectId.value, taskId.value);
@@ -308,6 +347,99 @@ async function reviseScope(): Promise<void> {
   }
 }
 
+function basicDirtyFields(): number {
+  const current = task.value;
+  if (!current) {
+    return 0;
+  }
+  let count = 0;
+  if (basic.value.title !== current.title) count += 1;
+  if (basic.value.goal !== current.goal) count += 1;
+  if (basic.value.intent !== current.intent) count += 1;
+  if (basic.value.scope !== current.scope) count += 1;
+  if (basic.value.inputs !== current.inputs) count += 1;
+  if (basic.value.outputs !== current.outputs) count += 1;
+  if (basic.value.executor !== current.executor) count += 1;
+  if (basic.value.reviewer !== current.reviewer) count += 1;
+  if (basic.value.preconditions !== current.preconditions.join("\n")) count += 1;
+  return count;
+}
+
+function basicDirty(): boolean {
+  return basicDirtyFields() > 0;
+}
+
+function itemsDirty(): boolean {
+  const current = task.value;
+  if (!current) {
+    return false;
+  }
+  return JSON.stringify(items.value) !== JSON.stringify(current.acceptanceItems);
+}
+
+function deliveryDirtyFields(): number {
+  const current = task.value?.delivery;
+  if (!current) {
+    let count = 0;
+    if (delivery.value.done.trim()) count += 1;
+    if (delivery.value.notDone.trim()) count += 1;
+    if (delivery.value.commit.trim()) count += 1;
+    return count;
+  }
+  let count = 0;
+  if (delivery.value.done !== current.done.join("\n")) count += 1;
+  if (delivery.value.notDone !== current.notDone.join("\n")) count += 1;
+  if (delivery.value.changedModules !== current.changedModules.join("\n")) count += 1;
+  if (delivery.value.interfaceChanges !== current.interfaceChanges.join("\n")) count += 1;
+  if (delivery.value.runCommands !== current.runCommands.join("\n")) count += 1;
+  if (delivery.value.testData !== current.testData) count += 1;
+  if (delivery.value.dependencies !== current.dependencies.join("\n")) count += 1;
+  if (delivery.value.mocks !== current.mocks.join("\n")) count += 1;
+  if (delivery.value.selfTestEvidence !== current.selfTestEvidence.join("\n")) count += 1;
+  if (delivery.value.commit !== current.commit) count += 1;
+  return count;
+}
+
+function deliveryDirty(): boolean {
+  return deliveryDirtyFields() > 0;
+}
+
+const dirtyCount = computed(
+  () => basicDirtyFields() + (itemsDirty() ? 1 : 0) + deliveryDirtyFields(),
+);
+
+async function saveAll(): Promise<void> {
+  if (basicDirty()) {
+    await saveBasic();
+    if (titleError.value) {
+      return;
+    }
+  }
+  if (itemsDirty()) {
+    await saveItems();
+    if (itemsError.value) {
+      return;
+    }
+  }
+  if (deliveryDirty()) {
+    await saveDelivery();
+  }
+}
+
+onBeforeRouteLeave(async () => {
+  if (dirtyCount.value === 0) {
+    return true;
+  }
+  const answer = await ui.askConfirm({
+    title: "离开任务资料？",
+    body: "还有未保存的修改；离开会丢弃这些编辑。",
+    confirmLabel: "放弃修改",
+    cancelLabel: "留在本页",
+    tone: "danger",
+  });
+  return answer !== null;
+});
+
 function deliveryComplete(): boolean {
   return Boolean(task.value?.delivery?.complete);
 }
@@ -355,7 +487,7 @@ function deliveryComplete(): boolean {
       </div>
       <form class="settings-form" novalidate @submit.prevent="saveBasic">
         <div class="form-grid">
-          <div class="field">
+          <div class="field" :class="{ 'has-error': titleError }">
             <label for="task-title">标题</label>
             <input
               id="task-title"
@@ -363,7 +495,13 @@ function deliveryComplete(): boolean {
               type="text"
               maxlength="80"
               :disabled="running"
+              :aria-invalid="titleError ? 'true' : undefined"
+              :aria-describedby="titleError ? 'task-title-error' : undefined"
+              @input="titleError = ''"
             />
+            <p v-if="titleError" id="task-title-error" class="field-error" role="alert">
+              {{ titleError }}
+            </p>
           </div>
           <div class="field">
             <label for="task-intent">验证意图</label>
@@ -447,6 +585,7 @@ function deliveryComplete(): boolean {
           v-for="(item, index) in items"
           :key="item.id || `new-${index}`"
           class="acceptance-edit-row"
+          :class="{ 'has-error': itemsError && !item.text.trim() }"
         >
           <input
             v-model="item.no"
@@ -456,7 +595,13 @@ function deliveryComplete(): boolean {
             aria-label="编号"
             :disabled="running"
           />
-          <input v-model="item.text" type="text" aria-label="验收项文本" :disabled="running" />
+          <input
+            v-model="item.text"
+            type="text"
+            aria-label="验收项文本"
+            :disabled="running"
+            :aria-invalid="itemsError && !item.text.trim() ? 'true' : undefined"
+          />
           <label class="checkline acceptance-check">
             <input
               :checked="item.observable"
@@ -650,5 +795,24 @@ function deliveryComplete(): boolean {
       </div>
       <p v-else class="doc-note">还没有应用检查模板。</p>
     </section>
+
+    <div v-if="dirtyCount" class="actionbar task-savebar">
+      <div class="actionbar-inner">
+        <div class="actionbar-facts">
+          <span class="fact-strong">{{ dirtyCount }} 处未保存</span>
+          <span class="field-hint">保存后才会写入任务记录。</span>
+        </div>
+        <div class="actionbar-actions">
+          <button
+            class="btn btn-primary"
+            type="button"
+            :disabled="running || savingBasic || savingItems"
+            @click="saveAll"
+          >
+            保存全部修改
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

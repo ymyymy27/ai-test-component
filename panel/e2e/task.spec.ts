@@ -1,8 +1,8 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 import { createProject, createTaskFromCandidate, test } from "./fixtures";
 
-async function openDetails(page: import("@playwright/test").Page): Promise<string> {
+async function openDetails(page: Page): Promise<string> {
   const projectId = await createProject(page, "任务资料验证", "D:/work/flow-task-details");
   await createTaskFromCandidate(page, 0);
   const match = page.url().match(/tasks\/([^/]+)\/plan/);
@@ -33,4 +33,16 @@ test("计划过期后可以从资料页重新进入范围选择", async ({ page 
   await page.getByRole("button", { name: "重新选范围" }).click();
   await page.waitForURL(/\/scope$/);
   await expect(page.locator(".scope-summary")).toBeVisible();
+});
+
+test("未保存的多个区块可以一次保存", async ({ page }) => {
+  await openDetails(page);
+  await page.fill("#task-title", "一次保存全部");
+  await page.fill("#task-goal", "统一保存的验证目标");
+  await expect(page.locator(".task-savebar")).toContainText("2 处未保存");
+  await page.getByRole("button", { name: "保存全部修改" }).click();
+  await expect(page.locator(".toast")).toContainText("任务资料已保存");
+  await page.reload();
+  await expect(page.locator("#task-title")).toHaveValue("一次保存全部");
+  await expect(page.locator("#task-goal")).toHaveValue("统一保存的验证目标");
 });

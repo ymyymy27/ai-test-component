@@ -936,6 +936,12 @@ select {
   -webkit-line-clamp: 2;
 }
 
+.candidate-risk {
+  color: var(--warn);
+  font-size: var(--text-12);
+  line-height: 1.55;
+}
+
 .candidate-scope {
   display: -webkit-box;
   margin-top: 3px;
@@ -2196,6 +2202,18 @@ dialog[open] {
   min-height: 68px;
 }
 
+.goal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.goal-count {
+  margin-left: var(--space-2);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .candidate-section {
   margin-top: var(--space-5);
 }
@@ -2590,13 +2608,25 @@ dialog[open] {
 
 @media (max-width: 760px) {
   .acceptance-edit-row {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr) auto;
   }
 
-  .acceptance-edit-row select,
-  .acceptance-edit-row .acceptance-check,
-  .acceptance-edit-row .link-btn {
+  .acceptance-edit-row input[type="text"] {
+    grid-column: 2 / 4;
+  }
+
+  .acceptance-edit-row select {
     grid-column: 2;
+  }
+
+  .acceptance-edit-row .acceptance-check {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .acceptance-edit-row .link-btn {
+    grid-column: 3;
+    justify-self: end;
   }
 
   .template-grid {
@@ -2684,13 +2714,17 @@ dialog[open] {
     text-align: center;
   }
 
-  .test-mode-icon,
-  .test-mode-desc {
+  .test-mode-icon {
     display: none;
   }
 
+  .test-mode-desc {
+    font-size: var(--text-11);
+    line-height: 1.4;
+  }
+
   .test-mode-title {
-    font-size: var(--text-12);
+    font-size: var(--text-13);
   }
 }
 

@@ -32,12 +32,13 @@ const emit = defineEmits<{ select: [candidateId: string] }>();
           @change="emit('select', candidate.id)"
         />
         <span>
-          <span class="candidate-title">{{ candidate.title }}</span>
+          <span class="candidate-title" :title="candidate.title">{{ candidate.title }}</span>
           <span class="candidate-meta">
             依据：{{ candidate.reason }} · {{ candidate.source }}
           </span>
-          <span class="candidate-scope">
-            预计范围：{{ candidate.estimatedScope }} · 不确定：{{ candidate.unknown }}
+          <span class="candidate-scope">预计范围：{{ candidate.estimatedScope }}</span>
+          <span v-if="candidate.unknown" class="candidate-risk" :title="candidate.unknown">
+            不确定：{{ candidate.unknown }}
           </span>
         </span>
       </label>
