@@ -500,8 +500,10 @@ def build_report(
     client = build_client(ws, project.project_id) if use_model else None
     mock_judgement = _mock_judgement(project, run, run_dir, delivery, client, ws)
     run.mock_judgement = list(mock_judgement)
-    real_chain = bool(mock_judgement) and all(
-        item.get("kind") == "real" for item in mock_judgement
+    real_chain = (
+        outcome == "passed"
+        and bool(mock_judgement)
+        and all(item.get("kind") == "real" for item in mock_judgement)
     )
     summary, summary_source = _summary(outcome, counts, uncovered, client, kind=run.kind)
     issues, issue_count, failure_occurrences = _issues_summary(ws, project.project_id, run)

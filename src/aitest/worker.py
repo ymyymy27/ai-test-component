@@ -166,8 +166,10 @@ def _environment_fingerprint(python: Path, workdir: Path) -> dict[str, str]:
         pass
     venv_root = python.parent.parent
     info["venv"] = str(venv_root) if (venv_root / "pyvenv.cfg").is_file() else ""
-    node = shutil.which("node")
+    project_node = _project_tool(workdir, "node")
+    node = project_node or shutil.which("node")
     if node:
+        info["node_path"] = str(node)
         try:
             completed = subprocess.run(
                 [node, "--version"], capture_output=True, timeout=10, check=False
@@ -178,8 +180,21 @@ def _environment_fingerprint(python: Path, workdir: Path) -> dict[str, str]:
                 ).strip()
         except (OSError, subprocess.SubprocessError):
             pass
+    for lock in ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"):
+        if (workdir / lock).is_file():
+            info["node_lock"] = lock
+            break
     info["cwd"] = str(workdir)
     return info
+
+
+def _project_tool(workdir: Path, name: str) -> str:
+    """Prefer the project's own toolchain before the host PATH."""
+    for folder in (workdir / "node_modules" / ".bin", workdir / ".bin"):
+        for candidate in (folder / name, folder / f"{name}.cmd", folder / f"{name}.exe"):
+            if candidate.is_file():
+                return str(candidate)
+    return ""
 
 
 def _project_config(ws: Workspace, project_id: str) -> dict[str, object]:
@@ -188,8 +203,12 @@ def _project_config(ws: Workspace, project_id: str) -> dict[str, object]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AiTestError(
+            "CONFIG_INVALID",
+            "项目运行配置无法读取",
+            "修正 project.config.json 或重新生成配置后再运行",
+        ) from exc
     return data if isinstance(data, dict) else {}
 
 
@@ -758,7 +777,10 @@ def _resolve_dependency_package(
     mapped = _MODULE_PACKAGES.get(module, "")
     if mapped:
         return mapped
-    client = build_client(ws, project_id)
+    try:
+        client = build_client(ws, project_id)
+    except Exception:
+        return ""
     if client is None:
         return ""
     try:
@@ -836,7 +858,12 @@ def _environment_failure(output: bytes, workdir: Path) -> str:
     # A mixed run (real assertion failures plus missing dependencies) must stay
     # a failure; otherwise a real defect could be hidden behind an environment
     # problem.
-    if re.search(r"(?m)^FAIL:", text) or "AssertionError" in text:
+    if (
+        re.search(r"(?m)^FAIL:", text)
+        or re.search(r"(?m)^FAILED", text)
+        or re.search(r"(?m)^=+ FAILURES =+", text)
+        or "AssertionError" in text
+    ):
         return ""
     match = _MISSING_MODULE_RE.search(text)
     if match:
@@ -897,6 +924,19 @@ def _run_python_script(
     )
     fallback = pytest_result.exit_code == 5 or b"No module named pytest" in pytest_result.stderr
     if fallback:
+        try:
+            source = script_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            source = ""
+        if pytest_result.exit_code == 5 and re.search(
+            r"(?m)^\s*def (test_|check_)", source
+        ):
+            return RunnerResult(
+                status="error",
+                exit_code=5,
+                stderr=b"pytest collected no tests; script only defines test functions",
+                error="脚本定义了测试函数但没有被 pytest 收集，未执行任何断言",
+            )
         return run_command(
             f'"{python}" "{script_path}"',
             cwd=workdir,

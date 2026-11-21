@@ -246,18 +246,25 @@ def ensure_run_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[str
     if not any(case.result == "failed" for case in run.cases):
         return []
     directory = issues_dir(ws, project_id)
+    covered: set[tuple[str, str]] = set()
     if directory.is_dir():
         for path in directory.glob("*.json"):
             try:
                 issue = read_model(path, Issue)
             except AiTestError:
                 continue
-            if any(item.run_id == run.run_id for item in issue.occurrences):
-                return []
-    return draft_failed_issues(ws, project_id, run_dir)
+            for item in issue.occurrences:
+                if item.run_id == run.run_id:
+                    covered.add((item.run_id, item.case_id))
+    return draft_failed_issues(ws, project_id, run_dir, covered)
 
 
-def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[str]:
+def draft_failed_issues(
+    ws: Workspace,
+    project_id: str,
+    run_dir: Path,
+    covered: set[tuple[str, str]] | None = None,
+) -> list[str]:
     """Create draft issues for failed cases and flag inconsistent later passes."""
     run = read_model(run_dir / "run.json", Run)
     plan = read_model(run_dir / "plan.json", Plan)
@@ -268,6 +275,8 @@ def draft_failed_issues(ws: Workspace, project_id: str, run_dir: Path) -> list[s
             _mark_unstable(ws, project_id, run_case.case_id)
             continue
         if run_case.result != "failed":
+            continue
+        if covered and (run.run_id, run_case.case_id) in covered:
             continue
         draft = _draft_issue(ws, project_id, run_dir, run, plan, run_case, secrets)
         previous = _previous_case_result(ws, project_id, run.run_id, run_case.case_id)

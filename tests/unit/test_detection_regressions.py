@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from aitest.ai_features import _conclusion_free
+from aitest.core.expectations import expectation_matches, publish_problems
 from aitest.core.project_context import (
     _symbol_map,
     _test_commands,
@@ -11,11 +13,14 @@ from aitest.core.project_context import (
     _test_modules,
     package_name,
 )
+from aitest.ai_features import _conclusion_free
+from aitest.core.expectations import expectation_matches, publish_problems
 from aitest.core.project_context import (
     test_dependency_specs as declared_test_dependency_specs,
 )
 from aitest.errors import AiTestError
 from aitest.models import Case, Plan, Run, RunCase, Scope
+from aitest.runners.base import RunnerResult
 from aitest.runtime_commands import (
     _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
@@ -32,6 +37,7 @@ from aitest.worker import (
     _missing_module_from_output,
     _resolve_dependency_package,
     _run_env,
+    _run_python_script,
     _script_self_error,
 )
 
@@ -376,3 +382,66 @@ def test_script_failure_is_downgraded_only_when_command_covers_item() -> None:
     assert results["script_covered"] == "error"
     assert results["script_uncovered"] == "failed"
 
+
+
+def test_script_with_only_test_functions_never_passes_without_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = tmp_path / "generated_check.py"
+    script.write_text("def test_ok():\n    assert False\n", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_run(command: str, **_: object) -> RunnerResult:
+        calls.append(command)
+        return RunnerResult(status="passed", exit_code=5)
+
+    monkeypatch.setattr("aitest.worker.run_command", fake_run)
+    result = _run_python_script(Path(sys.executable), script, tmp_path, {}, None)
+    assert result.status == "error"
+    assert "未执行任何断言" in result.error
+    assert all("pytest" in command for command in calls)
+
+
+def test_mixed_failure_and_missing_dependency_stays_a_failure(tmp_path: Path) -> None:
+    output = (
+        b"FAILED tests/test_a.py::test_ok - AssertionError\n"
+        b"ModuleNotFoundError: No module named 'missing_dep'\n"
+    )
+    assert _environment_failure(output, tmp_path) == ""
+
+
+def test_expectation_item_id_matches_only_a_whole_token() -> None:
+    from aitest.models import AcceptanceItem
+
+    item = AcceptanceItem(
+        item_id="item_1",
+        text="删除后重新读取批次仍然可读",
+        observable=True,
+        status="active",
+        source="用户",
+        module_id=None,
+    )
+    assert expectation_matches("item_1", item) is True
+    assert expectation_matches("item_10", item) is False
+    assert expectation_matches("item_1x", item) is False
+
+
+def test_blank_preconditions_do_not_pass_publish_gate() -> None:
+    case = Case(
+        case_id="case_blank",
+        layer="L2",
+        verify_method="command:pytest",
+        expected="删除后重新读取批次仍然可读",
+        expectation_source="删除后重新读取批次仍然可读",
+        preconditions=["  "],
+        acceptance_item_ids=["item_1"],
+    )
+    problems = publish_problems([case])
+    assert any("前置条件" in problem for problem in problems)
+
+
+def test_ai_summary_rejects_english_conclusion_words() -> None:
+    assert _conclusion_free("用例 03 返回 200；日志已保留") is True
+    assert _conclusion_free("All tests passed") is False
+    assert _conclusion_free("LGTM") is False
+    assert _conclusion_free("ready for release") is False

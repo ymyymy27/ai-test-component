@@ -9,6 +9,8 @@ warning.
 
 from __future__ import annotations
 
+import re
+
 from aitest.errors import invalid_request
 from aitest.models import AcceptanceItem, Case, case_item_ids
 
@@ -30,7 +32,12 @@ def expectation_matches(source: str, item: AcceptanceItem) -> bool:
     normalized_text = _normalize(item.text)
     if normalized_text and normalized_source in normalized_text:
         return True
-    return item.item_id in source
+    return bool(
+        re.search(
+            rf"(?<![A-Za-z0-9_]){re.escape(item.item_id)}(?![A-Za-z0-9_])",
+            source,
+        )
+    )
 
 
 def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
@@ -53,7 +60,7 @@ def annotate_cases(cases: list[Case], items: list[AcceptanceItem]) -> list[str]:
             )
             if not case.expectation_verified:
                 case.warnings.append(_UNVERIFIED)
-        if not case.preconditions:
+        if not any(text.strip() for text in case.preconditions):
             case.warnings.append(_MISSING_PRECONDITION)
         warnings.extend(f"{case.case_id}：{warning}" for warning in case.warnings)
     return warnings
@@ -65,7 +72,7 @@ def publish_problems(cases: list[Case]) -> list[str]:
     for case in cases:
         if not case.expected.strip():
             problems.append(f"{case.case_id}：{_MISSING_EXPECTED}")
-        if not case.preconditions:
+        if not any(text.strip() for text in case.preconditions):
             problems.append(f"{case.case_id}：{_MISSING_PRECONDITION}")
     return problems
 

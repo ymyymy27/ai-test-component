@@ -126,10 +126,10 @@ def _selected_items(task: Any, scope: Scope, project: Project) -> tuple[list[str
     active = [item.item_id for item in active_items]
     if scope.preset == "all_applicable":
         return active, len(active)
-    unknown = [item for item in scope.acceptance_item_ids if item not in active]
+    unknown = sorted({item for item in scope.acceptance_item_ids if item not in active})
     if unknown:
         raise invalid_request("验收项不属于当前任务或不可用：" + "、".join(unknown))
-    return list(scope.acceptance_item_ids), len(active)
+    return list(dict.fromkeys(scope.acceptance_item_ids)), len(active)
 
 
 def _ensure_plan_coverage(plan: Plan, task: Task) -> None:
@@ -540,7 +540,7 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
     """Merge identical command cases into one case bound to all their items."""
 
     merged: list[Case] = []
-    by_key: dict[tuple[str, str, str, str, str], Case] = {}
+    by_key: dict[tuple[str, str, str, str, str, tuple[str, ...]], Case] = {}
     removed = 0
     for case in cases:
         if not case.verify_method.startswith(("command:", "pytest:")):
@@ -552,6 +552,7 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
             case.expected,
             case.expectation_source,
             " ".join(case.verify_method.split(":", 1)[1].split()),
+            tuple(case.dependencies),
         )
         target = by_key.get(key)
         if target is None:
@@ -562,7 +563,7 @@ def _merge_duplicate_command_cases(cases: list[Case]) -> tuple[list[Case], int]:
             dict.fromkeys(
                 [
                     *(target.acceptance_item_ids or []),
-                    case.acceptance_item_id,
+                    *([case.acceptance_item_id] if case.acceptance_item_id else []),
                     *case.acceptance_item_ids,
                 ]
             )
@@ -1160,7 +1161,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     ensure_publishable(cases)
     secret_list = known_secret_values([load_project_config(ws, project.project_id)])
     _redact_cases(cases, secret_list)
-    warnings = annotate_cases(cases, task.acceptance_items)
     warnings.extend(_project_import_warnings(cases, project))
     plan = Plan(
         plan_id=new_id("plan"),
@@ -2043,13 +2043,10 @@ _REPAIR_SPEC = re.compile(
 
 
 def _project_python(root: Path) -> Path:
-    for candidate in (
-        root / ".venv" / "Scripts" / "python.exe",
-        root / ".venv" / "bin" / "python",
-    ):
-        if candidate.is_file():
-            return candidate
-    return Path(sys.executable)
+    from aitest.worker import _venv_python
+
+    found = _venv_python(root)
+    return found if found is not None else Path(sys.executable)
 
 
 def _installed_versions(
@@ -2093,6 +2090,7 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
         )
     project = _project(ws, payload)
     run_dir, run = _run(ws, payload)
+    _ensure_settled(run)
     confirmed_by = _text(payload, "confirmed_by").strip()
     if not confirmed_by:
         raise invalid_request("缺少字段：confirmed_by", "安装依赖必须记录确认人")
@@ -2108,8 +2106,23 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     suggested = {
         str(entry.get("package") or "")
         for entry in run.dependency_suggestions
-        if isinstance(entry, dict)
+        if isinstance(entry, dict) and str(entry.get("installed") or "") != "true"
     }
+    already = [spec for spec in packages if spec not in suggested]
+    if already and all(
+        any(
+            isinstance(entry, dict)
+            and entry.get("package") == spec
+            and str(entry.get("installed") or "") == "true"
+            for entry in run.dependency_suggestions
+        )
+        for spec in already
+    ):
+        raise AiTestError(
+            "DEPENDENCY_ALREADY_INSTALLED",
+            "这些依赖已经安装并记录",
+            "直接重跑未完成项；不要重复安装",
+        )
     unknown = [spec for spec in packages if spec not in suggested]
     if unknown:
         raise invalid_request(
@@ -2117,7 +2130,9 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
             "重新查看运行结果中的依赖修复建议",
         )
     python = _project_python(Path(project.root))
-    env = dict(os.environ)
+    from aitest.worker import _run_env
+
+    env = _run_env(Path(project.root), python, run.run_id)
     command = [
         str(python),
         "-m",

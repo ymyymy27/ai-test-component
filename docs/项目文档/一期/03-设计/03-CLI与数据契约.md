@@ -62,6 +62,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `RUN_STATE_CONFLICT` | 当前状态不允许该操作 | 先查询状态 |
 | `RUN_START_FAILED` | worker 子进程启动失败 | 检查解释器与目录权限后重试 |
 | `DEPENDENCY_INSTALL_FAILED` | `run.repair` 安装依赖失败 | 查看 repair-deps.log，修正环境后重试 |
+| `DEPENDENCY_ALREADY_INSTALLED` | `run.repair` 重复安装已记录的依赖 | 直接重跑未完成项，不要重复安装 |
 | `MODEL_UNAVAILABLE` | 模型未配置或不可达 | 配置密钥或检查网络 |
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
 | `GITHUB_UNAVAILABLE` | `gh` 缺失、未登录或读取失败 | 安装/登录后重试 |
@@ -395,7 +396,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 - `packages` 只能取本次运行 `dependency_suggestions` 中的包；每个值只允许包名 + extras + 版本范围，不接受选项、URL 或 shell 字符；
 - 安装到项目解释器（优先根目录 `.venv`），返回 `run_id`、`repair`（`packages` 实际版本、`confirmed_by`、`evidence_ref`、`ok`）、`environment` 与 `dependencies`；
 - 成功时写入 `run.dependency_repairs`、`run.dependencies`，追加 `run.environment_history`（安装前后指纹），并更新 `run.environment`；
-- 安装失败返回 `DEPENDENCY_INSTALL_FAILED`，保留 `repair-deps.log`；未带确认人或未确认返回 `CONFIRMATION_REQUIRED`；
+- 安装失败返回 `DEPENDENCY_INSTALL_FAILED`，保留 `repair-deps.log`；重复安装已记录依赖返回 `DEPENDENCY_ALREADY_INSTALLED`；未带确认人或未确认返回 `CONFIRMATION_REQUIRED`；
 - 不自动重跑；面板安装成功后按未完成项重新准备计划并运行。
 
 #### `run.cancel`
