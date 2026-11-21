@@ -487,8 +487,9 @@ def cmd_project_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     root = Path(_text({"root": _require(payload, "root")}, "root")).expanduser().resolve()
     if not root.is_dir():
         raise invalid_path(f"目录不存在：{root}")
-    if not os.access(root, os.W_OK):
-        raise invalid_path(f"目录不可写：{root}")
+    writable, writable_error = _probe_writable(root)
+    if not writable:
+        raise invalid_path(f"目录不可写：{root}；{writable_error}")
     existing = ws.find_by_root(str(root))
     if existing is not None:
         return {

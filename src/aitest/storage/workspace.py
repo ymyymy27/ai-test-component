@@ -37,6 +37,7 @@ def iso_now() -> str:
 class Workspace:
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.load_errors: list[str] = []
 
     def init(self) -> WorkspaceMeta:
         try:
@@ -119,10 +120,15 @@ class Workspace:
         if not self.projects_dir.is_dir():
             return []
         projects: list[Project] = []
+        self.load_errors = []
         for entry in sorted(self.projects_dir.iterdir()):
             path = entry / "project.json"
-            if path.is_file():
+            if not path.is_file():
+                continue
+            try:
                 projects.append(read_model(path, Project))
+            except AiTestError as exc:
+                self.load_errors.append(f"{path}：{exc.info.message}")
         return projects
 
     def find_by_root(self, root: str) -> Project | None:
