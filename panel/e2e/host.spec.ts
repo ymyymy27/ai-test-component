@@ -71,7 +71,7 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
     await expect(page.locator("body")).toContainText("本次");
 
     await page.goto(`/projects/${projectId}/settings`);
-    await page.locator(".settings-index").getByRole("button", { name: "运行配置" }).click();
+    await page.locator(".settings-index").getByRole("tab", { name: "运行配置" }).click();
     await page.fill("#config-build", "python -m compileall -q app.py");
     await page.fill("#config-entry", "app");
     await page.fill("#config-smoke", "python -m pytest -q");

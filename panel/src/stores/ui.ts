@@ -157,18 +157,14 @@ export const useUiStore = defineStore("ui", () => {
 
   function showToast(message: string, tone: ToastState["tone"] = "info"): void {
     const next: ToastState = { message, tone };
-    if (tone === "error" && toastVisible.value && toast.value?.tone !== "error") {
-      clearToastTimers();
-      presentToast(next);
-      return;
-    }
-    if (toastVisible.value || toast.value) {
+    if (toastVisible.value && toast.value?.tone === "error" && tone !== "error") {
       toastQueue.push(next);
       if (toastQueue.length > 3) {
         toastQueue.shift();
       }
       return;
     }
+    clearToastTimers();
     presentToast(next);
   }
 

@@ -856,10 +856,16 @@
   text-align: left;
 }
 
-.settings-index button:hover,
-.settings-index button.is-active {
+.settings-index button:hover {
   background: var(--surface-hover);
   color: var(--ink);
+}
+
+.settings-index button.is-active {
+  background: var(--surface-hover);
+  box-shadow: inset 2px 0 var(--accent);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .settings-content {
@@ -1028,7 +1034,10 @@
   }
 
   .settings-index {
-    position: static;
+    position: sticky;
+    top: var(--header-h);
+    z-index: var(--z-header);
+    background: var(--canvas);
     display: flex;
     gap: var(--space-1);
     padding: 0 0 var(--space-2);

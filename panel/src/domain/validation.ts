@@ -152,6 +152,29 @@ export function validateProjectConfig(raw: unknown): ConfigValidation {
   if (secret) {
     return { ok: false, message: `配置里不能出现凭据字段（${secret}）。` };
   }
+  const evidence = value.evidence;
+  if (evidence && typeof evidence === "object" && !Array.isArray(evidence)) {
+    for (const key of ["singleFileMb", "mediaMb"] as const) {
+      const limit = (evidence as Record<string, unknown>)[key];
+      if (limit !== undefined && (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0)) {
+        return { ok: false, message: `证据上限 ${key} 必须是大于 0 的数字。` };
+      }
+    }
+  }
+  const services = value.services;
+  if (services && typeof services === "object" && !Array.isArray(services)) {
+    const service = services as Record<string, unknown>;
+    const port = service.port;
+    if (port !== undefined && (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535)) {
+      return { ok: false, message: "服务端口必须是 1–65535 的整数。" };
+    }
+    for (const key of ["timeoutSeconds", "timeout_seconds"] as const) {
+      const timeout = service[key];
+      if (timeout !== undefined && (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0)) {
+        return { ok: false, message: "服务超时必须是大于 0 的秒数。" };
+      }
+    }
+  }
   return { ok: true, config: value as ProjectConfig };
 }
 

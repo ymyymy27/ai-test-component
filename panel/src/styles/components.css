@@ -183,9 +183,9 @@ textarea:hover {
   border-color: var(--ink-3);
 }
 
-input:focus,
-select:focus,
-textarea:focus {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   border-color: var(--accent);
   outline: 2px solid var(--focus);
   outline-offset: 2px;

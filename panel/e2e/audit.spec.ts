@@ -192,7 +192,7 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
 
   await page.goto(`/projects/${projectId}/settings`);
 
-  await page.locator(".settings-index").getByRole("button", { name: "项目规则" }).click();
+  await page.locator(".settings-index").getByRole("tab", { name: "项目规则" }).click();
   await page.fill("#rule-name", "审计规则");
   await page.fill("#rule-version", "3");
   await page.fill("#rule-steps", "按审计步骤执行。");
@@ -220,17 +220,17 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
   await page.getByRole("button", { name: "保存规则版本" }).click();
   await expect(page.locator(".rule-row").filter({ hasText: "导入规则" })).toBeVisible();
 
-  await page.locator(".settings-index").getByRole("button", { name: "环境" }).click();
+  await page.locator(".settings-index").getByRole("tab", { name: "环境" }).click();
   await page.getByRole("button", { name: "重新检查" }).click();
   await expect(page.locator(".env-list .env-row").first()).toBeVisible();
 
-  await page.locator(".settings-index").getByRole("button", { name: "外观" }).click();
+  await page.locator(".settings-index").getByRole("tab", { name: "外观" }).click();
   await page.getByRole("button", { name: "深色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "浅色" }).click();
   await page.getByRole("button", { name: "跟随系统" }).click();
 
-  await page.locator(".settings-index").getByRole("button", { name: "备份" }).click();
+  await page.locator(".settings-index").getByRole("tab", { name: "备份" }).click();
   await page.getByRole("button", { name: "清空本地数据" }).click();
   await page.locator(".dialog-confirm").click();
   await page.waitForURL(/\/setup/);

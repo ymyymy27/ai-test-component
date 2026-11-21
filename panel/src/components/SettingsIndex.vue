@@ -1,31 +1,59 @@
 <script setup lang="ts">
-defineProps<{
+import { ref } from "vue";
+
+const props = defineProps<{
   sections: Array<{ id: string; label: string }>;
   active: string;
 }>();
 
 const emit = defineEmits<{ jump: [id: string] }>();
+const buttons = ref<HTMLButtonElement[]>([]);
 
-function jump(id: string, event: MouseEvent): void {
-  const target = event.currentTarget;
-  if (target instanceof HTMLElement) {
-    target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  }
+function select(id: string): void {
   emit("jump", id);
+}
+
+function onKeydown(event: KeyboardEvent, index: number): void {
+  const count = props.sections.length;
+  let next = index;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    next = (index + 1) % count;
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    next = (index - 1 + count) % count;
+  } else if (event.key === "Home") {
+    next = 0;
+  } else if (event.key === "End") {
+    next = count - 1;
+  } else {
+    return;
+  }
+  event.preventDefault();
+  const section = props.sections[next];
+  if (!section) {
+    return;
+  }
+  select(section.id);
+  buttons.value[next]?.focus();
 }
 </script>
 
 <template>
-  <nav class="settings-index" aria-label="设置分区">
+  <div class="settings-index" role="tablist" aria-label="设置分区" aria-orientation="vertical">
     <button
-      v-for="section in sections"
+      v-for="(section, index) in sections"
+      :id="`settings-tab-${section.id}`"
       :key="section.id"
+      ref="buttons"
       type="button"
+      role="tab"
       :class="{ 'is-active': active === section.id }"
-      :aria-current="active === section.id ? 'location' : undefined"
-      @click="jump(section.id, $event)"
+      :aria-selected="active === section.id"
+      :aria-controls="section.id"
+      :tabindex="active === section.id ? 0 : -1"
+      @click="select(section.id)"
+      @keydown="onKeydown($event, index)"
     >
       {{ section.label }}
     </button>
-  </nav>
+  </div>
 </template>

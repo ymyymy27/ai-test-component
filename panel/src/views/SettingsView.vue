@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
@@ -45,8 +45,19 @@ const sections = [
   { id: "settings-appearance", label: "外观" },
   { id: "settings-backup", label: "备份" },
 ];
-const activeSection = ref(sections[0]?.id ?? "");
-const sectionRefs = new Map<string, HTMLElement>();
+const activeSection = ref(
+  sections.find((section) => section.id === route.query.section)?.id ?? sections[0]?.id ?? "",
+);
+
+watch(
+  () => route.query.section,
+  (value) => {
+    const next = sections.find((section) => section.id === value);
+    if (next) {
+      activeSection.value = next.id;
+    }
+  },
+);
 
 const profileName = ref("");
 const profileGoal = ref("");
@@ -67,7 +78,21 @@ function mergeConfig(base: ReturnType<typeof defaultConfig>, current: ProjectCon
 
 const configDraft = ref<FullConfig>(mergeConfig(defaultConfig(), {}));
 const advanced = ref("");
+const advancedDirty = ref(false);
 const configError = ref("");
+let applyingAdvanced = false;
+
+watch(
+  configDraft,
+  () => {
+    if (applyingAdvanced) {
+      return;
+    }
+    advancedDirty.value = false;
+    advanced.value = formatJson(configDraft.value);
+  },
+  { deep: true },
+);
 const busyConfig = computed(() => workspace.busyKey(`config:${projectId.value}`));
 
 const ruleForm = ref({
@@ -135,24 +160,11 @@ onMounted(async () => {
   }
 });
 
-function setSectionRef(id: string, element: Element | ComponentPublicInstance | null): void {
-  if (element instanceof HTMLElement) {
-    sectionRefs.set(id, element);
-  } else {
-    sectionRefs.delete(id);
-  }
-}
-
-function jump(id: string): void {
+function selectSection(id: string): void {
   activeSection.value = id;
-  void nextTick(() => {
-    const element = sectionRefs.get(id);
-    if (!element) {
-      return;
-    }
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    element.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-  });
+  if (route.query.section !== id) {
+    void router.replace({ query: { ...route.query, section: id } });
+  }
 }
 
 async function saveProfile(): Promise<void> {
@@ -173,7 +185,7 @@ async function saveProfile(): Promise<void> {
   }
 }
 
-function applyAdvanced(): void {
+async function applyAdvanced(): Promise<void> {
   configError.value = "";
   const parsed = parseJsonObject(advanced.value);
   if (!parsed.ok) {
@@ -185,20 +197,43 @@ function applyAdvanced(): void {
     configError.value = validated.message;
     return;
   }
+  applyingAdvanced = true;
   configDraft.value = mergeConfig(defaultConfig(), validated.config);
+  advancedDirty.value = false;
+  await nextTick();
+  applyingAdvanced = false;
   advanced.value = formatJson(configDraft.value);
   ui.showToast("JSON 已填入常用项；检查后保存。", "info");
 }
 
 async function saveConfig(): Promise<void> {
-  const validated = validateProjectConfig(configDraft.value);
+  configError.value = "";
+  let source = configDraft.value;
+  if (advancedDirty.value) {
+    const parsed = parseJsonObject(advanced.value);
+    if (!parsed.ok) {
+      configError.value = parsed.message;
+      return;
+    }
+    const validatedJson = validateProjectConfig(parsed.value);
+    if (!validatedJson.ok) {
+      configError.value = validatedJson.message;
+      return;
+    }
+    applyingAdvanced = true;
+    configDraft.value = mergeConfig(defaultConfig(), validatedJson.config);
+    await nextTick();
+    applyingAdvanced = false;
+    source = configDraft.value;
+  }
+  const validated = validateProjectConfig(source);
   if (!validated.ok) {
     configError.value = validated.message;
     return;
   }
-  configError.value = "";
   try {
     await workspace.saveConfig(projectId.value, validated.config);
+    advancedDirty.value = false;
     advanced.value = formatJson(validated.config);
     ui.showToast("运行配置已保存；旧计划可能在启动时要求重新生成。", "success");
   } catch {
@@ -426,13 +461,14 @@ async function clearData(): Promise<void> {
     </PageHeader>
 
     <div class="settings-layout">
-      <SettingsIndex :sections="sections" :active="activeSection" @jump="jump" />
+      <SettingsIndex :sections="sections" :active="activeSection" @jump="selectSection" />
       <div class="settings-content">
         <section
-          :ref="(el) => setSectionRef('settings-profile', el)"
           v-show="activeSection === 'settings-profile'"
           class="settings-section"
           id="settings-profile"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-profile"
         >
           <div class="settings-head">
             <div>
@@ -486,10 +522,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-config', el)"
           v-show="activeSection === 'settings-config'"
           class="settings-section"
           id="settings-config"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-config"
         >
           <div class="settings-head">
             <div>
@@ -593,11 +630,17 @@ async function clearData(): Promise<void> {
           </div>
           <div class="field">
             <label for="config-json">高级 JSON <span class="optional">只允许白名单段</span></label>
-            <textarea id="config-json" v-model="advanced" class="code-input" rows="8" />
+            <textarea
+              id="config-json"
+              v-model="advanced"
+              class="code-input"
+              rows="8"
+              @input="advancedDirty = true"
+            />
             <p v-if="configError" class="field-error" role="alert">{{ configError }}</p>
           </div>
           <div class="form-actions">
-            <button class="btn btn-sm" type="button" @click="applyAdvanced">解析并填入表单</button>
+            <button class="btn" type="button" @click="applyAdvanced">解析并填入表单</button>
             <button
               class="btn btn-primary"
               type="button"
@@ -611,10 +654,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-environment', el)"
           v-show="activeSection === 'settings-environment'"
           class="settings-section"
           id="settings-environment"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-environment"
         >
           <div class="settings-head">
             <div>
@@ -645,10 +689,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-rules', el)"
           v-show="activeSection === 'settings-rules'"
           class="settings-section"
           id="settings-rules"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-rules"
         >
           <div class="settings-head">
             <div>
@@ -749,10 +794,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-github', el)"
           v-show="activeSection === 'settings-github'"
           class="settings-section"
           id="settings-github"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-github"
         >
           <div class="settings-head">
             <div>
@@ -884,10 +930,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-boundary', el)"
           v-show="activeSection === 'settings-boundary'"
           class="settings-section"
           id="settings-boundary"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-boundary"
         >
           <div class="settings-head">
             <div>
@@ -920,10 +967,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-appearance', el)"
           v-show="activeSection === 'settings-appearance'"
           class="settings-section"
           id="settings-appearance"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-appearance"
         >
           <div class="settings-head">
             <div>
@@ -963,10 +1011,11 @@ async function clearData(): Promise<void> {
         </section>
 
         <section
-          :ref="(el) => setSectionRef('settings-backup', el)"
           v-show="activeSection === 'settings-backup'"
           class="settings-section"
           id="settings-backup"
+          role="tabpanel"
+          aria-labelledby="settings-tab-settings-backup"
         >
           <div class="settings-head">
             <div>
