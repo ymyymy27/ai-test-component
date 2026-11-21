@@ -39,6 +39,8 @@ def uncovered_items(
     count so a missing history cannot be shown as "uncovered 0".
     """
     if task is None:
+        if fallback_count <= 0:
+            return ["未还原验收项（任务快照缺失，适用范围未知）"]
         missing = max(0, fallback_count - len(scope.acceptance_item_ids))
         return [f"未还原验收项 {index + 1}（任务快照缺失）" for index in range(missing)]
     selected = set(scope.acceptance_item_ids)

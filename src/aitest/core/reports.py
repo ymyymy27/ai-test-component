@@ -491,17 +491,7 @@ def build_report(
     source_commit = delivery.commit if delivery is not None and delivery.commit else None
     github, github_files = _github_record(ws, project.project_id, source_commit)
     changed_modules, unmapped_files = _module_impact(delivery, project.modules, github_files)
-    if task is not None:
-        selected_items = set(plan.scope.acceptance_item_ids)
-        module_names = {module.module_id: module.name for module in project.modules}
-        scope_modules = [
-            module_names[item.module_id]
-            for item in task.acceptance_items
-            if item.item_id in selected_items
-            and item.module_id is not None
-            and item.module_id in module_names
-        ]
-        changed_modules = _dedupe([*scope_modules, *changed_modules])
+    changed_modules = _dedupe(changed_modules)
     client = build_client(ws, project.project_id) if use_model else None
     mock_judgement = _mock_judgement(project, run, run_dir, delivery, client, ws)
     run.mock_judgement = list(mock_judgement)
