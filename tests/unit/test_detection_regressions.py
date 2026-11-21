@@ -263,6 +263,26 @@ def test_coverage_kind_distinguishes_direct_file_shared_and_missing() -> None:
         "tests/login.spec.ts::Log In button"
     ]
 
+    bun = Case(
+        case_id="case_bun",
+        acceptance_item_id="item_7",
+        layer="L2",
+        expected="通过",
+        verify_method="command:cd frontend && bun test unit/cn.test.ts",
+    )
+    _annotate_case_coverage(
+        [bun],
+        {
+            "bun_tests": {
+                "frontend/unit/cn.test.ts": ["cn merges utility class names"]
+            }
+        },
+    )
+    assert bun.coverage_kind == "direct"
+    assert bun.test_nodes == [
+        "unit/cn.test.ts::cn merges utility class names"
+    ]
+
 
 def test_plan_dependencies_skip_node_only_packages() -> None:
     cases = [

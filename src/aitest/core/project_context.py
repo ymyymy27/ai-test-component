@@ -566,6 +566,9 @@ def _component_commands(
     commands: list[str] = []
     if isinstance(scripts.get("build"), str) and scripts["build"].strip():
         commands.append(f"{prefix}{runner} build")
+    unit_tests = sorted((component / "unit").glob("*.test.ts"))[:5]
+    for test_file in unit_tests:
+        commands.append(f"{prefix}bun test unit/{test_file.name}")
     tests = component / "tests"
     if (component / "playwright.config.ts").is_file() and tests.is_dir():
         playwright = "bunx playwright" if runner == "bun run" else "npx playwright"
@@ -604,6 +607,32 @@ def _playwright_tests(root: Path, *, limit: int = 80) -> dict[str, list[str]]:
         for path in sorted(base.rglob("*.spec.ts")):
             if not path.is_file() or "node_modules" in path.parts:
                 continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            titles = re.findall(r"\btest\(\s*[\"'`]([^\"'`]+)[\"'`]", text)
+            if titles:
+                found[path.relative_to(root).as_posix()] = titles[:20]
+            if len(found) >= limit:
+                return found
+    return found
+
+
+def _bun_tests(root: Path, *, limit: int = 80) -> dict[str, list[str]]:
+    """Test titles from Bun unit test files."""
+
+    found: dict[str, list[str]] = {}
+    try:
+        components = [root] + [
+            child
+            for child in sorted(root.iterdir())
+            if child.is_dir() and (child / "package.json").is_file()
+        ]
+    except OSError:
+        components = [root]
+    for component in components:
+        for path in sorted((component / "unit").glob("*.test.ts")):
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -1020,6 +1049,7 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         "test_modules": _test_modules(root, test_dirs),
         "test_functions": _test_function_map(root, test_dirs),
         "playwright_tests": _playwright_tests(root),
+        "bun_tests": _bun_tests(root),
         "test_dependencies": _unique(declared, 40),
         "test_example": _test_example(root, test_dirs),
         "symbols": _symbol_map(root),

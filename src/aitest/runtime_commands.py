@@ -210,6 +210,7 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "test_modules": derived.get("test_modules", []),
         "test_functions": derived.get("test_functions", {}),
         "playwright_tests": derived.get("playwright_tests", {}),
+        "bun_tests": derived.get("bun_tests", {}),
         "test_dependencies": derived.get("test_dependencies", []),
         "smoke_command": derived["smoke_command"],
         "smallest_test": derived["smallest_test"],
@@ -704,6 +705,7 @@ _TEST_FILE_RE = re.compile(
 _PLAYWRIGHT_NODE_RE = re.compile(
     r"([A-Za-z0-9_./\\-]+\.(?:ts|tsx|js|jsx))\s+--grep[= ]+[\"']([^\"']+)[\"']"
 )
+_BUN_TEST_FILE_RE = re.compile(r"([A-Za-z0-9_./\\-]+\.test\.tsx?)\b")
 
 
 def _mapped_test_value(mapping: object, path: str) -> object:
@@ -765,6 +767,23 @@ def _annotate_case_coverage(
             notes[case.case_id] = "未识别的验证方式，无法确认覆盖强度"
             continue
         command = method.split(":", 1)[1]
+        if "bun test" in command:
+            bun_match = _BUN_TEST_FILE_RE.search(command)
+            if bun_match:
+                path = bun_match.group(1).replace("\\", "/").lstrip("./")
+                titles = _mapped_test_value(context.get("bun_tests"), path)
+                if isinstance(titles, list) and len(titles) == 1:
+                    case.coverage_kind = "direct"
+                    case.test_nodes = [f"{path}::{titles[0]}"]
+                    node_items.setdefault(f"{path}::{titles[0]}", set()).update(
+                        case_item_ids(case)
+                    )
+                else:
+                    case.coverage_kind = "file"
+                    notes[case.case_id] = (
+                        "文件级覆盖：Bun 测试文件包含多个测试，未定位到单个测试"
+                    )
+                continue
         pw_match = _PLAYWRIGHT_NODE_RE.search(command)
         if pw_match:
             path = pw_match.group(1).replace("\\", "/").lstrip("./")
