@@ -286,7 +286,52 @@ _MAX_TEST_DIR_DEPTH = 5
 
 
 def _has_test_module(path: Path) -> bool:
-    return any(path.glob("test_*.py")) or any(path.glob("*_test.py"))
+    patterns = (
+        "test_*.py",
+        "*_test.py",
+        "test_*.ts",
+        "test_*.tsx",
+        "test_*.js",
+        "test_*.jsx",
+        "*.spec.ts",
+        "*.spec.tsx",
+        "*.spec.js",
+        "*.spec.jsx",
+    )
+    return any(next(path.rglob(pattern), None) is not None for pattern in patterns)
+
+
+def _component_manifests(root: Path) -> list[tuple[Path, dict[str, Any], dict[str, Any]]]:
+    """Root plus immediate subprojects that declare their own dependencies."""
+
+    components: list[tuple[Path, dict[str, Any], dict[str, Any]]] = [
+        (root, _read_toml(root / "pyproject.toml"), _read_json(root / "package.json"))
+    ]
+    try:
+        children = sorted(root.iterdir())
+    except OSError:
+        return components
+    for child in children:
+        if (
+            not child.is_dir()
+            or child.name.startswith(".")
+            or child.name.lower() in _SKIP_WALK_DIRS
+        ):
+            continue
+        pyproject_path = child / "pyproject.toml"
+        package_path = child / "package.json"
+        requirements = any(child.glob("requirements*.txt"))
+        if not (pyproject_path.is_file() or package_path.is_file() or requirements):
+            continue
+        components.append(
+            (
+                child,
+                _read_toml(pyproject_path),
+                _read_json(package_path),
+            )
+        )
+    return components
+
 
 
 def _test_dirs(root: Path) -> list[str]:
@@ -473,6 +518,27 @@ def _test_modules(root: Path, test_dirs: list[str], *, limit: int = 60) -> list[
             if len(modules) >= limit:
                 return modules
     return modules
+
+
+def _specific_test_commands(
+    root: Path, test_dirs: list[str], *, limit: int = 8
+) -> list[str]:
+    """Concrete pytest file commands so business cases never need a whole suite."""
+
+    commands: list[str] = []
+    smallest = _smallest_test_file(root, test_dirs)
+    if smallest:
+        commands.append(f"python -m pytest {smallest}")
+    for module in _test_modules(root, test_dirs):
+        relative = module.replace(".", "/") + ".py"
+        if relative == smallest or not (root / relative).is_file():
+            continue
+        command = f"python -m pytest {relative}"
+        if command not in commands:
+            commands.append(command)
+        if len(commands) >= limit:
+            break
+    return commands
 
 
 def _test_example(
@@ -712,31 +778,53 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     """Return inferred facts used by plan generation."""
     pyproject = _read_toml(root / "pyproject.toml")
     package = _read_json(root / "package.json")
-    dependencies = _pyproject_dependencies(pyproject) | _package_dependencies(package)
-    for path in sorted(root.glob("requirements*.txt")):
-        try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            continue
-        dependencies |= _requirement_names(lines)
+    components = _component_manifests(root)
+    dependencies: set[str] = set()
+    frameworks_found: list[str] = []
+    declared: list[str] = []
+    for component, component_pyproject, component_package in components:
+        component_dependencies = _pyproject_dependencies(
+            component_pyproject
+        ) | _package_dependencies(component_package)
+        for path in sorted(component.glob("requirements*.txt")):
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            component_dependencies |= _requirement_names(lines)
+        dependencies |= component_dependencies
+        for framework in _frameworks(
+            component, component_dependencies, component_pyproject
+        ):
+            if framework not in frameworks_found:
+                frameworks_found.append(framework)
+        declared.extend(test_dependency_specs(component))
     test_dirs = _test_dirs(root)
-    frameworks = _frameworks(root, dependencies, pyproject)
+    frameworks = [
+        framework for framework in _FRAMEWORK_ORDER if framework in frameworks_found
+    ]
+    test_commands = _test_commands(
+        config, pyproject, package, frameworks, test_dirs, root
+    )
+    test_commands = _unique([*test_commands, *_specific_test_commands(root, test_dirs)])
     services = _services_with_health(config.get("services"))
     return {
-        "test_commands": _test_commands(
-            config, pyproject, package, frameworks, test_dirs, root
-        ),
+        "test_commands": test_commands,
         "smoke_command": _configured_smoke_command(config),
         "smallest_test": _smallest_test_file(root, test_dirs) if test_dirs else "",
         "test_modules": _test_modules(root, test_dirs),
-        "test_dependencies": test_dependency_specs(root),
+        "test_dependencies": _unique(declared, 40),
         "test_example": _test_example(root, test_dirs),
         "symbols": _symbol_map(root),
         "services": services,
         "health_hosts": sorted(_health_hosts(services)),
         "test_dirs": test_dirs,
         "framework": frameworks,
-        "has_frontend": _has_frontend(root, dependencies, package),
+        "has_frontend": any(
+            _has_frontend(component, _pyproject_dependencies(component_pyproject)
+            | _package_dependencies(component_package), component_package)
+            for component, component_pyproject, component_package in components
+        ),
         "has_database": _has_database(root, dependencies, frameworks),
         "existing_commands": _existing_commands(root, package),
     }

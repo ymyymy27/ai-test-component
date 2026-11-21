@@ -100,6 +100,49 @@ def _venv_python(root: Path) -> Path | None:
     return None
 
 
+def _dotenv_values(root: Path) -> dict[str, str]:
+    """Read project-owned .env files without executing or logging them."""
+
+    values: dict[str, str] = {}
+    for name in (".env", ".env.local", ".env.test"):
+        path = root / name
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            entry = line.strip()
+            if not entry or entry.startswith("#"):
+                continue
+            if entry.startswith("export "):
+                entry = entry[len("export ") :].strip()
+            key, separator, raw = entry.partition("=")
+            key = key.strip()
+            if not separator or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+                continue
+            value = raw.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            values[key] = value
+    for key, value in list(values.items()):
+        values[key] = re.sub(
+            r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}",
+            lambda match: values.get(match.group(1), os.environ.get(match.group(1), "")),
+            value,
+        )
+    return values
+
+
+def _project_env_secrets(root: Path) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in _dotenv_values(root).items()
+        if value and is_secret_field(key)
+    }
+
+
 def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     env: dict[str, str] = {}
     package_root = Path(__file__).resolve().parents[1]
@@ -115,10 +158,6 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
     for key, value in os.environ.items():
         if is_secret_field(key):
             continue
-        # 扩展为 CLI 自身 IO 设置的编码变量不应改变被测程序的行为；
-        # 直接 CLI 运行时通常没有这些变量，剔除后两条路径一致。
-        if key in {"PYTHONUTF8", "PYTHONIOENCODING"}:
-            continue
         if key == "PYTHONPATH":
             inherited_pythonpath = [
                 item
@@ -127,6 +166,15 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
             ]
             continue
         env[key] = value
+    for key, value in _dotenv_values(root).items():
+        if key.startswith("AITEST_"):
+            continue
+        env.setdefault(key, value)
+    # Chinese Windows defaults to GBK; modern projects store source and templates
+    # as UTF-8. Keep the child on UTF-8 so locale decoding cannot create a false
+    # product failure. A project .env may still override these values above.
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     pythonpath: list[str] = []
     for item in [*extra_paths, *inherited_pythonpath]:
         if item and item not in pythonpath:
@@ -1286,7 +1334,7 @@ def main(argv: list[str] | None = None) -> int:
         dependency_suggestion_cache: dict[str, dict[str, str]] = {}
         command_cache: dict[str, tuple[str, list[bytes], str, list[tuple[str, bytes]]]] = {}
         config = _project_config(ws, args.project)
-        secret_list = known_secret_values([config])
+        secret_list = known_secret_values([config, _project_env_secrets(workdir)])
         service_configs = [] if run.kind == "project_check" else _services(config)
         delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
         evidence_settings = _evidence_settings(config)

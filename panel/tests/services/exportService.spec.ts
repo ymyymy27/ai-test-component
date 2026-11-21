@@ -28,7 +28,7 @@ const report = {
   l1: [],
   layers: {},
   issues: [],
-  mock: {},
+  mock: { real: 0, mock: 0, mixed: 0, unknown: 0, realChain: false, note: "", refs: [] },
   analysis: { status: "not_generated", reason: "no_failures" },
   link: null,
   templates: [],
@@ -55,5 +55,11 @@ describe("report markdown export", () => {
       .find((line) => line.startsWith("| 01 |"));
     expect(row).toContain("第一行 \\| 含竖线 第二行");
     expect(row).not.toContain("\n");
+  });
+
+  it("marks real chain as unverified when no mock judgement exists", () => {
+    const markdown = reportMarkdown(project, task, report);
+    expect(markdown).toContain("真实链路：未验证");
+    expect(markdown).not.toContain("真实链路：否");
   });
 });

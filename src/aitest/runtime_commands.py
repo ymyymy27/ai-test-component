@@ -1011,6 +1011,29 @@ def cmd_project_snapshot(ws: Workspace, payload: Payload, confirm: bool) -> dict
     }
 
 
+def _generation_feedback(
+    items: list[dict[str, Any]], context: dict[str, Any], reason: str
+) -> str:
+    """Explicit item and command list for a model retry after validation."""
+
+    lines = [
+        f"上一次输出未通过校验：{reason}。",
+        "必须为下面每个验收项至少生成一条用例，acceptance_item_id 必须逐字使用所列 ID，"
+        "不能遗漏，也不能合并成未列出的 ID：",
+    ]
+    lines.extend(f"- {item.get('item_id')}：{item.get('text')}" for item in items)
+    commands = _string_list(context.get("test_commands"))
+    specific = [
+        command
+        for command in commands
+        if command.startswith(("python -m pytest ", "pytest ")) and "tests" in command
+    ]
+    if specific:
+        lines.append("可用具体测试命令（优先使用这些，禁止 npm test 或其他整包命令）：")
+        lines.extend(f"- command:{command}" for command in specific[:8])
+    return "\n".join(lines)
+
+
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     task = _task(ws, payload)
@@ -1086,8 +1109,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 if exc.info.code != "MODEL_OUTPUT_INVALID":
                     raise
                 raw_cases = _model_raw(
-                    f"上一次输出未通过校验：{exc.info.message}。"
-                    "请确保每个选中验收项都有用例，且用例字段完整。"
+                    _generation_feedback(
+                        selected_items, context, exc.info.message
+                    )
                 )
     cases = [
         Case.model_validate(item)
@@ -1146,7 +1170,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             # Give the model the validator's reason (at most twice) instead of
             # failing on a fixable script detail or repeated command.
             raw_cases = regenerate(
-                f"上一次生成的计划未通过校验：{exc.info.message}。请修正后重新生成。"
+                _generation_feedback(selected_items, context, exc.info.message)
             )
             cases = [
                 Case.model_validate(item)

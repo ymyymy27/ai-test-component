@@ -38,6 +38,13 @@ const report = computed<Report | null>(() => {
   const found = project.value?.reports.find((entry) => entry.id === reportId.value) ?? null;
   return found ? normalizeReport(found) : null;
 });
+const mockEvaluated = computed(() => {
+  const mock = report.value?.mock;
+  return Boolean(mock && mock.real + mock.mock + mock.mixed + mock.unknown > 0);
+});
+const realChainText = computed(() =>
+  report.value?.mock.realChain ? "通过" : mockEvaluated.value ? "未通过" : "未验证",
+);
 const task = computed<Task | null>(
   () => project.value?.tasks.find((entry) => entry.id === report.value?.taskId) ?? null,
 );
@@ -374,8 +381,13 @@ function bytesText(bytes: number): string {
             <span class="badge is-neutral">证据 {{ report.evidenceIndex.length }}</span>
             <span class="badge is-neutral">调用链 {{ report.link?.nodes.length ?? 0 }} 节点</span>
             <span class="badge is-neutral">模拟 {{ report.mock.mock }} 条</span>
-            <span class="badge" :class="report.mock.realChain ? 'is-pass' : 'is-warn'">
-              真实链路{{ report.mock.realChain ? "通过" : "未通过" }}
+            <span
+              class="badge"
+              :class="
+                report.mock.realChain ? 'is-pass' : mockEvaluated ? 'is-warn' : 'is-neutral'
+              "
+            >
+              真实链路{{ realChainText }}
             </span>
           </div>
         </div>
@@ -626,7 +638,7 @@ function bytesText(bytes: number): string {
       <h2 class="section-title-lg">模拟数据判断</h2>
       <p class="doc-p">
         真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合 {{ report.mock.mixed }} ·
-        无法判断 {{ report.mock.unknown }}。真实链路通过：{{ report.mock.realChain ? "是" : "否" }}。{{
+        无法判断 {{ report.mock.unknown }}。真实链路：{{ realChainText }}。{{
           report.mock.note
         }}
       </p>

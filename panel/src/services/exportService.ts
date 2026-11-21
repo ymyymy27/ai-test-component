@@ -114,8 +114,11 @@ export function reportMarkdown(project: Project, task: Task, rawReport: Report):
   lines.push("");
   lines.push("## 模拟数据判断");
   lines.push("");
+  const mockEvaluated =
+    report.mock.real + report.mock.mock + report.mock.mixed + report.mock.unknown > 0;
+  const realChain = report.mock.realChain ? "是" : mockEvaluated ? "否" : "未验证";
   lines.push(
-    `真实 ${report.mock.real} · 模拟 ${report.mock.mock} · 混合 ${report.mock.mixed} · 无法判断 ${report.mock.unknown}。真实链路通过：${report.mock.realChain ? "是" : "否"}。${report.mock.note}`,
+    `真实 ${report.mock.real} · 模拟 ${report.mock.mock} · 混合 ${report.mock.mixed} · 无法判断 ${report.mock.unknown}。真实链路：${realChain}。${report.mock.note}`,
   );
   lines.push("");
   lines.push("## 失败分析");
