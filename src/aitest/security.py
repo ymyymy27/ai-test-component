@@ -86,11 +86,39 @@ def _name_segments(name: str) -> list[str]:
 
 
 def is_secret_field(name: str) -> bool:
-    """Return True for field names that may carry a credential body."""
+    """Return True for field names that may carry a credential body.
+
+    A bare ``key`` segment is only a credential when it stands alone or follows
+    a known modifier (``api_key``, ``signing.key``); mapping keys such as
+    ``fields.key`` must stay usable.
+    """
     segments = _name_segments(name)
-    if any(segment in _SECRET_SEGMENTS for segment in segments):
+    if "".join(segments) in _JOINED_SECRET_NAMES:
         return True
-    return "".join(segments) in _JOINED_SECRET_NAMES
+    for index, segment in enumerate(segments):
+        if segment == "key":
+            if len(segments) == 1 or name.isupper():
+                return True
+            if segments[index - 1] in {
+                "api",
+                "access",
+                "secret",
+                "private",
+                "public",
+                "signing",
+                "encryption",
+                "client",
+                "model",
+                "openai",
+                "anthropic",
+                "github",
+                "aws",
+            }:
+                return True
+            continue
+        if segment in _SECRET_SEGMENTS:
+            return True
+    return False
 
 
 def looks_like_secret_value(value: str) -> bool:

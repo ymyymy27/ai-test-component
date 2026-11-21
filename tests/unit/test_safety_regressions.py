@@ -118,7 +118,7 @@ def test_manual_steps_must_all_be_recorded() -> None:
 def test_secret_field_matching_covers_camel_case_and_compounds() -> None:
     for name in ("model_key", "accessToken", "dbPassword", "openaiApiKey", "client_secret"):
         assert is_secret_field(name), name
-    for name in ("monkey", "max_tokens", "keyboard", "model_name"):
+    for name in ("monkey", "max_tokens", "keyboard", "model_name", "fields.key"):
         assert not is_secret_field(name), name
 
 
