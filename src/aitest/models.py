@@ -188,7 +188,12 @@ class RunCase(Model):
 class Analysis(Model):
     status: Literal["generated", "not_generated", "invalid"] = "not_generated"
     reason: Literal[
-        "no_failures", "model_missing", "model_invalid", "model_error", ""
+        "no_failures",
+        "execution_error",
+        "model_missing",
+        "model_invalid",
+        "model_error",
+        "",
     ] = ""
     model: str = ""
     generated_at: str = ""

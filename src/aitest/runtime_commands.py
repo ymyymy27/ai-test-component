@@ -3618,7 +3618,8 @@ def cmd_data_cleanup(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 def cmd_analysis_run(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    run_dir, _current = _run(ws, payload)
+    run_dir, current = _run(ws, payload)
+    _ensure_settled(current)
     return analyze_run(ws, project.project_id, run_dir)
 
 

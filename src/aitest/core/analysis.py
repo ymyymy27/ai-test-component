@@ -47,7 +47,7 @@ def _evidence_excerpts(
     run_dir: Path, refs: list[str], secrets: list[str]
 ) -> list[str]:
     excerpts: list[str] = []
-    for ref in refs[:_MAX_EVIDENCE_FILES]:
+    for ref in list(dict.fromkeys(refs))[:_MAX_EVIDENCE_FILES]:
         path = evidence_path(run_dir, ref)
         if path is None or not path.is_file():
             excerpts.append(f"--- {ref} ---\n（证据文件不存在）")
@@ -85,6 +85,10 @@ def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]
     run = read_model(run_dir / "run.json", Run)
     failed = [case for case in run.cases if case.result in {"failed", "blocked", "error"}]
     if not failed:
+        if run.status == "execution_error":
+            analysis = Analysis(status="not_generated", reason="execution_error")
+            _store(ws, project_id, run_dir, analysis)
+            return {"status": "not_generated", "reason": "execution_error", "analysis": None}
         analysis = Analysis(status="not_generated", reason="no_failures")
         _store(ws, project_id, run_dir, analysis)
         return {"status": "not_generated", "reason": "no_failures", "analysis": None}

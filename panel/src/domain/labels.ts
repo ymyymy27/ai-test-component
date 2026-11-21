@@ -92,6 +92,7 @@ export const ANALYSIS_REASON_LABEL: Record<Exclude<AnalysisRunStatus, "generated
 
 export const ANALYSIS_REASON_TEXT: Record<string, string> = {
   no_failures: "本次没有失败用例，无需分析。",
+  execution_error: "运行以执行出错结束，但没有失败用例；先处理运行错误。",
   model_missing: "没有可用模型，分析未生成；测试与报告不受影响。",
   model_invalid: "模型输出缺少必要字段，分析未采用。",
   model_error: "模型调用异常，分析未生成。",
