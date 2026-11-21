@@ -252,9 +252,18 @@ export class HostRepository implements ProjectRepository {
           intent: suggested.fallback_intent ?? "smoke",
         };
       }
-    } catch {
-      candidates = [];
-      fallback = { title: "验证项目能否启动并跑通主流程", intent: "smoke" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "分析失败";
+      this.sidecar.setAnalysis(projectId, {
+        status: "failed",
+        error: message,
+        candidates: [],
+      });
+      throw new RepositoryError(
+        "MODEL_UNAVAILABLE",
+        `项目分析失败：${message}`,
+        "检查模型配置后重新分析；不会用通用候选代替。",
+      );
     }
     const project = await this.getProject(projectId);
     if (!project) {

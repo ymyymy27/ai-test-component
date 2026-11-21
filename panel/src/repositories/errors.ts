@@ -9,7 +9,8 @@ export type RepositoryErrorCode =
   | "PLAN_STALE"
   | "CONFIRMATION_REQUIRED"
   | "RUN_ACTIVE"
-  | "ISSUE_GATE";
+  | "ISSUE_GATE"
+  | "MODEL_UNAVAILABLE";
 
 export class RepositoryError extends Error {
   readonly code: RepositoryErrorCode;
