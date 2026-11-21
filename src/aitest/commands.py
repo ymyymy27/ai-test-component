@@ -779,9 +779,10 @@ def cmd_module_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     if not isinstance(raw_deps, list) or any(not isinstance(item, dict) for item in raw_deps):
         raise invalid_request("deps 必须是对象数组", "每个依赖写成 {to,type,note}")
     deps = [Dependency.model_validate(item) for item in raw_deps]
+    secrets = _project_secrets(ws, project.project_id)
     module = Module(
-        name=_text({"name": _require(payload, "name")}, "name"),
-        responsibility=_text(payload, "responsibility"),
+        name=redact(_text({"name": _require(payload, "name")}, "name"), secrets),
+        responsibility=redact(_text(payload, "responsibility"), secrets),
         owner=_text(payload, "owner"),
         status=_text(payload, "status", "开发中"),
         deps=deps,
@@ -824,7 +825,10 @@ def cmd_module_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     Dependency.model_validate(item).model_dump(mode="json")
                     for item in raw_deps
                 ]
-            data.update({k: v for k, v in patch.items() if k != "deps"})
+            secrets = _project_secrets(ws, project.project_id)
+            for key in ("responsibility", "owner", "status"):
+                if isinstance(patch.get(key), str):
+                    data[key] = redact(patch[key], secrets)
             project.modules[index] = Module.model_validate(data)
             project.revision += 1
             ws.save_project(project)

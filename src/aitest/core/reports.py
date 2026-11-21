@@ -101,11 +101,8 @@ def _github_record(
     path = directory / f"{source_commit}.json"
     if not path.is_file():
         return None, []
-    try:
-        record = read_json(path)
-        check_schema_version(record, path)
-    except AiTestError:
-        return None, []
+    record = read_json(path)
+    check_schema_version(record, path)
     raw_files = record.get("files")
     files = [str(item) for item in raw_files] if isinstance(raw_files, list) else []
     if not files:
@@ -183,7 +180,7 @@ def _environment(
             )
     # Prefer the fingerprint the worker actually recorded for this run; fall
     # back to the host interpreter only for runs created before fingerprints.
-    recorded = dict(run.environment) if run is not None else {}
+    recorded: dict[str, Any] = dict(run.environment) if run is not None else {}
     recorded.setdefault("python", platform.python_version())
     recorded["services"] = services
     return recorded

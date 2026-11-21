@@ -1264,12 +1264,16 @@ def cmd_plan_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     plan = _load_plan(ws, project.project_id, _text({"id": _require(payload, "plan_id")}, "id"))
     task = _task_by_id(ws, project.project_id, plan.task_id)
     current_contract = task_contract(task)
+    current_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
     if not plan.task_contract:
         stale = True
         stale_reason = "旧计划没有任务契约，需要重新生成"
     elif plan.task_contract != current_contract:
         stale = True
         stale_reason = "验收项或验证方式已变化，需要重新生成计划"
+    elif not plan.source_signature or plan.source_signature != current_signature:
+        stale = True
+        stale_reason = "计划生成后项目、交付提交、规则或服务配置已变化，需要重新生成"
     else:
         stale = False
         stale_reason = ""
@@ -1302,6 +1306,9 @@ def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         known_secret_values([load_project_config(ws, project.project_id)]),
     )
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
+    plan.task_contract = task_contract(task)
+    plan.task_revision = task.revision
+    plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
     plan.status = "published"
     plan.revision += 1
     write_model(_plan_path(ws, project.project_id, plan.plan_id), plan)
@@ -2943,10 +2950,11 @@ def cmd_report_opinion(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     if not path.is_file():
         raise AiTestError("INVALID_REQUEST", f"报告不存在：{report_id}", "先生成报告")
     report = read_model(path, Report)
+    secrets = known_secret_values([load_project_config(ws, project.project_id)])
     report.opinion = Opinion(
-        by=_text({"by": _require(payload, "by")}, "by"),
+        by=redact(_text({"by": _require(payload, "by")}, "by"), secrets),
         at=iso_now(),
-        text=_text(payload, "text"),
+        text=redact(_text(payload, "text"), secrets),
     )
     report.revision += 1
     write_model(path, report)

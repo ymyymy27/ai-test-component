@@ -86,6 +86,11 @@ def add_issue(
     if run_dir is not None and error_type == "unknown" and not stack_key:
         run = read_model(run_dir / "run.json", Run)
         error_type, stack_key = _case_error(run_dir, case_id, run)
+    secrets = known_secret_values([load_project_config(ws, project_id)])
+    title = redact(title, secrets)
+    expected = redact(expected, secrets)
+    actual = redact(actual, secrets)
+    steps = [redact(step, secrets) for step in (steps or [])]
     signature = _signature(case_id, error_type, stack_key)
     refs = list(evidence_refs or [])
     directory = issues_dir(ws, project_id)

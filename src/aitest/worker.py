@@ -1295,6 +1295,7 @@ def main(argv: list[str] | None = None) -> int:
         case_python = project_python or Path(sys.executable)
         run.environment = _environment_fingerprint(case_python, workdir)
         dependency_cache: dict[tuple[str, ...], list[str] | None] = {}
+        dependency_suggestion_cache: dict[str, dict[str, str]] = {}
         command_cache: dict[str, tuple[str, list[bytes], str, list[tuple[str, bytes]]]] = {}
         config = _project_config(ws, args.project)
         secret_list = known_secret_values([config])
@@ -1520,13 +1521,19 @@ def main(argv: list[str] | None = None) -> int:
                     if result == "failed" and case.verify_method.startswith("command:"):
                         missing_modules = _missing_modules_from_output(b"".join(outputs))
                         for missing_module in missing_modules[:3]:
-                            candidate = _dependency_suggestion(
-                                ws,
-                                run.project_id,
-                                workdir,
-                                missing_module,
-                                case.verify_method,
-                            )
+                            if missing_module in dependency_suggestion_cache:
+                                candidate = dict(
+                                    dependency_suggestion_cache[missing_module]
+                                )
+                            else:
+                                candidate = _dependency_suggestion(
+                                    ws,
+                                    run.project_id,
+                                    workdir,
+                                    missing_module,
+                                    case.verify_method,
+                                )
+                                dependency_suggestion_cache[missing_module] = dict(candidate)
                             if not candidate:
                                 continue
                             candidate["case_id"] = case.case_id
