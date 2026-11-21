@@ -107,7 +107,8 @@ const unselected = computed(() =>
   task.value && plan.value ? unselectedItems(task.value, plan.value.scope.acceptanceItemIds) : [],
 );
 const rule = computed(
-  () => project.value?.rules.find((entry) => entry.id === project.value?.rulesVersionId) ?? null,
+  () =>
+    project.value?.rules.find((entry) => entry.id === plan.value?.rulesVersionId) ?? null,
 );
 
 watch(
@@ -279,7 +280,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="info-cell">
           <dt>任务修订</dt>
-          <dd>第 {{ task.revision }} 版</dd>
+          <dd>计划记录第 {{ plan.taskRevision }} 版</dd>
         </div>
         <div class="info-cell">
           <dt>依赖</dt>
@@ -310,9 +311,9 @@ onBeforeUnmount(() => {
       @start="start"
     />
 
-    <section class="section">
+    <section class="section" aria-labelledby="plan-items-title">
       <div class="section-head">
-        <span class="section-title">计划纳入 {{ plan.scope.acceptanceItemIds.length }} 项</span>
+        <h2 id="plan-items-title" class="section-title">计划纳入 {{ plan.scope.acceptanceItemIds.length }} 项</h2>
       </div>
       <PlanLedger ref="planLedgerRef" :plan="plan" :task="task" />
     </section>

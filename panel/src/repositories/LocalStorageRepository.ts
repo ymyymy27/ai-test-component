@@ -282,6 +282,20 @@ function applyAutoIssues(project: Project, task: Task, run: Run): void {
     });
 }
 
+function markPassedCasesUnstable(project: Project, run: Run): void {
+  run.cases
+    .filter((testCase) => testCase.result === "passed")
+    .forEach((testCase) => {
+      project.issues.forEach((issue) => {
+        if (issue.caseId !== testCase.caseId || issue.status === "closed" || issue.unstable) {
+          return;
+        }
+        issue.unstable = true;
+        issue.updatedAt = isoNow();
+      });
+    });
+}
+
 function finishRunInPlace(
   project: Project,
   task: Task,
@@ -302,6 +316,7 @@ function finishRunInPlace(
   run.verdict = recounted.verdict;
   if (status !== "interrupted") {
     applyAutoIssues(project, task, run);
+    markPassedCasesUnstable(project, run);
   }
   assertTransition(task.stage, "finishRun", "result");
   task.stage = "result";
@@ -445,7 +460,12 @@ export class LocalStorageRepository implements ProjectRepository {
 
   async saveAnalysis(projectId: string, analysis: ProjectAnalysis): Promise<Project> {
     return this.mutate(projectId, (project) => {
-      project.modules = analysis.modules;
+      const analysedNames = new Set(analysis.modules.map((module) => module.name));
+      // 重新分析不能丢掉人工新增的模块；同名模块以分析结果为准。
+      const manualModules = project.modules.filter(
+        (module) => !analysedNames.has(module.name),
+      );
+      project.modules = [...analysis.modules, ...manualModules];
       project.map = {
         ...analysis.map,
         revision: (project.map?.revision ?? 0) + 1,
@@ -595,9 +615,36 @@ export class LocalStorageRepository implements ProjectRepository {
       if (task.stage === "running") {
         throw new RepositoryError("CONFLICT", "运行中不能删除任务。", "先停止运行。");
       }
+      const deletedRunIds = new Set(task.runs.map((run) => run.id));
+      const runTask = new Map<string, string>();
+      project.tasks.forEach((entry) =>
+        entry.runs.forEach((run) => runTask.set(run.id, entry.id)),
+      );
       project.tasks.splice(index, 1);
       project.reports = project.reports.filter((report) => report.taskId !== taskId);
-      project.issues = project.issues.filter((issue) => issue.taskId !== taskId);
+      project.issues = project.issues.flatMap((issue) => {
+        if (issue.taskId !== taskId) {
+          return [issue];
+        }
+        // 自动问题按签名跨任务合并；删除一个任务只移除它自己的发生记录。
+        const occurrences = issue.occurrences.filter(
+          (occurrence) => !deletedRunIds.has(occurrence.runId),
+        );
+        const remainingTaskId = occurrences
+          .map((occurrence) => runTask.get(occurrence.runId) ?? "")
+          .find((id) => id && id !== taskId);
+        if (!remainingTaskId) {
+          return [];
+        }
+        return [
+          {
+            ...issue,
+            taskId: remainingTaskId,
+            occurrences,
+            updatedAt: isoNow(),
+          },
+        ];
+      });
       if (project.activeTaskId === taskId) {
         project.activeTaskId = project.tasks[0]?.id ?? null;
       }
@@ -930,8 +977,8 @@ export class LocalStorageRepository implements ProjectRepository {
   ): Promise<Run> {
     return this.mutate(projectId, (project) => {
       const { task, run } = findRun(project, runId);
-      if (run.status !== "completed") {
-        throw new RepositoryError("CONFLICT", "只有已完成的运行可以记录人工结果。");
+      if (run.status === "running") {
+        throw new RepositoryError("CONFLICT", "运行中不能记录人工结果。", "等待运行结束后再记录。");
       }
       const runCase = run.cases.find((entry) => entry.id === caseId || entry.caseId === caseId);
       if (!runCase) {
@@ -954,6 +1001,12 @@ export class LocalStorageRepository implements ProjectRepository {
       run.items = recounted.items;
       run.counts = recounted.counts;
       run.verdict = recounted.verdict;
+      // 人工失败同样按签名归并问题；人工通过会把已有问题标为疑似不稳定。
+      if (input.result === "failed") {
+        applyAutoIssues(project, task, run);
+      } else {
+        markPassedCasesUnstable(project, run);
+      }
       task.updatedAt = isoNow();
       attachReport(project, task, run);
       return run;
@@ -1013,6 +1066,29 @@ export class LocalStorageRepository implements ProjectRepository {
       const issue = createManualIssue(project, input);
       const existing = project.issues.find((entry) => entry.signature === issue.signature);
       if (existing) {
+        // 同一签名再次登记是“又发生一次”，不是静默无视；与 CLI add_issue 对齐。
+        const now = isoNow();
+        const already = existing.occurrences.some(
+          (occurrence) =>
+            occurrence.runId === issue.runId &&
+            occurrence.note === "重复登记同一问题",
+        );
+        if (!already) {
+          existing.occurrences.push({
+            runId: issue.runId,
+            caseId: issue.caseId,
+            time: now,
+            result: "failed",
+            note: "重复登记同一问题",
+            evidenceRefs: [...existing.evidenceRefs],
+          });
+          existing.updatedAt = now;
+          if (existing.status === "closed") {
+            existing.status = "retest";
+            existing.disposition = null;
+            existing.reason = "关闭后再次复现，待复测";
+          }
+        }
         return existing;
       }
       project.issues.push(issue);
@@ -1308,9 +1384,11 @@ export class LocalStorageRepository implements ProjectRepository {
       ];
       if (!passed) {
         node.state = "failed";
+      } else {
+        // 断言通过后必须把节点从旧的失败状态恢复；否则链路仍显示失败。
+        node.state = "passed";
       }
-      const anomaly =
-        run.link.nodes.find((entry) => entry.state !== "passed") ?? (passed ? null : node);
+      const anomaly = run.link.nodes.find((entry) => entry.state !== "passed") ?? null;
       if (anomaly) {
         const match = /^(.*):(\d+)$/.exec(anomaly.evidenceRef);
         run.link.location = match

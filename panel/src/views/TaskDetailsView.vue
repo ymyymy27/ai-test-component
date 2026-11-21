@@ -59,6 +59,7 @@ const busyBasic = computed(() => workspace.busyKey(`task:${taskId.value}`));
 const savingBasic = ref(false);
 const savingItems = ref(false);
 const busyDelivery = computed(() => workspace.busyKey(`delivery:${taskId.value}`));
+const draftingDelivery = computed(() => workspace.busyKey(`delivery-draft:${taskId.value}`));
 const busyTemplate = computed(() => workspace.busyKey(`template:${taskId.value}`));
 const planStale = computed(() => Boolean(plan.value?.stale));
 const backTarget = computed(() => {
@@ -127,6 +128,24 @@ onMounted(async () => {
   }
   reset();
 });
+
+// 同一路由组件在 taskId 变化时会被复用；必须重填，不能把任务 A 的草稿写到任务 B。
+watch(
+  () => taskId.value,
+  async (nextId, previousId) => {
+    if (!nextId || nextId === previousId) {
+      return;
+    }
+    if (task.value && workspace.currentTask?.id !== nextId) {
+      try {
+        await workspace.setActiveTask(projectId.value, nextId);
+      } catch {
+        // store 已提示。
+      }
+    }
+    reset();
+  },
+);
 
 async function saveBasic(): Promise<void> {
   if (!task.value || running.value) {
@@ -228,6 +247,10 @@ async function saveItems(): Promise<void> {
   if (!task.value || running.value) {
     return;
   }
+  if (items.value.length === 0) {
+    itemsError.value = "至少保留 1 条验收项；没有验收项时无法生成计划。";
+    return;
+  }
   const emptyIndex = items.value.findIndex((item) => !item.text.trim());
   if (emptyIndex >= 0) {
     itemsError.value = "验收项文本不能为空；先补全或删除空行。";
@@ -261,11 +284,7 @@ async function draftDelivery(): Promise<void> {
   if (!task.value || running.value) {
     return;
   }
-  if (
-    delivery.value.done.trim() ||
-    delivery.value.notDone.trim() ||
-    delivery.value.selfTestEvidence.trim()
-  ) {
+  if (deliveryDirty()) {
     const answer = await ui.askConfirm({
       title: "用草稿覆盖当前交付说明？",
       body: "已填写的交付内容会被草稿替换；取消可保留手工内容。",
@@ -395,9 +414,9 @@ function deliveryDirtyFields(): number {
   const current = task.value?.delivery;
   if (!current) {
     let count = 0;
-    if (delivery.value.done.trim()) count += 1;
-    if (delivery.value.notDone.trim()) count += 1;
-    if (delivery.value.commit.trim()) count += 1;
+    Object.values(delivery.value).forEach((value) => {
+      if (value.trim()) count += 1;
+    });
     return count;
   }
   let count = 0;
@@ -754,10 +773,11 @@ function deliveryComplete(): boolean {
           <button
             class="btn btn-sm"
             type="button"
-            :disabled="running || busyDelivery"
+            :disabled="running || draftingDelivery"
+            :aria-busy="draftingDelivery"
             @click="draftDelivery"
           >
-            起草交付说明
+            {{ draftingDelivery ? "正在起草…" : "起草交付说明" }}
           </button>
           <button
             class="btn btn-primary"

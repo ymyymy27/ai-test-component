@@ -105,13 +105,17 @@ export function recountRun(run: Run): Run {
   const items = run.items.map((item) => ({
     ...item,
     outcome: itemOutcome(run, item.itemId),
-    caseIds: run.cases.filter((testCase) => testCase.itemId === item.itemId).map((c) => c.id),
+    caseIds: run.cases
+      .filter((testCase) =>
+        (testCase.caseItemIds ?? [testCase.itemId]).includes(item.itemId),
+      )
+      .map((testCase) => testCase.id),
   }));
   const outcomes = items.map((item) => item.outcome);
   const covered = items.filter((item) =>
     run.cases.some(
       (testCase) =>
-        testCase.itemId === item.itemId &&
+        (testCase.caseItemIds ?? [testCase.itemId]).includes(item.itemId) &&
         !["not_run", "manual_pending"].includes(effectiveCaseResult(testCase, run)),
     ),
   ).length;
@@ -138,6 +142,10 @@ export function verdictForRun(run: Run): Verdict {
   const outcomes = run.items.map((item) => itemOutcome(run, item.itemId));
   if (outcomes.includes("failed")) {
     return "failed";
+  }
+  // 取消/中断/执行出错都不算完整执行；即使已跑完的项通过，也不能给出“通过”结论。
+  if (run.status !== "completed") {
+    return "incomplete";
   }
   if (outcomes.some((outcome) => outcome !== "passed")) {
     return "incomplete";
@@ -397,7 +405,9 @@ export function findIssueCloseCandidate(
   for (const run of candidates) {
     const runCase =
       run.cases.find((testCase) => testCase.caseId === issue.caseId) ??
-      run.cases.find((testCase) => testCase.itemId === issue.itemId);
+      run.cases.find((testCase) =>
+        (testCase.caseItemIds ?? [testCase.itemId]).includes(issue.itemId),
+      );
     if (!runCase) {
       continue;
     }
@@ -547,7 +557,15 @@ export function projectStatus(project: Project): { tone: string; label: string }
   if (project.tasks.filter((task) => task.stage !== "fresh").length === 0) {
     return { tone: "idle", label: "还没有任务" };
   }
-  if (project.tasks.some((task) => task.runs.some((run) => run.verdict === "failed"))) {
+  // 只按每个任务的最新一次运行判断状态；历史失败在复测通过后不能继续显示“有失败”。
+  const latestRuns = project.tasks
+    .filter((task) => task.runs.length > 0)
+    .map((task) =>
+      [...task.runs].sort((first, second) =>
+        second.startedAt.localeCompare(first.startedAt),
+      )[0],
+    );
+  if (latestRuns.some((run) => run?.verdict === "failed")) {
     return { tone: "fail", label: "有失败" };
   }
   if (openIssues(project).length > 0) {
@@ -637,6 +655,7 @@ export function normalizeReport(report: Report): Report {
       github: report.source?.github ?? "未连接",
     },
     summary: report.summary ?? "",
+    summarySource: report.summarySource ?? "fallback",
     opinion: report.opinion ?? null,
   };
 }

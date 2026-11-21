@@ -351,7 +351,15 @@ function focusClose(): void {
   closeButton.value?.focus();
 }
 
-defineExpose({ focusSearch, focusClose });
+/** 删除当前任务行后，把焦点交给任务区标题，避免落到 body。 */
+function focusTasks(): void {
+  void nextTick(() => {
+    const label = asideRef.value?.querySelector<HTMLElement>("#side-task-label");
+    label?.focus();
+  });
+}
+
+defineExpose({ focusSearch, focusClose, focusTasks });
 </script>
 
 <template>
@@ -504,10 +512,11 @@ defineExpose({ focusSearch, focusClose });
         <div
           v-if="project.id === currentProjectId"
           class="side-task-list"
+          role="group"
           aria-label="当前项目的任务"
         >
           <div class="side-task-head">
-            <span class="side-task-label">
+            <span id="side-task-label" class="side-task-label" tabindex="-1">
               任务
               <span v-if="tasks.length" class="side-task-count">{{ tasks.length }}</span>
             </span>
@@ -516,6 +525,8 @@ defineExpose({ focusSearch, focusClose });
                 class="side-add"
                 type="button"
                 :disabled="Boolean(runningTaskId)"
+                :title="runningTaskId ? '有任务正在运行，完成或停止后再新建' : undefined"
+                :aria-describedby="runningTaskId ? 'side-task-running-hint' : undefined"
                 @click="emit('newTask', project.id)"
               >
                 <Icon name="plus" :size="12" />
@@ -523,6 +534,9 @@ defineExpose({ focusSearch, focusClose });
               </button>
             </div>
           </div>
+          <p v-if="runningTaskId" id="side-task-running-hint" class="field-hint">
+            有任务正在运行；完成或停止后才能切换或新建任务。
+          </p>
           <div class="side-task-body">
           <button
             v-if="draft"
@@ -567,7 +581,11 @@ defineExpose({ focusSearch, focusClose });
               :class="{ 'is-active': task.id === currentTaskId }"
               type="button"
               :title="task.title"
+              :aria-label="task.title"
               :aria-current="task.id === currentTaskId ? 'page' : undefined"
+              :aria-describedby="
+                runningTaskId && runningTaskId !== task.id ? 'side-task-running-hint' : undefined
+              "
               :disabled="Boolean(runningTaskId && runningTaskId !== task.id)"
               @click="selectTask(task.id)"
             >

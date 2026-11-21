@@ -62,6 +62,7 @@ const status = computed(() => projectStatus(props.project));
 const boundRule = computed(
   () => props.project.rules.find((rule) => rule.id === props.project.rulesVersionId) ?? null,
 );
+const mapBusy = computed(() => workspace.busyKey(`map:${props.project.id}`));
 function taskTitle(taskId: string): string {
   return props.project.tasks.find((task) => task.id === taskId)?.title ?? "任务已归档";
 }
@@ -169,7 +170,7 @@ function toggleFeature(name: string, ignored: boolean): void {
           :ignored-features="ignoredFeatures"
           :catalog-count="catalogCount"
           :analyzing="analyzing"
-          :busy="analyzingBusy"
+          :busy="mapBusy"
           @analyze="emit('analyze')"
           @add-module="emit('addModule')"
           @edit-module="emit('editModule', $event)"
@@ -222,7 +223,7 @@ function toggleFeature(name: string, ignored: boolean): void {
 
       <section class="section overview-feed">
         <div class="section-head">
-          <span class="section-title">最近活动</span>
+          <h2 class="section-title">最近活动</h2>
           <button class="link-btn" type="button" @click="emit('openHistory')">全部历史</button>
         </div>
         <ActivityList :runs="runs" :tasks="project.tasks" @open="emit('openRun', $event)" />

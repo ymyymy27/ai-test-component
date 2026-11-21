@@ -9,6 +9,8 @@ import PageHeader from "@/components/PageHeader.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import StatusText from "@/components/StatusText.vue";
 import {
+  ANALYSIS_REASON_LABEL,
+  ANALYSIS_REASON_TEXT,
   ISSUE_STATUS_LABEL,
   LAYER_LABEL,
   TEMPLATE_DISPOSITION_LABEL,
@@ -16,7 +18,7 @@ import {
   statusText,
 } from "@/domain/labels";
 import { normalizeReport, reportsForRun } from "@/domain/derive";
-import type { ExportResult, Issue, LinkData, Report, Run, Task } from "@/domain/types";
+import type { EvidenceRef, ExportResult, Issue, LinkData, Report, Run, Task } from "@/domain/types";
 import type { LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -67,6 +69,13 @@ const opinionText = ref("");
 const opinionError = ref("");
 const exportResult = ref<ExportResult | null>(null);
 const loadingReport = ref(false);
+const savingOpinion = ref(false);
+const exporting = ref(false);
+const busyOpinion = computed(
+  () =>
+    savingOpinion.value ||
+    Boolean(report.value && workspace.busyKey(`opinion:${report.value.id}`)),
+);
 const linkBusy = computed(
   () =>
     Boolean(run.value) &&
@@ -133,24 +142,28 @@ async function regenerate(): Promise<void> {
 }
 
 async function exportReport(): Promise<void> {
-  if (!report.value) {
+  if (!report.value || exporting.value) {
     return;
   }
+  exporting.value = true;
   try {
     exportResult.value = await workspace.exportReport(projectId.value, report.value.id);
   } catch {
     // store 已提示。
+  } finally {
+    exporting.value = false;
   }
 }
 
 async function saveOpinion(): Promise<void> {
-  if (!report.value) {
+  if (!report.value || busyOpinion.value) {
     return;
   }
   if (!opinionText.value.trim()) {
     opinionError.value = "先填写验收意见。";
     return;
   }
+  savingOpinion.value = true;
   try {
     await workspace.saveOpinion(
       projectId.value,
@@ -162,6 +175,8 @@ async function saveOpinion(): Promise<void> {
     ui.showToast("验收意见已记录；结论不变。", "success");
   } catch {
     // store 已提示。
+  } finally {
+    savingOpinion.value = false;
   }
 }
 
@@ -227,6 +242,24 @@ async function copyMarkdown(): Promise<void> {
   }
 }
 
+async function openEvidence(evidence: EvidenceRef): Promise<void> {
+  if (workspace.mode === "host" && evidence.sourcePath) {
+    try {
+      await workspace.openHostPath(evidence.sourcePath);
+      return;
+    } catch {
+      // 宿主打不开时退回复制引用。
+    }
+  }
+  const reference = evidence.sourcePath || evidence.name;
+  try {
+    await navigator.clipboard.writeText(reference);
+    ui.showToast(`证据引用已复制：${reference}`, "success");
+  } catch {
+    ui.showToast(`证据引用：${reference}（复制失败，请手动选择）`, "error");
+  }
+}
+
 function bytesText(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} 字节`;
@@ -273,8 +306,20 @@ function bytesText(bytes: number): string {
         >
           {{ regenerating ? "正在生成…" : "重新生成" }}
         </button>
-        <button class="btn btn-sm btn-primary" type="button" @click="exportReport">
-          {{ workspace.mode === "host" ? "导出到工作空间" : "导出 Markdown" }}
+        <button
+          class="btn btn-sm btn-primary"
+          type="button"
+          :disabled="exporting"
+          :aria-busy="exporting"
+          @click="exportReport"
+        >
+          {{
+            exporting
+              ? "正在导出…"
+              : workspace.mode === "host"
+                ? "导出到工作空间"
+                : "导出 Markdown"
+          }}
         </button>
       </template>
     </PageHeader>
@@ -362,7 +407,7 @@ function bytesText(bytes: number): string {
           <dd>{{ report.counts.failed }} / {{ report.counts.incomplete }}</dd>
         </div>
       </dl>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="范围与覆盖表">
         <table class="table">
           <thead>
             <tr>
@@ -425,7 +470,7 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">分层计数</h2>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="分层计数表">
         <table class="table">
           <thead>
             <tr>
@@ -451,7 +496,7 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">用例明细</h2>
-      <div v-if="report.caseDetails.length" class="table-wrap">
+      <div v-if="report.caseDetails.length" class="table-wrap" tabindex="0" role="region" aria-label="用例明细表">
         <table class="table">
           <thead>
             <tr>
@@ -539,7 +584,14 @@ function bytesText(bytes: number): string {
           </p>
         </div>
         <div class="form-actions">
-          <button class="btn btn-primary" type="submit">保存意见</button>
+          <button
+            class="btn btn-primary"
+            type="submit"
+            :disabled="busyOpinion"
+            :aria-busy="busyOpinion"
+          >
+            {{ busyOpinion ? "正在保存…" : "保存意见" }}
+          </button>
         </div>
       </form>
       <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
@@ -569,16 +621,28 @@ function bytesText(bytes: number): string {
         <h2 class="section-title-lg">失败分析</h2>
         <span class="badge is-neutral">本地分析 · 不改变结论</span>
       </div>
-      <template v-if="report.analysis.status === 'generated'">
-        <p class="doc-p">{{ report.analysis.observed }}</p>
-        <ul class="list-plain">
-          <li v-for="cause in report.analysis.candidateCauses" :key="cause.cause">
-            候选原因（把握：{{ cause.confidence }}）：{{ cause.cause }}
-          </li>
-          <li v-for="item in report.analysis.unverified" :key="item">未验证：{{ item }}</li>
-          <li v-for="item in report.analysis.nextSteps" :key="item">下一步：{{ item }}</li>
-        </ul>
-      </template>
+      <p class="doc-p">{{ report.analysis.observed }}</p>
+      <ul class="list-plain">
+        <li v-for="cause in report.analysis.candidateCauses" :key="cause.cause">
+          候选原因（把握：{{ cause.confidence }}）：{{ cause.cause }}
+        </li>
+        <li v-for="item in report.analysis.unverified" :key="item">未验证：{{ item }}</li>
+        <li v-for="item in report.analysis.nextSteps" :key="item">下一步：{{ item }}</li>
+      </ul>
+    </section>
+    <section v-else class="section">
+      <div class="section-head">
+        <h2 class="section-title-lg">失败分析</h2>
+        <span class="badge is-neutral">
+          {{ ANALYSIS_REASON_LABEL[report.analysis.status] }}
+        </span>
+      </div>
+      <p class="doc-p">
+        {{ ANALYSIS_REASON_TEXT[report.analysis.reason] || "分析未生成；结论与计数不受影响。" }}
+      </p>
+      <p class="doc-note">
+        需要模型分析时，在设置里检查模型配置后重新生成报告；不会改变本次结论。
+      </p>
     </section>
 
     <section class="section">
@@ -644,6 +708,14 @@ function bytesText(bytes: number): string {
           >
             {{ evidence.missing ? "已缺失" : evidence.truncated ? "已截断" : "已登记" }}
           </span>
+          <button
+            class="link-btn"
+            type="button"
+            :aria-label="`打开或复制证据 ${evidence.name}`"
+            @click="openEvidence(evidence)"
+          >
+            {{ workspace.mode === "host" && evidence.sourcePath ? "打开" : "复制引用" }}
+          </button>
         </div>
       </div>
     </section>
@@ -682,7 +754,15 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <details class="unselected-block">
-        <summary>AI 摘要 · 不改变结论</summary>
+        <summary>
+          {{
+            report.summarySource === "ai"
+              ? "AI 摘要 · 不改变结论"
+              : report.summarySource === "none"
+                ? "摘要未生成 · 不改变结论"
+                : "本地摘要（模型未参与） · 不改变结论"
+          }}
+        </summary>
         <p class="doc-p">{{ report.summary || "本次没有生成摘要。" }}</p>
       </details>
     </section>

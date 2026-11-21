@@ -5,6 +5,7 @@ import Icon from "./Icon.vue";
 
 import type { RunCase } from "@/domain/types";
 import type { EvidenceInput } from "@/repositories/ProjectRepository";
+import { useUiStore } from "@/stores/ui";
 import {
   assertMediaBudget,
   fileToEvidence,
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 }>();
 
 const open = defineModel<boolean>({ default: false });
+const ui = useUiStore();
 const dialogRef = ref<HTMLDialogElement | null>(null);
 const result = ref<"" | "passed" | "failed">("");
 const note = ref("");
@@ -50,7 +52,18 @@ watch(open, async (value) => {
   }
 });
 
-function close(): void {
+async function close(): Promise<void> {
+  if (result.value || note.value.trim() || files.value.length > 0) {
+    const answer = await ui.askConfirm({
+      title: "放弃这次人工结果？",
+      body: "已选择的结果、说明和证据文件会丢失。",
+      confirmLabel: "放弃",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
   open.value = false;
 }
 
@@ -153,6 +166,7 @@ function onDialogClick(event: MouseEvent): void {
           v-model="note"
           rows="3"
           placeholder="实际观察、复现步骤或判定依据"
+          :aria-required="files.length > 0 ? 'true' : undefined"
           :aria-describedby="error ? 'manual-error' : undefined"
           @input="error = ''"
         />

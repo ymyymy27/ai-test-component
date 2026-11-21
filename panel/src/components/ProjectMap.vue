@@ -96,18 +96,22 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
       <summary>
         <span>已忽略 {{ ignoredRows.length }} 个</span>
       </summary>
+      <p class="doc-note">
+        忽略只影响项目理解的显示，不会自动移除已有任务、候选或验收项；需要排除时请调整范围。
+      </p>
       <div class="project-map-list">
         <div v-for="feature in ignoredRows" :key="feature.id" class="project-map-row">
           <span>{{ feature.name }}</span>
           <small>{{ feature.modules.join(" · ") }}</small>
-          <button
-            class="link-btn"
-            type="button"
-            :disabled="busy"
-            @click="emit('toggleFeature', feature.name, false)"
-          >
-            恢复
-          </button>
+        <button
+          class="link-btn"
+          type="button"
+          :disabled="busy"
+          :aria-label="`恢复业务功能 ${feature.name}`"
+          @click="emit('toggleFeature', feature.name, false)"
+        >
+          恢复
+        </button>
         </div>
       </div>
     </details>
@@ -124,7 +128,14 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
           <span>{{ module.name }}</span>
           <small>{{ module.responsibility || "责任未填写" }}</small>
           <em>{{ module.status }}</em>
-          <button class="link-btn" type="button" @click="emit('editModule', module)">编辑</button>
+          <button
+            class="link-btn"
+            type="button"
+            :aria-label="`编辑模块 ${module.name}`"
+            @click="emit('editModule', module)"
+          >
+            编辑
+          </button>
         </div>
       </div>
       <p v-else class="doc-note">还没有模块。新增模块后，验收项可以关联到模块。</p>

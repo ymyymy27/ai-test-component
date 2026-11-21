@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 const props = defineProps<{
   modelValue: string;
@@ -19,6 +19,14 @@ const inputRef = ref<HTMLTextAreaElement | null>(null);
 const error = ref("");
 const disabled = computed(() => props.busy);
 const remaining = computed(() => 200 - props.modelValue.length);
+
+// 从候选填入目标时不会经过 textarea 的 input 事件；必须同样清掉旧错误。
+watch(
+  () => props.modelValue,
+  () => {
+    error.value = "";
+  },
+);
 
 function update(value: string): void {
   error.value = "";

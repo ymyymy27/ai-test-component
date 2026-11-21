@@ -14,8 +14,9 @@ export interface ProjectFormResult {
 
 const ABSOLUTE_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+|\/)/;
 const CONFIG_SECTIONS = new Set(["model", "services", "l1", "runners", "evidence", "link", "data"]);
+// 只拒绝明确的凭据键；data.tokenizer / runners.monkey / fields.key 是合法配置。
 const SECRET_KEY =
-  /(password|passwd|token|secret|api[-_]?key|authorization|credential|private[-_]?key)/i;
+  /^(password|passwd|pwd|token|access[-_]?token|refresh[-_]?token|secret|client[-_]?secret|api[-_]?key|apikey|authorization|credential|private[-_]?key)$/i;
 
 export function isAbsolutePath(root: string): boolean {
   return ABSOLUTE_PATH.test(root.trim());
@@ -26,8 +27,29 @@ function looksWindowsPath(root: string): boolean {
 }
 
 export function normalizeRoot(root: string): string {
-  const trimmed = root.trim().replace(/[\\/]+$/, "");
-  return looksWindowsPath(trimmed) ? trimmed.toLowerCase() : trimmed;
+  const trimmed = root.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const windows = looksWindowsPath(trimmed);
+  const value = trimmed.replace(/\\/g, "/");
+  const drive = /^([A-Za-z]):/.exec(value)?.[1]?.toUpperCase() ?? "";
+  const rest = drive ? value.slice(2) : value;
+  const unc = !drive && rest.startsWith("//");
+  const stack: string[] = [];
+  rest.split("/").forEach((segment) => {
+    if (!segment || segment === ".") {
+      return;
+    }
+    if (segment === "..") {
+      stack.pop();
+      return;
+    }
+    stack.push(segment);
+  });
+  const prefix = drive ? `${drive}:/` : unc ? "//" : rest.startsWith("/") ? "/" : "";
+  const normalized = `${prefix}${stack.join("/")}` || (drive ? `${drive}:/` : "/");
+  return windows || drive ? normalized.toLowerCase() : normalized;
 }
 
 export function basename(root: string): string {
@@ -40,8 +62,8 @@ export function basename(root: string): string {
 }
 
 function isNested(first: string, second: string): boolean {
-  const separator = looksWindowsPath(first) ? "\\" : "/";
-  return first.startsWith(`${second}${separator}`);
+  // normalizeRoot 统一使用 / 分隔；前缀必须落在目录边界上。
+  return first.startsWith(`${second}/`) || first === second;
 }
 
 export function validateProjectForm(

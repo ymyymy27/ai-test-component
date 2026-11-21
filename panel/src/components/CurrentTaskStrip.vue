@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import { currentPlan, currentRun } from "@/domain/derive";
+import { VERDICT_LABEL } from "@/domain/labels";
 import { taskStageLabel } from "@/domain/stateMachine";
 import type { Task } from "@/domain/types";
 
@@ -37,11 +38,7 @@ const state = computed(() => {
     return "待定目标";
   }
   if (props.task.stage === "result" && run.value) {
-    return run.value.verdict === "passed"
-      ? "通过"
-      : run.value.verdict === "failed"
-        ? "失败"
-        : "未完成";
+    return VERDICT_LABEL[run.value.verdict];
   }
   return taskStageLabel(props.task);
 });

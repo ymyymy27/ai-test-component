@@ -64,8 +64,7 @@ describe("LocalStorageRepository", () => {
     expect(project?.activeTaskId).not.toBe(seeded.task.id);
   });
 
-  it("merges a failed case into one issue and enforces the close gate", async () => {
-    const seeded = await completedRun(["03"]);
+  it("merges a failed case into one issue and enforces the close gate", async () => {    const seeded = await completedRun(["03"]);
     const issue = seeded.project.issues[0];
     expect(issue).toBeDefined();
     expect(issue?.status).toBe("pending");
@@ -236,5 +235,71 @@ describe("LocalStorageRepository", () => {
     localStorage.setItem("aitest.panel.v1", "{not-json");
     const repo = new LocalStorageRepository();
     await expect(repo.listProjects()).rejects.toMatchObject({ code: "FORMAT" });
+  });
+
+  it("restores a link node after a later assertion passes", async () => {
+    const seeded = await completedRun(["01"]);
+    await seeded.repo.importLink(seeded.projectId, seeded.runId, {
+      nodes: [
+        { id: "node_1", name: "请求到达", state: "failed", detail: "500", evidenceRef: "app.py:10" },
+      ],
+      assertions: [],
+      gaps: [],
+      location: { known: true, path: "app.py", line: 10, reason: "" },
+      unknown: "",
+    });
+    await seeded.repo.assertLink(seeded.projectId, seeded.runId, {
+      nodeId: "node_1",
+      expected: "200",
+      actual: "200",
+      operator: "equals",
+    });
+    const project = await seeded.repo.getProject(seeded.projectId);
+    const run = project?.tasks.flatMap((task) => task.runs).find((entry) => entry.id === seeded.runId);
+    expect(run?.link?.nodes[0]?.state).toBe("passed");
+    expect(run?.link?.location.known).toBe(false);
+  });
+
+  it("appends an occurrence when the same manual issue signature is registered again", async () => {
+    const seeded = await completedRun(["01"]);
+    const itemId = seeded.task.acceptanceItems[0]?.id as string;
+    const input = {
+      taskId: seeded.task.id,
+      itemId,
+      title: "人工已知问题",
+      expected: "预期",
+      actual: "实际",
+      steps: ["步骤"],
+      severity: "P2" as const,
+    };
+    const first = await seeded.repo.createIssue(seeded.projectId, input);
+    const second = await seeded.repo.createIssue(seeded.projectId, input);
+    expect(second.id).toBe(first.id);
+    expect(second.occurrences).toHaveLength(1);
+    expect(second.occurrences[0]?.note).toBe("重复登记同一问题");
+  });
+
+  it("records a manual result after a cancelled run without opening a new run", async () => {
+    const seeded = await completedRun(["03"]);
+    const itemId = seeded.task.selectedItemIds[0] as string;
+    const plan = await seeded.repo.prepareRerun(seeded.projectId, seeded.task.id, [itemId]);
+    await seeded.repo.confirmPlan(seeded.projectId, seeded.task.id, plan.id, {
+      operator: "测试用户",
+      environment: buildEnvironmentChecks(),
+      sideEffects: sideEffectsFor(seeded.project),
+    });
+    const run = await seeded.repo.startRun(seeded.projectId, seeded.task.id, plan.id);
+    await seeded.repo.cancelRun(seeded.projectId, run.id);
+    const manual = run.cases.find((testCase) => testCase.layer === "L3");
+    if (!manual) {
+      throw new Error("fixture did not produce an L3 case");
+    }
+    const updated = await seeded.repo.recordManual(seeded.projectId, run.id, manual.id, {
+      result: "passed",
+      note: "取消后人工核对通过",
+      evidence: [evidence("after-cancel.log")],
+    });
+    expect(updated.status).toBe("cancelled");
+    expect(updated.cases.find((testCase) => testCase.id === manual.id)?.result).toBe("passed");
   });
 });

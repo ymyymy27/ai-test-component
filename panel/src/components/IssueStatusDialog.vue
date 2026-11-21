@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import { ISSUE_STATUS_LABEL } from "@/domain/labels";
 import type { Issue, IssueDisposition, IssueStatus } from "@/domain/types";
+import { useUiStore } from "@/stores/ui";
 
 import Icon from "./Icon.vue";
 
@@ -17,8 +18,10 @@ const emit = defineEmits<{
 }>();
 
 const open = defineModel<boolean>({ default: false });
+const ui = useUiStore();
 const dialogRef = ref<HTMLDialogElement | null>(null);
 const status = ref<IssueStatus>("in_progress");
+const initialStatus = ref<IssueStatus>("in_progress");
 const reason = ref("");
 const disposition = ref<IssueDisposition | null>(null);
 const error = ref("");
@@ -34,7 +37,7 @@ const options = computed<IssueStatus[]>(() => {
   const current = props.issue?.status;
   if (current === "pending") return ["in_progress"];
   if (current === "in_progress") return ["retest", "pending"];
-  if (current === "retest") return ["in_progress"];
+  if (current === "retest") return ["in_progress", "pending"];
   if (current === "closed") return ["in_progress"];
   return [];
 });
@@ -46,8 +49,10 @@ watch(open, async (value) => {
   }
   if (value) {
     status.value = options.value[0] ?? "in_progress";
+    initialStatus.value = status.value;
     reason.value = "";
-    disposition.value = status.value === "retest" ? "fixed" : null;
+    // 处置必须由人明确选择；预置“已修复”会造成未经选择就记录处置。
+    disposition.value = null;
     error.value = "";
     await nextTick();
     if (!dialog.open) {
@@ -58,7 +63,18 @@ watch(open, async (value) => {
   }
 });
 
-function close(): void {
+async function close(): Promise<void> {
+  if (reason.value.trim() || status.value !== initialStatus.value || disposition.value !== null) {
+    const answer = await ui.askConfirm({
+      title: "放弃状态更新？",
+      body: "已选择的状态、理由与处置会丢失。",
+      confirmLabel: "放弃",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
   open.value = false;
 }
 
@@ -66,7 +82,8 @@ function submit(): void {
   if (!props.issue) {
     return;
   }
-  if (status.value !== "pending" && !reason.value.trim()) {
+  const needsReason = reasonRequired.value;
+  if (needsReason && !reason.value.trim()) {
     error.value = "这个状态变化需要写理由。";
     return;
   }
@@ -74,9 +91,22 @@ function submit(): void {
   emit("save", {
     status: status.value,
     reason: reason.value.trim(),
-    disposition: disposition.value,
+    // 只有目标状态是待复测时才带处置；切回其他状态不能残留 fixed。
+    disposition: status.value === "retest" ? disposition.value : null,
   });
 }
+
+const reasonRequired = computed(() => {
+  const current = props.issue?.status;
+  if (current === "closed" && status.value !== "closed") {
+    return true;
+  }
+  return (
+    status.value === "retest" &&
+    disposition.value !== null &&
+    disposition.value !== "fixed"
+  );
+});
 
 function onDialogClick(event: MouseEvent): void {
   if (event.target === dialogRef.value) {
@@ -127,7 +157,7 @@ function onDialogClick(event: MouseEvent): void {
       </div>
       <div class="field" :class="{ 'has-error': error }">
         <label for="issue-reason"
-          >理由 <span v-if="status !== 'pending'" class="optional">必填</span></label
+          >理由 <span v-if="reasonRequired" class="optional">必填</span></label
         >
         <textarea
           id="issue-reason"

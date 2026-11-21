@@ -13,7 +13,7 @@ const emit = defineEmits<{ select: [candidateId: string] }>();
 <template>
   <section class="candidate-section" aria-labelledby="candidate-title">
     <div class="section-head">
-      <span id="candidate-title" class="section-title">或者从目标候选开始</span>
+      <h2 id="candidate-title" class="section-title">或者从目标候选开始</h2>
       <span class="section-note">选中后填入上方目标</span>
     </div>
     <div

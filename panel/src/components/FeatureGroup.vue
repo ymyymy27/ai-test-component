@@ -43,14 +43,6 @@ function toggleFeature(): void {
 <template>
   <details class="scope-group" open>
     <summary>
-      <input
-        ref="featureCheckbox"
-        type="checkbox"
-        :checked="allSelected"
-        :aria-label="filtered ? `选择本筛选中的 ${feature.name}` : `选择业务功能 ${feature.name}`"
-        @click.stop
-        @change="toggleFeature"
-      />
       <span class="scope-group-title">
         {{ feature.name }}
         <span class="scope-group-modules">{{ feature.modules.join(" · ") }}</span>
@@ -61,6 +53,16 @@ function toggleFeature(): void {
       <Icon name="chevron-down" :size="14" class="ledger-chevron" />
     </summary>
     <div class="scope-items">
+      <label class="scope-group-select checkline">
+        <input
+          ref="featureCheckbox"
+          type="checkbox"
+          :checked="allSelected"
+          :aria-label="filtered ? `选择本筛选中的 ${feature.name}` : `选择业务功能 ${feature.name}`"
+          @change="toggleFeature"
+        />
+        <span>选择整个业务功能</span>
+      </label>
       <label v-for="item in feature.items" :key="item.id" class="scope-item">
         <input
           type="checkbox"

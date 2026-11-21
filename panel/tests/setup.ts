@@ -1,10 +1,12 @@
 import { enableAutoUnmount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach } from "vitest";
 
 enableAutoUnmount(afterEach);
 
 beforeEach(() => {
   localStorage.clear();
+  setActivePinia(createPinia());
   document.documentElement.dataset.theme = "light";
   Object.defineProperty(window, "matchMedia", {
     writable: true,

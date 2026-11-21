@@ -49,4 +49,13 @@ describe("GoalComposer", () => {
     const wrapper = mountComposer("验证主流程", true);
     expect(wrapper.get("textarea").attributes("disabled")).toBeDefined();
   });
+
+  it("clears a stale error when a candidate fills the goal from outside", async () => {
+    const wrapper = mountComposer();
+    await wrapper.get("textarea").trigger("keydown", { key: "Enter", ctrlKey: true });
+    expect(wrapper.text()).toContain("先写一句要验证的目标");
+    await wrapper.setProps({ modelValue: "验证候选项的目标" });
+    expect(wrapper.text()).not.toContain("先写一句要验证的目标");
+    expect(wrapper.get("textarea").attributes("aria-invalid")).toBeUndefined();
+  });
 });

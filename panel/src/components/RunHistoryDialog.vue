@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import { durationText } from "@/domain/ids";
 import { RUN_STATUS_LABEL, VERDICT_LABEL, statusText } from "@/domain/labels";
@@ -36,6 +36,19 @@ watch(open, async (value) => {
   }
 });
 
+// 从 /history?run= 首次进入时父组件在挂载前已把 open 设为 true，
+// watch 不是 immediate，需要在挂载后补一次 showModal。
+onMounted(async () => {
+  if (!open.value) {
+    return;
+  }
+  await nextTick();
+  const dialog = dialogRef.value;
+  if (dialog && !dialog.open) {
+    dialog.showModal();
+  }
+});
+
 function close(): void {
   open.value = false;
 }
@@ -65,7 +78,9 @@ function onDialogClick(event: MouseEvent): void {
     <div v-if="run" class="dialog-form">
       <header class="dialog-head">
         <div>
-          <h2 id="run-dialog-title" class="dialog-title">{{ task?.title ?? "任务已归档" }}</h2>
+          <h2 id="run-dialog-title" class="dialog-title">
+            {{ run.taskTitle || task?.title || "任务已归档" }}
+          </h2>
           <p class="dialog-text">
             {{ RUN_STATUS_LABEL[run.status] }} · {{ VERDICT_LABEL[run.verdict] }} ·
             {{ new Date(run.startedAt).toLocaleString("zh-CN") }} ·
@@ -106,7 +121,7 @@ function onDialogClick(event: MouseEvent): void {
           <dd>{{ report ? `第 ${report.version} 版` : "没有报告" }}</dd>
         </div>
       </dl>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="运行验收项明细表">
         <table class="table">
           <thead>
             <tr>
@@ -139,8 +154,7 @@ function onDialogClick(event: MouseEvent): void {
       </div>
       <p class="doc-note">
         这是只读快照：文字来自运行启动时的任务、计划与用例快照，不跟随当前任务变化。
-      </p>
-      <footer class="dialog-actions">
+      </p>      <footer class="dialog-actions">
         <button class="btn" type="button" @click="close">关闭</button>
         <button class="btn" type="button" @click="emit('openResult')">查看运行结果</button>
         <button v-if="report" class="btn btn-primary" type="button" @click="openReport">

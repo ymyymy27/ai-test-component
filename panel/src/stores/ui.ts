@@ -65,7 +65,6 @@ export const useUiStore = defineStore("ui", () => {
       return;
     }
     document.documentElement.dataset.theme = resolvedTheme.value;
-    document.documentElement.dataset.themeChoice = theme.value;
   }
 
   function setTheme(next: ThemeChoice): void {
@@ -137,6 +136,11 @@ export const useUiStore = defineStore("ui", () => {
   function presentToast(next: ToastState): void {
     toast.value = next;
     toastVisible.value = true;
+    // 错误要保留到用户主动关闭；自动消失会让对话框内的保存失败无从追查。
+    if (next.tone === "error") {
+      toastTimer = null;
+      return;
+    }
     toastTimer = setTimeout(dismissToast, 3400);
   }
 
@@ -170,6 +174,11 @@ export const useUiStore = defineStore("ui", () => {
 
   function askConfirm(options: ConfirmOptions): Promise<string | null> {
     return new Promise<string | null>((resolve) => {
+      // 并发确认会把第一个 Promise 永久挂起；先让旧请求明确取消。
+      const previous = confirmRequest.value;
+      if (previous) {
+        previous.resolve(null);
+      }
       confirmRequest.value = { ...options, resolve };
     });
   }

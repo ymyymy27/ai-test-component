@@ -34,8 +34,12 @@ async function clearAndRetry(): Promise<void> {
   if (answer === null) {
     return;
   }
-  await workspace.clearData();
-  await router.replace("/setup");
+  try {
+    await workspace.clearData();
+    await router.replace("/setup");
+  } catch {
+    // store 已提示；宿主模式不能从面板清空 CLI 工作空间。
+  }
 }
 
 onMounted(() => {
@@ -56,7 +60,12 @@ onMounted(() => {
       retry-label="重新读取"
       @retry="resolve"
     >
-      <button class="btn btn-sm" type="button" @click="clearAndRetry">
+      <button
+        v-if="workspace.capabilities.browserBackup"
+        class="btn btn-sm"
+        type="button"
+        @click="clearAndRetry"
+      >
         清空本地数据并重新开始
       </button>
     </ErrorState>

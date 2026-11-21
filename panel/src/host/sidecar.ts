@@ -18,6 +18,7 @@ export interface StageOverride {
 }
 
 export interface HostSidecarState {
+  schemaVersion: number;
   lastProjectId: string;
   activeTask: Record<string, string>;
   scopes: Record<string, string[]>;
@@ -32,9 +33,11 @@ export interface HostSidecarState {
 }
 
 const KEY = "aitest.host.ui.v1";
+const SCHEMA_VERSION = 2;
 
 function emptyState(): HostSidecarState {
   return {
+    schemaVersion: SCHEMA_VERSION,
     lastProjectId: "",
     activeTask: {},
     scopes: {},
@@ -79,7 +82,13 @@ export class HostSidecar {
       if (!isRecord(parsed)) {
         return emptyState();
       }
+      const version = typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : 1;
+      if (version > SCHEMA_VERSION) {
+        // 更新版本的面板写过新结构；旧面板不猜字段，按空状态处理。
+        return emptyState();
+      }
       return {
+        schemaVersion: SCHEMA_VERSION,
         lastProjectId: typeof parsed.lastProjectId === "string" ? parsed.lastProjectId : "",
         activeTask: isRecord(parsed.activeTask) ? (parsed.activeTask as Record<string, string>) : {},
         scopes: isRecord(parsed.scopes) ? (parsed.scopes as Record<string, string[]>) : {},
@@ -220,6 +229,49 @@ export class HostSidecar {
   addQuickCheck(projectId: string, value: QuickCheck): void {
     const list = this.state.quickChecks[projectId] ?? [];
     this.state.quickChecks[projectId] = [value, ...list].slice(0, 20);
+    this.save();
+  }
+
+  /** 删除已不存在的项目/任务/计划派生状态，避免 sidecar 无界增长。 */
+  prune(projectId: string, taskIds: string[], planIds: string[]): void {
+    const taskSet = new Set(taskIds);
+    const planSet = new Set(planIds);
+    [this.state.scopes, this.state.recommended, this.state.stage, this.state.templates].forEach(
+      (record) => {
+        Object.keys(record).forEach((key) => {
+          if (!taskSet.has(key)) {
+            delete record[key];
+          }
+        });
+      },
+    );
+    Object.keys(this.state.confirmations).forEach((key) => {
+      if (!planSet.has(key)) {
+        delete this.state.confirmations[key];
+      }
+    });
+    if (this.state.activeTask[projectId] && !taskSet.has(this.state.activeTask[projectId])) {
+      delete this.state.activeTask[projectId];
+    }
+    this.save();
+  }
+
+  pruneProjects(existingProjectIds: string[]): void {
+    const known = new Set(existingProjectIds);
+    [this.state.analysis, this.state.ignored, this.state.github, this.state.quickChecks].forEach(
+      (record) => {
+        Object.keys(record).forEach((key) => {
+          if (!known.has(key)) {
+            delete record[key];
+          }
+        });
+      },
+    );
+    Object.keys(this.state.activeTask).forEach((key) => {
+      if (!known.has(key)) {
+        delete this.state.activeTask[key];
+      }
+    });
     this.save();
   }
 }

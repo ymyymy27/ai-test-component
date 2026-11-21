@@ -54,7 +54,7 @@ function toggleWarnings(event: Event): void {
 <template>
   <section class="confirm-block" :class="{ 'is-active': checked }" aria-labelledby="confirm-title">
     <div class="confirm-head">
-      <span id="confirm-title" class="confirm-title">执行前确认</span>
+      <h2 id="confirm-title" class="confirm-title">执行前确认</h2>
       <span class="confirm-note">确认绑定计划版本、范围、环境、依赖与副作用</span>
     </div>
     <p v-if="stale" class="notice is-warn" role="alert">

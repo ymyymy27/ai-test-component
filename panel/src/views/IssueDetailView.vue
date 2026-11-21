@@ -46,6 +46,11 @@ const occurrenceCount = computed(
 const statusOpen = ref(false);
 const statusError = ref("");
 const closing = ref(false);
+const rerunBusy = computed(
+  () =>
+    Boolean(issue.value?.taskId) &&
+    workspace.busyKey(`rerun:${issue.value?.taskId}`),
+);
 
 function runLabel(runId: string): string {
   if (!runId) {
@@ -114,7 +119,10 @@ async function closeIssue(): Promise<void> {
 }
 
 async function rerun(): Promise<void> {
-  if (!issue.value || !issue.value.itemId) {
+  if (!issue.value || rerunBusy.value) {
+    return;
+  }
+  if (!issue.value.itemId) {
     ui.showToast("这个问题没有绑定验收项，不能按验收项重跑。", "info");
     return;
   }
@@ -217,7 +225,7 @@ async function rerun(): Promise<void> {
 
     <section class="section">
       <h2 class="section-title-lg">发生记录</h2>
-      <div v-if="issue.occurrences.length" class="table-wrap">
+      <div v-if="issue.occurrences.length" class="table-wrap" tabindex="0" role="region" aria-label="问题发生记录表">
         <table class="table">
           <thead>
             <tr>
@@ -291,11 +299,12 @@ async function rerun(): Promise<void> {
         <button
           class="btn"
           type="button"
-          :disabled="!issue.itemId"
+          :disabled="!issue.itemId || rerunBusy"
+          :aria-busy="rerunBusy"
           :title="issue.itemId ? undefined : '未绑定验收项，无法按项重跑'"
           @click="rerun"
         >
-          {{ issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
+          {{ rerunBusy ? "正在准备重跑…" : issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
         </button>
       </div>
     </section>
@@ -304,11 +313,12 @@ async function rerun(): Promise<void> {
       <button
         class="btn btn-sm"
         type="button"
-        :disabled="!issue.itemId"
+        :disabled="!issue.itemId || rerunBusy"
+        :aria-busy="rerunBusy"
         :title="issue.itemId ? undefined : '未绑定验收项，无法按项重跑'"
         @click="rerun"
       >
-        {{ issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
+        {{ rerunBusy ? "正在准备重跑…" : issue.itemId ? "去重跑这一项" : "未绑定验收项，无法按项重跑" }}
       </button>
     </section>
     <section v-else class="section">

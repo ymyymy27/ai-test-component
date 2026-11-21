@@ -4,7 +4,7 @@ import type { Issue, IssueDisposition, IssueOccurrence, IssueStatus, Run, RunCas
 const TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
   pending: ["in_progress"],
   in_progress: ["pending", "retest"],
-  retest: ["in_progress", "closed"],
+  retest: ["in_progress", "pending"],
   closed: ["in_progress"],
 };
 
@@ -20,8 +20,8 @@ export function canTransitionIssue(from: IssueStatus, to: IssueStatus): boolean 
 }
 
 export function issueTransitionNeedsReason(from: IssueStatus, to: IssueStatus): boolean {
-  void from;
-  return to !== "pending";
+  // 与 CLI 对齐：只有从已关闭重新打开必须写原因；处置值另有理由要求。
+  return from === "closed" && to !== "closed";
 }
 
 export function applyIssueUpdate(
@@ -47,6 +47,14 @@ export function applyIssueUpdate(
     }
     if (issueTransitionNeedsReason(issue.status, status) && !reason) {
       throw new IssueTransitionError("这个状态变化需要写理由。");
+    }
+    if (
+      status === "retest" &&
+      patch.disposition &&
+      patch.disposition !== "fixed" &&
+      !reason
+    ) {
+      throw new IssueTransitionError("非缺陷、重复或延期必须写理由。");
     }
   }
   const reopening = issue.status === "closed" && status === "in_progress";

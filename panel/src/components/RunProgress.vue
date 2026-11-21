@@ -40,6 +40,7 @@ const currentItem = computed(() =>
       <span v-if="run.simulated" class="badge is-accent">本地模拟</span>
     </div>
     <div
+      v-if="total > 0"
       class="progress"
       role="progressbar"
       aria-label="检查完成进度"
@@ -53,6 +54,7 @@ const currentItem = computed(() =>
       </div>
       <span class="progress-text">{{ done }} / {{ total }}</span>
     </div>
+    <p v-else class="field-hint">这次运行没有可执行的用例检查；项目级检查单独记录。</p>
     <div class="current-case">
       <span class="visually-hidden" aria-live="polite">
         {{ current ? `正在执行 ${current.title}` : "正在收尾" }}

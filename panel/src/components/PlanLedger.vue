@@ -11,21 +11,36 @@ const props = defineProps<{
   task: Task;
 }>();
 
-const groups = computed(() =>
-  props.plan.scope.acceptanceItemIds
-    .map((itemId) => {
-      const item = props.task.acceptanceItems.find((entry) => entry.id === itemId);
-      return {
-        itemId,
-        no: item?.no ?? "",
-        text: item?.text ?? "验收项已归档",
-        cases: props.plan.cases.filter((testCase) =>
-          [testCase.itemId, ...testCase.extraItemIds].filter(Boolean).includes(itemId),
-        ),
-      };
-    })
-    .sort((first, second) => compareItemNo(first.no, second.no)),
-);
+const groups = computed(() => {
+  const scoped = props.plan.scope.acceptanceItemIds.map((itemId) => {
+    const item = props.task.acceptanceItems.find((entry) => entry.id === itemId);
+    return {
+      itemId,
+      no: item?.no ?? "",
+      text: item?.text ?? "验收项已归档",
+      cases: props.plan.cases.filter((testCase) =>
+        [testCase.itemId, ...testCase.extraItemIds].filter(Boolean).includes(itemId),
+      ),
+    };
+  });
+  const unbound = props.plan.cases.filter(
+    (testCase) =>
+      ![testCase.itemId, ...testCase.extraItemIds]
+        .filter(Boolean)
+        .some((itemId) => props.plan.scope.acceptanceItemIds.includes(itemId)),
+  );
+  if (unbound.length > 0) {
+    scoped.push({
+      itemId: "__unbound__",
+      no: "—",
+      text: "未绑定验收项的检查",
+      cases: unbound,
+    });
+  }
+  return scoped
+    .filter((group) => group.cases.length > 0 || group.itemId !== "__unbound__")
+    .sort((first, second) => compareItemNo(first.no, second.no));
+});
 
 const firstOpen = computed(() => groups.value[0]?.itemId ?? "");
 const elementMap = new Map<string, HTMLElement>();

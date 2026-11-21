@@ -116,9 +116,16 @@ watch(
   },
 );
 
-const initialTaskId = computed(() =>
-  taskFilter.value !== "all" ? taskFilter.value : (workspace.currentTask?.id ?? ""),
-);
+const initialTaskId = computed(() => {
+  if (taskFilter.value !== "all") {
+    return taskFilter.value;
+  }
+  const current = workspace.currentTask;
+  if (current && tasks.value.some((task) => task.id === current.id)) {
+    return current.id;
+  }
+  return tasks.value[0]?.id ?? "";
+});
 
 function openCreate(): void {
   if (tasks.value.length === 0) {

@@ -193,10 +193,17 @@ onBeforeRouteLeave(async () => {
   return answer !== null;
 });
 
-function selectSection(id: string): void {
+async function selectSection(id: string): Promise<void> {
   activeSection.value = id;
   if (route.query.section !== id) {
     void router.replace({ query: { ...route.query, section: id } });
+  }
+  // 分区导航只切 tabpanel 不移动焦点；读屏会以为还停在导航上。
+  await nextTick();
+  const panel = document.getElementById(id);
+  if (panel) {
+    panel.setAttribute("tabindex", "-1");
+    panel.focus();
   }
 }
 

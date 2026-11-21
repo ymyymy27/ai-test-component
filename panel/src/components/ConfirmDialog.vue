@@ -105,6 +105,7 @@ onBeforeUnmount(() => {
           :placeholder="ui.confirmRequest.placeholder"
           :aria-describedby="textError ? 'confirm-dialog-error' : undefined"
           :aria-invalid="textError ? 'true' : undefined"
+          @input="textError = ''"
         />
         <p v-if="textError" id="confirm-dialog-error" class="field-error" role="alert">
           {{ textError }}

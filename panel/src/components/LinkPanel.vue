@@ -4,8 +4,11 @@ import { computed, ref, watch } from "vue";
 import { LINK_STATE_LABEL } from "@/domain/labels";
 import type { LinkData, LinkNode } from "@/domain/types";
 import type { LinkAssertInput } from "@/repositories/ProjectRepository";
+import { useUiStore } from "@/stores/ui";
 import Icon from "./Icon.vue";
 import StatusMark from "./StatusMark.vue";
+
+const ui = useUiStore();
 
 const props = defineProps<{
   link: LinkData | null;
@@ -106,19 +109,36 @@ function parseLink(text: string): LinkData {
   };
 }
 
-function submitLink(): void {
+async function submitLink(): Promise<void> {
   error.value = "";
   if (!raw.value.trim()) {
     error.value = "先粘贴或填写链路 JSON。";
     return;
   }
+  let parsed: LinkData;
   try {
-    const parsed = parseLink(raw.value);
-    emit("load", parsed);
-    // 保存成功时 link 会更新；失败时保留粘贴内容，避免重新输入。
+    parsed = parseLink(raw.value);
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "链路 JSON 不合法。";
+    return;
   }
+  if (props.link && (props.link.nodes.length > 0 || props.link.assertions.length > 0)) {
+    const answer = await ui.askConfirm({
+      title: "替换已导入的链路？",
+      body: "导入会整体替换当前节点、缺口与断言；已有关联断言不会保留。",
+      confirmLabel: "替换链路",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
+  // 节点集合会变化，旧 nodeId 可能不存在；清空选择避免对旧节点补断言。
+  nodeId.value = "";
+  expected.value = "";
+  actual.value = "";
+  emit("load", parsed);
+  // 保存成功时 link 会更新；失败时保留粘贴内容，避免重新输入。
 }
 
 watch(
@@ -127,6 +147,9 @@ watch(
     if (value && value !== previous) {
       raw.value = "";
       error.value = "";
+      nodeId.value = "";
+      expected.value = "";
+      actual.value = "";
     }
   },
 );

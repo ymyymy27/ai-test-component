@@ -79,11 +79,11 @@ onMounted(async () => {
   }
   const staleCandidates =
     project.value.analysisStatus === "ready" && candidates.value.length === 0;
+  // 分析失败后不自动重试：模型不可用时每次进入页面都调用会反复产生费用；
+  // 由失败提示里的“重新分析”显式触发。
   if (
     !analysisBusy.value &&
-    (project.value.analysisStatus === "idle" ||
-      project.value.analysisStatus === "failed" ||
-      staleCandidates)
+    (project.value.analysisStatus === "idle" || staleCandidates)
   ) {
     try {
       await workspace.analyzeProject(projectId.value);

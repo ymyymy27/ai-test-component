@@ -248,22 +248,6 @@ select {
   margin-top: 3px;
 }
 
-.path-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
-}
-
-.inline-code {
-  padding: 1px 5px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-row);
-  background: var(--surface-2);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-}
-
 /* ---------- status ---------- */
 .status-mark {
   display: inline-grid;
@@ -368,30 +352,6 @@ select {
   color: var(--ink-3);
 }
 
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ink-3);
-}
-
-.dot.is-ok {
-  background: var(--pass);
-}
-
-.dot.is-running {
-  background: var(--accent);
-}
-
-.dot.is-fail {
-  background: var(--fail);
-}
-
-.dot.is-warn {
-  background: var(--warn);
-}
-
 /* ---------- surfaces / stats ---------- */
 .surface-strip {
   padding: var(--space-3) var(--space-4);
@@ -482,11 +442,6 @@ select {
   color: var(--ink-3);
   font-size: var(--text-12);
   white-space: nowrap;
-}
-
-.overview-summary {
-  color: var(--ink-3);
-  font-size: var(--text-12);
 }
 
 .info-grid {
@@ -859,6 +814,47 @@ select {
   background: var(--fail);
 }
 
+/* 状态不能只靠色相：刻度内叠加可辨符号，灰度/低视力也能区分。 */
+.tick {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-2);
+  font-family: var(--font-num);
+  font-size: var(--text-11);
+  line-height: 1;
+}
+
+.tick.is-passed::before {
+  content: "✓";
+  color: var(--accent-contrast);
+}
+
+.tick.is-failed::before {
+  content: "×";
+  color: var(--on-danger);
+}
+
+.tick.is-blocked::before,
+.tick.is-error::before {
+  content: "!";
+  color: var(--warn);
+}
+
+.tick.is-manual_pending::before {
+  content: "…";
+  color: var(--ink-3);
+}
+
+.tick.is-not_run::before {
+  content: "·";
+  color: var(--ink-3);
+}
+
+.tick.is-unselected::before {
+  content: "–";
+  color: var(--ink-3);
+}
+
 .tick.is-blocked,
 .tick.is-error {
   border-color: var(--warn);
@@ -1134,6 +1130,13 @@ select {
 
 .scope-items {
   padding-bottom: var(--space-2);
+}
+
+.scope-group-select {
+  min-height: 30px;
+  padding: var(--space-1) var(--space-2) var(--space-1) 28px;
+  color: var(--ink-3);
+  font-size: var(--text-12);
 }
 
 .scope-item {
@@ -1611,6 +1614,7 @@ dialog[open] {
   min-width: 0;
   flex: 1;
   font-size: var(--text-16);
+  overflow-wrap: anywhere;
 }
 
 .dialog-text {
@@ -1624,8 +1628,7 @@ dialog[open] {
   position: fixed;
   top: calc(var(--header-h) + var(--space-3));
   right: var(--space-4);
-  z-index: var(--z-toast);
-  max-width: min(420px, calc(100vw - 32px));
+  z-index: var(--z-toast);  max-width: min(420px, calc(100vw - 32px));
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
@@ -1643,6 +1646,18 @@ dialog[open] {
   transition:
     opacity var(--motion-toast) ease,
     transform var(--motion-toast) ease;
+}
+
+/* toast 作为 manual popover 进入顶层，才能出现在模态对话框之上。 */
+.toast[popover] {
+  inset: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  overflow: visible;
+}
+
+.toast[popover]:not(:popover-open) {
+  display: none;
 }
 
 .toast.is-visible {
@@ -1773,10 +1788,6 @@ dialog[open] {
 .env-list,
 .rule-list,
 .boundary-list,
-.config-list {
-  border-top: 1px solid var(--line);
-}
-
 .env-row {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr) auto;
@@ -1847,8 +1858,7 @@ dialog[open] {
   gap: var(--space-2);
 }
 
-.boundary-row,
-.config-row {
+.boundary-row {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
   gap: var(--space-3);
@@ -1857,14 +1867,12 @@ dialog[open] {
   font-size: var(--text-12);
 }
 
-.boundary-row span,
-.config-row dt {
+.boundary-row span {
   color: var(--ink);
   font-weight: 600;
 }
 
-.boundary-row p,
-.config-row dd {
+.boundary-row p {
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }
@@ -1977,28 +1985,6 @@ dialog[open] {
   font-size: var(--text-12);
 }
 
-.setup-contract {
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-row);
-  background: var(--surface-2);
-  font-size: var(--text-12);
-}
-
-.setup-contract strong {
-  display: block;
-  margin-bottom: var(--space-1);
-  color: var(--ink);
-}
-
-.setup-contract ul {
-  display: grid;
-  gap: var(--space-1);
-  padding-left: var(--space-4);
-  color: var(--ink-2);
-  list-style: disc;
-}
-
 .setup-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2013,7 +1999,7 @@ dialog[open] {
   line-height: 1.6;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .setup-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
@@ -2048,14 +2034,6 @@ dialog[open] {
   line-height: 1.55;
 }
 
-.kv-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--ink-3);
-  font-size: var(--text-12);
-}
-
 .divider {
   height: 1px;
   margin: var(--space-3) 0;
@@ -2070,7 +2048,7 @@ dialog[open] {
 }
 
 /* ---------- responsive ---------- */
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .stats-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2096,28 +2074,13 @@ dialog[open] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .table thead {
-    display: none;
+  /* 窄屏保留原生 table 语义：只让滚动容器可聚焦并横向滚动，不改成伪卡片。 */
+  .table-wrap {
+    scrollbar-width: thin;
   }
 
-  .table tr {
-    display: block;
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .table td {
-    display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
-    gap: var(--space-2);
-    padding: 3px 0;
-    border: 0;
-  }
-
-  .table td::before {
-    content: attr(data-label);
-    color: var(--ink-3);
-    font-size: var(--text-12);
+  .table-wrap:focus-visible {
+    outline-offset: -2px;
   }
 
   .env-row {
@@ -2137,8 +2100,7 @@ dialog[open] {
     grid-column: 1 / -1;
   }
 
-  .boundary-row,
-  .config-row {
+  .boundary-row {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
   }
@@ -2340,13 +2302,6 @@ dialog[open] {
   color: var(--ink-2);
 }
 
-.goal-composer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
 .goal-field textarea {
   min-height: 68px;
 }
@@ -2365,31 +2320,6 @@ dialog[open] {
 
 .candidate-section {
   margin-top: var(--space-5);
-}
-
-.candidate-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-
-.candidate-foot .field-hint {
-  flex: 1;
-  min-width: 220px;
-}
-
-.target-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-  color: var(--ink-3);
-  font-size: var(--text-12);
 }
 
 .project-map-stats {
@@ -2476,8 +2406,10 @@ dialog[open] {
 }
 
 .check-name {
+  min-width: 0;
   color: var(--ink);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .check-method {
@@ -2841,7 +2773,7 @@ dialog[open] {
   margin: var(--space-4) 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .acceptance-edit-row {
     grid-template-columns: 44px minmax(0, 1fr) auto;
   }
@@ -2936,7 +2868,7 @@ dialog[open] {
   border-top: 1px solid var(--line);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .test-mode-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-1);
@@ -2965,8 +2897,8 @@ dialog[open] {
 
 @media (max-width: 620px) {
   .link-btn {
-    min-height: 40px;
-    padding: 8px 0;
+    min-height: 36px;
+    padding: 6px 0;
   }
 
   .side-nav button,
@@ -3057,6 +2989,7 @@ dialog[open] {
   .tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
+    padding: 4px 4px 0;
     scrollbar-width: thin;
   }
 
@@ -3074,5 +3007,19 @@ dialog[open] {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+}
+
+/* 横向滚动区用向右淡出提示还有内容；滚动到末尾时提示自然消失。 */
+@media (max-width: 900px) {
+  .settings-index {
+    padding-top: 4px;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+}
+
+@media (max-width: 768px) {
+  .tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
 }

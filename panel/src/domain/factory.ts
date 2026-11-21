@@ -410,6 +410,7 @@ export function buildRun(
     id: newId("run"),
     projectId: project.id,
     taskId: task.id,
+    taskTitle: task.title,
     planId: plan.id,
     kind: "task",
     status: "running",
@@ -610,7 +611,7 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     unmapped: [],
     uncoveredItems: uncovered,
     unverifiedItems: unverified,
-    planWarnings: [],
+    planWarnings: plan?.warnings ?? [],
     evidenceIndex: [...evidence.values()],
     source: {
       runTime: run.startedAt,
@@ -623,6 +624,7 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
         : "未连接",
     },
     summary: summaryParts.join(""),
+    summarySource: "fallback",
     opinion: null,
     status: "final",
   };

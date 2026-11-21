@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { conclusionForRun, displayItemOutcome } from "@/domain/derive";
+import { displayItemOutcome } from "@/domain/derive";
 import { VERDICT_LABEL } from "@/domain/labels";
 import type { CaseResult, Run, Task } from "@/domain/types";
 import CoverageRuler from "./CoverageRuler.vue";
@@ -9,6 +9,7 @@ import CoverageRuler from "./CoverageRuler.vue";
 const props = defineProps<{
   run: Run;
   task: Task;
+  conclusion?: string;
 }>();
 
 const emit = defineEmits<{ select: [itemId: string] }>();
@@ -20,11 +21,22 @@ const outcomes = computed<Record<string, CaseResult>>(() => {
   });
   return map;
 });
-const conclusion = computed(() => props.run.conclusion || conclusionForRun(props.run));
+const conclusionText = computed(
+  () => props.run.conclusion || props.conclusion || "结论未生成（等待报告）。",
+);
 const unselected = computed(() =>
   Math.max(0, props.run.counts.applicable - props.run.counts.selected),
 );
 const guidance = computed(() => {
+  if (props.run.status === "execution_error") {
+    return "运行执行出错，没有形成结论；先查看项目级检查与运行记录，再决定是否重跑。";
+  }
+  if (props.run.status === "cancelled") {
+    return "这次运行已取消，未执行的检查不按通过计；已完成结果仍然有效。";
+  }
+  if (props.run.verdict === "not_applicable") {
+    return "本次没有纳入验收项；如需验证，先回到任务资料选择验收项并生成计划。";
+  }
   if (props.run.verdict === "failed") {
     return "先处理失败项；修复后可只重跑未通过项，或调整范围后重新生成计划。";
   }
@@ -38,7 +50,7 @@ const guidance = computed(() => {
 <template>
   <section class="result-head" aria-labelledby="result-verdict">
     <div>
-      <p class="page-kicker">本次结论</p>
+      <h2 class="page-kicker">本次结论</h2>
       <p id="result-verdict" class="result-verdict" :class="`is-${run.verdict}`">
         {{ VERDICT_LABEL[run.verdict] }}
       </p>
@@ -69,7 +81,7 @@ const guidance = computed(() => {
     :outcomes="outcomes"
     @select="emit('select', $event)"
   />
-  <p class="guidance">{{ conclusion }}</p>
+  <p class="guidance">{{ conclusionText }}</p>
   <p v-if="guidance" class="guidance muted">{{ guidance }}</p>
   <div v-if="run.status === 'cancelled'" class="notice is-old">
     <span>这次运行已取消，已完成的结果仍然有效；停止时正在执行的检查按阻塞记录。</span>

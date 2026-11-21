@@ -5,8 +5,11 @@ import type { Plan } from "@/domain/types";
 import {
   compareItemNo,
   mapConfirmation,
+  mapPlanCase,
+  mapProjectMap,
   mapProjectSummary,
   mapQuickCheck,
+  mapReport,
   mapRun,
   toHostConfig,
 } from "@/host/map";
@@ -33,7 +36,7 @@ describe("host config mapping", () => {
       video: false,
     });
     expect(dto.link).toEqual({ log_paths: ["a.log", "b.log"] });
-    expect(dto.data).toEqual({ cleanup: "npm run clean" });
+    expect(dto.data).toEqual({ cleanup: "npm run clean", data_prefix: "" });
     expect(JSON.stringify(dto)).not.toContain("healthUrl");
     expect(JSON.stringify(dto)).not.toContain("singleFileMb");
   });
@@ -193,5 +196,90 @@ describe("host config mapping", () => {
     expect(confirmation.acceptanceItemIds).toEqual(["item_1"]);
     expect(confirmation.environment).toEqual({});
     expect(confirmation.credentials).toEqual({});
+  });
+
+  it("reads project_revision for the map and never defaults the plan expectation to verified", () => {
+    const sidecar = new HostSidecar();
+    const map = mapProjectMap(
+      { project_revision: 7, source_commit: "abc", business_functions: [] },
+      "proj_1",
+      sidecar,
+    );
+    expect(map?.revision).toBe(7);
+    const planCase = mapPlanCase({
+      case_id: "case_1",
+      acceptance_item_id: "item_1",
+      layer: "L2",
+      expected: "通过",
+    });
+    expect(planCase.expectationVerified).toBe(false);
+  });
+
+  it("tolerates invalid timestamps and missing link arrays", () => {
+    const detail = {
+      run: {
+        run_id: "run_bad_date",
+        plan_id: "plan_1",
+        project_id: "proj_1",
+        scope: { preset: "selected", module_ids: [], acceptance_item_ids: [] },
+        status: "completed",
+        started_at: "",
+        cases: [],
+        evidence_refs: [],
+        analysis: [],
+        dependency_repairs: [],
+      },
+      outcome: "incomplete",
+      counts: { selected: 0, applicable: 0, covered: 0, passed: 0, failed: 0, incomplete: 0 },
+      item_outcomes: [],
+      uncovered_items: [],
+      link: {
+        first_anomaly: null,
+        location: { known: false, reason: "无法定位" },
+      },
+    } as unknown as RunDetail;
+    const run = mapRun(detail, [], []);
+    expect(Number.isFinite(new Date(run.startedAt).getTime())).toBe(true);
+    expect(run.link?.nodes).toEqual([]);
+  });
+
+  it("keeps a not_generated analysis status instead of claiming generated", () => {
+    const report = mapReport(
+      {
+        report_id: "rep_1",
+        run_id: "run_1",
+        outcome: "incomplete",
+        conclusion: "未完成",
+        counts: {},
+        coverage: {},
+        changed_modules: [],
+        unmapped_files: [],
+        evidence_refs: [],
+        mock_judgement: [],
+        real_chain: false,
+        issues: [],
+        issue_count: 0,
+        failure_occurrences: 0,
+        analysis: [{ status: "not_generated", reason: "model_missing" }],
+        layers: { L2: 1 },
+        templates: [],
+        environment: {},
+        uncovered_items: [],
+        unverified_items: [],
+        item_details: [],
+        case_details: [],
+        evidence_index: [],
+        revision: 1,
+      },
+      "p",
+      "t",
+      null,
+      null,
+      [],
+      "未绑定规则",
+    );
+    expect(report.analysis.status).toBe("not_generated");
+    expect(report.analysis.reason).toBe("model_missing");
+    expect(report.layers.L2.total).toBe(1);
   });
 });

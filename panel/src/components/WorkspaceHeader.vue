@@ -28,11 +28,15 @@ function focusToggle(): void {
   toggleButton.value?.focus();
 }
 
+function focusEnv(): void {
+  envButton.value?.focus();
+}
+
 function isEnvButtonTarget(target: EventTarget | null): boolean {
   return target instanceof Node && Boolean(envButton.value?.contains(target));
 }
 
-defineExpose({ focusToggle, isEnvButtonTarget });
+defineExpose({ focusToggle, focusEnv, isEnvButtonTarget });
 </script>
 
 <template>
@@ -90,7 +94,7 @@ defineExpose({ focusToggle, isEnvButtonTarget });
         class="env-button"
         type="button"
         aria-label="查看环境自检"
-        aria-controls="env-popover"
+        :aria-controls="envOpen ? 'env-popover' : undefined"
         :aria-expanded="envOpen ? 'true' : 'false'"
         @click="emit('toggleEnv')"
       >

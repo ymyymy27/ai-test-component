@@ -116,17 +116,15 @@ export class HostRepository implements ProjectRepository {
 
   constructor(private readonly client: Api = api) {}
 
-  private async projectIdList(): Promise<Project[]> {
-    const data = await this.client.listProjects();
-    return data.projects.map((project) => mapProjectSummary(project, this.sidecar));
-  }
-
   private workspacePath(): string {
     return readHostContext()?.workspacePath?.trim() ?? "";
   }
 
   async listProjects(): Promise<Project[]> {
-    return this.projectIdList();
+    const data = await this.client.listProjects();
+    const projects = data.projects.map((project) => mapProjectSummary(project, this.sidecar));
+    this.sidecar.pruneProjects(projects.map((project) => project.id));
+    return projects;
   }
 
   async getProject(projectId: string): Promise<Project | null> {
@@ -197,6 +195,11 @@ export class HostRepository implements ProjectRepository {
       ...quickRuns.filter((entry) => !known.has(entry.id)),
       ...project.quickChecks,
     ];
+    this.sidecar.prune(
+      projectId,
+      project.tasks.map((task) => task.id),
+      project.tasks.flatMap((task) => task.plans.map((plan) => plan.id)),
+    );
     return project;
   }
 
@@ -330,9 +333,18 @@ export class HostRepository implements ProjectRepository {
     if (!project) {
       throw new RepositoryError("NOT_FOUND", "项目不存在。");
     }
-    const candidate = this.sidecar.analysis[projectId]?.candidates.find(
-      (entry) => entry.id === input.candidateId,
-    );
+    const candidate = input.candidateId
+      ? (this.sidecar.analysis[projectId]?.candidates.find(
+          (entry) => entry.id === input.candidateId,
+        ) ?? null)
+      : null;
+    if (input.candidateId && !candidate) {
+      throw new RepositoryError(
+        "NOT_FOUND",
+        "目标候选已失效。",
+        "重新分析项目或改用自定义目标；不要静默退回全部验收项。",
+      );
+    }
     const fallbackCatalog: AcceptanceItem[] =
       project.catalog.length > 0
         ? project.catalog
@@ -497,10 +509,15 @@ export class HostRepository implements ProjectRepository {
     const target =
       itemIds && itemIds.length > 0
         ? itemIds
-        : task.selectedItemIds.filter((itemId) => {
-            const outcome = task.runs[0]?.items.find((item) => item.itemId === itemId)?.outcome;
-            return outcome !== "passed";
-          });
+        : (() => {
+            // 重跑必须针对正在查看的运行，而不是固定取最新运行。
+            const current =
+              task.runs.find((run) => run.id === task.currentRunId) ?? task.runs[0] ?? null;
+            return task.selectedItemIds.filter((itemId) => {
+              const outcome = current?.items.find((item) => item.itemId === itemId)?.outcome;
+              return outcome !== "passed";
+            });
+          })();
     const selected = target.length > 0 ? target : task.selectedItemIds;
     if (selected.length === 0) {
       throw new RepositoryError("SCOPE_EMPTY", "至少选择 1 项才能准备重跑。");
@@ -617,11 +634,64 @@ export class HostRepository implements ProjectRepository {
       this.sidecar.setConfirmation(plan.id, mapConfirmation(started.confirmation, plan));
     }
     this.sidecar.setStage(taskId, null);
-    const run = await this.getRun(projectId, started.run_id);
-    if (!run) {
-      throw new RepositoryError("NOT_FOUND", "运行启动后无法读取。");
+    try {
+      const run = await this.getRun(projectId, started.run_id);
+      if (run) {
+        return run;
+      }
+    } catch {
+      // 启动已成功，读回失败不能算启动失败，否则重试会创建第二个运行。
     }
-    return run;
+    const selected = plan.scope.acceptanceItemIds;
+    const confirmation = started.confirmation;
+    return {
+      id: started.run_id,
+      projectId,
+      taskId,
+      taskTitle: project?.tasks.find((entry) => entry.id === taskId)?.title ?? "",
+      planId: plan.id,
+      kind: "task",
+      status: "running",
+      postprocess: "pending",
+      startedAt: isoNow(),
+      finishedAt: "",
+      elapsedMs: 0,
+      confirmedBy: confirmation?.confirmed_by ?? confirmedBy,
+      confirmationId: confirmation?.confirmation_id ?? "",
+      confirmationFingerprint: confirmation?.fingerprint ?? "",
+      scope: plan.scope,
+      cases: [],
+      l1: [],
+      items: selected.map((itemId) => ({
+        itemId,
+        no: "",
+        text: itemId,
+        module: "",
+        feature: "",
+        outcome: "not_run",
+        caseIds: [],
+      })),
+      evidence: [],
+      link: null,
+      verdict: "incomplete",
+      counts: {
+        selected: selected.length,
+        applicable: plan.scope.coverage.applicable,
+        covered: 0,
+        passed: 0,
+        failed: 0,
+        incomplete: selected.length,
+      },
+      conclusion: "",
+      reportIds: [],
+      currentCaseId: "",
+      simulated: false,
+      heartbeatAt: isoNow(),
+      cancelRequested: false,
+      environment: {},
+      dependencySuggestions: [],
+      dependencyRepairs: [],
+    };
   }
 
   async getRun(projectId: string, runId: string): Promise<Run | null> {
@@ -807,7 +877,8 @@ export class HostRepository implements ProjectRepository {
     if (!workspace) {
       throw new RepositoryError("VALIDATION", "宿主没有提供工作空间路径。");
     }
-    const path = `${workspace}/exports/${reportId}.md`;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const path = `${workspace}/exports/${reportId}-${stamp}.md`;
     const result = await this.client.exportReport(projectId, reportId, path);
     return {
       filename: basename(result.path),
@@ -1132,10 +1203,11 @@ export class HostRepository implements ProjectRepository {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const path = `${workspace}/backups/aitest-${stamp}.zip`;
     const result = await this.client.createBackup(path, false);
+    const listed = await this.client.listProjects().catch(() => null);
     const info: BackupResult = {
       filename: basename(result.path),
       bytes: result.bytes,
-      projects: 0,
+      projects: listed?.projects.length ?? 0,
       includesEvidence: result.includes_evidence,
       format: "cli",
       path: result.path,

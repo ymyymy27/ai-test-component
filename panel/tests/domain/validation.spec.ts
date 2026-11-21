@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createProjectRecord } from "@/domain/factory";
 import {
   isAbsolutePath,
+  normalizeRoot,
   parseLineList,
   validateProjectConfig,
   validateProjectForm,
@@ -71,5 +72,24 @@ describe("project validation", () => {
 
   it("parses one-item-per-line lists", () => {
     expect(parseLineList("a\n b \n\nc")).toEqual(["a", "b", "c"]);
+  });
+
+  it("normalizes separators and dot segments before comparing project roots", () => {
+    expect(normalizeRoot("D:\\Work\\Service\\")).toBe("d:/work/service");
+    expect(normalizeRoot("D:/work/./service/")).toBe("d:/work/service");
+    expect(normalizeRoot("D:/work/service/sub/..")).toBe("d:/work/service");
+    expect(normalizeRoot("/home/me/../me/service/")).toBe("/home/me/service");
+    expect(normalizeRoot("\\\\server\\share\\service\\")).toBe("//server/share/service");
+    const project = createProjectRecord({ name: "服务", root: "D:\\work\\service" });
+    expect(
+      validateProjectForm({ root: "d:/work/service/./", name: "绕过" }, [project]).ok,
+    ).toBe(false);
+  });
+
+  it("does not reject legitimate keys that merely contain credential words", () => {
+    expect(validateProjectConfig({ data: { tokenizer: "simple" } }).ok).toBe(true);
+    expect(validateProjectConfig({ runners: { monkey: "yes" } }).ok).toBe(true);
+    expect(validateProjectConfig({ model: { fields: { key: "id" } } }).ok).toBe(true);
+    expect(validateProjectConfig({ model: { access_token: "secret" } }).ok).toBe(false);
   });
 });

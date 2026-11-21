@@ -15,6 +15,11 @@ function formatTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
 }
 
+/** Markdown 表格单元格：转义分隔符并把换行压成空格，避免用户文本破坏表结构。 */
+function mdCell(value: string): string {
+  return (value || "—").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
 export function reportMarkdown(project: Project, task: Task, rawReport: Report): string {
   // 旧报告可能缺少后来新增的字段；导出前统一兜底，避免直接读 undefined。
   const report = normalizeReport(rawReport);
@@ -45,7 +50,7 @@ export function reportMarkdown(project: Project, task: Task, rawReport: Report):
     .filter((item) => item.selected)
     .forEach((item) => {
       lines.push(
-        `| ${item.no} | ${item.text} | ${statusText(item.outcome)} | ${item.caseIds.length} |`,
+        `| ${mdCell(item.no)} | ${mdCell(item.text)} | ${statusText(item.outcome)} | ${item.caseIds.length} |`,
       );
     });
   lines.push("");

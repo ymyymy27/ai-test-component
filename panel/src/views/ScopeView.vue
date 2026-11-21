@@ -84,17 +84,19 @@ function syncSelection(): void {
   if (!task.value) {
     return;
   }
-  selected.value = [...task.value.selectedItemIds];
+  // 不适用/待补充的验收项不能出现在选中范围里，否则勾选保存会被仓储拒绝。
+  const applicable = new Set(items.value.map((item) => item.id));
+  selected.value = task.value.selectedItemIds.filter((id) => applicable.has(id));
   if (!initialised.value) {
     initialised.value = true;
     const recommended = task.value.recommendedItemIds;
     const all = items.value.map((item) => item.id);
-    if (all.length > 0 && all.every((id) => task.value?.selectedItemIds.includes(id))) {
+    if (all.length > 0 && all.every((id) => selected.value.includes(id))) {
       mode.value = "all";
     } else if (
       recommended.length > 0 &&
-      recommended.length === task.value.selectedItemIds.length &&
-      recommended.every((id) => task.value?.selectedItemIds.includes(id))
+      recommended.length === selected.value.length &&
+      recommended.every((id) => selected.value.includes(id))
     ) {
       mode.value = "recommended";
     } else {

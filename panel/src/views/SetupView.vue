@@ -105,8 +105,12 @@ async function clearAndRetry(): Promise<void> {
   if (answer === null) {
     return;
   }
-  await workspace.clearData();
-  await workspace.bootstrap();
+  try {
+    await workspace.clearData();
+    await workspace.bootstrap();
+  } catch {
+    // store 已提示；宿主模式不能从面板清空 CLI 工作空间。
+  }
 }
 </script>
 
@@ -126,7 +130,12 @@ async function clearAndRetry(): Promise<void> {
     <div v-if="workspace.status === 'error'" class="notice is-warn" role="alert">
       <span>本地数据无法读取：{{ workspace.error }}</span>
       <button class="btn btn-sm" type="button" @click="retryRead">重新读取</button>
-      <button class="btn btn-sm btn-danger" type="button" @click="clearAndRetry">
+      <button
+        v-if="workspace.capabilities.browserBackup"
+        class="btn btn-sm btn-danger"
+        type="button"
+        @click="clearAndRetry"
+      >
         清空本地数据
       </button>
     </div>

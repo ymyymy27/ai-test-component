@@ -73,9 +73,9 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   await page.selectOption('select[aria-label="按模块筛选验收项"]', { index: 1 });
   await expect(page.locator(".scope-groups .scope-group").first()).toBeVisible();
   await page.selectOption('select[aria-label="按模块筛选验收项"]', "all");
-  await page.locator(".scope-group summary input[type=checkbox]").first().uncheck();
+  await page.locator(".scope-group .scope-group-select input[type=checkbox]").first().uncheck();
   await expect(page.locator(".scope-summary")).toContainText("本次 3 /");
-  await page.locator(".scope-group summary input[type=checkbox]").first().check();
+  await page.locator(".scope-group .scope-group-select input[type=checkbox]").first().check();
   await expect(page.locator(".scope-summary")).toContainText("本次 4 /");
 
   await page.getByRole("button", { name: "生成计划" }).click();

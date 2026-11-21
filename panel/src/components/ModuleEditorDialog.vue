@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from "vue";
 
 import type { Module, ModuleDependency } from "@/domain/types";
 import type { ModuleInput } from "@/repositories/ProjectRepository";
+import { useUiStore } from "@/stores/ui";
 
 const props = defineProps<{
   module: Module | null;
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const open = defineModel<boolean>({ default: false });
+const ui = useUiStore();
 const dialogRef = ref<HTMLDialogElement | null>(null);
 const name = ref("");
 const responsibility = ref("");
@@ -43,7 +45,30 @@ watch(open, async (value) => {
   }
 });
 
-function close(): void {
+function isDirty(): boolean {
+  if (props.module) {
+    return (
+      name.value !== props.module.name ||
+      responsibility.value !== props.module.responsibility ||
+      owner.value !== props.module.owner ||
+      status.value !== props.module.status
+    );
+  }
+  return Boolean(name.value.trim() || responsibility.value.trim() || owner.value.trim());
+}
+
+async function close(): Promise<void> {
+  if (isDirty()) {
+    const answer = await ui.askConfirm({
+      title: "放弃模块编辑？",
+      body: "已填写的模块信息会丢失。",
+      confirmLabel: "放弃",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
   open.value = false;
 }
 
@@ -99,7 +124,7 @@ function onDialogClick(event: MouseEvent): void {
       </header>
       <div class="field" :class="{ 'has-error': error }">
         <label for="module-name">
-          模块名 <span v-if="module" class="optional">创建后不可改</span>
+          模块名 <span v-if="module" class="optional">创建后不可改</span><span v-else class="optional">必填</span>
         </label>
         <input
           id="module-name"
@@ -107,6 +132,7 @@ function onDialogClick(event: MouseEvent): void {
           :disabled="Boolean(module)"
           type="text"
           maxlength="40"
+          :aria-required="module ? undefined : 'true'"
           :aria-invalid="error ? 'true' : undefined"
           :aria-describedby="error ? 'module-name-error' : undefined"
           @input="error = ''"

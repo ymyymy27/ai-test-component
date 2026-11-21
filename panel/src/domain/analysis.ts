@@ -284,24 +284,34 @@ export const BUILTIN_TEMPLATES: TemplateDefinition[] = [
   },
 ];
 
+function hasPageSignal(project: Project): boolean {
+  const parts: string[] = [project.goal, project.name];
+  (project.map?.features ?? []).forEach((feature) => {
+    parts.push(feature.name, ...feature.testableItems, ...feature.entryPoints);
+  });
+  (project.catalog ?? []).forEach((item) => parts.push(item.text, item.featureName));
+  const text = parts.filter(Boolean).join(" ");
+  return /\b(web|ui)\b|页面|前端|按钮|表单|浏览器|路由/i.test(text);
+}
+
 function dispositionFor(
   project: Project,
   templateId: string,
   layer: "L1" | "L2" | "L3",
   itemIdValue: string,
 ): { disposition: TemplateDisposition; reason: string } {
-  if (
-    layer === "L3" &&
-    templateId === "manual-web-workflow" &&
-    !/web|页面|前端|ui/i.test(project.name)
-  ) {
+  const pageSignal = hasPageSignal(project);
+  if (layer === "L3" && templateId === "manual-web-workflow" && !pageSignal) {
     return {
       disposition: "not_applicable",
-      reason: "未识别到可操作页面；如实际存在页面，请改选模板或补充页面入口。",
+      reason: "项目地图、验收项与目标里没有页面信号；如实际存在页面，请改选模板或补充页面入口。",
     };
   }
-  if (itemIdValue === "visual" && !/web|页面|前端|ui/i.test(project.name)) {
-    return { disposition: "unknown", reason: "没有页面材料，无法判断是否适用。" };
+  if (itemIdValue === "visual" && !pageSignal) {
+    return {
+      disposition: "unknown",
+      reason: "项目地图与验收项没有页面材料，无法判断是否适用。",
+    };
   }
   return { disposition: "applicable", reason: "按模板条目纳入本次检查范围。" };
 }

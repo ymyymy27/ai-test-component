@@ -12,10 +12,9 @@
   --ink: #1b201c;
   --ink-2: #4e574f;
   --ink-3: #5b665e;
-  --ink-disabled: #98a19a;
 
   --line: #d8ded8;
-  --line-strong: #8d9a8f;
+  --line-strong: #7f8c81;
   --backdrop: rgba(15, 23, 20, 0.42);
 
   --accent: #205e53;
@@ -63,9 +62,7 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --space-10: 40px;
   --space-12: 48px;
-  --space-16: 64px;
 
   --radius-row: 4px;
   --radius-control: 6px;
@@ -88,10 +85,10 @@
 
   --z-header: 30;
   --z-sidebar: 40;
+  --z-actionbar: 20;
   --z-popover: 45;
   --z-backdrop: 55;
   --z-drawer: 60;
-  --z-dialog: 100;
   --z-toast: 120;
 }
 
@@ -108,7 +105,6 @@
   --ink: #e7ece7;
   --ink-2: #adb8ae;
   --ink-3: #96a298;
-  --ink-disabled: #5b655e;
 
   --line: #2b342d;
   --line-strong: #5f6f63;

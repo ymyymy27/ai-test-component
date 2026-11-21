@@ -17,6 +17,21 @@ test("跳转链接、aria-current 和主内容焦点可用", async ({ page }) =>
   await expect(page.locator(".breadcrumb-current")).toContainText("项目概览");
 });
 
+test("键盘从页面开头 Tab 到跳过链接并进入主内容", async ({ page }) => {
+  const projectId = await createAndRun(page, "Tab 顺序验证", "D:/work/flow-a11y-tab");
+  await page.goto(`/projects/${projectId}/overview`);
+  // 路由聚焦可能已把焦点放到 main；把顺序焦点起点重置到 body，再走真实 Tab。
+  await page.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+  });
+  await page.keyboard.press("Tab");
+  const skip = page.locator(".skip-link");
+  await expect(skip).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+});
+
 test("确认对话框 Esc 关闭并返回触发按钮", async ({ page }) => {
   const projectId = await createAndRun(page, "对话框验证", "D:/work/flow-dialog");
   await page.goto(`/projects/${projectId}/settings`);

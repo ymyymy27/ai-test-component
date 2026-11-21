@@ -2,7 +2,7 @@
 import { computed, nextTick, type ComponentPublicInstance } from "vue";
 
 import { displayItemOutcome, effectiveCaseResult, worstResult } from "@/domain/derive";
-import type { CaseResult, Run, RunCase, RunItem } from "@/domain/types";
+import type { CaseResult, EvidenceRef, Run, RunCase, RunItem } from "@/domain/types";
 import CaseDetail from "./CaseDetail.vue";
 import Icon from "./Icon.vue";
 import StatusMark from "./StatusMark.vue";
@@ -20,7 +20,11 @@ const props = withDefaults(
   { filter: "all", allowManual: false, manualBusyCaseId: "", running: false },
 );
 
-const emit = defineEmits<{ manual: [caseId: string]; resetFilter: []; evidence: [caseId: string] }>();
+const emit = defineEmits<{
+  manual: [caseId: string];
+  resetFilter: [];
+  showEvidence: [evidence: EvidenceRef];
+}>();
 
 const elementMap = new Map<string, HTMLElement>();
 
@@ -116,7 +120,7 @@ defineExpose({ focusItem });
             :allow-manual="allowManual"
             :manual-busy="manualBusyCaseId === testCase.id"
             @manual="emit('manual', $event)"
-            @evidence="emit('evidence', $event)"
+            @show-evidence="emit('showEvidence', $event)"
           />
           <p v-if="casesFor(item.itemId).length === 0" class="doc-note">这个验收项没有用例。</p>
         </div>

@@ -70,12 +70,13 @@ export function simulateOutcome(
     };
   }
   if (!runCase.expectationVerified) {
+    // 预期没有引用验收项原文：执行结果只能算阻塞，不能以 passed 落盘。
     return {
-      result: "passed",
+      result: "blocked",
       actual: "执行返回成功；预期未核实。",
       message: "预期没有引用到验收项原文，按阻塞计。",
-      errorType: "",
-      stackKey: "",
+      errorType: "expectation_unverified",
+      stackKey: "expectation_source",
       evidence: [evidenceFor(run, runCase)],
     };
   }

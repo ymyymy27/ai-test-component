@@ -288,7 +288,7 @@ export interface RunCase {
   attempts: number;
   manualSteps: Array<{
     step: string;
-    result: "passed" | "failed";
+    result: CaseResult;
     note: string;
     at: string;
   }>;
@@ -334,6 +334,8 @@ export interface Run {
   id: string;
   projectId: string;
   taskId: string;
+  /** 启动时任务标题快照；旧运行可能缺失。 */
+  taskTitle?: string;
   planId: string;
   kind: RunKind;
   status: RunStatus;
@@ -518,6 +520,8 @@ export interface Report {
   evidenceIndex: EvidenceRef[];
   source: ReportSource;
   summary: string;
+  /** 摘要来源：ai / fallback / none；旧报告可能缺失。 */
+  summarySource?: "ai" | "fallback" | "none";
   opinion: Opinion | null;
   status: "final" | "superseded";
 }

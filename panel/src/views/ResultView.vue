@@ -19,7 +19,7 @@ import {
   sortedRunItems,
   unselectedItems,
 } from "@/domain/derive";
-import type { CaseResult, Run, RunCase, Task } from "@/domain/types";
+import type { CaseResult, EvidenceRef, Run, RunCase, Task } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { EvidenceInput } from "@/repositories/ProjectRepository";
@@ -160,6 +160,10 @@ const reports = computed(() =>
   project.value && run.value ? reportsForRun(project.value, run.value.id) : [],
 );
 const latestReport = computed(() => reports.value[0] ?? null);
+const exporting = ref(false);
+const reportBusy = computed(
+  () => exporting.value || Boolean(run.value && workspace.busyKey(`report:${run.value.id}`)),
+);
 const unselected = computed(() =>
   task.value && run.value ? unselectedItems(task.value, run.value.scope.acceptanceItemIds) : [],
 );
@@ -240,11 +244,6 @@ async function saveManual(input: {
 
 function openEvidence(): void {
   evidenceCaseId.value = "";
-  evidenceOpen.value = true;
-}
-
-function openEvidenceFor(caseId: string): void {
-  evidenceCaseId.value = caseId;
   evidenceOpen.value = true;
 }
 
@@ -339,10 +338,34 @@ async function regenerate(): Promise<void> {
 }
 
 async function exportReport(reportId: string): Promise<void> {
+  if (exporting.value) {
+    return;
+  }
+  exporting.value = true;
   try {
     await workspace.exportReport(projectId.value, reportId);
   } catch {
     // store 已提示。
+  } finally {
+    exporting.value = false;
+  }
+}
+
+async function showEvidence(evidence: EvidenceRef): Promise<void> {
+  if (workspace.mode === "host" && evidence.sourcePath) {
+    try {
+      await workspace.openHostPath(evidence.sourcePath);
+      return;
+    } catch {
+      // 宿主打不开时退回复制引用。
+    }
+  }
+  const reference = evidence.sourcePath || evidence.name;
+  try {
+    await navigator.clipboard.writeText(reference);
+    ui.showToast(`证据引用已复制：${reference}`, "success");
+  } catch {
+    ui.showToast(`证据引用：${reference}（复制失败，请手动选择）`, "error");
   }
 }
 
@@ -353,7 +376,10 @@ function rerunLabel(): string {
   if (run.value?.verdict === "failed") {
     return "按未通过项重新生成计划";
   }
-  return "按未完成项重新生成计划";
+  if (run.value?.verdict === "incomplete") {
+    return "按未完成项重新生成计划";
+  }
+  return "按原范围重新生成计划";
 }
 </script>
 
@@ -453,11 +479,16 @@ function rerunLabel(): string {
       </span>
     </div>
 
-    <ResultSummary :run="run" :task="task" @select="focusFromSummary" />
+    <ResultSummary
+      :run="run"
+      :task="task"
+      :conclusion="latestReport?.conclusion"
+      @select="focusFromSummary"
+    />
 
-    <section class="section">
+    <section v-if="run.l1.length" class="section" aria-labelledby="result-l1-title">
       <div class="section-head">
-        <span class="section-title">项目级检查</span>
+        <h2 id="result-l1-title" class="section-title">项目级检查</h2>
         <span class="section-note">不计入验收项覆盖</span>
       </div>
       <div class="check-list">
@@ -476,6 +507,7 @@ function rerunLabel(): string {
       :version-count="reports.length"
       :run-status="run.status"
       :postprocess="run.postprocess"
+      :busy="reportBusy"
       @open="(reportId) => router.push(`/projects/${projectId}/reports/${reportId}`)"
       @regenerate="regenerate"
       @export="exportReport"
@@ -525,7 +557,7 @@ function rerunLabel(): string {
       allow-manual
       :manual-busy-case-id="manualCase?.id ?? ''"
       @manual="openManual"
-      @evidence="openEvidenceFor"
+      @show-evidence="showEvidence"
       @reset-filter="filter = 'all'"
     />
 

@@ -56,7 +56,12 @@ const backRoute = computed(() => {
     return `/projects/${currentProject.id}/issues`;
   }
   if (name === "report") {
-    return currentTask ? `${taskBase}/result` : overview;
+    // 报告属于 report.taskId，不是“当前任务”；从历史打开其他任务报告时返回对应结果。
+    const reportId = String(route.params.reportId ?? "");
+    const report = workspace.projectReports.find((entry) => entry.id === reportId);
+    return report?.taskId
+      ? `/projects/${currentProject.id}/tasks/${report.taskId}/result?run=${report.runId}`
+      : overview;
   }
   if (name === "result" || name === "run") {
     return currentTask ? `${taskBase}/plan` : overview;
@@ -218,6 +223,7 @@ async function deleteTask(
     if (wasCurrent) {
       await router.push(`/projects/${projectIdValue}/overview`);
     }
+    sidebarRef.value?.focusTasks();
     ui.showToast("任务已删除。", "success");
   } catch (error) {
     ui.showToast(error instanceof Error ? error.message : "删除失败。", "error");
@@ -266,6 +272,10 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key !== "Escape") {
     return;
   }
+  // 模态对话框在顶层：一次 Esc 只关闭最上层，不能同时关掉抽屉/浮层。
+  if (typeof document !== "undefined" && document.querySelector("dialog[open]")) {
+    return;
+  }
   if (ui.sidebarOpen) {
     event.preventDefault();
     closeSidebar();
@@ -273,6 +283,7 @@ function onKeydown(event: KeyboardEvent): void {
   }
   if (ui.envOpen) {
     ui.closeEnv();
+    void nextTick(() => headerRef.value?.focusEnv());
   }
 }
 

@@ -141,6 +141,8 @@ watch(
   () => route.query.run,
   (runId) => {
     if (typeof runId !== "string") {
+      // 浏览器后退移除了 ?run=：弹窗必须同步关闭，否则 URL 与界面不一致。
+      dialogOpen.value = false;
       return;
     }
     const target = runs.value.find((run) => run.id === runId);
@@ -225,7 +227,7 @@ watch(dialogOpen, (open) => {
             <StatusMark :result="statusTone(run)" :label="statusLabel(run)" />
             <span>
               <span class="row-title">
-                {{ taskFor(run)?.title ?? "任务已归档" }}
+                {{ run.taskTitle || taskFor(run)?.title || "任务已归档" }}
                 <span
                   v-if="taskFor(run)?.currentRunId === run.id"
                   class="badge is-accent"

@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from "vue";
 
 import type { RunCase } from "@/domain/types";
 import type { EvidenceInput } from "@/repositories/ProjectRepository";
+import { useUiStore } from "@/stores/ui";
 import {
   assertMediaBudget,
   fileToEvidence,
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 }>();
 
 const open = defineModel<boolean>({ default: false });
+const ui = useUiStore();
 const dialogRef = ref<HTMLDialogElement | null>(null);
 const caseId = ref("");
 const note = ref("");
@@ -48,7 +50,18 @@ watch(open, async (value) => {
   }
 });
 
-function close(): void {
+async function close(): Promise<void> {
+  if (files.value.length > 0 || note.value.trim() || caseId.value) {
+    const answer = await ui.askConfirm({
+      title: "放弃补充证据？",
+      body: "已选择的文件与说明会丢失。",
+      confirmLabel: "放弃",
+      tone: "danger",
+    });
+    if (answer === null) {
+      return;
+    }
+  }
   open.value = false;
 }
 
@@ -137,12 +150,13 @@ function onDialogClick(event: MouseEvent): void {
         <input id="evidence-note" v-model="note" type="text" maxlength="120" />
       </div>
       <div class="field" :class="{ 'has-error': error }">
-        <span class="field-label">证据文件</span>
+        <span class="field-label">证据文件 <span class="optional">必填</span></span>
         <input
           id="evidence-files"
           class="visually-hidden"
           type="file"
           multiple
+          aria-required="true"
           @change="onFiles"
         />
         <label class="btn btn-sm file-picker" for="evidence-files">选择文件</label>

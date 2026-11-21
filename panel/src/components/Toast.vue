@@ -1,10 +1,45 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { useUiStore } from "@/stores/ui";
 
 const ui = useUiStore();
 const isError = computed(() => ui.toast?.tone === "error");
+const toastRef = ref<HTMLElement | null>(null);
+const supportsPopover =
+  typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
+
+function syncTopLayer(visible: boolean): void {
+  const element = toastRef.value;
+  if (!element || !supportsPopover) {
+    return;
+  }
+  try {
+    if (visible && !element.matches(":popover-open")) {
+      element.showPopover();
+    } else if (!visible && element.matches(":popover-open")) {
+      element.hidePopover();
+    }
+  } catch {
+    // 旧浏览器或重复调用时退化为普通定位元素。
+  }
+}
+
+watch(
+  () => ui.toastVisible,
+  async (visible) => {
+    await nextTick();
+    syncTopLayer(visible);
+  },
+);
+
+onMounted(() => {
+  syncTopLayer(ui.toastVisible);
+});
+
+onBeforeUnmount(() => {
+  syncTopLayer(false);
+});
 
 async function copyToast(): Promise<void> {
   const message = ui.toast?.message;
@@ -22,6 +57,8 @@ async function copyToast(): Promise<void> {
 
 <template>
   <div
+    ref="toastRef"
+    :popover="supportsPopover ? 'manual' : undefined"
     class="toast"
     :class="{
       'is-visible': ui.toastVisible,

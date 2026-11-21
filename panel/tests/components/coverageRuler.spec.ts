@@ -48,4 +48,25 @@ describe("CoverageRuler", () => {
     await wrapper.findAll(".tick")[0]?.trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["ai_1"]);
   });
+
+  it("keeps native button semantics and moves focus with arrow keys", async () => {
+    const wrapper = mount(CoverageRuler, {
+      props: {
+        items,
+        selectedIds: ["ai_1", "ai_2", "ai_3"],
+        outcomes: { ai_1: "passed", ai_2: "failed", ai_3: "blocked" },
+      },
+      attachTo: document.body,
+    });
+    const ticks = wrapper.findAll(".tick");
+    expect(ticks[0]?.element.tagName).toBe("BUTTON");
+    expect(ticks[0]?.attributes("role")).toBeUndefined();
+    expect(ticks[0]?.attributes("aria-label")).toContain("通过");
+    expect(wrapper.find('[role="listitem"]').exists()).toBe(false);
+
+    await ticks[0]?.trigger("keydown", { key: "ArrowRight" });
+    expect(ticks[1]?.attributes("tabindex")).toBe("0");
+    expect(document.activeElement).toBe(ticks[1]?.element);
+    wrapper.unmount();
+  });
 });

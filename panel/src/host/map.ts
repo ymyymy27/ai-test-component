@@ -172,7 +172,8 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
   const data = config.data ?? {};
   const { healthUrl, baseUrl, ...serviceRest } = services;
   const { singleFileMb, mediaMb, video, ...evidenceRest } = evidence;
-  const { logPath, ...linkRest } = link;
+  const { logPath, log_path: legacyLogPath, ...linkRest } = link;
+  void legacyLogPath;
   const dataRest = { ...data };
   delete dataRest.cleanupCommand;
   delete dataRest.cleanup_command;
@@ -213,6 +214,7 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
     data: {
       ...dataRest,
       cleanup: cleanupCommand,
+      data_prefix: str(data.dataPrefix ?? data.data_prefix),
     },
   };
 }
@@ -351,7 +353,7 @@ export function mapProjectMap(
     return null;
   }
   return {
-    revision: num(raw.revision, 1),
+    revision: num(raw.project_revision ?? raw.revision, 0),
     sourceCommit: str(raw.source_commit, "unknown"),
     generatedAt: str(raw.generated_at, isoNow()),
     features: mapFeatures(raw, projectId),
@@ -395,7 +397,7 @@ export function mapPlanCase(dto: PlanCaseDto): PlanCase {
     steps: dto.steps ?? [],
     expected: dto.expected,
     expectationSource: dto.expectation_source ?? "",
-    expectationVerified: dto.expectation_verified !== false,
+    expectationVerified: dto.expectation_verified === true,
     verifyMethod: dto.verify_method ?? "",
     dependencies: dto.dependencies ?? [],
     mockAllowed: dto.mock_allowed !== false,
@@ -554,9 +556,9 @@ function mapLink(raw: LinkLocation | null, runId: string): LinkData | null {
     return null;
   }
   const nodes: LinkNode[] = [
-    ...raw.upstream,
+    ...(raw.upstream ?? []),
     ...(raw.first_anomaly ? [raw.first_anomaly] : []),
-    ...raw.downstream,
+    ...(raw.downstream ?? []),
   ].map((node) => ({
     id: node.node_id,
     name: node.type ? `${node.type} ${node.node_id}` : node.node_id,
@@ -616,7 +618,7 @@ function mapRunCase(
     attempts: dto.attempts.length,
     manualSteps: dto.attempts.map((attempt, index) => ({
       step: `第 ${index + 1} 次尝试`,
-      result: attempt.result === "passed" ? "passed" : "failed",
+      result: asCaseResult(attempt.result, "not_run"),
       note: attempt.message ?? "",
       at: attempt.finished_at ?? attempt.started_at ?? "",
     })),
@@ -661,18 +663,21 @@ export function mapRun(
     };
   });
   items.sort((first, second) => compareItemNo(first.no, second.no));
-  const started = new Date(dto.started_at).getTime();
+  const parsedStarted = new Date(dto.started_at).getTime();
+  const started = Number.isFinite(parsedStarted) ? parsedStarted : Date.now();
+  const startedAt = Number.isFinite(parsedStarted) ? dto.started_at : isoNow();
   const elapsedSeconds = num(dto.elapsed_seconds);
   const elapsedMs = dto.status === "running" ? Math.max(0, Date.now() - started) : elapsedSeconds * 1000;
   return {
     id: dto.run_id,
     projectId: dto.project_id,
     taskId: detail.task?.task_id ?? plan?.task_id ?? "",
+    taskTitle: detail.task?.title ?? "",
     planId: dto.plan_id,
     kind: dto.kind ?? "task",
     status: dto.status,
     postprocess: dto.postprocess ?? "done",
-    startedAt: dto.started_at,
+    startedAt,
     finishedAt:
       dto.status === "running"
         ? ""
@@ -752,8 +757,12 @@ function mapAnalysis(raw: Record<string, unknown>[]): FailureAnalysis {
       nextSteps: [],
     };
   }
+  const status =
+    first.status === "generated" || first.status === "not_generated" || first.status === "invalid"
+      ? first.status
+      : "invalid";
   return {
-    status: first.status === "invalid" ? "invalid" : "generated",
+    status,
     reason: (first.reason as FailureAnalysis["reason"]) ?? "",
     observed: str(first.observed),
     evidenceRefs: strList(first.evidence_refs),
@@ -837,13 +846,12 @@ export function mapReport(
     refs: [],
   };
   const l1 = mapProjectChecks(dto.l1);
-  const l1Layer = {
-    total: l1.length,
-    passed: l1.filter((check) => check.result === "passed").length,
-    failed: l1.filter((check) => check.result === "failed" || check.result === "error").length,
-    incomplete: l1.filter(
-      (check) => !["passed", "failed", "error"].includes(check.result),
-    ).length,
+  const backendLayers = isRecord(dto.layers) ? dto.layers : {};
+  const layerTotal = (key: "L1" | "L2" | "L3"): number => {
+    const value = backendLayers[key];
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : caseLayers[key].total;
   };
   return {
     id: dto.report_id,
@@ -864,7 +872,11 @@ export function mapReport(
     itemDetails,
     caseDetails,
     l1,
-    layers: { ...caseLayers, L1: l1Layer },
+    layers: {
+      L1: { ...caseLayers.L1, total: layerTotal("L1") },
+      L2: { ...caseLayers.L2, total: layerTotal("L2") },
+      L3: { ...caseLayers.L3, total: layerTotal("L3") },
+    },
     issues: records(dto.issues)
       .map((issue) => str(issue.issue_id))
       .filter(Boolean),
@@ -889,6 +901,7 @@ export function mapReport(
       github: dto.github ? "已读取 GitHub 快照" : "未连接",
     },
     summary: dto.summary ?? "",
+    summarySource: dto.summary_source ?? (dto.summary ? "fallback" : "none"),
     opinion: dto.opinion ?? null,
     status: "final",
   };
@@ -902,11 +915,12 @@ export function mapIssue(
   const latest = [...dto.occurrences].sort((first, second) => second.at.localeCompare(first.at))[0];
   const detail = latest ? runs.get(latest.run_id) : undefined;
   const planCase = detail?.plan?.cases.find((testCase) => testCase.case_id === latest?.case_id);
-  const occurrences: IssueOccurrence[] = dto.occurrences.map((occurrence, index) => ({
+  const occurrences: IssueOccurrence[] = dto.occurrences.map((occurrence) => ({
     runId: occurrence.run_id,
     caseId: occurrence.case_id,
     time: occurrence.at,
-    result: index === dto.occurrences.length - 1 ? asCaseResult(dto.last_result) : "not_run",
+    // last_result 只描述最新一次发生，不能按数组下标硬套。
+    result: latest && occurrence.at === latest.at ? asCaseResult(dto.last_result) : "not_run",
     note: "",
     evidenceRefs: occurrence.evidence_refs ?? [],
   }));
@@ -965,10 +979,11 @@ export function mapTask(
   const latestRun = sortedRuns[0] ?? null;
   const override = sidecar.stage[task.task_id];
   let stage: Task["stage"] = "scope";
-  if (override) {
-    stage = "scope";
-  } else if (sortedRuns.some((run) => run.status === "running")) {
+  if (sortedRuns.some((run) => run.status === "running")) {
+    // 真实运行状态优先于 UI 的“调整范围”覆盖，避免运行中还能新建任务。
     stage = "running";
+  } else if (override) {
+    stage = "scope";
   } else if (!latestPlan) {
     stage = "scope";
   } else if (!latestRun) {
@@ -1096,7 +1111,10 @@ export function mapProject(input: {
     mapIssue(dto, project.project_id, input.runDetails),
   );
   const activeTaskId =
-    sidecar.activeTask[project.project_id] ?? tasks[0]?.id ?? null;
+    sidecar.activeTask[project.project_id] &&
+    tasks.some((task) => task.id === sidecar.activeTask[project.project_id])
+      ? sidecar.activeTask[project.project_id]
+      : null;
   const analysis = sidecar.analysis[project.project_id];
   return {
     id: project.project_id,
@@ -1105,7 +1123,7 @@ export function mapProject(input: {
     goal: project.goal ?? "",
     createdAt: project.updated_at ?? isoNow(),
     updatedAt: project.updated_at ?? isoNow(),
-    analysisStatus: analysis?.status ?? "ready",
+    analysisStatus: analysis?.status ?? (projectMap || tasks.length ? "ready" : "idle"),
     analysisStartedAt: "",
     analysisError: analysis?.error ?? "",
     candidates: analysis?.candidates ?? [],
@@ -1136,7 +1154,7 @@ export function mapProjectSummary(
     goal: "",
     createdAt: dto.updated_at ?? isoNow(),
     updatedAt: dto.updated_at ?? isoNow(),
-    analysisStatus: sidecar.analysis[dto.project_id]?.status ?? "ready",
+    analysisStatus: sidecar.analysis[dto.project_id]?.status ?? "idle",
     analysisStartedAt: "",
     analysisError: "",
     candidates: sidecar.analysis[dto.project_id]?.candidates ?? [],

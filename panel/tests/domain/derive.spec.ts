@@ -203,4 +203,55 @@ describe("derived results", () => {
     };
     expect(itemOutcome(bound, extraId)).toBe("failed");
   });
+
+  it("does not report passed for a cancelled or interrupted run", async () => {
+    const seeded = await completedRun(["01"]);
+    const run = seeded.task.runs[0] as Run;
+    expect(verdictForRun({ ...run, status: "cancelled" })).toBe("incomplete");
+    expect(recountRun({ ...run, status: "interrupted" }).verdict).toBe("incomplete");
+  });
+
+  it("recounts item caseIds with caseItemIds instead of the primary item", async () => {
+    const seeded = await completedRun(["01", "02"]);
+    const run = seeded.task.runs[0] as Run;
+    const [first, second] = run.scope.acceptanceItemIds;
+    const bound: Run = {
+      ...run,
+      cases: run.cases.map((testCase) =>
+        testCase.itemId === first
+          ? { ...testCase, caseItemIds: [first, second] as string[], result: "passed" }
+          : testCase,
+      ),
+    };
+    const recounted = recountRun(bound);
+    const secondItem = recounted.items.find((item) => item.itemId === second);
+    expect(secondItem?.caseIds).toContain(bound.cases.find((entry) => entry.itemId === first)?.id);
+  });
+
+  it("uses the latest run for project status instead of any historical failure", async () => {
+    const seeded = await completedRun(["01"]);
+    const project = seeded.project;
+    const task = project.tasks[0];
+    if (!task) {
+      throw new Error("task missing");
+    }
+    const current = task.runs[0] as Run;
+    const oldFailed: Run = {
+      ...current,
+      id: "run_old_failed",
+      startedAt: "2020-01-01T00:00:00.000Z",
+      verdict: "failed",
+    };
+    const nowPassed: Run = {
+      ...current,
+      verdict: "passed",
+      startedAt: "2026-11-21T00:00:00.000Z",
+    };
+    const updated = {
+      ...project,
+      issues: [],
+      tasks: [{ ...task, runs: [nowPassed, oldFailed] }],
+    };
+    expect(projectStatus(updated)).toEqual({ tone: "ok", label: "已就绪" });
+  });
 });
