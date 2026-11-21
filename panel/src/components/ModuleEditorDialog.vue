@@ -98,10 +98,13 @@ function onDialogClick(event: MouseEvent): void {
         </button>
       </header>
       <div class="field" :class="{ 'has-error': error }">
-        <label for="module-name">模块名</label>
+        <label for="module-name">
+          模块名 <span v-if="module" class="optional">创建后不可改</span>
+        </label>
         <input
           id="module-name"
           v-model="name"
+          :disabled="Boolean(module)"
           type="text"
           maxlength="40"
           :aria-invalid="error ? 'true' : undefined"

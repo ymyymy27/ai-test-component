@@ -553,11 +553,26 @@ def cmd_project_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 def cmd_project_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
+    gaps: list[dict[str, str]] = []
+    map_path = _project_map_path(ws, project.project_id)
+    if map_path.is_file():
+        try:
+            record = read_json(map_path)
+        except AiTestError:
+            record = {}
+        unknowns = record.get("unknowns") if isinstance(record, dict) else None
+        if isinstance(unknowns, list):
+            for entry in unknowns:
+                if isinstance(entry, dict):
+                    area = str(entry.get("area") or "").strip()
+                    reason = str(entry.get("reason") or "").strip()
+                    if area:
+                        gaps.append({"area": area, "reason": reason or "未说明"})
     return {
         "project": project.model_dump(mode="json"),
         "modules": [module.model_dump(mode="json") for module in project.modules],
         "binding": {"root": project.root},
-        "gaps": [],
+        "gaps": gaps,
     }
 
 
@@ -570,6 +585,12 @@ def cmd_project_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
     patch = payload.get("patch")
     if not isinstance(patch, dict):
         raise invalid_request("patch 必须是对象")
+    unknown = sorted(set(patch) - {"name", "goal"})
+    if unknown:
+        raise invalid_request(
+            "project.update 不支持这些字段：" + "、".join(unknown),
+            "只允许修改 name 与 goal",
+        )
     data = project.model_dump(mode="json")
     secrets = _project_secrets(ws, project.project_id)
     for key in ("name", "goal"):
@@ -754,11 +775,10 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
 def cmd_module_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    deps = [
-        Dependency.model_validate(item)
-        for item in payload.get("deps", [])
-        if isinstance(item, dict)
-    ]
+    raw_deps = payload.get("deps", [])
+    if not isinstance(raw_deps, list) or any(not isinstance(item, dict) for item in raw_deps):
+        raise invalid_request("deps 必须是对象数组", "每个依赖写成 {to,type,note}")
+    deps = [Dependency.model_validate(item) for item in raw_deps]
     module = Module(
         name=_text({"name": _require(payload, "name")}, "name"),
         responsibility=_text(payload, "responsibility"),
@@ -782,7 +802,29 @@ def cmd_module_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             patch = payload.get("patch", {})
             if not isinstance(patch, dict):
                 raise invalid_request("patch 必须是对象")
-            data.update({k: v for k, v in patch.items() if k in data})
+            allowed = {"name", "responsibility", "owner", "status", "deps"}
+            unknown = sorted(set(patch) - allowed)
+            if unknown:
+                raise invalid_request(
+                    "module.update 不支持这些字段：" + "、".join(unknown),
+                    "只允许 name/responsibility/owner/status/deps；模块 ID 不可修改",
+                )
+            if "name" in patch:
+                raise invalid_request(
+                    "模块名不可修改；请新建模块后更新引用",
+                    "模块名是任务与验收项的引用键",
+                )
+            if "deps" in patch:
+                raw_deps = patch["deps"]
+                if not isinstance(raw_deps, list) or any(
+                    not isinstance(item, dict) for item in raw_deps
+                ):
+                    raise invalid_request("deps 必须是对象数组")
+                data["deps"] = [
+                    Dependency.model_validate(item).model_dump(mode="json")
+                    for item in raw_deps
+                ]
+            data.update({k: v for k, v in patch.items() if k != "deps"})
             project.modules[index] = Module.model_validate(data)
             project.revision += 1
             ws.save_project(project)
@@ -1308,6 +1350,24 @@ def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     patch = payload.get("patch")
     if not isinstance(patch, dict):
         raise invalid_request("patch 必须是对象")
+    allowed = {
+        "title",
+        "goal",
+        "scope",
+        "inputs",
+        "outputs",
+        "executor",
+        "reviewer",
+        "intent",
+        "preconditions",
+        "acceptance_items",
+    }
+    unknown = sorted(set(patch) - allowed)
+    if unknown:
+        raise invalid_request(
+            "task.update 不支持这些字段：" + "、".join(unknown),
+            "只允许资料、意图、前置条件与验收项",
+        )
     revision_path = (
         ws.project_dir(project.project_id) / "tasks" / "revisions" / task.task_id
     ) / f"{task.revision}.json"
