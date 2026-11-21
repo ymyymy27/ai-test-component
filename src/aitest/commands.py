@@ -1166,6 +1166,7 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     if not isinstance(raw_items, list):
         raise invalid_request("acceptance_items 必须是数组")
     ai_extracted = False
+    extraction_error = ""
     if not raw_items:
         requirement = _text(payload, "requirement")
         client = build_client(ws, project.project_id)
@@ -1173,7 +1174,8 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
             try:
                 raw_items = client.extract_acceptance_items(requirement)
                 ai_extracted = True
-            except AiTestError:
+            except AiTestError as exc:
+                extraction_error = exc.info.message
                 raw_items = []
     # No generic fallback item is synthesised: an empty observable set stays empty.
     items = _parse_acceptance_items(
@@ -1218,6 +1220,10 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
         "revision": task.revision,
         "intent": task.intent,
         "origin": task.origin,
+        "acceptance_extraction": {
+            "status": "model_error" if extraction_error else ("model" if ai_extracted else "none"),
+            "message": extraction_error,
+        },
         "acceptance_items": [
             {
                 "item_id": i.item_id,
