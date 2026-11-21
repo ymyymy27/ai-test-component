@@ -162,7 +162,9 @@ def _module_impact(
     return _dedupe(changed), _dedupe(unmapped)
 
 
-def _environment(ws: Workspace, project_id: str) -> dict[str, Any]:
+def _environment(
+    ws: Workspace, project_id: str, run: Run | None = None
+) -> dict[str, Any]:
     config = load_project_config(ws, project_id)
     services: list[dict[str, Any]] = []
     raw_services = config.get("services")
@@ -178,7 +180,12 @@ def _environment(ws: Workspace, project_id: str) -> dict[str, Any]:
                     "start_configured": bool(str(value.get("start") or "").strip()),
                 }
             )
-    return {"python": platform.python_version(), "services": services}
+    # Prefer the fingerprint the worker actually recorded for this run; fall
+    # back to the host interpreter only for runs created before fingerprints.
+    recorded = dict(run.environment) if run is not None else {}
+    recorded.setdefault("python", platform.python_version())
+    recorded["services"] = services
+    return recorded
 
 
 def _load_delivery(
@@ -536,7 +543,7 @@ def build_report(
         rules_version_id=plan.rules_version_id or project.rules_version_id,
         source_commit=source_commit,
         templates=_template_entries(plan),
-        environment=_environment(ws, project.project_id),
+        environment=_environment(ws, project.project_id, run),
         github=github,
         uncovered_items=uncovered,
         unverified_items=unverified_items,

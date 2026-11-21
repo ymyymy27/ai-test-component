@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -70,7 +71,13 @@ def run_http_sequence(
     """
     assertions: list[dict[str, Any]] = []
     last_body = b""
+    deadline = time.monotonic() + timeout_seconds
+    if len(requests) > 50:
+        return RunnerResult(status="error", error="HTTP sequence exceeds 50 requests")
     for index, spec in enumerate(requests):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return RunnerResult(status="blocked", stdout=last_body, error="HTTP sequence timed out")
         if cancelled is not None and cancelled():
             return RunnerResult(status="blocked", stdout=last_body, error="cancelled")
         label = f"request {index + 1}"
@@ -81,6 +88,10 @@ def run_http_sequence(
         url = spec.get("url")
         if not isinstance(url, str) or not url:
             return RunnerResult(status="error", error=f"{label} is missing a url")
+        if urllib.parse.urlsplit(url).scheme.lower() not in {"http", "https"}:
+            return RunnerResult(
+                status="error", error=f"{label} only supports http/https urls"
+            )
 
         headers: dict[str, str] = {}
         raw_headers = spec.get("headers")
@@ -92,27 +103,38 @@ def run_http_sequence(
             headers.setdefault(request_id_header, request_id)
 
         body: bytes | None = None
-        if "form" in spec:
+        has_form = "form" in spec
+        has_json = "json" in spec
+        if has_form and has_json:
+            return RunnerResult(
+                status="error", error=f"{label} cannot send form and json together"
+            )
+        has_content_type = any(key.lower() == "content-type" for key in headers)
+        if has_form:
             form = spec["form"]
             if not isinstance(form, Mapping):
                 return RunnerResult(status="error", error=f"{label} form must be an object")
             body = urllib.parse.urlencode(
                 {str(key): str(value) for key, value in form.items()}
             ).encode("utf-8")
-            headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
-        if "json" in spec:
+            if not has_content_type:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if has_json:
             try:
                 body = json.dumps(spec["json"], ensure_ascii=False).encode("utf-8")
             except (TypeError, ValueError) as error:
                 return RunnerResult(
                     status="error", error=f"{label} json is not serializable: {error}"
                 )
-            headers.setdefault("Content-Type", "application/json")
+            if not has_content_type:
+                headers["Content-Type"] = "application/json"
 
         try:
             request = urllib.request.Request(url, data=body, headers=headers, method=method)
             response_status, response_body = _send(
-                request, timeout_seconds, follow_redirects=bool(spec.get("follow_redirects"))
+                request,
+                max(0.1, min(timeout_seconds, deadline - time.monotonic())),
+                follow_redirects=bool(spec.get("follow_redirects")),
             )
         except ValueError as error:
             return RunnerResult(status="error", error=f"{label} is invalid: {error}")

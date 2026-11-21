@@ -90,10 +90,16 @@ def run_command(
             _kill_process_tree(process)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 process.communicate(timeout=5)
+        out.seek(0, os.SEEK_END)
+        out_size = out.tell()
+        err.seek(0, os.SEEK_END)
+        err_size = err.tell()
         out.seek(0)
         err.seek(0)
         stdout = out.read(_MAX_OUTPUT_BYTES)
         stderr = err.read(_MAX_OUTPUT_BYTES)
+        if out_size > _MAX_OUTPUT_BYTES or err_size > _MAX_OUTPUT_BYTES:
+            stderr += b"\n[output exceeded the 4 MiB capture limit and was truncated]"
     if was_cancelled:
         return RunnerResult(
             status="blocked",

@@ -1129,9 +1129,11 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     for item in items:
         item.text = redact(item.text, secrets)
         item.source = redact(item.source, secrets)
-    origin_value = _text(payload, "origin", "manual")
-    if origin_value not in {"manual", "goal", "range"}:
-        raise invalid_request("origin 只能是 manual、goal 或 range")
+    # ``manual`` stays readable on legacy tasks (models.Task) but new tasks
+    # must declare how their scope was obtained.
+    origin_value = _text(payload, "origin", "goal")
+    if origin_value not in {"goal", "range"}:
+        raise invalid_request("origin 只能是 goal 或 range（manual 仅为旧记录兼容）")
     origin = cast(Literal["manual", "goal", "range"], origin_value)
     raw_map_revision = payload.get("source_map_revision", 0)
     try:

@@ -22,6 +22,10 @@ def _time(case: ElementTree.Element) -> float | None:
 
 def parse_junit(content: bytes) -> list[dict[str, Any]]:
     """Parse ``testcase`` entries from a ``testsuite`` or ``testsuites`` document."""
+    if b"<!DOCTYPE" in content.upper() or b"<!ENTITY" in content.upper():
+        raise ValueError("invalid JUnit XML: DTD and entity declarations are not allowed")
+    if len(content) > 8 * 1024 * 1024:
+        raise ValueError("invalid JUnit XML: report exceeds 8 MiB")
     try:
         root = ElementTree.fromstring(content)
     except ElementTree.ParseError as error:

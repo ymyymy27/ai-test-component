@@ -2093,7 +2093,11 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     _ensure_settled(run)
     confirmed_by = _text(payload, "confirmed_by").strip()
     if not confirmed_by:
-        raise invalid_request("缺少字段：confirmed_by", "安装依赖必须记录确认人")
+        raise AiTestError(
+            "CONFIRMATION_REQUIRED",
+            "缺少字段：confirmed_by",
+            "安装依赖必须记录确认人，带 confirmed_by 与 --confirm 重试",
+        )
     raw_packages = payload.get("packages")
     if not isinstance(raw_packages, list) or not raw_packages:
         raise invalid_request("packages 必须是非空数组", "从本次运行的依赖建议中选择")
@@ -2682,6 +2686,18 @@ def _export_lines(report: Report) -> list[str]:
     ]
     python_version = report.environment.get("python")
     lines.append(f"- 环境 Python：{python_version or '未记录'}")
+    for key, label in (
+        ("python_version", "Python 版本"),
+        ("platform", "平台"),
+        ("venv", "项目 venv"),
+        ("node", "Node 版本"),
+        ("node_path", "Node 路径"),
+        ("node_lock", "Node 锁文件"),
+        ("cwd", "工作目录"),
+    ):
+        value = report.environment.get(key)
+        if value:
+            lines.append(f"- 环境 {label}：{value}")
     services = report.environment.get("services")
     if isinstance(services, list) and services:
         names = [

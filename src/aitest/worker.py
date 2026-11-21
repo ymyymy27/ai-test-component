@@ -846,6 +846,23 @@ _MISSING_MODULE_RE = re.compile(
 )
 
 
+def _has_product_failure(output: bytes) -> bool:
+    """True when output already proves a real assertion/test failure.
+
+    Environment classification must never override this: a mixed run (real
+    failure plus a missing package) stays a product failure.
+    """
+
+    text = output.decode("utf-8", errors="replace")
+    return bool(
+        re.search(r"(?m)^FAIL:", text)
+        or re.search(r"(?m)^FAILED", text)
+        or re.search(r"(?m)^=+ FAILURES =+", text)
+        or "AssertionError" in text
+        or re.search(r"(?m)^E\s+assert\b", text)
+    )
+
+
 def _environment_failure(output: bytes, workdir: Path) -> str:
     """Classify command failures caused by the local environment, not the product.
 
@@ -854,17 +871,12 @@ def _environment_failure(output: bytes, workdir: Path) -> str:
     failures because they may be a real packaging defect.
     """
 
-    text = output.decode("utf-8", errors="replace")
     # A mixed run (real assertion failures plus missing dependencies) must stay
     # a failure; otherwise a real defect could be hidden behind an environment
     # problem.
-    if (
-        re.search(r"(?m)^FAIL:", text)
-        or re.search(r"(?m)^FAILED", text)
-        or re.search(r"(?m)^=+ FAILURES =+", text)
-        or "AssertionError" in text
-    ):
+    if _has_product_failure(output):
         return ""
+    text = output.decode("utf-8", errors="replace")
     match = _MISSING_MODULE_RE.search(text)
     if match:
         top_level = match.group(1).split(".", 1)[0]
@@ -1529,16 +1541,15 @@ def main(argv: list[str] | None = None) -> int:
                                 *screenshots[-1:],
                             ]
                     if result == "failed" and case.verify_method.startswith("command:"):
-                        if suggestion:
+                        combined = b"".join(outputs)
+                        if suggestion and not _has_product_failure(combined):
                             result = "blocked"
                             message = (
                                 f"环境缺少依赖：{suggestion['module']}"
                                 f"（建议安装 {suggestion['package']}）"
                             )
-                        else:
-                            environment_reason = _environment_failure(
-                                b"".join(outputs), workdir
-                            )
+                        elif not suggestion:
+                            environment_reason = _environment_failure(combined, workdir)
                             if environment_reason:
                                 result = "blocked"
                                 message = environment_reason
