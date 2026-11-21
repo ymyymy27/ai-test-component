@@ -4,6 +4,8 @@ import { computed, nextTick, ref, watch } from "vue";
 import { ISSUE_STATUS_LABEL } from "@/domain/labels";
 import type { Issue, IssueDisposition, IssueStatus } from "@/domain/types";
 
+import Icon from "./Icon.vue";
+
 const props = defineProps<{
   issue: Issue | null;
   busy: boolean;
@@ -88,16 +90,7 @@ function onDialogClick(event: MouseEvent): void {
       <header class="dialog-head">
         <h2 id="issue-status-title" class="dialog-title">更新问题状态</h2>
         <button class="icon-btn" type="button" aria-label="关闭" @click="close">
-          <svg
-            viewBox="0 0 16 16"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
-          </svg>
+          <Icon name="close" :size="16" />
         </button>
       </header>
       <p class="dialog-text">

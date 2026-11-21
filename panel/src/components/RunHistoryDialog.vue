@@ -136,11 +136,9 @@ function onDialogClick(event: MouseEvent): void {
         这是只读快照：文字来自运行启动时的任务、计划与用例快照，不跟随当前任务变化。
       </p>
       <footer class="dialog-actions">
+        <button class="btn" type="button" @click="close">关闭</button>
         <button v-if="report" class="btn btn-primary" type="button" @click="openReport">
           查看报告
-        </button>
-        <button class="btn" :class="{ 'btn-primary': !report }" type="button" @click="close">
-          关闭
         </button>
       </footer>
     </div>

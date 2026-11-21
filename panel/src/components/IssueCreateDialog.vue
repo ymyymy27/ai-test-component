@@ -5,6 +5,8 @@ import { parseLineList } from "@/domain/validation";
 import type { Issue, Task } from "@/domain/types";
 import type { IssueCreateInput } from "@/repositories/ProjectRepository";
 
+import Icon from "./Icon.vue";
+
 const props = defineProps<{
   tasks: Task[];
   initialTaskId: string;
@@ -98,16 +100,7 @@ function onDialogClick(event: MouseEvent): void {
       <header class="dialog-head">
         <h2 id="issue-create-title" class="dialog-title">登记问题</h2>
         <button class="icon-btn" type="button" aria-label="关闭" @click="close">
-          <svg
-            viewBox="0 0 16 16"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
-          </svg>
+          <Icon name="close" :size="16" />
         </button>
       </header>
       <p class="dialog-text">保存后进入“待确认”；关闭仍需一次包含该用例的新通过运行。</p>
