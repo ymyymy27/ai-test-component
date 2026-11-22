@@ -1458,6 +1458,75 @@ select {
   color: var(--ink);
 }
 
+.report-data-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+}
+
+.report-data-table th {
+  padding: 10px var(--space-3);
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.report-data-table td {
+  padding: 10px var(--space-3);
+}
+
+.report-data-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+
+.report-data-table tbody tr:hover {
+  background: var(--accent-soft);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-11);
+  white-space: nowrap;
+}
+
+.status-pill.is-passed {
+  background: var(--pass-bg);
+  color: var(--pass);
+}
+
+.status-pill.is-failed {
+  background: var(--fail-bg);
+  color: var(--fail);
+}
+
+.status-pill.is-blocked,
+.status-pill.is-incomplete,
+.status-pill.is-error {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.check-method-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- empty / error / loading ---------- */
 .empty-state,
 .error-state,
