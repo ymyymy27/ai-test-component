@@ -39,16 +39,6 @@ function coverageLabel(kind: string | null | undefined): string {
   );
 }
 
-function coverageClass(kind: string | null | undefined): string {
-  if (kind === "direct") {
-    return "is-pass";
-  }
-  if (kind === "manual") {
-    return "is-neutral";
-  }
-  return "is-warn";
-}
-
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
@@ -607,19 +597,12 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="section-title-lg">
-        项目级检查 <span class="section-count">{{ report.l1.length }}</span>
-      </h2>
+      <h2 class="section-title-lg">项目级检查</h2>
       <div v-if="report.l1.length" class="check-list">
-        <div
-          v-for="check in report.l1"
-          :key="check.key"
-          class="check-row check-row-decorated"
-          :class="`is-${check.result}`"
-        >
+        <div v-for="check in report.l1" :key="check.key" class="check-row">
           <StatusMark :result="check.result" />
           <span class="check-name">{{ check.name }}</span>
-          <code class="check-method-chip">{{ check.method }}</code>
+          <span class="check-method">{{ check.method }}</span>
           <StatusText :result="check.result" />
           <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
@@ -647,9 +630,7 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="section-title-lg">
-        用例明细 <span class="section-count">{{ report.caseDetails.length }}</span>
-      </h2>
+      <h2 class="section-title-lg">用例明细</h2>
       <div v-if="report.caseDetails.length" class="table-wrap" tabindex="0" role="region" aria-label="用例明细表">
         <table class="table">
           <thead>
@@ -663,11 +644,7 @@ function bytesText(bytes: number): string {
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="testCase in report.caseDetails"
-              :key="testCase.caseId"
-              :class="`is-${testCase.result}`"
-            >
+            <tr v-for="testCase in report.caseDetails" :key="testCase.caseId">
               <td class="cell-num" data-label="验收项">{{ testCase.itemNo }}</td>
               <td class="cell-main" data-label="用例">
                 <details class="case-report-detail">
@@ -684,11 +661,7 @@ function bytesText(bytes: number): string {
                   shortMethod(testCase.method)
                 }}</code>
               </td>
-              <td data-label="覆盖">
-                <span class="badge" :class="coverageClass(testCase.coverageKind)">
-                  {{ coverageLabel(testCase.coverageKind) }}
-                </span>
-              </td>
+              <td data-label="覆盖">{{ coverageLabel(testCase.coverageKind) }}</td>
               <td data-label="结果">
                 <StatusMark :result="testCase.result" />
                 <StatusText :result="testCase.result" />
