@@ -1443,6 +1443,8 @@ def main(argv: list[str] | None = None) -> int:
                     if frontend_health:
                         run_env["PLAYWRIGHT_BASE_URL"] = frontend_health
                         run_env["FRONTEND_HOST"] = frontend_health
+                        run_env["DEV_SERVER_URL"] = frontend_health
+                        run_env["FRONTEND_URL"] = frontend_health
         delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
         evidence_settings = _evidence_settings(config)
         request_id_header = _request_id_header(config)

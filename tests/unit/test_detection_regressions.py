@@ -298,6 +298,28 @@ def test_plan_dependencies_skip_node_only_packages() -> None:
     assert _plan_dependencies(cases) == ["playwright", "pytest>=8"]
 
 
+def test_business_file_level_pytest_requires_function_when_known(tmp_path: Path) -> None:
+    case = Case(
+        case_id="case_file",
+        acceptance_item_id="item_1",
+        layer="L2",
+        expected="通过",
+        verify_method="command:python -m pytest backend/tests/test_users.py",
+    )
+    with pytest.raises(AiTestError) as excinfo:
+        _validate_plan_cases(
+            [case],
+            "business",
+            {
+                "root": str(tmp_path),
+                "test_functions": {
+                    "backend/tests/test_users.py": ["test_one"]
+                },
+            },
+        )
+    assert "具体测试函数" in str(excinfo.value)
+
+
 def test_duplicate_scoped_test_command_is_allowed(tmp_path: Path) -> None:
     cases = [
         Case(

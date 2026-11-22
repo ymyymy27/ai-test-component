@@ -834,6 +834,24 @@ def _annotate_case_coverage(
                 f"共用测试节点：{nodes[0]} 同时用于多个验收项，"
                 "不能证明逐项断言"
             )
+    # If every other item sharing a node already has its own direct evidence,
+    # the only item without direct evidence can own this node.
+    direct_items = {
+        item_id
+        for case in cases
+        if case.coverage_kind == "direct"
+        for item_id in case_item_ids(case)
+    }
+    for node, owners in node_items.items():
+        missing = owners - direct_items
+        if len(owners) < 2 or len(missing) != 1:
+            continue
+        target = next(iter(missing))
+        for case in cases:
+            if node not in case.test_nodes or target not in case_item_ids(case):
+                continue
+            case.coverage_kind = "direct"
+            notes.pop(case.case_id, None)
     return notes
 
 
@@ -867,6 +885,31 @@ def _validate_plan_cases(
             raise invalid_request(f"用例 ID 重复：{case.case_id}")
         seen_ids.add(case.case_id)
         _validate_verify_method(case)
+        if intent == "business" and case.layer != "L1":
+            command = case.verify_method.split(":", 1)[1] if ":" in case.verify_method else ""
+            file_match = _TEST_FILE_RE.search(command)
+            if (
+                file_match
+                and "::" not in command
+                and _mapped_test_value(context.get("test_functions"), file_match.group(1))
+            ):
+                raise invalid_request(
+                    f"用例 {case.case_id} 只执行测试文件，未定位到具体测试函数",
+                    "使用 python -m pytest <文件>::<函数>；函数名必须来自 context.test_functions",
+                )
+            playwright_match = _PLAYWRIGHT_NODE_RE.search(command)
+            spec_match = re.search(
+                r"([A-Za-z0-9_./\\-]+\.spec\.ts)\b", command
+            )
+            if (
+                spec_match
+                and not playwright_match
+                and _mapped_test_value(context.get("playwright_tests"), spec_match.group(1))
+            ):
+                raise invalid_request(
+                    f"用例 {case.case_id} 只执行 Playwright spec，未定位到测试标题",
+                    "使用 --grep \"标题\"；标题必须来自 context.playwright_tests",
+                )
         if (
             intent == "business"
             and case.layer != "L1"
