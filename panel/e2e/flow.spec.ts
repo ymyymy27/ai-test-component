@@ -115,7 +115,7 @@ test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → �
   await page.waitForURL(/\/reports\//);
   await expect(page.locator("h1").first()).toHaveText("测试报告");
   await expect(page.getByRole("button", { name: "返回运行结果" })).toBeVisible();
-  await expect(page.locator(".result-verdict")).toHaveText("通过");
+  await expect(page.locator(".report-hero-title")).toHaveText("本范围通过");
   await expect(page.getByRole("heading", { name: "范围与覆盖" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "项目级检查" })).toBeVisible();
 

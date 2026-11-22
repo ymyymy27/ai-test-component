@@ -121,6 +121,97 @@ const layers = computed(() => {
     ...current.layers[layer],
   }));
 });
+const selectedCount = computed(() => report.value?.coverage.selected ?? 0);
+const applicableCount = computed(() => report.value?.coverage.applicable ?? 0);
+const unselectedCount = computed(() =>
+  Math.max(0, applicableCount.value - selectedCount.value),
+);
+const verdictHeadline = computed(() => {
+  const current = report.value;
+  if (!current) {
+    return "";
+  }
+  if (current.verdict === "passed") {
+    return selectedCount.value < applicableCount.value ? "本范围通过" : "全部通过";
+  }
+  if (current.verdict === "failed") {
+    return selectedCount.value < applicableCount.value ? "本范围存在失败" : "存在失败";
+  }
+  if (current.verdict === "incomplete") {
+    return selectedCount.value < applicableCount.value ? "本范围未完成" : "运行未完成";
+  }
+  return VERDICT_LABEL[current.verdict];
+});
+const coverageSegments = computed(() => {
+  const current = report.value;
+  if (!current || applicableCount.value === 0) {
+    return [];
+  }
+  const total = applicableCount.value;
+  const rows = [
+    { key: "passed", label: "通过", count: current.counts.passed },
+    { key: "failed", label: "失败", count: current.counts.failed },
+    { key: "incomplete", label: "未完成", count: current.counts.incomplete },
+    { key: "unselected", label: "未纳入", count: unselectedCount.value },
+  ];
+  return rows
+    .filter((row) => row.count > 0)
+    .map((row) => ({ ...row, percent: (row.count / total) * 100 }));
+});
+
+function parseUncovered(value: string): { id: string; text: string } {
+  const separator = value.search(/[：:]/);
+  if (separator < 0) {
+    return { id: "", text: value };
+  }
+  const id = value.slice(0, separator).trim();
+  const text = value.slice(separator + 1).trim();
+  return id.startsWith("ai_") ? { id, text } : { id: "", text: value };
+}
+
+function shortMethod(method: string): string {
+  const value = (method || "").trim();
+  if (!value || value === "manual" || value.startsWith("manual:")) {
+    return "人工验证";
+  }
+  if (value.startsWith("script:")) {
+    return `脚本 ${value.slice("script:".length).trim()}`;
+  }
+  if (value.startsWith("http:")) {
+    return "HTTP 请求";
+  }
+  const command = value.replace(/^(?:command|pytest):\s*/, "");
+  const pythonNode = command.match(
+    /([^\\/]+\.py)::([A-Za-z0-9_:]+)/,
+  );
+  if (pythonNode) {
+    return `${pythonNode[1]}::${pythonNode[2]}`;
+  }
+  const playwrightNode = command.match(
+    /([^\\/]+\.spec\.ts)\s+--grep\s+"([^"]+)"/,
+  );
+  if (playwrightNode) {
+    return `${playwrightNode[1]} · ${playwrightNode[2]}`;
+  }
+  const bunTest = command.match(/([^\\/]+\.test\.ts)\b/);
+  if (bunTest) {
+    return bunTest[1];
+  }
+  const pythonFile = command.match(/([^\\/]+\.py)\b/);
+  if (pythonFile) {
+    return pythonFile[1];
+  }
+  const compact = command.split("&&").pop()?.trim() || command;
+  return compact.length > 62 ? `${compact.slice(0, 61)}…` : compact;
+}
+
+function evidenceLabel(evidence: EvidenceRef): string {
+  const name = evidence.name.split(/[\\/]/).pop() || evidence.name;
+  if (name.length > 30 || name.startsWith("run_")) {
+    return "查看证据";
+  }
+  return name;
+}
 
 onMounted(async () => {
   if (task.value && workspace.currentTask?.id !== task.value.id) {
@@ -377,18 +468,39 @@ function bytesText(bytes: number): string {
 
     <section class="report-group" aria-label="结论与验收">
     <section class="section">
-      <div class="result-head">
+      <div class="result-head report-hero">
         <div>
-          <p class="page-kicker">结论</p>
-          <p class="result-verdict" :class="`is-${report.verdict}`">
-            {{ VERDICT_LABEL[report.verdict] }}
+          <p class="page-kicker">本次结论</p>
+          <p class="result-verdict report-hero-title" :class="`is-${report.verdict}`">
+            {{ verdictHeadline }}
           </p>
           <p class="report-coverage">
-            本次 <strong class="num">{{ report.coverage.selected }}</strong> /
-            <strong class="num">{{ report.coverage.applicable }}</strong> 项 ·
-            未纳入 {{ Math.max(0, report.coverage.applicable - report.coverage.selected) }} 项
+            已选 <strong class="num">{{ selectedCount }}</strong> /
+            <strong class="num">{{ applicableCount }}</strong> 项
+            <span v-if="unselectedCount">· 未纳入 {{ unselectedCount }} 项</span>
           </p>
-          <p class="page-subtitle">{{ report.conclusion }}</p>
+          <p class="report-conclusion-text">{{ report.conclusion }}</p>
+          <div
+            v-if="coverageSegments.length"
+            class="scope-progress"
+            role="img"
+            :aria-label="`本次覆盖 ${selectedCount} / ${applicableCount} 项，未纳入 ${unselectedCount} 项`"
+          >
+            <span
+              v-for="segment in coverageSegments"
+              :key="segment.key"
+              class="scope-progress-segment"
+              :class="`is-${segment.key}`"
+              :style="{ width: `${segment.percent}%` }"
+              :title="`${segment.label} ${segment.count}`"
+            />
+          </div>
+          <div v-if="coverageSegments.length" class="scope-legend">
+            <span v-for="segment in coverageSegments" :key="segment.key">
+              <i class="scope-dot" :class="`is-${segment.key}`" />
+              {{ segment.label }} {{ segment.count }}
+            </span>
+          </div>
           <div class="report-trust">
             <span class="badge is-neutral">证据 {{ report.evidenceIndex.length }}</span>
             <span class="badge is-neutral">调用链 {{ report.link?.nodes.length ?? 0 }} 节点</span>
@@ -416,30 +528,16 @@ function bytesText(bytes: number): string {
             <strong>{{ report.counts.incomplete }}</strong>
             <span>未完成</span>
           </div>
+          <div class="result-count is-unselected">
+            <strong>{{ unselectedCount }}</strong>
+            <span>未纳入</span>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="section">
       <h2 class="section-title-lg">范围与覆盖</h2>
-      <dl class="info-grid plan-facts">
-        <div class="info-cell">
-          <dt>本次范围</dt>
-          <dd>{{ report.coverage.selected }} / {{ report.coverage.applicable }} 项</dd>
-        </div>
-        <div class="info-cell">
-          <dt>已覆盖</dt>
-          <dd>{{ report.coverage.covered }} 项有执行记录</dd>
-        </div>
-        <div class="info-cell">
-          <dt>未纳入</dt>
-          <dd>{{ report.coverage.unselected }} 项，不计入结论</dd>
-        </div>
-        <div class="info-cell">
-          <dt>失败 / 未完成</dt>
-          <dd>{{ report.counts.failed }} / {{ report.counts.incomplete }}</dd>
-        </div>
-      </dl>
       <div class="table-wrap" tabindex="0" role="region" aria-label="范围与覆盖表">
         <table class="table">
           <thead>
@@ -466,15 +564,22 @@ function bytesText(bytes: number): string {
           </tbody>
         </table>
       </div>
-      <details v-if="report.uncoveredItems.length" class="unselected-block" open>
+      <details v-if="report.uncoveredItems.length" class="unselected-block">
         <summary>
           未纳入本次 {{ report.uncoveredItems.length }} 项 <span class="muted">不计入结论</span>
         </summary>
-        <ul class="list-plain">
-          <li v-for="item in report.uncoveredItems" :key="item">{{ item }}</li>
-        </ul>
+        <div class="coverage-chip-list">
+          <span
+            v-for="item in report.uncoveredItems"
+            :key="item"
+            class="coverage-chip"
+            :title="parseUncovered(item).id || item"
+          >
+            {{ parseUncovered(item).text }}
+          </span>
+        </div>
       </details>
-      <details v-if="report.unverifiedItems.length" class="unselected-block" open>
+      <details v-if="report.unverifiedItems.length" class="unselected-block">
         <summary>
           未核实预期 {{ report.unverifiedItems.length }} 条
           <span class="muted">执行通过也按阻塞计</span>
@@ -483,7 +588,7 @@ function bytesText(bytes: number): string {
           <li v-for="item in report.unverifiedItems" :key="item">{{ item }}</li>
         </ul>
       </details>
-      <details v-if="report.planWarnings?.length" class="unselected-block" open>
+      <details v-if="report.planWarnings?.length" class="unselected-block">
         <summary>计划警告 {{ report.planWarnings.length }} 条</summary>
         <ul class="list-plain">
           <li v-for="item in report.planWarnings ?? []" :key="item">{{ item }}</li>
@@ -493,7 +598,7 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">项目级检查</h2>
-      <div class="check-list">
+      <div v-if="report.l1.length" class="check-list">
         <div v-for="check in report.l1" :key="check.key" class="check-row">
           <StatusMark :result="check.result" />
           <span class="check-name">{{ check.name }}</span>
@@ -502,31 +607,25 @@ function bytesText(bytes: number): string {
           <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
+      <p v-else class="report-empty-note">
+        本次没有项目级检查记录；快速检查或计划中含 L1 用例时会显示在这里。
+      </p>
     </section>
 
     <section class="section">
       <h2 class="section-title-lg">分层计数</h2>
-      <div class="table-wrap" tabindex="0" role="region" aria-label="分层计数表">
-        <table class="table">
-          <thead>
-            <tr>
-              <th scope="col">层</th>
-              <th scope="col">总数</th>
-              <th scope="col">通过</th>
-              <th scope="col">失败</th>
-              <th scope="col">未完成</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="layer in layers" :key="layer.layer">
-              <td class="cell-main" data-label="层">{{ layer.label }}</td>
-              <td data-label="总数">{{ layer.total }}</td>
-              <td data-label="通过">{{ layer.passed }}</td>
-              <td data-label="失败">{{ layer.failed }}</td>
-              <td data-label="未完成">{{ layer.incomplete }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="layer-pills">
+        <span
+          v-for="layer in layers"
+          :key="layer.layer"
+          class="layer-pill"
+          :class="{ 'is-empty': layer.total === 0 }"
+        >
+          <strong>{{ layer.label }}</strong>
+          {{ layer.passed }}/{{ layer.total }} 通过
+          <em v-if="layer.failed">· {{ layer.failed }} 失败</em>
+          <em v-if="layer.incomplete">· {{ layer.incomplete }} 未完成</em>
+        </span>
       </div>
     </section>
 
@@ -557,18 +656,31 @@ function bytesText(bytes: number): string {
                   </p>
                 </details>
               </td>
-              <td data-label="检查方式">{{ testCase.method }}</td>
+              <td data-label="检查方式">
+                <code class="method-short" :title="testCase.method">{{
+                  shortMethod(testCase.method)
+                }}</code>
+              </td>
               <td data-label="覆盖">{{ coverageLabel(testCase.coverageKind) }}</td>
               <td data-label="结果">
                 <StatusMark :result="testCase.result" />
                 <StatusText :result="testCase.result" />
               </td>
               <td data-label="证据">
-                {{
-                  testCase.evidence.length
-                    ? testCase.evidence.map((entry) => entry.name).join("、")
-                    : "—"
-                }}
+                <template v-if="testCase.evidence.length">
+                  <button
+                    class="link-btn"
+                    type="button"
+                    :title="testCase.evidence[0]?.sourcePath || testCase.evidence[0]?.name"
+                    @click="openEvidence(testCase.evidence[0]!)"
+                  >
+                    {{ evidenceLabel(testCase.evidence[0]!) }}
+                  </button>
+                  <span v-if="testCase.evidence.length > 1" class="muted">
+                    +{{ testCase.evidence.length - 1 }}
+                  </span>
+                </template>
+                <span v-else class="muted">—</span>
               </td>
             </tr>
           </tbody>
@@ -577,10 +689,9 @@ function bytesText(bytes: number): string {
       <p v-else class="doc-note">这一版没有保留用例明细。</p>
     </section>
 
-    <section class="section">
+    <section v-if="issues.length" class="section">
       <h2 class="section-title-lg">问题</h2>
-      <p v-if="!issues.length" class="doc-note">本次运行没有产生问题。</p>
-      <div v-if="issues.length" class="list-plain">
+      <div class="list-plain">
         <p v-for="issue in issues" :key="issue.id">
           <button
             class="link-btn"
