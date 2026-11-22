@@ -1421,6 +1421,60 @@ select {
 }
 
 /* ---------- tables ---------- */
+.report-group {
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+}
+
+.report-group > .section {
+  padding: var(--space-4) 0;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.report-group > .section:first-child {
+  border-top: 0;
+}
+
+.report-group .result-head {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.report-group .report-data-table-wrap,
+.report-group .report-form-shell {
+  border: 0;
+  background: transparent;
+}
+
+.report-group .report-form-shell {
+  padding: 0;
+}
+
+.report-group .report-data-table th:first-child,
+.report-group .report-data-table td:first-child {
+  padding-left: 0;
+}
+
+.report-group .report-data-table th:last-child,
+.report-group .report-data-table td:last-child {
+  padding-right: 0;
+}
+
+@media (max-width: 620px) {
+  .report-group {
+    padding: 0 var(--space-3);
+  }
+
+  .report-group > .section {
+    padding: var(--space-3) 0;
+  }
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;
