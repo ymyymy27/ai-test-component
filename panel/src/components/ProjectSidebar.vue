@@ -14,6 +14,7 @@ const props = defineProps<{
   runningTaskId: string | null;
   section: string;
   open: boolean;
+  workspacePath?: string;
   /** 窄屏抽屉打开时把 Tab 焦点限制在侧栏内。 */
   modal?: boolean;
 }>();
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   selectTask: [projectId: string, taskId: string];
   newTask: [projectId: string];
   addProject: [];
+  refreshProjects: [];
   openSettings: [projectId: string];
   openTaskDetails: [projectId: string, taskId: string];
   renameTask: [projectId: string, taskId: string, title: string];
@@ -405,7 +407,22 @@ defineExpose({ focusSearch, focusClose, focusTasks });
     <div class="sidebar-scroll">
       <div class="sidebar-section-label">
         <span>项目</span>
-        <span>{{ visibleProjects.length }}</span>
+        <span class="sidebar-label-actions">
+          <span>{{ visibleProjects.length }}</span>
+          <button
+            class="icon-btn sidebar-refresh"
+            type="button"
+            :title="
+              workspacePath
+                ? `重新读取项目列表（工作空间：${workspacePath}）`
+                : '重新读取项目列表'
+            "
+            aria-label="重新读取项目列表"
+            @click="emit('refreshProjects')"
+          >
+            <Icon name="refresh" :size="13" />
+          </button>
+        </span>
       </div>
       <p v-if="visibleProjects.length === 0" class="side-empty">
         {{ projects.length === 0 ? "还没有项目。先建立一个本地目录。" : "没有匹配的项目。" }}
@@ -414,7 +431,10 @@ defineExpose({ focusSearch, focusClose, focusTasks });
         v-for="project in visibleProjects"
         :key="project.id"
         class="side-project"
-        :class="{ 'is-collapsed': isProjectCollapsed(project.id) }"
+        :class="{
+          'is-collapsed': isProjectCollapsed(project.id),
+          'is-current': project.id === currentProjectId,
+        }"
       >
         <button
           class="side-project-row"
@@ -657,6 +677,9 @@ defineExpose({ focusSearch, focusClose, focusTasks });
         <Icon name="plus" :size="14" />
         建立项目
       </button>
+      <p v-if="workspacePath" class="sidebar-workspace" :title="workspacePath">
+        {{ workspacePath }}
+      </p>
     </div>
   </aside>
 </template>

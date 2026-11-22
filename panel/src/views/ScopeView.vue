@@ -275,7 +275,7 @@ onMounted(async () => {
       @retry="router.push(`/projects/${projectId}/overview`)"
     />
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
       kicker="本次范围"
       :title="task.title"

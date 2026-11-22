@@ -118,10 +118,36 @@ test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → �
   await expect(page.locator(".report-hero-title")).toHaveText("本范围通过");
   await expect(page.getByRole("heading", { name: "范围与覆盖" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "项目级检查" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "分层计数" })).toHaveCount(0);
+
+  await page.locator(".row-filter").first().click();
+  await expect(page.locator(".case-filter")).toContainText("仅看");
+  await expect(page.locator("#case-details .section-note")).toHaveText("1 / 1 条");
+  await page.locator(".case-filter-clear").click();
+  await expect(page.locator(".case-filter")).toHaveCount(0);
+
+  await page.locator(".row-toggle").first().click();
+  await expect(page.locator(".check-detail")).toContainText("本地模拟");
+
+  await page.locator(".scope-note-btn").first().click();
+  await expect(page.locator(".scope-note-panel")).toBeVisible();
+  await page.locator(".scope-note-btn").first().click();
+  await expect(page.locator(".scope-note-panel")).toHaveCount(0);
+
+  await page.locator(".method-open").first().click();
+  await expect(page.locator("dialog[open] .dialog-title")).toHaveText("测试命令");
+  await expect(page.locator(".command-block")).toContainText("启动项目");
+  await page.locator(".dialog-actions .btn").last().click();
+
+  await page.getByRole("button", { name: "查看证据" }).first().click();
+  await expect(page.locator("dialog[open] .dialog-title")).toHaveText("证据详情");
+  await expect(page.locator("dialog[open]")).toContainText("可粘贴到问题记录");
+  await page.locator(".dialog-actions .btn").last().click();
 
   await page.locator("#opinion-text").fill("本次范围通过，可以进入下一轮。");
   await page.getByRole("button", { name: "保存意见" }).click();
-  await expect(page.locator(".notice").first()).toContainText("本次范围通过");
+  await expect(page.locator(".opinion-saved-hint")).toContainText("上次保存");
+  await expect(page.locator("#opinion-text")).toHaveValue("本次范围通过，可以进入下一轮。");
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出 Markdown" }).click();

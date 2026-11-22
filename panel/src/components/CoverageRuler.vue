@@ -59,7 +59,7 @@ function labelFor(status: CaseResult | "unselected"): string {
 </script>
 
 <template>
-  <div v-if="items.length" class="coverage">
+  <div v-if="items.length > 1" class="coverage">
     <div class="ruler" role="group" aria-label="验收项覆盖">
       <button
         v-for="(item, index) in items"
@@ -67,6 +67,7 @@ function labelFor(status: CaseResult | "unselected"): string {
         ref="buttons"
         class="tick"
         :class="`is-${statusFor(item.itemId)}`"
+        :data-no="item.no"
         type="button"
         :tabindex="index === activeIndex ? 0 : -1"
         :title="`第 ${item.no} 项 · ${labelFor(statusFor(item.itemId))}`"

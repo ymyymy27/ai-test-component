@@ -607,3 +607,23 @@ def test_task_delete_removes_task_and_derived_records(
     )
     assert missing["ok"] is False
     assert missing["error"]["code"] == "TASK_NOT_FOUND"
+
+
+def test_backup_excludes_plan_cache_but_keeps_mock_cache(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    _setup_task(tmp_path, capsys)
+    cache = tmp_path / "ws" / ".cache"
+    (cache / "plan" / "proj_x").mkdir(parents=True)
+    (cache / "plan" / "proj_x" / "batch.json").write_text("{}", encoding="utf-8")
+    (cache / "mock").mkdir(parents=True)
+    (cache / "mock" / "key.json").write_text("{}", encoding="utf-8")
+    archive = tmp_path / "backup.zip"
+    created = call(tmp_path, "backup.create", {"path": str(archive)}, capsys)
+    assert created["ok"] is True
+    import zipfile
+
+    with zipfile.ZipFile(archive) as handle:
+        names = handle.namelist()
+    assert not any(name.startswith(".cache/plan/") for name in names)
+    assert any(name.startswith(".cache/mock/") for name in names)

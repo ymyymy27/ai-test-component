@@ -398,15 +398,19 @@ def _mock_judgement(
     evidence = evidence_value if isinstance(evidence_value, dict) else {}
     mock_value = evidence.get("mock")
     mock = mock_value if isinstance(mock_value, dict) else {}
-    max_files = mock.get("max_files", 40)
+    max_files = mock.get("max_files", 240)
     max_depth = mock.get("max_depth", 3)
+    per_component_files = mock.get("per_component_files", 120)
     judgement = judge_mock(
         Path(project.root),
         dependencies,
         list(run.evidence_refs),
         client=client,
-        max_files=max_files if isinstance(max_files, int) else 40,
+        max_files=max_files if isinstance(max_files, int) else 240,
         max_depth=max_depth if isinstance(max_depth, int) else 3,
+        per_component_files=(
+            per_component_files if isinstance(per_component_files, int) else 120
+        ),
         workspace=workspace.root,
         project_revision=project.revision,
     )

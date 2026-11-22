@@ -537,7 +537,7 @@ async function clearData(): Promise<void> {
       @retry="router.push(projectId ? `/projects/${projectId}/overview` : '/')"
     />
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
       title="设置"
       :subtitle="`${project.name} · 环境、规则与运行配置`"

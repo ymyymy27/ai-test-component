@@ -14,7 +14,7 @@ from aitest.cli import main
 from aitest.commands import _reference_problems
 from aitest.core.expectations import ensure_publishable
 from aitest.core.manual import aggregate_manual
-from aitest.core.verdict import coverage, verdict
+from aitest.core.verdict import coverage, item_outcomes, verdict
 from aitest.errors import AiTestError
 from aitest.integration_commands import cmd_link_assert
 from aitest.models import (
@@ -56,6 +56,7 @@ def _case(
     *,
     verified: bool = True,
     coverage_kind: str | None = None,
+    method: str = "command: echo ok",
 ) -> Case:
     return Case(
         case_id=case_id,
@@ -65,6 +66,7 @@ def _case(
         expectation_source="验收项原文" if verified else "",
         expectation_verified=verified,
         coverage_kind=coverage_kind,
+        verify_method=method,
     )
 
 
@@ -628,3 +630,41 @@ def test_missing_task_snapshot_does_not_report_zero_uncovered() -> None:
     items = uncovered_items(None, Scope(preset="selected", acceptance_item_ids=["a"]), 3)
     assert len(items) == 2
     assert all("任务快照缺失" in item for item in items)
+
+
+def test_generated_script_failure_is_blocked_not_failed() -> None:
+    """A model-written script can be wrong; its failure is not a product failure."""
+    plan = _plan(
+        [_case("c1", "a", coverage_kind="unverified", method="script:probe.py")],
+        ["a"],
+        1,
+    )
+    run = _run([RunCase(case_id="c1", result="failed")])
+
+    assert verdict(plan, run) == "incomplete"
+    counts = coverage(plan, run)
+    assert counts["failed"] == 0
+    assert counts["incomplete"] == 1
+
+
+def test_generated_script_pass_still_cannot_pass() -> None:
+    plan = _plan(
+        [_case("c1", "a", coverage_kind="unverified", method="script:probe.py")],
+        ["a"],
+        1,
+    )
+    run = _run([RunCase(case_id="c1", result="passed")])
+
+    assert verdict(plan, run) == "incomplete"
+    assert coverage(plan, run)["passed"] == 0
+
+
+def test_weak_only_item_is_blocked_not_uncovered() -> None:
+    """An item covered only by weak evidence is blocked, never silently absent."""
+    plan = _plan([_case("c1", "a", coverage_kind="file")], ["a"], 1)
+    run = _run([RunCase(case_id="c1", result="failed")])
+
+    assert item_outcomes(plan, run)["a"] == "blocked"
+    counts = coverage(plan, run)
+    assert counts["covered"] == 1
+    assert counts["incomplete"] == 1

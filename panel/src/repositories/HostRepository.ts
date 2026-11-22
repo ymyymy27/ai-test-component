@@ -116,7 +116,8 @@ export class HostRepository implements ProjectRepository {
 
   constructor(private readonly client: Api = api) {}
 
-  private workspacePath(): string {
+  /** 当前 CLI 工作空间；面板顶部据此说明“项目为何不在这里”。 */
+  workspacePath(): string {
     return readHostContext()?.workspacePath?.trim() ?? "";
   }
 

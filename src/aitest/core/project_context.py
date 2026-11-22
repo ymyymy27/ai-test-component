@@ -298,7 +298,7 @@ _SKIP_WALK_DIRS = frozenset(
         ".cache",
     }
 )
-_MAX_TEST_DIRS = 30
+_MAX_TEST_DIRS = 60
 _MAX_TEST_DIR_DEPTH = 5
 
 
@@ -738,7 +738,7 @@ def _symbol_signature(node: ast.AST) -> str:
 
 
 def _symbol_map(
-    root: Path, *, max_modules: int = 20, max_files: int = 40
+    root: Path, *, max_modules: int = 60, max_files: int = 120
 ) -> dict[str, dict[str, str]]:
     """Public symbols per module with their signatures.
 
@@ -946,25 +946,49 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
     """Best-effort local stack for a FastAPI + Vite + Compose repository."""
 
     services: dict[str, dict[str, object]] = {}
-    compose = next(
-        (
-            root / name
-            for name in ("compose.yml", "compose.yaml", "docker-compose.yml")
-            if (root / name).is_file()
-        ),
-        None,
+    compose_names = (
+        "compose.yml",
+        "compose.yaml",
+        "docker-compose.yml",
+        "compose.override.yml",
+        "compose.override.yaml",
+        "docker-compose.override.yml",
     )
-    db_name = ""
-    if compose is not None:
+    compose_files = [root / name for name in compose_names if (root / name).is_file()]
+    # override 文件会补充端口、环境变量和额外服务；启动时必须带全，
+    # 否则 db 按基础配置启动，mailpit 之类的测试依赖也会缺失。
+    compose_flags = (
+        " ".join(f"-f {path.name}" for path in compose_files)
+        if len(compose_files) > 1
+        else ""
+    )
+    compose_text = ""
+    for path in compose_files:
         try:
-            text = compose.read_text(encoding="utf-8", errors="replace")
+            compose_text += path.read_text(encoding="utf-8", errors="replace")
         except OSError:
-            text = ""
-        if "postgres" in text.lower() and "db:" in text:
+            continue
+    db_name = ""
+    if compose_text:
+        if "postgres" in compose_text.lower() and "db:" in compose_text:
             db_name = "db"
     if db_name:
+        up = f"docker compose {compose_flags} up -d db".replace("  ", " ").strip()
         services[db_name] = {
-            "start": "docker compose up -d db",
+            "start": up,
+            # 运行结束只停容器不删卷：下一次 up 仍然是幂等的，
+            # 也避免容器一直占着宿主端口导致后续运行 bind 失败。
+            "stop": up.replace(" up -d ", " stop "),
+            "timeout_seconds": 120,
+        }
+    if "mailpit" in compose_text.lower():
+        up = (
+            f"docker compose {compose_flags} up -d mailpit".replace("  ", " ").strip()
+        )
+        services["mailpit"] = {
+            "start": up,
+            "stop": up.replace(" up -d ", " stop "),
+            "health": "http://127.0.0.1:8025/livez",
             "timeout_seconds": 120,
         }
     backend = root / "backend"
@@ -1002,6 +1026,104 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
             "timeout_seconds": 180,
         }
     return services
+
+
+def _script_examples(root: Path) -> dict[str, str]:
+    """Excerpt project scripts so generated callers can satisfy their inputs."""
+    examples: dict[str, str] = {}
+    scripts = root / "scripts"
+    if not scripts.is_dir():
+        return examples
+    for path in sorted(scripts.glob("*.py"))[:3]:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        examples[f"scripts/{path.name}"] = text[:2000]
+    return examples
+
+
+_ROUTE_DECORATOR_RE = re.compile(
+    r"@(?:\w+_)?router\.(get|post|put|patch|delete)\(\s*[\"']([^\"']+)[\"']",
+    re.IGNORECASE,
+)
+_ROUTER_PREFIX_RE = re.compile(
+    r"APIRouter\(([^)]{0,600})\)", re.IGNORECASE | re.DOTALL
+)
+
+
+def _router_facts(text: str) -> tuple[str, str]:
+    """Return the router prefix and inherited auth level for one module."""
+    prefix = ""
+    auth = "public"
+    match = _ROUTER_PREFIX_RE.search(text)
+    args = match.group(1) if match else ""
+    prefix_match = re.search(r"prefix\s*=\s*[\"']([^\"']+)[\"']", args)
+    if prefix_match:
+        prefix = prefix_match.group(1).rstrip("/")
+    if "superuser" in args:
+        auth = "superuser"
+    elif "get_current_user" in args:
+        auth = "user"
+    return prefix, auth
+
+
+def _signature_end(text: str, start: int) -> int:
+    """End index of the function signature that follows a decorator."""
+    def_index = text.find("def ", start)
+    if def_index == -1:
+        return min(len(text), start + 400)
+    open_index = text.find("(", def_index)
+    if open_index == -1:
+        return min(len(text), def_index + 300)
+    depth = 0
+    for index in range(open_index, min(len(text), open_index + 1200)):
+        char = text[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return min(len(text), open_index + 400)
+
+
+def _api_routes(root: Path) -> list[dict[str, str]]:
+    """Extract declared FastAPI-style routes so scripts use real paths/auth."""
+    routes: list[dict[str, str]] = []
+    ignore = {".git", ".venv", "node_modules", "__pycache__", "dist", "build", "tests"}
+    for base, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in ignore and not d.startswith(".")]
+        for name in files:
+            if not name.endswith(".py"):
+                continue
+            path = Path(base) / name
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            prefix, inherited = _router_facts(text)
+            for match in _ROUTE_DECORATOR_RE.finditer(text):
+                window = text[match.start() : _signature_end(text, match.start())]
+                auth = inherited
+                lowered = window.lower()
+                if "superuser" in lowered:
+                    auth = "superuser"
+                elif "current_user" in lowered or "get_current_user" in lowered:
+                    auth = "user"
+                route_path = match.group(2)
+                if prefix and not route_path.startswith(prefix):
+                    route_path = f"{prefix}{route_path}"
+                routes.append(
+                    {
+                        "method": match.group(1).upper(),
+                        "path": route_path,
+                        "auth": auth,
+                    }
+                )
+                if len(routes) >= 60:
+                    return routes
+    return routes
 
 
 def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
@@ -1042,6 +1164,10 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
             [*test_commands, *_component_commands(root, component, component_package)]
         )
     services = _services_with_health(config.get("services"))
+    if not services:
+        # 项目没写 services 时，把检测到的本地栈交给生成器：
+        # 脚本才知道后端真实端口和健康地址，而不是写死框架默认端口。
+        services = _services_with_health(detect_services(root))
     return {
         "test_commands": test_commands,
         "smoke_command": _configured_smoke_command(config),
@@ -1064,4 +1190,6 @@ def build_project_context(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         ),
         "has_database": _has_database(root, dependencies, frameworks),
         "existing_commands": _existing_commands(root, package),
+        "script_examples": _script_examples(root),
+        "api_routes": _api_routes(root),
     }

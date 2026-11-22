@@ -173,7 +173,7 @@ watch(dialogOpen, (open) => {
   <div v-if="!project" class="page">
     <EmptyState title="项目不可用" text="回到项目概览重新选择项目。" />
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
       title="运行记录"
       :subtitle="`${project.name} · ${runs.length} 次运行 · 记录只读`"
@@ -247,6 +247,7 @@ watch(dialogOpen, (open) => {
               {{ run.counts.failed }} 失败 · {{ run.counts.incomplete }} 未完成
             </span>
             <span class="row-side">{{ durationText(run.elapsedMs / 1000) }}</span>
+            <span class="row-chevron" aria-hidden="true">›</span>
           </button>
         </div>
       </section>

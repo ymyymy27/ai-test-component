@@ -230,10 +230,10 @@ onBeforeUnmount(() => {
       </button>
     </EmptyState>
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
-      :title="task.title"
-      :subtitle="`计划 ${plan.no} · 第 ${plan.revision} 版`"
+      title="测试计划"
+      :subtitle="`${task.title} · 计划 ${plan.no} · 第 ${plan.revision} 版`"
     >
       <template #actions>
         <button

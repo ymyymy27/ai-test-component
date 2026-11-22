@@ -535,13 +535,13 @@ def test_evidence_budget_keeps_failed_and_skips_passed(tmp_path: Path, capsys: C
                 item_ids[0],
                 "script:fail.py",
                 script_name="fail.py",
-                script_content="print('x' * 4000)\nraise SystemExit(1)\n",
+                script_content="print('x' * 4000)\nassert 0 == 1\n",
             ),
             _case(
                 item_ids[1],
                 "script:pass.py",
                 script_name="pass.py",
-                script_content="print('y' * 4000)\n",
+                script_content="print('y' * 4000)\nassert True\n",
             ),
         ],
     )

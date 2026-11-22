@@ -19,7 +19,7 @@ from aitest.security import redact
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
-_MAX_EVIDENCE_FILES = 10
+_MAX_EVIDENCE_FILES = 30
 _MAX_EVIDENCE_CHARS = 4000
 
 

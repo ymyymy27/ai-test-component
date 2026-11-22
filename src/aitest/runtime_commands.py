@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -53,7 +54,7 @@ from aitest.core.reports import build_report
 from aitest.core.scope import applicable_items, task_contract, uncovered_items
 from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
-from aitest.model_config import build_client, load_project_config
+from aitest.model_config import build_client, load_project_config, model_settings
 from aitest.models import (
     AcceptanceItem,
     Attempt,
@@ -221,6 +222,8 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         "has_frontend": derived["has_frontend"],
         "has_database": derived["has_database"],
         "existing_commands": derived["existing_commands"],
+        "script_examples": redact_tree(derived.get("script_examples", {}), secrets),
+        "api_routes": derived.get("api_routes", []),
     }
 
 
@@ -721,6 +724,167 @@ def _mapped_test_value(mapping: object, path: str) -> object:
     return None
 
 
+def _target_problems(
+    cases: list[Case],
+    intent: Literal["smoke", "business"],
+    context: dict[str, Any],
+) -> list[tuple[Case, str]]:
+    """Return every case that names a test file without a test target.
+
+    The validator raises on the first one, but repairing one case at a time
+    leaves the next identical violation for the next round. Collecting them all
+    lets a single repair round fix the whole plan.
+    """
+    problems: list[tuple[Case, str]] = []
+    if intent != "business":
+        return problems
+    for case in cases:
+        if case.layer == "L1":
+            continue
+        command = (
+            case.verify_method.split(":", 1)[1]
+            if ":" in case.verify_method
+            else ""
+        )
+        file_match = _TEST_FILE_RE.search(command)
+        if (
+            file_match
+            and "::" not in command
+            and _mapped_test_value(context.get("test_functions"), file_match.group(1))
+        ):
+            problems.append(
+                (
+                    case,
+                    f"用例 {case.case_id} 只执行测试文件，未定位到具体测试函数；"
+                    f"使用 python -m pytest <文件>::<函数>",
+                )
+            )
+            continue
+        spec_match = re.search(r"([A-Za-z0-9_./\\-]+\.spec\.ts)\b", command)
+        if (
+            spec_match
+            and not _PLAYWRIGHT_NODE_RE.search(command)
+            and _mapped_test_value(
+                context.get("playwright_tests"), spec_match.group(1)
+            )
+        ):
+            problems.append(
+                (
+                    case,
+                    f'用例 {case.case_id} 只执行 Playwright spec，未定位到测试标题；'
+                    f'使用 --grep "<标题>"',
+                )
+            )
+    return problems
+
+
+def _test_node_key(case: Case, context: dict[str, Any]) -> str | None:
+    """Return the existing test node a case points at, when it is real."""
+    method = (case.verify_method or "").strip()
+    command = method.split(":", 1)[1] if ":" in method else ""
+    playwright = _PLAYWRIGHT_NODE_RE.search(command)
+    if playwright:
+        path = playwright.group(1).replace("\\", "/").lstrip("./")
+        titles = _mapped_test_value(context.get("playwright_tests"), path)
+        if isinstance(titles, list) and playwright.group(2) in titles:
+            return f"{path}::{playwright.group(2)}"
+        return None
+    node = _TEST_NODE_RE.search(command)
+    if node:
+        path = node.group(1).replace("\\", "/").lstrip("./")
+        names = _mapped_test_value(context.get("test_functions"), path)
+        if isinstance(names, list) and node.group(2) in names:
+            return f"{path}::{node.group(2)}"
+    return None
+
+
+def _text_overlap(left: str, right: str) -> int:
+    def grams(text: str) -> set[str]:
+        compact = re.sub(r"\s+", "", text)
+        return {compact[index : index + 2] for index in range(len(compact) - 1)}
+
+    return len(grams(left) & grams(right))
+
+
+def _overshared_bindings(
+    cases: list[Case],
+    context: dict[str, Any],
+    item_text: dict[str, str],
+    min_owners: int = 3,
+) -> dict[str, str]:
+    """Find tests bound to many unrelated items so they can be replaced.
+
+    A single test node that claims several acceptance items proves none of them
+    individually. Keep the item whose text best matches the case, and ask for a
+    dedicated verification of the rest instead of silently publishing shared
+    evidence for everything.
+    """
+    owners: dict[str, dict[str, list[Case]]] = {}
+    for case in cases:
+        node = _test_node_key(case, context)
+        if node is None:
+            continue
+        for item_id in case_item_ids(case):
+            owners.setdefault(node, {}).setdefault(item_id, []).append(case)
+    repairs: dict[str, str] = {}
+    for node, by_item in owners.items():
+        if len(by_item) < min_owners:
+            continue
+        scores = {
+            item_id: _text_overlap(
+                item_text.get(item_id, ""),
+                "".join(
+                    case.title + case.expected for case in cases_for_item
+                ),
+            )
+            for item_id, cases_for_item in by_item.items()
+        }
+        best = max(scores.values())
+        if best >= 2:
+            # Keep every item the test can plausibly assert; only clearly
+            # unrelated bindings need a dedicated verification.
+            keep = {
+                item_id
+                for item_id, score in scores.items()
+                if score >= max(2, int(best * 0.5))
+            }
+        else:
+            keep = {item_id for item_id, score in scores.items() if score == best}
+        if not keep:
+            keep = {max(scores, key=lambda item_id: scores[item_id])}
+        for item_id in by_item:
+            if item_id in keep:
+                continue
+            repairs[item_id] = (
+                f"测试节点 {node} 同时绑定到 {len(by_item)} 个验收项，"
+                "一个测试无法逐项证明；除非该测试确实直接断言这一项，"
+                "否则请生成直接验证该行为的 http:/script: 用例，"
+                "或使用最相关的具体测试"
+            )
+    return repairs
+
+
+_SCRIPT_ASSERTION_MARKERS = (
+    "assert ",
+    "assert(",
+    "pytest.raises",
+    "self.assert",
+    "expect(",
+    ".to_be(",
+    ".to_have",
+    "should(",
+    "tobe(",
+    "tothrow(",
+    "toequal(",
+)
+
+
+def _script_has_assertion(content: str) -> bool:
+    """A script only counts as evidence when it asserts on the product."""
+    text = content.lower()
+    return any(marker in text for marker in _SCRIPT_ASSERTION_MARKERS)
+
+
 def _annotate_case_coverage(
     cases: list[Case], context: dict[str, Any]
 ) -> dict[str, str]:
@@ -736,7 +900,29 @@ def _annotate_case_coverage(
         if is_manual_case(case):
             case.coverage_kind = "manual"
             continue
-        if method.startswith(("script:", "http:", "junit:", "sql:")):
+        if method.startswith("script:"):
+            # 生成脚本与项目自带测试同等对待：只要真的执行了断言，就是执行证据。
+            # 没有断言的脚本只证明“命令能跑”，不能证明验收项，记 unverified。
+            if _script_has_assertion(case.script_content or ""):
+                case.coverage_kind = "direct"
+            else:
+                case.coverage_kind = "unverified"
+                notes[case.case_id] = (
+                    "脚本没有断言（或只打印/退出 0），不能证明验收项；"
+                    "补充断言后重新生成计划"
+                )
+            continue
+        if method.startswith("sql:"):
+            # 模型写的 SQL 查询可能漏前置数据；失败按阻塞处理。
+            case.coverage_kind = "unverified"
+            notes[case.case_id] = (
+                "模型生成的 SQL 查询未对应既有测试；通过不计为直接通过，"
+                "失败需人工确认是产品缺陷还是查询前置条件不成立"
+            )
+            continue
+        if method.startswith(("http:", "junit:")):
+            # junit 导入项目自己的测试结果；http 是插件执行的声明式请求，
+            # 预期写在用例里。未认证的 401/403 在执行阶段按阻塞处理。
             case.coverage_kind = "direct"
             continue
         if method.startswith("playwright:"):
@@ -855,6 +1041,39 @@ def _annotate_case_coverage(
     return notes
 
 
+def _normalize_http_expect(case: Case) -> None:
+    """Accept ``body.email`` as a JSON path on the response body.
+
+    The assertion resolver already starts at the body, so a ``body.`` prefix
+    would look for a nested "body" key and fail on a correct response.
+    """
+    method = case.verify_method or ""
+    if not method.startswith("http:"):
+        return
+    try:
+        specs = json.loads(method[len("http:") :])
+    except json.JSONDecodeError:
+        return
+    if not isinstance(specs, list):
+        return
+    changed = False
+    for spec in specs:
+        if not isinstance(spec, dict):
+            continue
+        expects = spec.get("expect")
+        if not isinstance(expects, list):
+            continue
+        for check in expects:
+            if not isinstance(check, dict):
+                continue
+            path = check.get("path")
+            if isinstance(path, str) and path.startswith("body.") and len(path) > 5:
+                check["path"] = path[len("body.") :]
+                changed = True
+    if changed:
+        case.verify_method = "http:" + json.dumps(specs, ensure_ascii=False)
+
+
 def _validate_plan_cases(
     cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
 ) -> None:
@@ -876,6 +1095,7 @@ def _validate_plan_cases(
     seen_ids: set[str] = set()
     seen_broad: set[str] = set()
     for case in cases:
+        _normalize_http_expect(case)
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
             raise invalid_request(
                 f"用例 ID 不合法：{case.case_id}",
@@ -1231,7 +1451,8 @@ def _expectation_feedback(items: list[AcceptanceItem], cases: list[Case]) -> str
     ids = "、".join(case.case_id for case in cases)
     lines = [
         f"以下用例的 expectation_source 不是验收项原文：{ids}。",
-        "请重新输出全部 cases，并把每条用例的 expectation_source 改成对应验收项 text 的逐字副本：",
+        "只为下列验收项重新输出 cases（其他验收项保留原结果），"
+        "并把每条用例的 expectation_source 改成对应验收项 text 的逐字副本：",
     ]
     lines.extend(f"- {item.item_id}：{item.text}" for item in items)
     return "\n".join(lines)
@@ -1348,7 +1569,273 @@ def _generation_feedback(
     if specific:
         lines.append("可用具体测试命令（优先使用这些，禁止 npm test 或其他整包命令）：")
         lines.extend(f"- command:{command}" for command in specific[:8])
+    functions = context.get("test_functions")
+    if isinstance(functions, dict) and functions:
+        lines.append("可用 pytest 函数（写成 python -m pytest <文件>::<函数>，函数名逐字复制）：")
+        for path, names in list(functions.items())[:4]:
+            if isinstance(names, list):
+                lines.extend(f"- {path}::{name}" for name in names[:10] if name)
+    playwright = context.get("playwright_tests")
+    if isinstance(playwright, dict) and playwright:
+        lines.append('可用 Playwright 标题（必须写成 --grep "<标题>"，标题逐字复制）：')
+        for path, titles in list(playwright.items())[:4]:
+            if isinstance(titles, list):
+                lines.extend(
+                    f'- {path} --grep "{title}"' for title in titles[:10] if title
+                )
     return "\n".join(lines)
+
+
+_PLAN_CACHE_VERSION = 17
+
+
+def _plan_budget_seconds() -> float:
+    """Wall-clock budget for one plan generation, including repairs."""
+    raw = os.environ.get("AITEST_PLAN_BUDGET_SECONDS", "")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 150.0
+    return value if value >= 30 else 150.0
+
+
+def _plan_batch_size() -> int:
+    raw = os.environ.get("AITEST_PLAN_BATCH_SIZE", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 6
+    return value if 1 <= value <= 12 else 6
+
+
+def _plan_concurrency() -> int:
+    raw = os.environ.get("AITEST_PLAN_CONCURRENCY", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 4
+    return value if 1 <= value <= 8 else 4
+
+
+def _plan_cache_dir(ws: Workspace, project_id: str, fingerprint: str) -> Path:
+    """Completed batches live in the clearable cache, keyed by contract facts."""
+    return ws.root / ".cache" / "plan" / project_id / fingerprint[:24]
+
+
+def _batch_fingerprint(items: list[dict[str, Any]]) -> str:
+    ids = sorted(str(item.get("item_id") or "") for item in items)
+    return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()
+
+
+def _read_cached_batch(
+    cache_dir: Path, key: str, items: list[dict[str, Any]]
+) -> list[dict[str, Any]] | None:
+    path = cache_dir / f"{key}.json"
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("item_ids") != sorted(str(item.get("item_id") or "") for item in items):
+        return None
+    cases = data.get("cases")
+    return cases if isinstance(cases, list) else None
+
+
+def _write_cached_batch(
+    cache_dir: Path,
+    key: str,
+    items: list[dict[str, Any]],
+    cases: list[dict[str, Any]],
+    secrets: list[str],
+) -> None:
+    """Cache a batch after redaction: model output is untrusted input."""
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = cache_dir / f"{key}.tmp"
+        payload = {
+            "item_ids": sorted(str(item.get("item_id") or "") for item in items),
+            "cases": cases,
+        }
+        tmp.write_text(
+            json.dumps(redact_tree(payload, secrets), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        tmp.replace(cache_dir / f"{key}.json")
+    except OSError:
+        # A cache miss only costs one extra model call; never fail the plan.
+        pass
+
+
+def _generate_case_batch(
+    client: Any,
+    task_payload: dict[str, Any],
+    batch: list[dict[str, Any]],
+    context: dict[str, Any],
+    feedback: str = "",
+) -> list[dict[str, Any]]:
+    """Generate one batch, retrying only once on unparseable output."""
+    correction = feedback
+    for attempt in range(2):
+        call_context = dict(context)
+        if correction:
+            call_context["correction"] = correction
+        try:
+            return list(
+                client.generate_cases(task_payload, batch, call_context)
+            )
+        except AiTestError as exc:
+            if exc.info.code != "MODEL_OUTPUT_INVALID" or attempt == 1:
+                raise
+            correction = _generation_feedback(batch, context, exc.info.message)
+    return []
+
+
+def _generate_case_batches(
+    client: Any,
+    task_payload: dict[str, Any],
+    items: list[dict[str, Any]],
+    context: dict[str, Any],
+    *,
+    cache_dir: Path,
+    deadline: float,
+    secrets: list[str],
+    feedback: str = "",
+) -> list[dict[str, Any]]:
+    """Generate every batch with bounded concurrency and a wall-clock ceiling.
+
+    Batches are independent by contract: each one only needs its own item ids.
+    Running them in parallel keeps a 56-item plan inside the host timeout, and
+    completed batches are cached so a retry after a timeout resumes instead of
+    paying for the whole plan again. A repair round carries extra feedback, so
+    it uses its own cache keys instead of the clean first-pass results.
+    """
+    size = _plan_batch_size()
+    batches = [items[index : index + size] for index in range(0, len(items), size)]
+    generated: dict[int, list[dict[str, Any]]] = {}
+    pending: list[tuple[int, list[dict[str, Any]], str]] = []
+    for index, batch in enumerate(batches):
+        key = _batch_fingerprint(batch)
+        if feedback:
+            key = hashlib.sha256(
+                f"{key}\n{feedback}".encode("utf-8")
+            ).hexdigest()
+        else:
+            cached = _read_cached_batch(cache_dir, key, batch)
+            if cached is not None:
+                generated[index] = cached
+                continue
+        pending.append((index, batch, key))
+    if pending:
+        workers = max(1, min(_plan_concurrency(), len(pending)))
+        executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="aitest-plan")
+        try:
+            wave = workers
+            for start in range(0, len(pending), wave):
+                if time.monotonic() >= deadline:
+                    done = len(generated)
+                    raise AiTestError(
+                        "MODEL_TIMEOUT",
+                        f"计划生成超过 {_plan_budget_seconds():.0f} 秒上限"
+                        f"（已完成 {done}/{len(batches)} 批）",
+                        "重试会复用已完成批次；也可以缩小本次范围后重新生成",
+                    )
+                chunk = pending[start : start + wave]
+                futures = {
+                    executor.submit(
+                        _generate_case_batch,
+                        client,
+                        task_payload,
+                        batch,
+                        context,
+                        feedback,
+                    ): (index, batch, key)
+                    for index, batch, key in chunk
+                }
+                for future in as_completed(futures):
+                    index, batch, key = futures[future]
+                    cases = future.result()
+                    generated[index] = cases
+                    _write_cached_batch(cache_dir, key, batch, cases, secrets)
+        finally:
+            # In-flight HTTP calls are left to their own socket timeout so the
+            # command can return a clear error instead of blocking the lock.
+            executor.shutdown(wait=False, cancel_futures=True)
+    return [case for index in range(len(batches)) for case in generated.get(index, [])]
+
+
+def _case_ids_in_message(cases: list[Case], message: str) -> set[str]:
+    known = {case.case_id for case in cases}
+    return {token for token in re.findall(r"case_[A-Za-z0-9_-]+", message) if token in known}
+
+
+def _test_candidates(context: dict[str, Any]) -> list[str]:
+    """Existing test commands the mapping step may choose from."""
+    candidates: list[str] = []
+    functions = context.get("test_functions")
+    if isinstance(functions, dict):
+        for path, names in functions.items():
+            if not isinstance(names, list):
+                continue
+            for name in names:
+                if name:
+                    candidates.append(f"python -m pytest {path}::{name}")
+    playwright = context.get("playwright_tests")
+    if isinstance(playwright, dict):
+        for path, titles in playwright.items():
+            if not isinstance(titles, list):
+                continue
+            relative = str(path).replace("\\", "/")
+            if relative.startswith("frontend/"):
+                relative = relative[len("frontend/") :]
+            for title in titles:
+                if title:
+                    candidates.append(
+                        f'cd frontend && bunx playwright test {relative} --grep "{title}"'
+                    )
+    return candidates
+
+
+def _apply_suggested_tests(
+    cases: list[Case], suggested: dict[str, str]
+) -> int:
+    """Replace model-written verifications with the mapped existing test."""
+    replaced = 0
+    for case in cases:
+        command = suggested.get(case.acceptance_item_id)
+        if not command:
+            continue
+        if (case.verify_method or "").startswith(("script:", "http:", "sql:")):
+            case.verify_method = f"command:{command}"
+            case.script_content = None
+            case.script_name = None
+            case.dependencies = []
+            replaced += 1
+    return replaced
+
+
+def _merge_repaired_cases(
+    cases: list[Case],
+    raw_cases: list[dict[str, Any]],
+    repair_ids: set[str],
+) -> list[Case]:
+    """Replace only the repaired items' cases and keep every other case."""
+    repaired: list[Case] = []
+    for entry in raw_cases:
+        if not isinstance(entry, dict):
+            continue
+        case = Case.model_validate(entry)
+        if set(case_item_ids(case)) & repair_ids:
+            repaired.append(case)
+    if not repaired:
+        return cases
+    kept = [
+        case for case in cases if not (set(case_item_ids(case)) & repair_ids)
+    ]
+    return kept + repaired
 
 
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -1363,12 +1850,12 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     if not selected and (task.intent != "smoke" or applicable):
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条可用验收项")
     scope.acceptance_item_ids = list(selected)
+    secret_values = known_secret_values([load_project_config(ws, project.project_id)])
     context = _project_context(project, ws)
-    context = redact_tree(
-        context, known_secret_values([load_project_config(ws, project.project_id)])
-    )
+    context = redact_tree(context, secret_values)
     raw_cases = payload.get("cases")
     regenerate = None
+    suggested: dict[str, str] = {}
     if not isinstance(raw_cases, list) or not raw_cases:
         if task.intent == "smoke":
             raw_cases = _smoke_cases(task, selected, context)
@@ -1385,73 +1872,92 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 for item in task.acceptance_items
                 if item.item_id in selected
             ]
+            task_payload = task.model_dump(mode="json")
+            deadline = time.monotonic() + _plan_budget_seconds()
+            # 中文验收项和英文测试名靠词面匹配配不上，模型选择脚本；
+            # 先用一次映射调用把能对上的现有测试固定下来，再生成用例。
+            candidates = _test_candidates(context)
+            mapper = getattr(client, "map_tests", None)
+            if candidates and callable(mapper):
+                try:
+                    suggested = mapper(
+                        [
+                            {"item_id": item["item_id"], "text": item["text"]}
+                            for item in selected_items
+                        ],
+                        candidates,
+                    )
+                except AiTestError:
+                    suggested = {}
+            for item in selected_items:
+                command = suggested.get(item["item_id"])
+                if command:
+                    item["suggested_test"] = command
+            # 缓存键必须包含生成契约：任务修订、范围、意图、模型与生成规则版本。
+            # 否则改提示词或换模型后会复用旧批次的用例。
+            cache_dir = _plan_cache_dir(
+                ws,
+                task.project_id,
+                hashlib.sha256(
+                    json.dumps(
+                        {
+                            "task": task.task_id,
+                            "revision": task.revision,
+                            "intent": task.intent,
+                            "items": sorted(selected),
+                            "model": model_settings(ws, task.project_id)["name"],
+                            "rules": _PLAN_CACHE_VERSION,
+                            "mapping": sorted(suggested.items()),
+                        },
+                        sort_keys=True,
+                    ).encode("utf-8")
+                ).hexdigest(),
+            )
 
-            def _model_raw(feedback: str = "") -> list[dict[str, Any]]:
-                generated: list[dict[str, Any]] = []
-                batch_size = 6 if len(selected_items) > 8 else len(selected_items)
-                for start in range(0, len(selected_items), batch_size):
-                    batch = selected_items[start : start + batch_size]
-                    correction = feedback
-                    batch_cases: list[dict[str, Any]] = []
-                    for attempt in range(2):
-                        call_context = dict(context)
-                        if correction:
-                            call_context["correction"] = correction
-                        try:
-                            batch_cases = list(
-                                client.generate_cases(
-                                    task.model_dump(mode="json"), batch, call_context
-                                )
-                            )
-                            break
-                        except AiTestError as exc:
-                            if (
-                                exc.info.code != "MODEL_OUTPUT_INVALID"
-                                or attempt == 1
-                            ):
-                                raise
-                            correction = _generation_feedback(
-                                batch, context, exc.info.message
-                            )
-                    for item in batch_cases:
-                        depends = item.get("depends_on")
-                        first = depends[0] if isinstance(depends, list) and depends else None
-                        generated.append(
-                            {
-                                "acceptance_item_id": item["acceptance_item_id"],
-                                "acceptance_item_ids": item.get("acceptance_item_ids") or [],
-                                "layer": item["layer"],
-                                "title": item.get("title") or "",
-                                "expected": item["expected"],
-                                "expectation_source": item["expectation_source"],
-                                "preconditions": item.get("preconditions") or [],
-                                "steps": item.get("steps") or [],
-                                "dependencies": item.get("dependencies") or [],
-                                "mock_allowed": item.get("mock_allowed", True),
-                                "importance": item.get("importance") or "medium",
-                                "verify_method": _normalize_method(
-                                    str(item["verify_method"]), item.get("script_name")
-                                ),
-                                "depends_on": first
-                                if first in {"build", "service"}
-                                else None,
-                                "script_name": item.get("script_name"),
-                                "script_content": item.get("script_content"),
-                            }
-                        )
-                return generated
+            def _normalize(item: dict[str, Any]) -> dict[str, Any]:
+                depends = item.get("depends_on")
+                first = depends[0] if isinstance(depends, list) and depends else None
+                return {
+                    "acceptance_item_id": item["acceptance_item_id"],
+                    "acceptance_item_ids": item.get("acceptance_item_ids") or [],
+                    "layer": item["layer"],
+                    "title": item.get("title") or "",
+                    "expected": item["expected"],
+                    "expectation_source": item["expectation_source"],
+                    "preconditions": item.get("preconditions") or [],
+                    "steps": item.get("steps") or [],
+                    "dependencies": item.get("dependencies") or [],
+                    "mock_allowed": item.get("mock_allowed", True),
+                    "importance": item.get("importance") or "medium",
+                    "verify_method": _normalize_method(
+                        str(item["verify_method"]), item.get("script_name")
+                    ),
+                    "depends_on": first if first in {"build", "service"} else None,
+                    "script_name": item.get("script_name"),
+                    "script_content": item.get("script_content"),
+                }
+
+            def _model_raw(
+                feedback: str = "",
+                items: list[dict[str, Any]] | None = None,
+            ) -> list[dict[str, Any]]:
+                subset = selected_items if items is None else items
+                return [
+                    _normalize(item)
+                    for item in _generate_case_batches(
+                        client,
+                        task_payload,
+                        subset,
+                        context,
+                        cache_dir=cache_dir,
+                        deadline=deadline,
+                        secrets=secret_values,
+                        feedback=feedback,
+                    )
+                ]
 
             regenerate = _model_raw
-            try:
-                raw_cases = _model_raw()
-            except AiTestError as exc:
-                if exc.info.code != "MODEL_OUTPUT_INVALID":
-                    raise
-                raw_cases = _model_raw(
-                    _generation_feedback(
-                        selected_items, context, exc.info.message
-                    )
-                )
+            raw_cases = _model_raw()
     cases = [
         Case.model_validate(item)
         for item in raw_cases
@@ -1462,6 +1968,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     generated_cases = not isinstance(payload.get("cases"), list) or not payload.get("cases")
     django_dropped: list[str] = []
     command_merged = 0
+    mapped_tests = 0
+    if generated_cases and suggested:
+        mapped_tests = _apply_suggested_tests(cases, suggested)
     cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
     django_dropped.extend(dropped_items)
     cases, merged_now = _merge_duplicate_command_cases(cases)
@@ -1470,25 +1979,89 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         unverified = _unverified_cases(cases, task.acceptance_items)
         if unverified:
             # A paraphrase or file path is not a substitute for the item text.
-            # Ask the model once to quote the item verbatim; keep the warning if
-            # it still refuses instead of silently rewriting its source.
-            raw_cases = regenerate(
-                _expectation_feedback(task.acceptance_items, unverified)
-            )
-            cases = [
-                Case.model_validate(item)
-                for item in raw_cases
-                if not isinstance(item, dict)
-                or item.get("acceptance_item_id") in selected
-                or item.get("acceptance_item_id") is None
+            # Repair only the affected items; regenerating all of them turns one
+            # bad case into a plan-wide model pass and blows the host timeout.
+            repair_ids = {
+                item_id for case in unverified for item_id in case_item_ids(case)
+            }
+            repair_items = [
+                item for item in selected_items if item.get("item_id") in repair_ids
             ]
+            if repair_items:
+                raw_cases = regenerate(
+                    _expectation_feedback(
+                        [
+                            item
+                            for item in task.acceptance_items
+                            if item.item_id in repair_ids
+                        ],
+                        unverified,
+                    ),
+                    repair_items,
+                )
+                cases = _merge_repaired_cases(cases, raw_cases, repair_ids)
+                cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
+                django_dropped.extend(dropped_items)
+                cases, merged_now = _merge_duplicate_command_cases(cases)
+                command_merged += merged_now
+    if generated_cases and task.intent == "business" and regenerate is not None:
+        # A test bound to many unrelated items proves none of them. Ask for
+        # dedicated verification of the weaker bindings, keeping the best match.
+        shared = _overshared_bindings(
+            cases,
+            context,
+            {item.item_id: item.text for item in task.acceptance_items},
+        )
+        shared_items = [
+            item for item in selected_items if item.get("item_id") in shared
+        ]
+        if shared_items:
+            raw_cases = regenerate(
+                _generation_feedback(
+                    shared_items,
+                    context,
+                    "\n".join(
+                        f"- {item_id}：{reason}"
+                        for item_id, reason in shared.items()
+                    ),
+                ),
+                shared_items,
+            )
+            cases = _merge_repaired_cases(cases, raw_cases, set(shared))
+            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
+            django_dropped.extend(dropped_items)
+            cases, merged_now = _merge_duplicate_command_cases(cases)
+            command_merged += merged_now
+    if generated_cases and task.intent == "business" and regenerate is not None:
+        # Fix every "file without a test target" case in one round instead of
+        # letting the validator surface them one per round.
+        problems = _target_problems(cases, task.intent, context)
+        repair_ids = {
+            item_id
+            for case, _reason in problems
+            for item_id in case_item_ids(case)
+        }
+        repair_items = [
+            item for item in selected_items if item.get("item_id") in repair_ids
+        ]
+        if problems and repair_items:
+            raw_cases = regenerate(
+                _generation_feedback(
+                    repair_items,
+                    context,
+                    "\n".join(reason for _case, reason in problems),
+                ),
+                repair_items,
+            )
+            cases = _merge_repaired_cases(cases, raw_cases, repair_ids)
             cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     downgraded_broad: list[str] = []
     multi_item_split = 0
-    for attempt in range(2):
+    # Two targeted repairs; each one only re-generates the named cases.
+    for attempt in range(3):
         if task.intent == "business":
             cases, split_now = _split_multi_item_cases(
                 cases, task.acceptance_items
@@ -1516,7 +2089,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 or exc.info.code != "INVALID_REQUEST"
             ):
                 raise
-            if attempt == 1:
+            if attempt == 2:
                 if "整包测试命令" not in exc.info.message:
                     raise
                 downgraded_broad = _downgrade_broad_business_cases(cases)
@@ -1533,17 +2106,36 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 _ensure_plan_coverage(preview, task)
                 break
             # Give the model the validator's reason (at most twice) instead of
-            # failing on a fixable script detail or repeated command.
-            raw_cases = regenerate(
-                _generation_feedback(selected_items, context, exc.info.message)
-            )
-            cases = [
-                Case.model_validate(item)
-                for item in raw_cases
-                if not isinstance(item, dict)
-                or item.get("acceptance_item_id") in selected
-                or item.get("acceptance_item_id") is None
+            # failing on a fixable script detail or repeated command. Repair only
+            # the cases the validator named: a full re-pass multiplies both the
+            # cost and the chance of a different case failing.
+            named = _case_ids_in_message(cases, exc.info.message)
+            repair_ids = {
+                item_id
+                for case in cases
+                if case.case_id in named
+                for item_id in case_item_ids(case)
+            }
+            repair_items = [
+                item for item in selected_items if item.get("item_id") in repair_ids
             ]
+            if repair_items:
+                raw_cases = regenerate(
+                    _generation_feedback(repair_items, context, exc.info.message),
+                    repair_items,
+                )
+                cases = _merge_repaired_cases(cases, raw_cases, repair_ids)
+            else:
+                raw_cases = regenerate(
+                    _generation_feedback(selected_items, context, exc.info.message)
+                )
+                cases = [
+                    Case.model_validate(item)
+                    for item in raw_cases
+                    if not isinstance(item, dict)
+                    or item.get("acceptance_item_id") in selected
+                    or item.get("acceptance_item_id") is None
+                ]
             cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
@@ -1582,9 +2174,12 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         warnings.append(
             f"已合并 {command_merged} 条重复命令用例；相关验收项由同一条命令覆盖"
         )
+    if mapped_tests:
+        warnings.append(
+            f"已将 {mapped_tests} 条生成验证替换为映射到的项目现有测试"
+        )
     ensure_publishable(cases)
-    secret_list = known_secret_values([load_project_config(ws, project.project_id)])
-    _redact_cases(cases, secret_list)
+    _redact_cases(cases, secret_values)
     warnings.extend(_project_import_warnings(cases, project))
     warnings.extend(_shared_command_warnings(cases))
     plan = Plan(
@@ -3861,6 +4456,11 @@ def cmd_backup_create(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         if (
             path.name == ".workspace.lock"
             or relative.parts[0] in {"requests", "backups"}
+            or (
+                relative.parts[0] == ".cache"
+                and len(relative.parts) > 1
+                and relative.parts[1] == "plan"
+            )
             or str(relative).replace("\\", "/") == "manifest.json"
         ):
             continue

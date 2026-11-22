@@ -26,9 +26,11 @@
   --pass: #2f684b;
   --fail: #9b3b31;
   --warn: #84601b;
+  --info: #245b8a;
   --pass-bg: #e8f6ee;
   --fail-bg: #fdecea;
   --warn-bg: #fbf3e4;
+  --info-bg: #eaf2fb;
   --neutral-bg: #eef1ee;
 
   --focus: #205e53;
@@ -119,9 +121,11 @@
   --pass: #7cc79a;
   --fail: #ee9182;
   --warn: #d9ad61;
+  --info: #8abce6;
   --pass-bg: #143025;
   --fail-bg: #321d1d;
   --warn-bg: #322716;
+  --info-bg: #162a3a;
   --neutral-bg: #1c231e;
 
   --focus: #8fd5c2;

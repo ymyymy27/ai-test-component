@@ -155,6 +155,8 @@ export interface BackupPayload {
 export interface ProjectRepository {
   readonly mode: "local" | "host";
   readonly capabilities: RepositoryCapabilities;
+  /** 宿主工作空间路径；浏览器演示模式为空。 */
+  workspacePath?(): string;
   listProjects(): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
   createProject(input: CreateProjectInput): Promise<Project>;

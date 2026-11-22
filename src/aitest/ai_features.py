@@ -21,7 +21,7 @@ from aitest.adapters.model import ModelClient
 _ALLOWED_KINDS = frozenset({"real", "mock", "mixed", "unknown"})
 
 _TEST_NAME_MARKERS = ("test_", "_test.", ".test.", ".spec.", "tests/", "spec/")
-_MAX_SCAN_FILES = 200
+_MAX_SCAN_FILES = 1000
 _MAX_FILE_READ = 128 * 1024
 
 _SKIP_DIRS = frozenset(
@@ -36,6 +36,34 @@ _SKIP_DIRS = frozenset(
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
+    }
+)
+
+# Repo metadata is not business code; do not let it consume the mock-read budget.
+_MOCK_SKIP_DIRS = _SKIP_DIRS | {
+    ".github",
+    ".agents",
+    ".claude",
+    ".vscode",
+    "docs",
+    "test-results",
+    "playwright-report",
+    "coverage",
+}
+
+_COMPONENT_MANIFESTS = frozenset(
+    {
+        "pyproject.toml",
+        "package.json",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "setup.py",
+        "setup.cfg",
+        "go.mod",
+        "Cargo.toml",
+        "pom.xml",
+        "build.gradle",
+        "composer.json",
     }
 )
 
@@ -156,7 +184,7 @@ _SYSTEM_REPORT_SUMMARY = (
     "不要输出 JSON 之外的任何文本。"
 )
 
-_MAX_EXCERPT_CHARS = 4000
+_MAX_EXCERPT_CHARS = 2000
 
 
 def _unknown(
@@ -199,7 +227,7 @@ def _collect_files(root: Path, max_files: int, max_depth: int) -> list[Path]:
                 return
             try:
                 if entry.is_dir():
-                    if depth < max_depth and entry.name not in _SKIP_DIRS:
+                    if depth < max_depth and entry.name not in _MOCK_SKIP_DIRS:
                         walk(entry, depth + 1)
                     continue
             except OSError:
@@ -309,24 +337,65 @@ def collect_dependencies(project_root: Path) -> list[str]:
     )
 
 
+def _component_roots(project_root: Path) -> list[Path]:
+    """Return the repo root plus immediate subprojects with their own manifest."""
+    roots = [project_root]
+    try:
+        entries = sorted(project_root.iterdir(), key=lambda item: item.name)
+    except OSError:
+        return roots
+    for entry in entries:
+        if not entry.is_dir() or entry.name in _MOCK_SKIP_DIRS:
+            continue
+        try:
+            has_manifest = any((entry / name).is_file() for name in _COMPONENT_MANIFESTS)
+        except OSError:
+            continue
+        if has_manifest:
+            roots.append(entry)
+    return roots
+
+
 def _sampled_payload(
     project_root: Path,
     max_files: int,
     max_depth: int,
+    per_component_files: int,
 ) -> tuple[list[dict[str, str]], list[str], bool, list[dict[str, str]]]:
     """Read sample excerpts and return (payload, read_files, limit_reached, hashes)."""
     samples: list[dict[str, str]] = []
     read_files: list[str] = []
     hashes: list[dict[str, str]] = []
-    if max_files <= 0:
+    if max_files <= 0 or per_component_files <= 0:
         return samples, read_files, False, hashes
-    collected = _collect_files(project_root, max_files + 1, max_depth)
-    limit_reached = len(collected) > max_files
+
+    roots = _component_roots(project_root)
+    components = roots[1:]
+    collected: list[Path] = []
+    limit_reached = False
+    if not components:
+        collected = _collect_files(project_root, max_files + 1, max_depth)
+        limit_reached = len(collected) > max_files
+    else:
+        # Root-level manifests/config stay visible, but subprojects are sampled
+        # against their own budget instead of one shared pool.
+        collected.extend(_collect_files(project_root, max_files, 0))
+        for component in components:
+            files = _collect_files(component, per_component_files + 1, max_depth)
+            if len(files) > per_component_files:
+                limit_reached = True
+                break
+            collected.extend(files)
+        if len(collected) > max_files:
+            limit_reached = True
+
     for path in collected[:max_files]:
         try:
             relative = path.relative_to(project_root).as_posix()
         except ValueError:
             relative = path.name
+        if relative in read_files:
+            continue
         samples.append({"path": relative, "content": _read_excerpt(path)})
         read_files.append(relative)
         hashes.append({"path": relative, "sha256": _file_digest(path)})
@@ -467,8 +536,9 @@ def judge_mock(
     evidence: list[str],
     *,
     client: ModelClient,
-    max_files: int = 40,
+    max_files: int = 240,
     max_depth: int = 3,
+    per_component_files: int = 120,
     workspace: Path | None = None,
     project_revision: int | None = None,
     use_cache: bool = True,
@@ -484,13 +554,16 @@ def judge_mock(
     if not dependencies:
         return []
     samples, read_files, limit_reached, hashes = _sampled_payload(
-        project_root, max_files, max_depth
+        project_root, max_files, max_depth, per_component_files
     )
     if limit_reached:
         return [
             _unknown(
                 dependency,
-                f"达到读取上限（最多 {max_files} 个文件、{max_depth} 层），未判定",
+                (
+                    f"达到读取上限（项目最多 {max_files} 个文件；"
+                    f"每个组件最多 {per_component_files} 个文件、{max_depth} 层），未判定"
+                ),
                 read_files=read_files,
                 limit_reached=True,
             )

@@ -153,7 +153,7 @@ async function saveIssue(input: IssueCreateInput): Promise<void> {
       <button class="btn btn-sm" type="button" @click="router.push('/')">回到项目入口</button>
     </EmptyState>
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
       title="问题清单"
       :subtitle="`${project.name} · ${issues.length} 个问题`"

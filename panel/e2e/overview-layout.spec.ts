@@ -11,7 +11,7 @@ test("概览页两栏互换且侧栏入口为纵向列表", async ({ page }) => 
   await expect(columns.first()).toHaveClass(/overview-side/);
   await expect(columns.last()).toHaveClass(/overview-feed/);
   await expect(grid.locator(".overview-side .project-map")).toBeVisible();
-  await expect(grid.locator(".overview-side")).toContainText("未关闭问题");
+  await expect(grid.locator(".overview-feed")).toContainText("未关闭问题");
   await expect(grid.locator(".overview-feed")).toContainText("最近活动");
 
   const nav = page.locator(".side-nav");

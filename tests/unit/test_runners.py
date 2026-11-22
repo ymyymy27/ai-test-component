@@ -179,3 +179,125 @@ def test_run_command_can_be_cancelled(tmp_path: Path) -> None:
     )
     assert result.status == "blocked"
     assert "cancelled" in (result.error or "")
+
+
+class _AuthHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        body = b'{"detail":"Not authenticated"}'
+        self.send_response(401)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
+
+
+def test_http_case_without_credentials_is_blocked(tmp_path: Path) -> None:
+    """401 without an Authorization header is a missing precondition, not a bug."""
+    from aitest.models import Case
+    from aitest.worker import _execute
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _AuthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{int(server.server_address[1])}/api/v1/users/"
+        case = Case(
+            case_id="case_auth",
+            acceptance_item_id="ai_a",
+            layer="L2",
+            expected="返回用户列表",
+            expectation_source="列出用户",
+            preconditions=["服务可用"],
+            verify_method=(
+                'http:[{"method":"GET","url":"'
+                + url
+                + '","expect":[{"path":"status","operator":"equals","value":200}]}]'
+            ),
+        )
+        status, outputs, message, _ = _execute(
+            case,
+            tmp_path,
+            tmp_path,
+            {},
+            Path(sys.executable),
+        )
+        assert status == "blocked"
+        assert "认证" in message
+        assert outputs
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_script_http_cases_need_services() -> None:
+    from aitest.models import Case
+    from aitest.worker import _case_needs_services
+
+    def case(method: str, content: str = "") -> Case:
+        return Case(
+            case_id="case_x",
+            acceptance_item_id="ai_a",
+            layer="L2",
+            expected="预期",
+            expectation_source="验收项",
+            preconditions=["可连接"],
+            verify_method=method,
+            script_content=content or None,
+        )
+
+    assert _case_needs_services(case('http:[{"method":"GET","url":"http://x/"}]'))
+    assert _case_needs_services(
+        case("script:s.py", 'BASE = "http://127.0.0.1:18000"')
+    )
+    assert _case_needs_services(
+        case("command:cd frontend && bunx playwright test tests/a.spec.ts --grep \"x\"")
+    )
+    assert not _case_needs_services(case("script:s.py", "assert 1 == 1"))
+
+
+def test_repair_script_case_rewrites_and_rejects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aitest.models import Case
+    from aitest.storage.workspace import Workspace
+    from aitest.worker import _repair_script_case
+
+    class _Client:
+        def __init__(self, script: str) -> None:
+            self.script = script
+
+        def repair_script(self, **kwargs: object) -> str:
+            return self.script
+
+    ws = Workspace(tmp_path / "ws")
+    ws.init()
+    generated = tmp_path / "generated"
+    generated.mkdir()
+    case = Case(
+        case_id="case_x",
+        acceptance_item_id="ai_a",
+        layer="L2",
+        expected="预期",
+        expectation_source="验收项",
+        preconditions=["可连接"],
+        verify_method="script:probe.py",
+        script_name="probe.py",
+        script_content="assert 0\n",
+    )
+    monkeypatch.setattr(
+        "aitest.model_config.build_client",
+        lambda *a, **k: _Client("import os\nassert os.environ['X']\n"),
+    )
+    assert _repair_script_case(ws, "proj_x", case, generated, [], [b"boom"], "failed")
+    assert (generated / "probe.py").is_file()
+    assert "os.environ" in (case.script_content or "")
+
+    monkeypatch.setattr(
+        "aitest.model_config.build_client",
+        lambda *a, **k: _Client("import shutil\nshutil.rmtree('/')\n"),
+    )
+    assert not _repair_script_case(ws, "proj_x", case, generated, [], [b"boom"], "failed")

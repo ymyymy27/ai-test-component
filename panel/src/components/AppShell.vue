@@ -235,6 +235,15 @@ async function newTask(projectIdValue: string): Promise<void> {
   await router.push(`/projects/${projectIdValue}/tasks/new`);
 }
 
+async function refreshProjects(): Promise<void> {
+  try {
+    await workspace.refreshProjects();
+    ui.showToast("项目列表已刷新。", "success");
+  } catch (error) {
+    ui.showToast(error instanceof Error ? error.message : "刷新失败。", "error");
+  }
+}
+
 async function addProject(): Promise<void> {
   ui.closeSidebar();
   await router.push("/setup");
@@ -358,6 +367,7 @@ onBeforeUnmount(() => {
       :running-task-id="workspace.runningTask?.id ?? null"
       :section="currentSection"
       :open="ui.sidebarOpen"
+      :workspace-path="workspace.workspaceRoot"
       :modal="ui.narrow && ui.sidebarOpen"
       @select-project="selectProject"
       @open-overview="(id) => openProjectSection(id, 'overview')"
@@ -367,6 +377,7 @@ onBeforeUnmount(() => {
       @select-task="selectTask"
       @new-task="newTask"
       @add-project="addProject"
+      @refresh-projects="refreshProjects"
       @open-settings="openSettings"
       @open-task-details="openTaskDetails"
       @rename-task="renameTask"

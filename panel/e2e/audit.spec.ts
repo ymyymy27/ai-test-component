@@ -110,13 +110,14 @@ test("审计：报告操作与历史筛选", async ({ page }) => {
 
   await page.locator("#opinion-text").fill("交互审计：结论与范围一致。");
   await page.getByRole("button", { name: "保存意见" }).click();
-  await expect(page.locator(".notice").first()).toContainText("交互审计");
+  await expect(page.locator(".opinion-saved-hint")).toContainText("上次保存");
 
   await page.getByRole("button", { name: "重新生成" }).click();
   await page.waitForURL((url) => url.toString() !== firstReportUrl);
   await expect(page.locator(".toolbar").filter({ hasText: "版本" })).toBeVisible();
   await page.getByRole("button", { name: "第 1 版" }).click();
   await expect(page.locator(".notice.is-old")).toContainText("旧版本");
+  await expect(page.locator(".opinion-saved")).toContainText("交互审计");
 
   await page.getByRole("button", { name: "返回运行结果" }).click();
   await page.waitForURL(/\/result/);
@@ -268,7 +269,7 @@ test("审计：运行停止与快速检查重跑", async ({ page }) => {
   await expect(page.locator(".quick-result")).toContainText("完成于", { timeout: 10_000 });
 });
 
-test("审计：报告导出、链路导入与断言", async ({ page }) => {
+test("审计：报告导出", async ({ page }) => {
   await createAndRun(page, "交互审计链路", "D:/work/audit-link");
   await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
   await page.waitForURL(/\/reports\//);
@@ -280,28 +281,4 @@ test("审计：报告导出、链路导入与断言", async ({ page }) => {
   await page.locator("summary").filter({ hasText: "Markdown 预览" }).click();
   await expect(page.locator("textarea.markdown-preview")).toBeVisible();
 
-  await page.locator(".report-details > summary").click();
-  await page.locator(".link-tools > summary").filter({ hasText: "导入链路 JSON" }).click();
-  await page.fill(
-    "#link-json",
-    JSON.stringify({
-      nodes: [
-        { id: "request", name: "请求到达", state: "passed", detail: "HTTP 200" },
-        { id: "db", name: "写入数据库", state: "failed", detail: "唯一键冲突" },
-      ],
-      gaps: [{ node: "queue", reason: "没有队列日志" }],
-      location: { known: true, path: "app/orders.py", line: 42, reason: "异常位置" },
-    }),
-  );
-  await page.getByRole("button", { name: "导入并重新生成报告" }).click();
-  await page.waitForURL(/\/reports\//);
-  await expect(page.locator(".chain")).toContainText("请求到达");
-  await expect(page.locator(".chain")).toContainText("写入数据库");
-
-  await page.locator(".link-tools > summary").filter({ hasText: "对节点补充断言" }).click();
-  await page.selectOption("#link-node", "db");
-  await page.fill("#link-expected", "unique constraint");
-  await page.fill("#link-actual", "duplicate key");
-  await page.getByRole("button", { name: "写入断言并重新生成报告" }).click();
-  await page.waitForURL(/\/reports\//);
 });

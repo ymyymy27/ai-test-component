@@ -62,13 +62,18 @@ const unknowns = computed(() => props.map?.unknowns ?? []);
       <div v-for="feature in visibleFeatures" :key="feature.id" class="project-map-row">
         <span>{{ feature.name }}</span>
         <small>{{ feature.modules.join(" · ") }}</small>
-        <em :class="`is-${feature.confidence}`">
+        <em
+          :class="`is-${feature.confidence}`"
+          :title="`识别把握：${
+            feature.confidence === 'high' ? '高' : feature.confidence === 'medium' ? '中' : '低'
+          }`"
+        >
           {{
             feature.confidence === "high"
-              ? "把握高"
+              ? "高"
               : feature.confidence === "medium"
-                ? "把握中"
-                : "把握低"
+                ? "中"
+                : "低"
           }}
         </em>
         <button

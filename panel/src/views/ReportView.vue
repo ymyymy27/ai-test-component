@@ -12,12 +12,20 @@ import {
   ANALYSIS_REASON_LABEL,
   ANALYSIS_REASON_TEXT,
   ISSUE_STATUS_LABEL,
-  LAYER_LABEL,
   TEMPLATE_DISPOSITION_LABEL,
   VERDICT_LABEL,
 } from "@/domain/labels";
 import { normalizeReport, reportsForRun } from "@/domain/derive";
-import type { EvidenceRef, ExportResult, Issue, LinkData, Report, Run, Task } from "@/domain/types";
+import type {
+  EvidenceRef,
+  ExportResult,
+  Issue,
+  ProjectCheck,
+  Report,
+  ReportCaseDetail,
+  Run,
+  Task,
+} from "@/domain/types";
 import type { LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -44,9 +52,24 @@ function coverageClass(kind: string | null | undefined): string {
     return "is-pass";
   }
   if (kind === "manual") {
+    return "is-info";
+  }
+  if (!kind) {
     return "is-neutral";
   }
   return "is-warn";
+}
+
+function coverageDescription(kind: string | null | undefined): string {
+  return (
+    {
+      direct: "直接定位到具体测试节点，可作为该项的通过证据",
+      file: "只定位到测试文件，证据不足以单独证明该项",
+      shared: "与其他验收项共用测试节点",
+      manual: "由人工记录结果与证据",
+      unverified: "预期或证据未核实，不能据此判定通过",
+    }[kind ?? ""] ?? "这一版没有记录覆盖方式"
+  );
 }
 
 const route = useRoute();
@@ -96,12 +119,100 @@ const opinionBy = ref("本机用户");
 const opinionText = ref("");
 const opinionError = ref("");
 const exportResult = ref<ExportResult | null>(null);
-const detailsOpen = ref(false);
+
+type ReportDetail =
+  | { kind: "command"; title: string; command: string; root: string }
+  | { kind: "evidence"; evidence: EvidenceRef };
+const detailDialog = ref<HTMLDialogElement | null>(null);
+const detailContent = ref<ReportDetail | null>(null);
+
+function showDetail(detail: ReportDetail): void {
+  detailContent.value = detail;
+  void nextTick(() => {
+    const dialog = detailDialog.value;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+  });
+}
+
+function closeDetail(): void {
+  detailDialog.value?.close();
+}
+
+function scrollToSection(id: string): void {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function goOpinion(): void {
+  scrollToSection("report-opinion");
+  window.setTimeout(() => {
+    document.getElementById("opinion-text")?.focus({ preventScroll: true });
+  }, 420);
+}
+
+function showCommand(testCase: ReportCaseDetail): void {
+  showDetail({
+    kind: "command",
+    title: testCase.title,
+    command: commandText(testCase.method),
+    root: project.value?.root ?? "",
+  });
+}
+
+function commandText(method: string): string {
+  const value = (method || "").trim();
+  if (value.startsWith("pytest:")) {
+    return `python -m pytest ${value.slice("pytest:".length).trim()}`.trim();
+  }
+  return value.replace(/^command:\s*/, "").trim();
+}
+
+async function copyCommand(): Promise<void> {
+  const detail = detailContent.value;
+  if (detail?.kind !== "command" || !detail.command.trim()) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(detail.command);
+    ui.showToast(
+      `命令已复制。到项目根目录 ${detail.root || "（未记录）"} 打开终端粘贴执行。`,
+      "success",
+    );
+  } catch {
+    ui.showToast("复制失败，请手动选择命令。", "error");
+  }
+}
+
+async function copyEvidencePath(): Promise<void> {
+  const detail = detailContent.value;
+  if (detail?.kind !== "evidence") {
+    return;
+  }
+  const reference = detail.evidence.sourcePath || detail.evidence.name;
+  try {
+    await navigator.clipboard.writeText(reference);
+    ui.showToast("证据路径已复制，可粘贴到问题记录、终端或工单中引用。", "success");
+  } catch {
+    ui.showToast("复制失败，请手动选择路径。", "error");
+  }
+}
+
+async function openEvidenceFile(): Promise<void> {
+  const detail = detailContent.value;
+  if (detail?.kind !== "evidence" || !detail.evidence.sourcePath) {
+    return;
+  }
+  try {
+    await workspace.openHostPath(detail.evidence.sourcePath);
+  } catch {
+    ui.showToast("打不开证据文件；可复制路径后手动打开。", "error");
+  }
+}
 
 async function revealDetails(): Promise<void> {
-  detailsOpen.value = true;
   await nextTick();
-  document.querySelector(".report-details")?.scrollIntoView({ block: "start" });
+  document.querySelector("#report-appendix")?.scrollIntoView({ block: "start" });
 }
 const loadingReport = ref(false);
 const savingOpinion = ref(false);
@@ -120,17 +231,66 @@ const linkBusy = computed(
 const regenerating = computed(() =>
   report.value ? workspace.busyKey(`report:${report.value.runId}`) : false,
 );
-const layers = computed(() => {
-  const current = report.value;
-  if (!current) {
-    return [];
-  }
-  return (["L1", "L2", "L3"] as const).map((layer) => ({
-    layer,
-    label: LAYER_LABEL[layer],
-    ...current.layers[layer],
-  }));
+const activeItemId = ref("");
+const expandedCheckKey = ref("");
+const caseSection = ref<HTMLElement | null>(null);
+const activeItem = computed(
+  () => report.value?.itemDetails.find((item) => item.itemId === activeItemId.value) ?? null,
+);
+const visibleCases = computed(() => {
+  const cases = report.value?.caseDetails ?? [];
+  return activeItemId.value
+    ? cases.filter((testCase) => testCase.itemId === activeItemId.value)
+    : cases;
 });
+const projectCheckNote = computed(() => {
+  const checks = report.value?.l1 ?? [];
+  const passed = checks.filter((check) => check.result === "passed").length;
+  return `${checks.length} 项 · ${passed} 项通过`;
+});
+const caseNote = computed(() => {
+  const total = report.value?.caseDetails.length ?? 0;
+  return activeItemId.value ? `${visibleCases.value.length} / ${total} 条` : `${total} 条`;
+});
+const activeScopeNote = ref<"" | "uncovered" | "unverified" | "warnings">("");
+
+function toggleScopeNote(note: "uncovered" | "unverified" | "warnings"): void {
+  activeScopeNote.value = activeScopeNote.value === note ? "" : note;
+}
+
+function filterCasesByItem(itemId: string): void {
+  activeItemId.value = activeItemId.value === itemId ? "" : itemId;
+  if (!activeItemId.value) {
+    return;
+  }
+  void nextTick(() => {
+    caseSection.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function clearCaseFilter(): void {
+  activeItemId.value = "";
+}
+
+function toggleCheck(key: string): void {
+  expandedCheckKey.value = expandedCheckKey.value === key ? "" : key;
+}
+
+function evidenceForCheck(check: ProjectCheck): EvidenceRef | null {
+  const reference = check.evidenceRef?.trim();
+  if (!reference) {
+    return null;
+  }
+  return (
+    report.value?.evidenceIndex.find(
+      (evidence) =>
+        evidence.id === reference ||
+        evidence.name === reference ||
+        evidence.sourcePath === reference,
+    ) ?? null
+  );
+}
+
 const selectedCount = computed(() => report.value?.coverage.selected ?? 0);
 const applicableCount = computed(() => report.value?.coverage.applicable ?? 0);
 const unselectedCount = computed(() =>
@@ -306,34 +466,6 @@ async function saveOpinion(): Promise<void> {
   }
 }
 
-async function importLink(link: LinkData): Promise<void> {
-  if (!report.value) {
-    return;
-  }
-  try {
-    await workspace.importLink(projectId.value, report.value.runId, link);
-    const next = await workspace.regenerateReport(projectId.value, report.value.runId);
-    await router.push(`/projects/${projectId.value}/reports/${next.id}`);
-    await revealDetails();
-  } catch {
-    // store 已提示。
-  }
-}
-
-async function importHostLink(): Promise<void> {
-  if (!report.value) {
-    return;
-  }
-  try {
-    await workspace.importHostLink(projectId.value, report.value.runId);
-    const next = await workspace.regenerateReport(projectId.value, report.value.runId);
-    await router.push(`/projects/${projectId.value}/reports/${next.id}`);
-    await revealDetails();
-  } catch {
-    // store 已提示。
-  }
-}
-
 async function assertLink(input: LinkAssertInput): Promise<void> {
   if (!report.value) {
     return;
@@ -371,22 +503,8 @@ async function copyMarkdown(): Promise<void> {
   }
 }
 
-async function openEvidence(evidence: EvidenceRef): Promise<void> {
-  if (workspace.mode === "host" && evidence.sourcePath) {
-    try {
-      await workspace.openHostPath(evidence.sourcePath);
-      return;
-    } catch {
-      // 宿主打不开时退回复制引用。
-    }
-  }
-  const reference = evidence.sourcePath || evidence.name;
-  try {
-    await navigator.clipboard.writeText(reference);
-    ui.showToast(`证据引用已复制：${reference}`, "success");
-  } catch {
-    ui.showToast(`证据引用：${reference}（复制失败，请手动选择）`, "error");
-  }
+function openEvidence(evidence: EvidenceRef): void {
+  showDetail({ kind: "evidence", evidence });
 }
 
 function bytesText(bytes: number): string {
@@ -409,7 +527,7 @@ function bytesText(bytes: number): string {
       @retry="router.push(`/projects/${projectId}/history`)"
     />
   </div>
-  <div v-else class="page">
+  <div v-else class="page report-page">
     <PageHeader
       title="测试报告"
       :subtitle="`${project?.name ?? ''} · ${task.title} · 第 ${report.version} 版 · ${new Date(report.generatedAt).toLocaleString('zh-CN')}`"
@@ -476,20 +594,32 @@ function bytesText(bytes: number): string {
       <span>正在查看旧版本：内容只读，结论与计数保留当时结果。</span>
     </div>
 
+    <nav class="report-nav" aria-label="报告章节">
+      <button type="button" @click="scrollToSection('report-conclusion')">结论</button>
+      <button type="button" @click="scrollToSection('report-scope')">范围</button>
+      <button type="button" @click="scrollToSection('report-checks')">检查</button>
+      <button type="button" @click="scrollToSection('case-details')">用例</button>
+      <button type="button" @click="scrollToSection('report-appendix')">追溯</button>
+      <button type="button" @click="goOpinion">填写意见</button>
+    </nav>
+
     <section class="report-group" aria-label="结论与验收">
-    <section class="section">
+    <section id="report-conclusion" class="section">
       <div class="result-head report-hero">
         <div>
           <p class="page-kicker">本次结论</p>
           <p class="result-verdict report-hero-title" :class="`is-${report.verdict}`">
             {{ verdictHeadline }}
           </p>
-          <p class="report-coverage">
-            已选 <strong class="num">{{ selectedCount }}</strong> /
-            <strong class="num">{{ applicableCount }}</strong> 项
-            <span v-if="unselectedCount">· 未纳入 {{ unselectedCount }} 项</span>
+          <p class="report-scope-line">
+            <span>
+              已选 <strong class="num">{{ selectedCount }}</strong> /
+              <strong class="num">{{ applicableCount }}</strong> 项
+            </span>
+            <span v-if="unselectedCount" class="report-scope-note">
+              结论仅对已选范围成立
+            </span>
           </p>
-          <p class="report-conclusion-text">{{ report.conclusion }}</p>
           <div
             v-if="coverageSegments.length"
             class="scope-progress"
@@ -546,7 +676,47 @@ function bytesText(bytes: number): string {
       </div>
     </section>
 
-    <section class="section">
+    <section class="section report-notes">
+      <div class="report-note">
+        <div class="section-head">
+          <h2 class="section-title-lg">摘要</h2>
+          <span class="badge is-neutral">
+            {{
+              report.summarySource === "ai"
+                ? "AI 摘要 · 不改变结论"
+                : report.summarySource === "none"
+                  ? "摘要未生成"
+                  : "本地摘要 · 模型未参与"
+            }}
+          </span>
+        </div>
+        <p class="doc-p">{{ report.summary || "本次没有生成摘要。" }}</p>
+      </div>
+      <div class="report-note">
+        <div class="section-head">
+          <h2 class="section-title-lg">模拟数据判断</h2>
+          <span
+            class="badge"
+            :class="
+              report.mock.realChain ? 'is-pass' : mockEvaluated ? 'is-warn' : 'is-neutral'
+            "
+          >
+            真实链路{{ realChainText }}
+          </span>
+        </div>
+        <p class="doc-p">
+          真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合
+          {{ report.mock.mixed }} · 无法判断 {{ report.mock.unknown }}。{{
+            report.mock.note
+          }}
+        </p>
+        <p class="doc-note">
+          含模拟或无法判断依赖的用例，不能获得“真实链路通过”。该判断不可手工修改。
+        </p>
+      </div>
+    </section>
+
+    <section id="report-scope" class="section">
       <h2 class="section-title-lg">范围与覆盖</h2>
       <div class="table-wrap report-data-table-wrap" tabindex="0" role="region" aria-label="范围与覆盖表">
         <table class="table report-data-table">
@@ -562,9 +732,23 @@ function bytesText(bytes: number): string {
             <tr
               v-for="item in report.itemDetails.filter((entry) => entry.selected)"
               :key="item.itemId"
+              :class="{ 'is-filtered': activeItemId === item.itemId }"
             >
               <td class="cell-num" data-label="编号">{{ item.no }}</td>
-              <td class="cell-main" data-label="验收项">{{ item.text }}</td>
+              <td class="cell-main" data-label="验收项">
+                <button
+                  class="row-link row-filter"
+                  type="button"
+                  :aria-pressed="activeItemId === item.itemId"
+                  title="在下方用例明细中筛选"
+                  @click="filterCasesByItem(item.itemId)"
+                >
+                  <span>{{ item.text }}</span>
+                  <span class="row-filter-hint">
+                    {{ activeItemId === item.itemId ? "已筛选" : "筛选" }}
+                  </span>
+                </button>
+              </td>
               <td data-label="最差结果">
                 <StatusMark :result="item.outcome" />
                 <StatusText :result="item.outcome" />
@@ -574,10 +758,47 @@ function bytesText(bytes: number): string {
           </tbody>
         </table>
       </div>
-      <details v-if="report.uncoveredItems.length" class="unselected-block">
-        <summary>
-          未纳入本次 {{ report.uncoveredItems.length }} 项 <span class="muted">不计入结论</span>
-        </summary>
+      <div
+        v-if="
+          report.uncoveredItems.length ||
+          report.unverifiedItems.length ||
+          report.planWarnings?.length
+        "
+        class="scope-notes"
+      >
+        <button
+          v-if="report.uncoveredItems.length"
+          class="scope-note-btn"
+          type="button"
+          :aria-expanded="activeScopeNote === 'uncovered'"
+          @click="toggleScopeNote('uncovered')"
+        >
+          未纳入 {{ report.uncoveredItems.length }} 项
+          <span class="scope-note-caret" aria-hidden="true" />
+        </button>
+        <button
+          v-if="report.unverifiedItems.length"
+          class="scope-note-btn"
+          type="button"
+          :aria-expanded="activeScopeNote === 'unverified'"
+          @click="toggleScopeNote('unverified')"
+        >
+          未核实预期 {{ report.unverifiedItems.length }} 条
+          <span class="scope-note-caret" aria-hidden="true" />
+        </button>
+        <button
+          v-if="report.planWarnings?.length"
+          class="scope-note-btn"
+          type="button"
+          :aria-expanded="activeScopeNote === 'warnings'"
+          @click="toggleScopeNote('warnings')"
+        >
+          计划警告 {{ report.planWarnings.length }} 条
+          <span class="scope-note-caret" aria-hidden="true" />
+        </button>
+      </div>
+      <div v-if="activeScopeNote === 'uncovered'" class="scope-note-panel">
+        <p class="scope-note-hint">未纳入项不计入本次结论。</p>
         <div class="coverage-chip-list">
           <span
             v-for="item in report.uncoveredItems"
@@ -588,26 +809,25 @@ function bytesText(bytes: number): string {
             {{ parseUncovered(item).text }}
           </span>
         </div>
-      </details>
-      <details v-if="report.unverifiedItems.length" class="unselected-block">
-        <summary>
-          未核实预期 {{ report.unverifiedItems.length }} 条
-          <span class="muted">执行通过也按阻塞计</span>
-        </summary>
+      </div>
+      <div v-if="activeScopeNote === 'unverified'" class="scope-note-panel">
+        <p class="scope-note-hint">执行通过也按阻塞计。</p>
         <ul class="list-plain">
           <li v-for="item in report.unverifiedItems" :key="item">{{ item }}</li>
         </ul>
-      </details>
-      <details v-if="report.planWarnings?.length" class="unselected-block">
-        <summary>计划警告 {{ report.planWarnings.length }} 条</summary>
+      </div>
+      <div v-if="activeScopeNote === 'warnings'" class="scope-note-panel">
         <ul class="list-plain">
           <li v-for="item in report.planWarnings ?? []" :key="item">{{ item }}</li>
         </ul>
-      </details>
+      </div>
     </section>
 
-    <section class="section">
-      <h2 class="section-title-lg">项目级检查</h2>
+    <section id="report-checks" class="section">
+      <div class="section-head">
+        <h2 class="section-title-lg">项目级检查</h2>
+        <span v-if="report.l1.length" class="section-note">{{ projectCheckNote }}</span>
+      </div>
       <div v-if="report.l1.length" class="table-wrap report-data-table-wrap">
         <table class="table report-data-table">
           <thead>
@@ -618,21 +838,54 @@ function bytesText(bytes: number): string {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="check in report.l1" :key="check.key">
-              <td class="cell-main">
-                <span class="check-name-inline">
-                  <StatusMark :result="check.result" />
-                  {{ check.name }}
-                </span>
-              </td>
-              <td><code class="check-method-chip">{{ check.method }}</code></td>
-              <td>
-                <span class="status-pill" :class="`is-${check.result}`">
-                  <StatusText :result="check.result" />
-                </span>
-                <span v-if="check.reason" class="muted"> · {{ check.reason }}</span>
-              </td>
-            </tr>
+            <template v-for="check in report.l1" :key="check.key">
+              <tr :class="{ 'is-open': expandedCheckKey === check.key }">
+                <td class="cell-main">
+                  <button
+                    class="row-toggle"
+                    type="button"
+                    :aria-expanded="expandedCheckKey === check.key"
+                    @click="toggleCheck(check.key)"
+                  >
+                    <StatusMark :result="check.result" />
+                    <span class="row-toggle-text">{{ check.name }}</span>
+                    <span
+                      class="row-chevron"
+                      :class="{ 'is-open': expandedCheckKey === check.key }"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </td>
+                <td><code class="check-method-chip">{{ check.method }}</code></td>
+                <td>
+                  <span class="status-pill" :class="`is-${check.result}`">
+                    <StatusText :result="check.result" />
+                  </span>
+                  <span v-if="check.reason" class="muted"> · {{ check.reason }}</span>
+                </td>
+              </tr>
+              <tr v-if="expandedCheckKey === check.key" class="detail-row">
+                <td colspan="3">
+                  <div class="check-detail">
+                    <p class="check-detail-text">{{ check.detail || "没有附加说明。" }}</p>
+                    <p v-if="check.reason" class="check-detail-text">
+                      未通过原因：{{ check.reason }}
+                    </p>
+                    <div class="check-detail-meta">
+                      <span v-if="check.time">{{ formatTime(check.time) }}</span>
+                      <button
+                        v-if="evidenceForCheck(check)"
+                        class="link-btn"
+                        type="button"
+                        @click="openEvidence(evidenceForCheck(check)!)"
+                      >
+                        查看证据
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -641,27 +894,23 @@ function bytesText(bytes: number): string {
       </p>
     </section>
 
-    <section class="section">
-      <h2 class="section-title-lg">分层计数</h2>
-      <div class="layer-pills">
-        <span
-          v-for="layer in layers"
-          :key="layer.layer"
-          class="layer-pill"
-          :class="{ 'is-empty': layer.total === 0 }"
-        >
-          <strong>{{ layer.label }}</strong>
-          {{ layer.passed }}/{{ layer.total }} 通过
-          <em v-if="layer.failed">· {{ layer.failed }} 失败</em>
-          <em v-if="layer.incomplete">· {{ layer.incomplete }} 未完成</em>
+    <section id="case-details" ref="caseSection" class="section">
+      <div class="section-head case-section-head">
+        <h2 class="section-title-lg">用例明细</h2>
+        <span class="section-note">{{ caseNote }}</span>
+        <span v-if="activeItem" class="case-filter">
+          仅看 {{ activeItem.no }} · {{ activeItem.text }}
+          <button class="case-filter-clear" type="button" @click="clearCaseFilter">清除</button>
         </span>
       </div>
-    </section>
-
-    <section class="section">
-      <h2 class="section-title-lg">用例明细</h2>
-      <div v-if="report.caseDetails.length" class="table-wrap report-data-table-wrap" tabindex="0" role="region" aria-label="用例明细表">
-        <table class="table report-data-table">
+      <div
+        v-if="visibleCases.length"
+        class="table-wrap report-data-table-wrap case-table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="用例明细表"
+      >
+        <table class="table report-data-table is-cases">
           <thead>
             <tr>
               <th scope="col">验收项</th>
@@ -673,26 +922,43 @@ function bytesText(bytes: number): string {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="testCase in report.caseDetails" :key="testCase.caseId">
+            <tr v-for="testCase in visibleCases" :key="testCase.caseId">
               <td class="cell-num" data-label="验收项">{{ testCase.itemNo }}</td>
               <td class="cell-main" data-label="用例">
                 <details class="case-report-detail">
                   <summary>{{ testCase.title }}</summary>
                   <p><strong>预期</strong>：{{ testCase.expected || "未记录" }}</p>
                   <p><strong>实际</strong>：{{ testCase.actual || "未记录" }}</p>
+                  <p v-if="testCase.testNodes?.length">
+                    <strong>测试节点</strong>：
+                    <code class="case-node">{{ testCase.testNodes.join(" · ") }}</code>
+                  </p>
+                  <p>
+                    <strong>覆盖</strong>：{{ coverageLabel(testCase.coverageKind) }} ·
+                    {{ coverageDescription(testCase.coverageKind) }}
+                  </p>
                   <p v-if="testCase.analysis">
                     <strong>分析</strong>：{{ testCase.analysis.observed }}
                   </p>
                 </details>
               </td>
               <td data-label="检查方式">
-                <code class="method-short" :title="testCase.method">{{
-                  shortMethod(testCase.method)
-                }}</code>
+                <button
+                  class="method-short method-open"
+                  type="button"
+                  title="查看完整命令"
+                  @click="showCommand(testCase)"
+                >
+                  {{ shortMethod(testCase.method) }}
+                </button>
               </td>
               <td data-label="覆盖">
                 <span class="badge" :class="coverageClass(testCase.coverageKind)">
-                  {{ coverageLabel(testCase.coverageKind) }}
+                  {{
+                    run?.simulated && !testCase.coverageKind
+                      ? "演示未记录"
+                      : coverageLabel(testCase.coverageKind)
+                  }}
                 </span>
               </td>
               <td data-label="结果">
@@ -721,7 +987,9 @@ function bytesText(bytes: number): string {
           </tbody>
         </table>
       </div>
-      <p v-else class="doc-note">这一版没有保留用例明细。</p>
+      <p v-else class="doc-note">
+        {{ report.caseDetails.length ? "当前筛选没有用例。" : "这一版没有保留用例明细。" }}
+      </p>
     </section>
 
     <section v-if="issues.length" class="section">
@@ -740,75 +1008,6 @@ function bytesText(bytes: number): string {
       </div>
     </section>
 
-    <section class="section">
-      <h2 class="section-title-lg">验收意见</h2>
-      <div class="report-form-shell">
-      <div v-if="report.opinion" class="notice">
-        <span
-          ><strong>{{ report.opinion.by }}</strong> · {{ formatTime(report.opinion.at) }} ·
-          {{ report.opinion.text }}</span
-        >
-      </div>
-      <form v-if="isLatest" class="opinion-form" novalidate @submit.prevent="saveOpinion">
-        <div class="form-grid">
-          <div class="field">
-            <label for="opinion-by">署名</label>
-            <input id="opinion-by" v-model="opinionBy" type="text" maxlength="40" />
-          </div>
-        </div>
-        <div class="field" :class="{ 'has-error': opinionError }">
-          <label for="opinion-text">意见</label>
-          <textarea
-            id="opinion-text"
-            v-model="opinionText"
-            rows="3"
-            placeholder="例如：删除标记修复后需重跑第 3、4 项，再决定是否上线。"
-            :aria-invalid="opinionError ? 'true' : undefined"
-            :aria-describedby="opinionError ? 'opinion-error' : undefined"
-            @input="opinionError = ''"
-          />
-          <p v-if="opinionError" id="opinion-error" class="field-error" role="alert">
-            {{ opinionError }}
-          </p>
-        </div>
-        <div class="form-actions">
-          <button
-            class="btn btn-primary"
-            type="submit"
-            :disabled="busyOpinion"
-            :aria-busy="busyOpinion"
-          >
-            {{ busyOpinion ? "正在保存…" : "保存意见" }}
-          </button>
-        </div>
-      </form>
-      <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
-      </div>
-    </section>
-
-    </section>
-
-    <details
-      class="report-details"
-      :open="detailsOpen"
-      @toggle="detailsOpen = ($event.target as HTMLDetailsElement).open"
-    >
-      <summary>
-        <span>运行明细</span>
-      </summary>
-    <section class="section">
-      <h2 class="section-title-lg">模拟数据判断</h2>
-      <p class="doc-p">
-        真实 {{ report.mock.real }} · 模拟 {{ report.mock.mock }} · 混合 {{ report.mock.mixed }} ·
-        无法判断 {{ report.mock.unknown }}。真实链路：{{ realChainText }}。{{
-          report.mock.note
-        }}
-      </p>
-      <p class="doc-note">
-        含模拟或无法判断依赖的用例，不能获得“真实链路通过”。该判断不可手工修改。
-      </p>
-    </section>
-
     <section v-if="report.analysis.status === 'generated'" class="section">
       <div class="section-head">
         <h2 class="section-title-lg">失败分析</h2>
@@ -823,7 +1022,7 @@ function bytesText(bytes: number): string {
         <li v-for="item in report.analysis.nextSteps" :key="item">下一步：{{ item }}</li>
       </ul>
     </section>
-    <section v-else class="section">
+    <section v-else-if="report.counts.failed > 0" class="section">
       <div class="section-head">
         <h2 class="section-title-lg">失败分析</h2>
         <span class="badge is-neutral">
@@ -838,18 +1037,15 @@ function bytesText(bytes: number): string {
       </p>
     </section>
 
-    <section class="section">
+    <section id="report-appendix" class="section">
       <h2 class="section-title-lg">调用链</h2>
       <LinkPanel
         v-if="run"
         :link="report.link"
         :busy="linkBusy"
-        :host-mode="workspace.mode === 'host'"
-        @load="importLink"
-        @host-import="importHostLink"
         @assert="assertLink"
       />
-      <p v-else class="doc-note">运行记录不存在，无法导入链路。</p>
+      <p v-else class="doc-note">运行记录不存在，无法读取调用链。</p>
     </section>
 
     <section v-if="report.templates.length" class="section">
@@ -871,6 +1067,10 @@ function bytesText(bytes: number): string {
       </div>
     </section>
 
+    <div
+      v-if="report.modules.length || report.unmapped.length || report.evidenceIndex.length"
+      class="report-pair"
+    >
     <section v-if="report.modules.length || report.unmapped.length" class="section">
       <h2 class="section-title-lg">涉及模块与文件</h2>
       <div v-if="report.modules.length" class="list-plain">
@@ -904,14 +1104,15 @@ function bytesText(bytes: number): string {
           <button
             class="link-btn"
             type="button"
-            :aria-label="`打开或复制证据 ${evidence.name}`"
+            :aria-label="`查看证据 ${evidence.name}`"
             @click="openEvidence(evidence)"
           >
-            {{ workspace.mode === "host" && evidence.sourcePath ? "打开" : "复制引用" }}
+            查看
           </button>
         </div>
       </div>
     </section>
+    </div>
 
     <section class="section">
       <h2 class="section-title-lg">来源与环境</h2>
@@ -943,21 +1144,56 @@ function bytesText(bytes: number): string {
       </dl>
     </section>
 
-    </details>
-
-    <section class="section">
-      <details class="unselected-block">
-        <summary>
-          {{
-            report.summarySource === "ai"
-              ? "AI 摘要 · 不改变结论"
-              : report.summarySource === "none"
-                ? "摘要未生成 · 不改变结论"
-                : "本地摘要（模型未参与） · 不改变结论"
-          }}
-        </summary>
-        <p class="doc-p">{{ report.summary || "本次没有生成摘要。" }}</p>
-      </details>
+    <section id="report-opinion" class="section">
+      <h2 class="section-title-lg">验收意见</h2>
+      <div class="report-form-shell">
+      <div v-if="report.opinion && !isLatest" class="opinion-saved">
+        <p class="opinion-saved-text">{{ report.opinion.text }}</p>
+        <div class="opinion-saved-meta">
+          <span><strong>{{ report.opinion.by }}</strong> · {{ formatTime(report.opinion.at) }}</span>
+          <span class="badge is-pass">已保存</span>
+        </div>
+      </div>
+      <form v-if="isLatest" class="opinion-form" novalidate @submit.prevent="saveOpinion">
+        <p v-if="report.opinion" class="opinion-saved-hint">
+          上次保存：<strong>{{ report.opinion.by }}</strong> ·
+          {{ formatTime(report.opinion.at) }}
+        </p>
+        <div class="opinion-composer" :class="{ 'has-error': opinionError }">
+          <div class="field" :class="{ 'has-error': opinionError }">
+            <label class="visually-hidden" for="opinion-text">意见</label>
+            <textarea
+              id="opinion-text"
+              v-model="opinionText"
+              rows="3"
+              placeholder="写下本次结论、遗留风险或下一步安排。"
+              :aria-invalid="opinionError ? 'true' : undefined"
+              :aria-describedby="opinionError ? 'opinion-error' : undefined"
+              @input="opinionError = ''"
+            />
+            <p v-if="opinionError" id="opinion-error" class="field-error" role="alert">
+              {{ opinionError }}
+            </p>
+          </div>
+          <div class="opinion-footer">
+            <div class="opinion-by">
+              <label for="opinion-by">署名</label>
+              <input id="opinion-by" v-model="opinionBy" type="text" maxlength="40" />
+            </div>
+            <button
+              class="btn btn-primary"
+              type="submit"
+              :disabled="busyOpinion"
+              :aria-busy="busyOpinion"
+            >
+              {{ busyOpinion ? "正在保存…" : "保存意见" }}
+            </button>
+          </div>
+        </div>
+      </form>
+      <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
+      </div>
+    </section>
     </section>
 
     <section v-if="exportResult" class="section">
@@ -995,5 +1231,94 @@ function bytesText(bytes: number): string {
         </div>
       </details>
     </section>
+
+    <dialog ref="detailDialog" class="report-detail-dialog" @close="detailContent = null">
+      <template v-if="detailContent">
+        <div class="dialog-form">
+          <div class="dialog-head">
+            <h2 class="dialog-title">
+              {{ detailContent.kind === "command" ? "测试命令" : "证据详情" }}
+            </h2>
+            <button class="icon-btn" type="button" aria-label="关闭" @click="closeDetail">
+              ×
+            </button>
+          </div>
+
+          <template v-if="detailContent.kind === 'command'">
+            <p class="dialog-text">{{ detailContent.title }}</p>
+            <pre class="command-block">{{ detailContent.command }}</pre>
+            <p class="field-hint">
+              到项目根目录
+              <span class="mono">{{ detailContent.root || "（未记录）" }}</span>
+              打开终端粘贴执行；执行前确认依赖与服务已就绪。
+            </p>
+            <p v-if="run?.simulated" class="field-hint">
+              本地演示数据：这条命令仅用于预览，不会真正执行。
+            </p>
+            <div class="dialog-actions">
+              <button class="btn btn-primary" type="button" @click="copyCommand">
+                复制命令
+              </button>
+              <button class="btn" type="button" @click="closeDetail">关闭</button>
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="dialog-text mono">{{ detailContent.evidence.name }}</p>
+            <dl class="info-grid">
+              <div class="info-cell">
+                <dt>类型</dt>
+                <dd>{{ detailContent.evidence.mediaType }}</dd>
+              </div>
+              <div class="info-cell">
+                <dt>大小</dt>
+                <dd>{{ bytesText(detailContent.evidence.bytes) }}</dd>
+              </div>
+              <div class="info-cell">
+                <dt>sha256</dt>
+                <dd class="mono">{{ detailContent.evidence.sha256 }}</dd>
+              </div>
+              <div class="info-cell">
+                <dt>状态</dt>
+                <dd>
+                  {{
+                    detailContent.evidence.missing
+                      ? "已缺失"
+                      : detailContent.evidence.truncated
+                        ? "已截断"
+                        : "已登记"
+                  }}
+                </dd>
+              </div>
+              <div class="info-cell info-cell-wide">
+                <dt>说明</dt>
+                <dd>{{ detailContent.evidence.note || "没有附加说明。" }}</dd>
+              </div>
+              <div class="info-cell info-cell-wide">
+                <dt>路径</dt>
+                <dd class="mono">
+                  {{ detailContent.evidence.sourcePath || detailContent.evidence.name }}
+                </dd>
+              </div>
+            </dl>
+            <p class="field-hint">
+              复制的是本次运行的证据路径，可粘贴到问题记录、终端或工单中引用。
+            </p>
+            <div class="dialog-actions">
+              <button
+                v-if="workspace.mode === 'host' && detailContent.evidence.sourcePath"
+                class="btn btn-primary"
+                type="button"
+                @click="openEvidenceFile"
+              >
+                打开文件
+              </button>
+              <button class="btn" type="button" @click="copyEvidencePath">复制路径</button>
+              <button class="btn" type="button" @click="closeDetail">关闭</button>
+            </div>
+          </template>
+        </div>
+      </template>
+    </dialog>
   </div>
 </template>

@@ -92,6 +92,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const busy = ref<Record<string, boolean>>({});
   const planFailures = ref<Record<string, string>>({});
   const environment = ref<EnvironmentCheck[]>([]);
+  const workspaceRoot = ref("");
   const quickCheck = ref<QuickCheck | null>(null);
   const initialized = ref(false);
   const quickCheckError = ref("");
@@ -100,6 +101,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const quickCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let hostPollTimer: ReturnType<typeof setInterval> | null = null;
   let storageListenerInstalled = false;
+  let focusListenerInstalled = false;
 
   const mode = computed(() => repo().mode);
   const capabilities = computed(() => repo().capabilities);
@@ -189,6 +191,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function refreshAll(): Promise<void> {
     projects.value = await repo().listProjects();
+    workspaceRoot.value = repo().workspacePath?.() ?? "";
+  }
+
+  /** 重新读取项目列表，并保住当前项目的完整数据（列表只含摘要）。 */
+  async function refreshProjects(): Promise<void> {
+    await refreshAll();
+    const current = currentProjectId.value;
+    if (current) {
+      await refreshProject(current);
+    }
   }
 
   function toastError(cause: unknown): void {
@@ -210,6 +222,33 @@ export const useWorkspaceStore = defineStore("workspace", () => {
           return current ? refreshProject(current) : null;
         })
         .catch((cause) => toastError(cause));
+    });
+  }
+
+  function installFocusRefresh(): void {
+    // 项目可能在另一个窗口/CLI 里登记；回到面板时重新读一次 project.list，
+    // 避免“项目明明建好了却不显示”。节流到 3 秒，避免焦点抖动造成重复调用。
+    if (focusListenerInstalled || typeof window === "undefined") {
+      return;
+    }
+    if (repo().mode !== "host") {
+      return;
+    }
+    focusListenerInstalled = true;
+    let lastRun = 0;
+    const refresh = () => {
+      const now = Date.now();
+      if (status.value !== "ready" || now - lastRun < 3000) {
+        return;
+      }
+      lastRun = now;
+      void refreshProjects().catch((cause) => toastError(cause));
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
     });
   }
 
@@ -310,6 +349,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     try {
       const loaded = await repo().listProjects();
       projects.value = loaded;
+      workspaceRoot.value = repo().workspacePath?.() ?? "";
       environment.value =
         repo().mode === "host" ? await loadHostEnvironment() : buildEnvironmentChecks();
       const last = await repo().getLastProjectId();
@@ -330,6 +370,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       status.value = "ready";
       initialized.value = true;
       installStorageListener();
+      installFocusRefresh();
       for (const project of projects.value) {
         if (project.analysisStatus === "analyzing") {
           const started = new Date(project.analysisStartedAt || project.createdAt).getTime();
@@ -1328,5 +1369,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     clearQuickCheck,
     refreshProject,
     refreshAll,
+    refreshProjects,
+    workspaceRoot,
   };
 });

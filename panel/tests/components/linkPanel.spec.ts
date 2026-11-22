@@ -17,7 +17,7 @@ const link: LinkData = {
 describe("LinkPanel", () => {
   it("does not prefill expectation from the current state", async () => {
     const wrapper = mount(LinkPanel, {
-      props: { link, busy: false, hostMode: false },
+      props: { link, busy: false },
     });
     await wrapper.find("#link-node").setValue("node_1");
     const expected = wrapper.find("#link-expected").element as HTMLInputElement;
@@ -30,19 +30,11 @@ describe("LinkPanel", () => {
     expect(button?.attributes("disabled")).toBeDefined();
   });
 
-  it("keeps pasted JSON when import fails or awaits the parent save", async () => {
+  it("does not offer manual JSON import", () => {
     const wrapper = mount(LinkPanel, {
-      props: { link: null, busy: false, hostMode: false },
+      props: { link: null, busy: false },
     });
-    const textarea = wrapper.find("#link-json");
-    await textarea.setValue('{"nodes":[]}');
-    const button = wrapper
-      .findAll("button")
-      .find((entry) => entry.text().includes("导入并重新生成报告"));
-    await button?.trigger("click");
-    expect(wrapper.emitted("load")).toHaveLength(1);
-    expect((wrapper.find("#link-json").element as HTMLTextAreaElement).value).toBe(
-      '{"nodes":[]}',
-    );
+    expect(wrapper.find("#link-json").exists()).toBe(false);
+    expect(wrapper.text()).toContain("没有自动生成调用链");
   });
 });

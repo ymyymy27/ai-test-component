@@ -20,7 +20,7 @@ test("运行记录显示任务数与 S/M，且状态文字不依赖图标", asyn
 
 test("侧栏搜索保留当前项目并支持任务检索和清除", async ({ page }) => {
   await createAndRun(page, "侧栏修复", "D:/work/panel-fixes-sidebar");
-  const taskTitle = (await page.locator("h1").first().textContent())?.trim() ?? "";
+  const taskTitle = (await page.locator(".side-task-title").first().textContent())?.trim() ?? "";
   const search = page.getByPlaceholder("搜索项目、路径或任务");
   await search.fill("完全不匹配的关键字");
   await expect(page.locator(".side-project-name")).toContainText("侧栏修复");
@@ -61,7 +61,7 @@ test("历史 ?run= 初次直接打开详情，后退时同步关闭", async ({ p
 test("任务资料在 taskId 变化时重填，不把任务 A 的草稿带到任务 B", async ({ page }) => {
   const projectId = await createAndRun(page, "任务资料切换", "D:/work/panel-fixes-task-details");
   const task1Id = page.url().match(/tasks\/([^/]+)/)?.[1];
-  const task1Title = (await page.locator("h1").first().textContent())?.trim() ?? "";
+  const task1Title = (await page.locator(".side-task-title").first().textContent())?.trim() ?? "";
   if (!task1Id) {
     throw new Error("task id missing");
   }

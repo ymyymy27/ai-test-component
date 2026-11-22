@@ -37,8 +37,9 @@ def _judged(
     response: dict[str, Any],
     *,
     evidence: list[str] | None = None,
-    max_files: int = 40,
+    max_files: int = 240,
     max_depth: int = 3,
+    per_component_files: int = 120,
 ) -> tuple[list[dict[str, Any]], FakeClient]:
     client = FakeClient(response)
     result = judge_mock(
@@ -48,6 +49,7 @@ def _judged(
         client=client,
         max_files=max_files,
         max_depth=max_depth,
+        per_component_files=per_component_files,
     )
     return result, client
 
@@ -247,6 +249,64 @@ def test_judge_mock_respects_max_depth(tmp_path: Path) -> None:
     assert "root.py" in paths
     assert "src/one.py" in paths
     assert "src/nested/two.py" not in paths
+
+
+def test_judge_mock_samples_each_component_with_its_own_budget(tmp_path: Path) -> None:
+    _write(tmp_path, "pyproject.toml", "[project]\n")
+    _write(tmp_path, "backend/pyproject.toml", "[project]\n")
+    _write(tmp_path, "backend/app.py", "import fastapi\n")
+    _write(
+        tmp_path,
+        "frontend/package.json",
+        '{"dependencies":{"@playwright/test":"1"}}\n',
+    )
+    _write(tmp_path, "frontend/src/app.ts", "import '@playwright/test'\n")
+    response = {
+        "dependencies": [
+            {
+                "name": "fastapi",
+                "kind": "real",
+                "reason": "backend imports fastapi",
+                "evidence_refs": ["backend/app.py"],
+            },
+            {
+                "name": "@playwright/test",
+                "kind": "real",
+                "reason": "frontend imports playwright",
+                "evidence_refs": ["frontend/src/app.ts"],
+            },
+        ]
+    }
+    result, client = _judged(
+        tmp_path,
+        ["fastapi", "@playwright/test"],
+        response,
+        per_component_files=5,
+    )
+    assert [item["kind"] for item in result] == ["real", "real"]
+    paths = [item["path"] for item in _user_payload(client)["files"]]
+    assert "backend/app.py" in paths
+    assert "frontend/src/app.ts" in paths
+    assert "pyproject.toml" in paths
+
+
+def test_judge_mock_component_budget_still_fails_closed(tmp_path: Path) -> None:
+    _write(tmp_path, "backend/pyproject.toml", "[project]\n")
+    for index in range(4):
+        _write(tmp_path, f"backend/module_{index}.py", f"VALUE = {index}\n")
+    _write(tmp_path, "frontend/package.json", "{}\n")
+    _write(tmp_path, "frontend/app.ts", "export {}\n")
+    response = {"dependencies": []}
+    result, client = _judged(
+        tmp_path,
+        ["fastapi"],
+        response,
+        per_component_files=2,
+    )
+    assert client.calls == []
+    assert result[0]["kind"] == "unknown"
+    assert "达到读取上限" in result[0]["reason"]
+    assert "每个组件最多 2 个文件" in result[0]["reason"]
 
 
 def test_judge_mock_skips_model_call_for_empty_dependencies(tmp_path: Path) -> None:

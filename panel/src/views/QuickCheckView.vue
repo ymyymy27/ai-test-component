@@ -130,7 +130,7 @@ async function start(): Promise<void> {
       @retry="router.push(`/projects/${projectId}/overview`)"
     />
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
       :title="'快速检查'"
       :subtitle="`${project.name} · 项目级检查 · 不进入验收项覆盖`"
@@ -233,11 +233,6 @@ async function start(): Promise<void> {
     </details>
 
     <section v-if="!running" class="section">
-      <ul class="list-plain quick-commands">
-        <li v-for="check in previewChecks" :key="check.key">
-          {{ check.name }}：{{ check.method }}
-        </li>
-      </ul>
       <p class="field-hint">
         环境：{{ missingEnvironment ? `缺失 ${missingEnvironment} 项，只影响对应能力` : "已检查" }} ·
         确认人：本机用户

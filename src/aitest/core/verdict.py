@@ -55,6 +55,17 @@ def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
         ):
             # Whole-file or shared evidence cannot prove this specific item.
             result = "blocked"
+        if (
+            case is not None
+            and case_item_ids(case)
+            and case.coverage_kind == "unverified"
+            and (case.verify_method or "").startswith(("script:", "http:", "sql:"))
+            and result == "failed"
+        ):
+            # A generated script can fail because the script itself is wrong
+            # (missing auth, invalid fixture). Keep the failure visible but do
+            # not attribute it to the product without human confirmation.
+            result = "blocked"
         results[run_case.case_id] = result
     return results
 
@@ -64,18 +75,29 @@ def _item_case_results(plan: Plan, run: Run) -> dict[str, list[CaseResult]]:
     by_item: dict[str, list[CaseResult]] = {
         item_id: [] for item_id in plan.scope.acceptance_item_ids
     }
+    weak: dict[str, list[CaseResult]] = {
+        item_id: [] for item_id in plan.scope.acceptance_item_ids
+    }
     for case in plan.cases:
         ids = case_item_ids(case)
         if not ids:
             continue
-        if case.coverage_kind in {"file", "shared", "unverified"}:
-            # Weak evidence is retained in case details but cannot veto a
-            # direct case for the same item.
-            continue
         result = results.get(case.case_id, "not_run")
+        if case.coverage_kind in {"file", "shared", "unverified"}:
+            # Weak evidence cannot veto a direct case for the same item, but an
+            # item covered only by weak evidence is blocked, not silently absent.
+            for item_id in ids:
+                if item_id in weak:
+                    weak[item_id].append(
+                        "not_run" if result == "not_run" else "blocked"
+                    )
+            continue
         for item_id in ids:
             if item_id in by_item:
                 by_item[item_id].append(result)
+    for item_id, values in weak.items():
+        if not by_item[item_id] and values:
+            by_item[item_id] = values
     return by_item
 
 

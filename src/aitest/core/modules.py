@@ -13,8 +13,8 @@ from typing import Any
 from aitest.models import Project
 
 _MAX_EXCERPT = 3000
-_MAX_ENTRIES = 200
-_MAX_DEPTH = 2
+_MAX_ENTRIES = 500
+_MAX_DEPTH = 3
 
 _SKIP_DIRS = frozenset(
     {

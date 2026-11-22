@@ -103,6 +103,10 @@ function toggleFeature(name: string, ignored: boolean): void {
           <span class="muted"> · </span>
           <span class="mono">{{ project.root }}</span>
         </p>
+        <p class="overview-context">
+          <span>目标：{{ project.goal || "未填写" }}</span>
+          <span>规则：{{ boundRule ? `${boundRule.name} v${boundRule.version}` : "未绑定" }}</span>
+        </p>
       </div>
       <div class="page-actions">
         <button
@@ -177,6 +181,15 @@ function toggleFeature(name: string, ignored: boolean): void {
           @toggle-feature="toggleFeature"
         />
 
+      </div>
+
+      <section class="section overview-feed">
+        <div class="section-head">
+          <h2 class="section-title">最近活动</h2>
+          <button class="link-btn" type="button" @click="emit('openHistory')">全部历史</button>
+        </div>
+        <ActivityList :runs="runs" :tasks="project.tasks" @open="emit('openRun', $event)" />
+
         <section class="section">
           <div class="section-head">
             <h2 class="section-title">未关闭问题</h2>
@@ -219,32 +232,7 @@ function toggleFeature(name: string, ignored: boolean): void {
             text="失败用例会自动归并；也可以人工登记一个已知问题。"
           />
         </section>
-      </div>
-
-      <section class="section overview-feed">
-        <div class="section-head">
-          <h2 class="section-title">最近活动</h2>
-          <button class="link-btn" type="button" @click="emit('openHistory')">全部历史</button>
-        </div>
-        <ActivityList :runs="runs" :tasks="project.tasks" @open="emit('openRun', $event)" />
       </section>
     </div>
-
-    <section class="section overview-info">
-      <dl class="info-grid">
-        <div class="info-cell">
-          <dt>项目目标</dt>
-          <dd>{{ project.goal || "还没有填写" }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>当前规则</dt>
-          <dd>{{ boundRule ? `${boundRule.name} v${boundRule.version}` : "未绑定" }}</dd>
-        </div>
-        <div class="info-cell">
-          <dt>工作空间</dt>
-          <dd>{{ workspace.mode === "host" ? "宿主 CLI 工作空间 · 面板不直接写业务文件" : "浏览器本地存储 · 不写入被测仓库" }}</dd>
-        </div>
-      </dl>
-    </section>
   </div>
 </template>

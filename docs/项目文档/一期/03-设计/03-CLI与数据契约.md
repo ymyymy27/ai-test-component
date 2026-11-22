@@ -65,6 +65,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `DEPENDENCY_ALREADY_INSTALLED` | `run.repair` 重复安装已记录的依赖 | 直接重跑未完成项，不要重复安装 |
 | `MODEL_UNAVAILABLE` | 模型未配置或不可达 | 配置密钥或检查网络 |
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
+| `MODEL_TIMEOUT` | 计划生成超过时间预算 | 重试会复用已完成批次；也可缩小本次范围 |
 | `GITHUB_UNAVAILABLE` | `gh` 缺失、未登录或读取失败 | 安装/登录后重试 |
 | `LINK_CONFIG_MISSING` | 缺日志或查询配置 | 补项目配置 |
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
@@ -336,21 +337,28 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 返回：
 
 ```json
-{"plan_id": "plan_...", "plan_no": 2, "task_revision": 3, "created_at": "...", "revision": 1, "intent": "business", "source_signature": "sha256", "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "coverage": {"selected": 2, "applicable": 8}, "case_count": 4, "cases": 4, "dependencies": ["pytest"], "status": "published", "ai_generated": true}
+{"plan_id": "plan_...", "plan_no": 2, "task_revision": 3, "created_at": "...", "revision": 1, "intent": "business", "source_signature": "sha256", "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "coverage": {"selected": 2, "applicable": 8}, "case_count": 4, "cases": 4, "dependencies": ["pytest"], "status": "published", "ai_generated": true, "unverified_cases": ["case_..."]}
 ```
+
+`unverified_cases` 列出 `expectation_source` 未匹配验收项原文的用例 ID。
 
 规则：
 
 - 每个选中验收项至少一条用例；生成后自动发布为 `published`。
-- 选中项超过 8 个时按每批 6 个生成并逐批校验覆盖，避免一次模型输出漏项；单批失败只重试该批。
+- 选中项超过 6 个时按每批 6 个生成，批次之间相互独立并并发执行（默认 4 路，`AITEST_PLAN_CONCURRENCY` 可调；批大小用 `AITEST_PLAN_BATCH_SIZE` 可调）；单批输出不合法只重试并重新生成该批。
+- 生成前先用一次映射调用把验收项对应到项目现有测试（中文验收项与英文测试名无法靠词面匹配）；映射命中的项默认使用该测试命令，模型若写成脚本或请求会被替换；只有映射为空时才保留生成的验证。
+- 计划生成（含验收项映射与批次生成）共用整体时间预算（默认 150 秒，`AITEST_PLAN_BUDGET_SECONDS` 可调），超时返回 `MODEL_TIMEOUT` 并说明已完成批数；单次模型请求仍受模型自身的请求超时限制。已完成批次写入工作空间 `.cache/plan/`（落盘前脱敏），重试时复用，不重复调用模型。
+- 校验失败只重新生成出错用例对应的验收项（定向修复），不整套重出；同一类“只写测试文件未定位测试函数/标题”的用例会一次性收集后合并修复。
+- 同一测试节点被 3 个以上验收项绑定时，保留与该测试最匹配的验收项，其余定向重生成，避免一个测试冒充多项。
 - 业务用例一项一案；模型输出组合用例时按验收项拆分，`expectation_source` 取对应验收项原文，并写“逐项断言仍需人工确认”警告。
-- 业务用例禁止整包命令（含 `cd <目录> && npm test`、`bun run test`、`bunx playwright test` 等）；模型重试后仍只能给出整包命令时转为 `manual` 并写计划警告，不计为自动通过。同一具体命令覆盖多个验收项时也写“文件级通过、逐项断言需人工确认”警告。
+- 业务用例禁止整包命令（不带具体文件或标题的 `bunx playwright test`、`cd <目录> && npm test`、`bun run test` 等）；模型重试后仍只能给出整包命令时转为 `manual` 并写计划警告，不计为自动通过。同一具体命令覆盖多个验收项时也写“文件级通过、逐项断言需人工确认”警告。
 - 发布门禁只要求 `expected` 与 `preconditions` 非空；`expectation_source` 缺失或匹配不上不阻止发布，但该用例 `expectation_verified=false`，执行通过也按 `blocked` 计。
-- 用例记录 `coverage_kind` 与 `test_nodes`：`direct` 指向真实存在的测试函数（`file::test_name`），`file` 只执行整个测试文件，`shared` 是同一测试节点被多个验收项共用，`manual` 为人工验证，`unverified` 无法定位。只有 `direct` 可以在执行通过后计为该项通过；`file`、`shared`、`unverified` 即使命令退出 0 也按 `blocked` 计。
+- 用例记录 `coverage_kind` 与 `test_nodes`：`direct` 指向真实存在的测试函数（`file::test_name`）或项目自己的 `junit:` 测试结果；`file` 只执行整个测试文件，`shared` 是同一测试节点被多个验收项共用，`manual` 为人工验证，`unverified` 无法定位。只有 `direct` 可以在执行通过后计为该项通过；`file`、`shared`、`unverified` 即使命令退出 0 也按 `blocked` 计。
+- 模型生成的 `script:` 脚本只要包含真实断言，就与项目既有测试同样计为 `direct`：通过计通过，断言失败计失败（认证/前置条件类失败按执行规则记 `blocked`）。没有断言的脚本（只打印或退出 0）记为 `unverified`，通过也不计入。`http:`、`junit:` 视为直接证据；`sql:` 记为 `unverified`。模型生成的验证执行失败按结果记录并保留证据；401/403 且未带凭据按 `blocked`。只由弱证据覆盖的验收项按 `blocked` 展示，不当作未覆盖消失。
 - `verify_method` 必须合法：
   - `command:` 后非空；
   - `script:` 需要 `script_name` 与 `script_content`；
-  - `http:` 必须是非空 JSON 数组且每项有 `method/url`；默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝；未跟随的 3xx 在没有状态断言时按未完成处理；
+  - `http:` 必须是非空 JSON 数组且每项有 `method/url`；默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝；未跟随的 3xx 在没有状态断言时按未完成处理；`expect.path` 从响应体根开始（如 `email`、`data.0.id`），写出的 `body.` 前缀会被去掉；
   - `playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；
   - `sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描。
 - `case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
@@ -706,6 +714,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 ├─ requests/<request_id+command+payload 的短哈希>.json          写操作幂等缓存
 ├─ actions/doctor.jsonl                环境自检与修复动作
 ├─ actions/<YYYY-MM>.jsonl             worker 与运行动作
+├─ .cache/mock/<key>.json              Mock 判定缓存
+├─ .cache/plan/<project_id>/<key>.json 计划批次缓存（超时重试续跑）
 └─ projects/<project_id>/
    ├─ project.json
    ├─ project.config.json
@@ -744,7 +754,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   "services": {"start": "", "stop": "", "health": "", "timeout_seconds": 120, "keep_on_failure": false},
   "link": {"request_id_header": "X-Request-Id", "log_paths": [], "log_format": "jsonl", "log_fields": {}, "db_query": ""},
   "runners": {"pytest": {"command": "pytest"}, "playwright": {"command": "npx playwright test"}},
-  "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false, "mock": {"max_files": 40, "max_depth": 3}}
+  "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false, "mock": {"max_files": 240, "max_depth": 3, "per_component_files": 120}}
 }
 ```
 

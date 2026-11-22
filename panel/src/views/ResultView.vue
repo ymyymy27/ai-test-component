@@ -392,10 +392,10 @@ function rerunLabel(): string {
       @retry="router.push(`/projects/${projectId}/tasks/${taskId}/plan`)"
     />
   </div>
-  <div v-else class="page">
+  <div v-else class="page page-data">
     <PageHeader
-      :title="task.title"
-      :subtitle="`${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · ${run.confirmedBy} 确认`"
+      title="测试结果"
+      :subtitle="`${task.title} · ${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · ${run.confirmedBy} 确认`"
     />
 
     <p v-if="environmentRows.length" class="run-environment muted">
@@ -479,6 +479,7 @@ function rerunLabel(): string {
       </span>
     </div>
 
+    <div class="result-sheet">
     <ResultSummary
       :run="run"
       :task="task"
@@ -489,7 +490,7 @@ function rerunLabel(): string {
     <section v-if="run.l1.length" class="section" aria-labelledby="result-l1-title">
       <div class="section-head">
         <h2 id="result-l1-title" class="section-title">项目级检查</h2>
-        <span class="section-note">项目级检查不计入 S/M 覆盖</span>
+        <span class="section-note">不计入 S/M 覆盖</span>
       </div>
       <div class="check-list">
         <div v-for="check in run.l1" :key="check.key" class="check-row">
@@ -513,7 +514,15 @@ function rerunLabel(): string {
       @export="exportReport"
     />
 
-    <div class="toolbar">
+    <div class="section-head result-cases-head">
+      <h2 class="section-title">验收结果</h2>
+      <span class="section-note">{{ items.length }} 项 · 按最差结果排序</span>
+      <button v-if="supportsEvidence" class="link-btn" type="button" @click="openEvidence">
+        补充证据
+      </button>
+    </div>
+
+    <div class="toolbar result-filter-bar">
       <div class="filter-bar" role="group" aria-label="筛选结果">
         <button
           class="filter-btn"
@@ -543,10 +552,26 @@ function rerunLabel(): string {
           未完成<span class="filter-count">{{ unfinishedCount }}</span>
         </button>
       </div>
-      <span class="section-note">按最差结果排序</span>
-      <button v-if="supportsEvidence" class="link-btn" type="button" @click="openEvidence">
-        补充证据
-      </button>
+    </div>
+
+    <CaseLedger
+      ref="caseLedgerRef"
+      :run="run"
+      :items="items"
+      :filter="filter"
+      allow-manual
+      :manual-busy-case-id="manualCase?.id ?? ''"
+      @manual="openManual"
+      @show-evidence="showEvidence"
+      @reset-filter="filter = 'all'"
+    />
+
+    <details v-if="unselected.length" class="unselected-block">
+      <summary>未纳入本次 {{ unselected.length }} 项 <span class="muted">不计入结论</span></summary>
+      <ul class="list-plain">
+        <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>
+      </ul>
+    </details>
     </div>
 
     <div class="actionbar">
@@ -564,24 +589,6 @@ function rerunLabel(): string {
       </div>
     </div>
 
-    <CaseLedger
-      ref="caseLedgerRef"
-      :run="run"
-      :items="items"
-      :filter="filter"
-      allow-manual
-      :manual-busy-case-id="manualCase?.id ?? ''"
-      @manual="openManual"
-      @show-evidence="showEvidence"
-      @reset-filter="filter = 'all'"
-    />
-
-    <details v-if="unselected.length" class="unselected-block" open>
-      <summary>未纳入本次 {{ unselected.length }} 项 <span class="muted">不计入结论</span></summary>
-      <ul class="list-plain">
-        <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>
-      </ul>
-    </details>
 
     <ManualResultDialog
       v-model="manualOpen"

@@ -86,3 +86,16 @@ def test_detect_services_for_fastapi_vite_compose_stack(tmp_path: Path) -> None:
     assert services["db"]["start"] == "docker compose up -d db"
     assert "uv run fastapi dev" in str(services["backend"]["start"])
     assert "bunx vite" in str(services["frontend"]["start"])
+
+
+def test_detect_services_includes_override_services_and_flags(tmp_path: Path) -> None:
+    root = _monorepo(tmp_path)
+    _write(root / "compose.yml", "services:\n  db:\n    image: postgres:18\n")
+    _write(
+        root / "compose.override.yml",
+        "services:\n  mailpit:\n    image: axllent/mailpit\n    ports:\n      - '8025:8025'\n",
+    )
+    services = detect_services(root)
+    assert services["db"]["start"] == "docker compose -f compose.yml -f compose.override.yml up -d db"
+    assert services["mailpit"]["health"] == "http://127.0.0.1:8025/livez"
+    assert "up -d mailpit" in str(services["mailpit"]["start"])

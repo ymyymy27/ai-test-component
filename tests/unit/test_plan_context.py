@@ -13,7 +13,7 @@ import pytest
 from aitest.cli import main
 from aitest.core.analysis import analyze_run
 from aitest.errors import AiTestError
-from aitest.models import Run, RunCase, Scope
+from aitest.models import Case, Run, RunCase, Scope
 from aitest.storage.files import read_json, read_model, write_json, write_model
 from aitest.storage.workspace import Workspace
 
@@ -936,3 +936,281 @@ def test_analyze_run_sets_reason_for_each_missing_case(
     result = analyze_run(ws, project_id, generated)
     assert result["status"] == "generated"
     assert result["analysis"]["reason"] == ""
+
+
+# -- plan generation batching, budget and targeted repair -------------------
+
+
+class _RecordingClient:
+    """Count calls and items per call; optionally fail the first attempt."""
+
+    def __init__(self, delay: float = 0.0, spec_only_first: bool = False) -> None:
+        self.delay = delay
+        self.spec_only_first = spec_only_first
+        self.calls: list[list[str]] = []
+        self._repaired = False
+
+    def generate_cases(
+        self,
+        task: dict[str, Any],
+        selected_items: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        del task, context
+        self.calls.append([item["item_id"] for item in selected_items])
+        if self.delay:
+            time.sleep(self.delay)
+        cases: list[dict[str, Any]] = []
+        for item in selected_items:
+            method = "command: echo ok"
+            if (
+                self.spec_only_first
+                and not self._repaired
+                and item is selected_items[0]
+            ):
+                method = "command: python -m pytest tests/test_a.py"
+            cases.append(
+                {
+                    "acceptance_item_id": item["item_id"],
+                    "layer": "L2",
+                    "expected": "命令成功",
+                    "expectation_source": item["text"],
+                    "preconditions": ["被测项目目录可访问"],
+                    "verify_method": method,
+                }
+            )
+        if self.spec_only_first:
+            self._repaired = True
+        return cases
+
+
+def _batch_items(count: int) -> list[dict[str, Any]]:
+    return [
+        {"item_id": f"ai_{index:04d}", "text": f"验收项 {index}"}
+        for index in range(count)
+    ]
+
+
+def test_plan_batches_run_concurrently(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _generate_case_batches
+
+    client = _RecordingClient(delay=0.4)
+    items = _batch_items(18)  # three batches of six
+    started = time.monotonic()
+    cases = _generate_case_batches(
+        client,
+        {"task_id": "task_x"},
+        items,
+        {},
+        cache_dir=tmp_path / "cache",
+        deadline=time.monotonic() + 30,
+        secrets=[],
+    )
+    elapsed = time.monotonic() - started
+    assert len(cases) == 18
+    assert len(client.calls) == 3
+    # Serial execution would take 1.2s; two waves should stay well below it.
+    assert elapsed < 1.0
+
+
+def test_plan_batches_stop_at_deadline(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _generate_case_batches
+
+    client = _RecordingClient(delay=0.05)
+    with pytest.raises(AiTestError) as caught:
+        _generate_case_batches(
+            client,
+            {"task_id": "task_x"},
+            _batch_items(12),
+            {},
+            cache_dir=tmp_path / "cache",
+            deadline=time.monotonic() - 1,
+            secrets=[],
+        )
+    assert caught.value.info.code == "MODEL_TIMEOUT"
+    assert "已完成 0/2 批" in caught.value.info.message
+
+
+def test_plan_batches_reuse_cache_and_redact(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _generate_case_batches
+
+    client = _RecordingClient()
+    items = _batch_items(6)
+    cache_dir = tmp_path / "cache"
+    first = _generate_case_batches(
+        client,
+        {"task_id": "task_x"},
+        items,
+        {},
+        cache_dir=cache_dir,
+        deadline=time.monotonic() + 30,
+        secrets=["sk-live-secret-value"],
+    )
+    assert len(first) == 6
+    calls = len(client.calls)
+    second = _generate_case_batches(
+        client,
+        {"task_id": "task_x"},
+        items,
+        {},
+        cache_dir=cache_dir,
+        deadline=time.monotonic() + 30,
+        secrets=["sk-live-secret-value"],
+    )
+    assert second == first
+    assert len(client.calls) == calls  # fully served from cache
+    assert list(cache_dir.glob("*.json"))
+
+
+def test_plan_repair_targets_only_named_items(
+    tmp_path: Path, capsys: Capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    items = [
+        {"text": "下单后列表出现订单", "observable": True},
+        {"text": "取消订单后列表不再显示", "observable": True},
+    ]
+    setup = _setup(tmp_path, capsys, items=items)
+    client = _RecordingClient(spec_only_first=True)
+    monkeypatch.setattr("aitest.runtime_commands.build_client", lambda *a, **k: client)
+    monkeypatch.setattr(
+        "aitest.runtime_commands._project_context",
+        lambda *a, **k: {
+            "root": str(setup["root"]),
+            "test_functions": {"tests/test_a.py": ["test_one"]},
+            "test_commands": ["python -m pytest tests/test_a.py::test_one"],
+        },
+    )
+    result = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {
+                "preset": "all_applicable",
+                "acceptance_item_ids": [
+                    item["item_id"] for item in setup["task"]["acceptance_items"]
+                ],
+            },
+        },
+        capsys,
+    )
+    assert result["ok"] is True, result
+    # First pass asks for both items; the repair round asks only for the
+    # offending item instead of re-generating the whole plan.
+    assert len(client.calls[0]) == 2
+    assert client.calls[-1] == [client.calls[0][0]]
+    assert result["data"]["coverage"]["selected"] == 2
+
+
+def test_overshared_test_bindings_keep_best_match(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _overshared_bindings
+
+    context = {
+        "test_functions": {
+            "backend/tests/test_users.py": ["test_create_user"],
+        }
+    }
+    shared = Case(
+        case_id="case_shared",
+        acceptance_item_id="ai_a",
+        acceptance_item_ids=["ai_b", "ai_c"],
+        layer="L2",
+        expected="创建用户成功",
+        expectation_source="创建用户",
+        preconditions=["可连接"],
+        verify_method="command:python -m pytest backend/tests/test_users.py::test_create_user",
+    )
+    item_text = {
+        "ai_a": "创建用户",
+        "ai_b": "初始化数据库",
+        "ai_c": "健康检查返回",
+    }
+    repairs = _overshared_bindings([shared], context, item_text)
+    assert set(repairs) == {"ai_b", "ai_c"}
+    assert "test_create_user" in repairs["ai_b"]
+
+
+def test_http_body_prefix_is_normalized(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _normalize_http_expect
+
+    case = Case(
+        case_id="case_http",
+        acceptance_item_id="ai_a",
+        layer="L2",
+        expected="返回邮箱",
+        expectation_source="注册返回邮箱",
+        preconditions=["服务可用"],
+        verify_method=(
+            'http:[{"method":"POST","url":"http://127.0.0.1:1/signup",'
+            '"expect":[{"path":"body.email","operator":"exists"},'
+            '{"path":"body","operator":"exists"}]}]'
+        ),
+    )
+    _normalize_http_expect(case)
+    specs = json.loads(case.verify_method[len("http:") :])
+    paths = [check["path"] for check in specs[0]["expect"]]
+    assert paths == ["email", "body"]
+
+
+def test_overshared_bindings_keep_all_plausible_matches(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _overshared_bindings
+
+    context = {
+        "test_functions": {"tests/test_users.py": ["test_create_user"]},
+    }
+    shared = Case(
+        case_id="case_shared",
+        acceptance_item_id="ai_a",
+        acceptance_item_ids=["ai_b", "ai_c"],
+        layer="L2",
+        expected="创建用户并返回新用户",
+        expectation_source="创建用户",
+        preconditions=["可连接"],
+        verify_method="command:python -m pytest tests/test_users.py::test_create_user",
+    )
+    item_text = {
+        "ai_a": "创建用户",
+        "ai_b": "私有接口创建用户",
+        "ai_c": "健康检查返回",
+    }
+    repairs = _overshared_bindings([shared], context, item_text)
+    assert set(repairs) == {"ai_c"}
+
+
+def test_script_assertion_detection() -> None:
+    from aitest.runtime_commands import _script_has_assertion
+
+    assert _script_has_assertion('assert response.status_code == 200')
+    assert _script_has_assertion('expect(page).to_have_title("x")')
+    assert not _script_has_assertion('print("ok")')
+
+
+def test_test_candidates_and_suggested_replacement(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _apply_suggested_tests, _test_candidates
+
+    context = {
+        "test_functions": {"backend/tests/test_a.py": ["test_one"]},
+        "playwright_tests": {"frontend/tests/login.spec.ts": ["Log In"]},
+    }
+    candidates = _test_candidates(context)
+    assert "python -m pytest backend/tests/test_a.py::test_one" in candidates
+    assert 'cd frontend && bunx playwright test tests/login.spec.ts --grep "Log In"' in candidates
+
+    case = Case(
+        case_id="case_x",
+        acceptance_item_id="ai_a",
+        layer="L2",
+        expected="预期",
+        expectation_source="验收项",
+        preconditions=["可连接"],
+        verify_method="script:probe.py",
+        script_name="probe.py",
+        script_content="assert True",
+    )
+    replaced = _apply_suggested_tests(
+        [case], {"ai_a": "python -m pytest backend/tests/test_a.py::test_one"}
+    )
+    assert replaced == 1
+    assert case.verify_method == "command:python -m pytest backend/tests/test_a.py::test_one"
+    assert case.script_content is None
