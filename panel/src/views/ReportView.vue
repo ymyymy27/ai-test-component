@@ -548,8 +548,8 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">范围与覆盖</h2>
-      <div class="table-wrap" tabindex="0" role="region" aria-label="范围与覆盖表">
-        <table class="table">
+      <div class="table-wrap report-data-table-wrap" tabindex="0" role="region" aria-label="范围与覆盖表">
+        <table class="table report-data-table">
           <thead>
             <tr>
               <th scope="col">编号</th>
@@ -608,16 +608,33 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">项目级检查</h2>
-      <div v-if="report.l1.length" class="check-list">
-        <div v-for="check in report.l1" :key="check.key" class="check-row">
-          <StatusMark :result="check.result" />
-          <span class="check-name">{{ check.name }}</span>
-          <code class="check-method-chip">{{ check.method }}</code>
-          <span class="status-pill" :class="`is-${check.result}`">
-            <StatusText :result="check.result" />
-          </span>
-          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
-        </div>
+      <div v-if="report.l1.length" class="table-wrap report-data-table-wrap">
+        <table class="table report-data-table">
+          <thead>
+            <tr>
+              <th scope="col">检查项</th>
+              <th scope="col">检查方式</th>
+              <th scope="col">结果</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="check in report.l1" :key="check.key">
+              <td class="cell-main">
+                <span class="check-name-inline">
+                  <StatusMark :result="check.result" />
+                  {{ check.name }}
+                </span>
+              </td>
+              <td><code class="check-method-chip">{{ check.method }}</code></td>
+              <td>
+                <span class="status-pill" :class="`is-${check.result}`">
+                  <StatusText :result="check.result" />
+                </span>
+                <span v-if="check.reason" class="muted"> · {{ check.reason }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <p v-else class="report-empty-note">
         本次没有项目级检查记录；快速检查或计划中含 L1 用例时会显示在这里。
@@ -725,6 +742,7 @@ function bytesText(bytes: number): string {
 
     <section class="section">
       <h2 class="section-title-lg">验收意见</h2>
+      <div class="report-form-shell">
       <div v-if="report.opinion" class="notice">
         <span
           ><strong>{{ report.opinion.by }}</strong> · {{ formatTime(report.opinion.at) }} ·
@@ -765,6 +783,7 @@ function bytesText(bytes: number): string {
         </div>
       </form>
       <p v-else class="doc-note">旧版本只读，不能在旧版本上填写验收意见。</p>
+      </div>
     </section>
 
     </section>

@@ -1484,6 +1484,19 @@ select {
   background: var(--accent-soft);
 }
 
+.report-form-shell {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+}
+
+.check-name-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
