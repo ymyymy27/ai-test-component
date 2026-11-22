@@ -2426,6 +2426,74 @@ dialog[open] {
   overflow-wrap: anywhere;
 }
 
+.section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-num);
+  font-size: var(--text-11);
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.check-row-decorated {
+  padding-left: var(--space-2);
+  border-left: 3px solid transparent;
+}
+
+.check-row-decorated.is-passed {
+  border-left-color: var(--pass);
+}
+
+.check-row-decorated.is-failed {
+  border-left-color: var(--fail);
+}
+
+.check-row-decorated.is-blocked,
+.check-row-decorated.is-incomplete,
+.check-row-decorated.is-error {
+  border-left-color: var(--warn);
+}
+
+.check-method-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table tbody tr.is-passed td:first-child {
+  box-shadow: inset 3px 0 var(--pass);
+}
+
+.table tbody tr.is-failed td:first-child {
+  box-shadow: inset 3px 0 var(--fail);
+}
+
+.table tbody tr.is-blocked td:first-child,
+.table tbody tr.is-incomplete td:first-child,
+.table tbody tr.is-error td:first-child {
+  box-shadow: inset 3px 0 var(--warn);
+}
+
+.table tbody tr:hover {
+  background: var(--surface-2);
+}
+
 .fact-strong {
   color: var(--ink);
   font-weight: 600;
