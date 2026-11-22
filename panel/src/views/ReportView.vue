@@ -39,16 +39,6 @@ function coverageLabel(kind: string | null | undefined): string {
   );
 }
 
-function coverageClass(kind: string | null | undefined): string {
-  if (kind === "direct") {
-    return "is-pass";
-  }
-  if (kind === "manual") {
-    return "is-neutral";
-  }
-  return "is-warn";
-}
-
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
@@ -607,23 +597,14 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="section-title-lg">
-        项目级检查 <span class="section-count">{{ report.l1.length }}</span>
-      </h2>
-      <div v-if="report.l1.length" class="check-card-grid">
-        <div
-          v-for="check in report.l1"
-          :key="check.key"
-          class="check-card"
-          :class="`is-${check.result}`"
-        >
-          <div class="check-card-head">
-            <StatusMark :result="check.result" />
-            <strong>{{ check.name }}</strong>
-            <StatusText :result="check.result" />
-          </div>
-          <code class="method-short" :title="check.method">{{ check.method }}</code>
-          <p v-if="check.reason" class="check-card-reason">{{ check.reason }}</p>
+      <h2 class="section-title-lg">项目级检查</h2>
+      <div v-if="report.l1.length" class="check-list">
+        <div v-for="check in report.l1" :key="check.key" class="check-row">
+          <StatusMark :result="check.result" />
+          <span class="check-name">{{ check.name }}</span>
+          <span class="check-method">{{ check.method }}</span>
+          <StatusText :result="check.result" />
+          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
         </div>
       </div>
       <p v-else class="report-empty-note">
@@ -649,56 +630,61 @@ function bytesText(bytes: number): string {
     </section>
 
     <section class="section">
-      <h2 class="section-title-lg">
-        用例明细 <span class="section-count">{{ report.caseDetails.length }}</span>
-      </h2>
-      <div v-if="report.caseDetails.length" class="case-card-list">
-        <article
-          v-for="testCase in report.caseDetails"
-          :key="testCase.caseId"
-          class="case-card"
-          :class="`is-${testCase.result}`"
-        >
-          <div class="case-card-head">
-            <span class="case-item-no">{{ testCase.itemNo }}</span>
-            <div class="case-card-title">
-              <details class="case-report-detail">
-                <summary>{{ testCase.title }}</summary>
-                <p><strong>预期</strong>：{{ testCase.expected || "未记录" }}</p>
-                <p><strong>实际</strong>：{{ testCase.actual || "未记录" }}</p>
-                <p v-if="testCase.analysis">
-                  <strong>分析</strong>：{{ testCase.analysis.observed }}
-                </p>
-              </details>
-            </div>
-            <span class="badge" :class="coverageClass(testCase.coverageKind)">
-              {{ coverageLabel(testCase.coverageKind) }}
-            </span>
-            <span class="case-card-result">
-              <StatusMark :result="testCase.result" />
-              <StatusText :result="testCase.result" />
-            </span>
-          </div>
-          <div class="case-card-meta">
-            <code class="method-short" :title="testCase.method">{{
-              shortMethod(testCase.method)
-            }}</code>
-            <template v-if="testCase.evidence.length">
-              <button
-                class="link-btn"
-                type="button"
-                :title="testCase.evidence[0]?.sourcePath || testCase.evidence[0]?.name"
-                @click="openEvidence(testCase.evidence[0]!)"
-              >
-                {{ evidenceLabel(testCase.evidence[0]!) }}
-              </button>
-              <span v-if="testCase.evidence.length > 1" class="muted">
-                +{{ testCase.evidence.length - 1 }}
-              </span>
-            </template>
-            <span v-else class="muted">无证据</span>
-          </div>
-        </article>
+      <h2 class="section-title-lg">用例明细</h2>
+      <div v-if="report.caseDetails.length" class="table-wrap" tabindex="0" role="region" aria-label="用例明细表">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">验收项</th>
+              <th scope="col">用例</th>
+              <th scope="col">检查方式</th>
+              <th scope="col">覆盖</th>
+              <th scope="col">结果</th>
+              <th scope="col">证据</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="testCase in report.caseDetails" :key="testCase.caseId">
+              <td class="cell-num" data-label="验收项">{{ testCase.itemNo }}</td>
+              <td class="cell-main" data-label="用例">
+                <details class="case-report-detail">
+                  <summary>{{ testCase.title }}</summary>
+                  <p><strong>预期</strong>：{{ testCase.expected || "未记录" }}</p>
+                  <p><strong>实际</strong>：{{ testCase.actual || "未记录" }}</p>
+                  <p v-if="testCase.analysis">
+                    <strong>分析</strong>：{{ testCase.analysis.observed }}
+                  </p>
+                </details>
+              </td>
+              <td data-label="检查方式">
+                <code class="method-short" :title="testCase.method">{{
+                  shortMethod(testCase.method)
+                }}</code>
+              </td>
+              <td data-label="覆盖">{{ coverageLabel(testCase.coverageKind) }}</td>
+              <td data-label="结果">
+                <StatusMark :result="testCase.result" />
+                <StatusText :result="testCase.result" />
+              </td>
+              <td data-label="证据">
+                <template v-if="testCase.evidence.length">
+                  <button
+                    class="link-btn"
+                    type="button"
+                    :title="testCase.evidence[0]?.sourcePath || testCase.evidence[0]?.name"
+                    @click="openEvidence(testCase.evidence[0]!)"
+                  >
+                    {{ evidenceLabel(testCase.evidence[0]!) }}
+                  </button>
+                  <span v-if="testCase.evidence.length > 1" class="muted">
+                    +{{ testCase.evidence.length - 1 }}
+                  </span>
+                </template>
+                <span v-else class="muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <p v-else class="doc-note">这一版没有保留用例明细。</p>
     </section>
