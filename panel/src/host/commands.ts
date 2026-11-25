@@ -5,8 +5,10 @@ import type {
   BackupResult,
   Delivery,
   DeliveryDraft,
+  DetectProjectConfigResult,
   DoctorFacts,
   EvidenceItem,
+  EvidencePreview,
   GeneratedPlan,
   GithubChange,
   LinkImportResult,
@@ -47,8 +49,16 @@ export const api = {
     return callHost("project.list", {});
   },
 
-  addProject(root: string, name?: string): Promise<{ project_id: string; revision: number; existing: boolean }> {
-    return callHost("project.add", { root, ...(name ? { name } : {}) });
+  addProject(
+    root: string,
+    name?: string,
+    goal?: string,
+  ): Promise<{ project_id: string; revision: number; existing: boolean }> {
+    return callHost("project.add", {
+      root,
+      ...(name ? { name } : {}),
+      ...(goal ? { goal } : {}),
+    });
   },
 
   showProject(projectId: string): Promise<{ project: Project; modules?: Module[]; binding?: Record<string, unknown>; gaps?: unknown[] }> {
@@ -75,8 +85,23 @@ export const api = {
     return callHost("project.config", { project_id: projectId, action: "get" });
   },
 
+  detectProjectConfig(projectId: string): Promise<DetectProjectConfigResult> {
+    return callHost("project.config", { project_id: projectId, action: "detect" });
+  },
+
   getProjectMap(projectId: string): Promise<{ map: Record<string, unknown> | null; stale?: boolean }> {
     return callHost("project.map", { project_id: projectId });
+  },
+
+  setIgnoredFeatures(
+    projectId: string,
+    ignoredFeatures: string[],
+  ): Promise<{ map: Record<string, unknown> | null; stale?: boolean }> {
+    return callHost("project.map", {
+      project_id: projectId,
+      action: "set_ignored",
+      ignored_features: ignoredFeatures,
+    });
   },
 
   refreshProjectMap(projectId: string): Promise<{ map: Record<string, unknown> | null; stale?: boolean }> {
@@ -91,6 +116,31 @@ export const api = {
       project_id: projectId,
       action: "update",
       patch,
+    });
+  },
+
+  addProjectConvention(
+    projectId: string,
+    input: { pattern: string; reason: string; match_type?: "contains" | "regex"; scope?: string },
+  ): Promise<{ convention: Record<string, unknown>; conventions: Array<Record<string, unknown>> }> {
+    return callHost("project.config", {
+      project_id: projectId,
+      action: "add_convention",
+      pattern: input.pattern,
+      reason: input.reason,
+      ...(input.match_type ? { match_type: input.match_type } : {}),
+      ...(input.scope ? { scope: input.scope } : {}),
+    });
+  },
+
+  removeProjectConvention(
+    projectId: string,
+    conventionId: string,
+  ): Promise<{ conventions: Array<Record<string, unknown>> }> {
+    return callHost("project.config", {
+      project_id: projectId,
+      action: "remove_convention",
+      convention_id: conventionId,
     });
   },
 
@@ -116,13 +166,20 @@ export const api = {
 
   addModule(
     projectId: string,
-    input: { name: string; responsibility?: string; owner?: string; deps?: unknown[] },
+    input: {
+      name: string;
+      responsibility?: string;
+      owner?: string;
+      status?: string;
+      deps?: unknown[];
+    },
   ): Promise<{ module_id: string; revision: number }> {
     return callHost("module.add", {
       project_id: projectId,
       name: input.name,
       responsibility: input.responsibility ?? "",
       owner: input.owner ?? "",
+      ...(input.status !== undefined ? { status: input.status } : {}),
       deps: input.deps ?? [],
     });
   },
@@ -294,10 +351,12 @@ export const api = {
     preset: "all_applicable" | "selected";
     moduleIds: string[];
     acceptanceItemIds: string[];
+    rulesVersionId?: string | null;
   }): Promise<GeneratedPlan> {
     return callHost("plan.generate", {
       project_id: input.projectId,
       task_id: input.taskId,
+      ...(input.rulesVersionId ? { rules_version_id: input.rulesVersionId } : {}),
       scope: {
         preset: input.preset,
         module_ids: [...input.moduleIds],
@@ -373,8 +432,12 @@ export const api = {
     );
   },
 
-  runStatus(projectId: string, runId: string): Promise<RunDetail> {
-    return callHost("run.status", { project_id: projectId, run_id: runId });
+  runStatus(projectId: string, runId: string, includeTail = false): Promise<RunDetail> {
+    return callHost("run.status", {
+      project_id: projectId,
+      run_id: runId,
+      ...(includeTail ? { include_tail: true } : {}),
+    });
   },
 
   repairRunDependencies(
@@ -416,8 +479,16 @@ export const api = {
     return callHost("backup.restore", { path, target });
   },
 
-  cancelRun(projectId: string, runId: string): Promise<{ cancel_requested: boolean }> {
-    return callHost("run.cancel", { project_id: projectId, run_id: runId });
+  cancelRun(
+    projectId: string,
+    runId: string,
+    options?: { markInterrupted?: boolean },
+  ): Promise<{ cancel_requested: boolean; status?: string }> {
+    return callHost("run.cancel", {
+      project_id: projectId,
+      run_id: runId,
+      ...(options?.markInterrupted ? { mark_interrupted: true } : {}),
+    });
   },
 
   recordManual(
@@ -440,6 +511,25 @@ export const api = {
     });
   },
 
+  recordManualBatch(
+    projectId: string,
+    runId: string,
+    caseId: string,
+    steps: Array<{
+      step: string;
+      result: "passed" | "failed" | "blocked";
+      note?: string;
+      evidence?: string[];
+    }>,
+  ): Promise<{ case_id: string; result: string; steps: unknown[] }> {
+    return callHost("run.manual", {
+      project_id: projectId,
+      run_id: runId,
+      case_id: caseId,
+      steps,
+    });
+  },
+
   runAnalysis(projectId: string, runId: string): Promise<{ status: string; analysis: unknown }> {
     return callHost("analysis.run", { project_id: projectId, run_id: runId });
   },
@@ -452,8 +542,12 @@ export const api = {
     return callHost("report.show", { project_id: projectId, report_id: reportId });
   },
 
-  listReports(projectId: string, runId: string): Promise<{ reports: ReportVersion[] }> {
-    return callHost("report.list", { project_id: projectId, run_id: runId });
+  listReports(projectId: string, runId: string, includeBody = true): Promise<{ reports: ReportVersion[] }> {
+    return callHost("report.list", {
+      project_id: projectId,
+      run_id: runId,
+      ...(includeBody ? { include_body: true } : {}),
+    });
   },
 
   exportReport(
@@ -546,6 +640,21 @@ export const api = {
     return callHost("evidence.list", { project_id: projectId, run_id: runId });
   },
 
+  previewEvidence(
+    projectId: string,
+    runId: string,
+    previewRef: string,
+    previewBytes = 8192,
+  ): Promise<{ preview?: EvidencePreview }> {
+    return callHost("evidence.list", {
+      project_id: projectId,
+      run_id: runId,
+      include_hash: false,
+      preview_ref: previewRef,
+      preview_bytes: previewBytes,
+    });
+  },
+
   addEvidence(
     projectId: string,
     runId: string,
@@ -603,6 +712,13 @@ export const api = {
 
   readGithub(projectId: string, repo: string, ref = "main"): Promise<GithubChange & { path: string }> {
     return callHost("github.read", { project_id: projectId, repo, ref });
+  },
+
+  saveGithubSnapshot(
+    projectId: string,
+    snapshot: Record<string, unknown>,
+  ): Promise<GithubChange & { path: string }> {
+    return callHost("github.read", { project_id: projectId, snapshot });
   },
 
   importLink(

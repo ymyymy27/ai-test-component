@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
@@ -786,12 +787,6 @@ export async function downloadArchive(url: string, destination: string): Promise
   return { sha256: hash.digest("hex"), bytes };
 }
 
-interface CommandOutcome {
-  readonly code: number | null;
-  readonly timedOut: boolean;
-  readonly spawnError?: string;
-}
-
 function runCommand(
   spawnFn: SpawnFn,
   command: string,
@@ -1269,6 +1264,17 @@ function acquireRuntimeLock(runtimeHome: string): string | null {
 }
 
 function releaseRuntimeLock(lock: string): void {
+  const ownerFile = join(lock, "owner");
+  try {
+    if (existsSync(ownerFile)) {
+      const owner = readFileSync(ownerFile, "utf8").trim();
+      if (owner && owner !== String(process.pid)) {
+        return;
+      }
+    }
+  } catch {
+    return;
+  }
   rmSync(lock, { recursive: true, force: true });
 }
 
@@ -1357,6 +1363,26 @@ export async function ensureRuntime(
         stage: "verify",
         code: "PYTHON_PROBE_TIMEOUT",
         detail: "解释器探测超时（已重试）；请检查磁盘/杀毒/负载后重试，或显式设置 aitest.pythonPath",
+        diagnosticsPath: null,
+      },
+    };
+  }
+  if ((settings.pythonPath ?? "").trim() !== "") {
+    return {
+      check,
+      ok: false,
+      source: "existing",
+      pythonPath: null,
+      pythonArgs: [],
+      version: null,
+      packageVersion: null,
+      missing: check.missing,
+      installHint: check.installHint,
+      stages: [],
+      failure: {
+        stage: "verify",
+        code: "EXPLICIT_PYTHON_INVALID",
+        detail: "已显式设置 aitest.pythonPath 但该解释器不可用；请修正该路径或清空设置后重试",
         diagnosticsPath: null,
       },
     };

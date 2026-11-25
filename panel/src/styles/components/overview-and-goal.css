@@ -1,0 +1,218 @@
+/* ---------- goal / candidates / overview extras ---------- */
+.doc-note {
+  color: var(--ink-3);
+  font-size: var(--text-12);
+  line-height: 1.6;
+}
+
+.page-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.goal-composer {
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.test-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.test-mode {
+  display: grid;
+  align-content: start;
+  cursor: pointer;
+  gap: var(--space-1);
+  min-height: 128px;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+  text-align: left;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color var(--motion-fast) ease,
+    background var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.test-mode:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.test-mode:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.test-mode.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.test-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.test-mode.is-active .test-mode-icon {
+  background: var(--surface);
+}
+
+.test-mode-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+.test-mode-desc {
+  color: var(--ink-3);
+  font-size: var(--text-12);
+  line-height: 1.55;
+}
+
+.start-hint {
+  margin: var(--space-4) 0 var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: var(--text-12);
+}
+
+.start-hint p {
+  max-width: 560px;
+  line-height: 1.65;
+}
+
+.start-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.start-facts strong {
+  color: var(--ink);
+}
+
+.start-facts .link-btn {
+  margin-left: auto;
+}
+
+.goal-composer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.goal-composer-title {
+  font-size: var(--text-16);
+}
+
+.goal-composer-meta {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-12);
+}
+
+.goal-composer-meta strong {
+  color: var(--ink-2);
+}
+
+.goal-field textarea {
+  min-height: 68px;
+}
+
+.goal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.goal-count {
+  margin-left: var(--space-2);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.candidate-section {
+  margin-top: var(--space-5);
+}
+
+.project-map-stats {
+  margin-bottom: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-12);
+}
+
+.project-map-stats strong {
+  color: var(--ink);
+}
+
+.project-map-details {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.project-map-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--ink-2);
+  font-size: var(--text-12);
+  list-style: none;
+  cursor: pointer;
+}
+
+.project-map-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.project-map-actions {
+  margin: var(--space-2) 0;
+}
+
+.unknown-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 var(--space-2);
+}
+
+.unknown-list li {
+  display: grid;
+  gap: 2px;
+  color: var(--ink-2);
+  font-size: var(--text-12);
+  line-height: 1.5;
+}
+
+.unknown-list strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+

@@ -238,11 +238,17 @@ test("serialization and payload size failures are separated from disk errors", a
 });
 
 test("aborting the call kills the child and returns CLI_CANCELLED", async () => {
-  const { spawn, calls } = fakeSpawn(() => {});
+  let markSpawned;
+  const spawned = new Promise((resolve) => {
+    markSpawned = resolve;
+  });
+  const { spawn, calls } = fakeSpawn(() => {
+    markSpawned();
+  });
   const bridge = createBridge(config(), spawn);
   const controller = new AbortController();
   const pending = bridge.call("run.repair", { run_id: "r" }, { confirm: true, signal: controller.signal });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await spawned;
   controller.abort();
   const result = await pending;
   assert.equal(result.error.code, "CLI_CANCELLED");
@@ -277,4 +283,39 @@ test("invalid command and missing workspace are rejected before spawning", async
   const noWorkspace = createBridge(config({ workspacePath: "  " }), spawn);
   assert.equal((await noWorkspace.call("doctor", {})).error.code, "WORKSPACE_NOT_CONFIGURED");
   assert.equal(spawned, 0);
+});
+
+test("streams [aitest-progress] stderr lines to onProgress without breaking JSON output", async () => {
+  const events = [];
+  const { spawn } = fakeSpawn((record, child) => {
+    child.stderr.emit("data", '[aitest-progress] {"stage":"plan.generate",');
+    child.stderr.emit("data", '"message":"生成批次 1/2","done":1,"total":2}\n');
+    child.stderr.emit("data", "not a progress line\n");
+    child.stderr.emit("data", '[aitest-progress] {"stage":"plan.generate","done":2,"total":2}');
+    child.stdout.emit(
+      "data",
+      JSON.stringify({ ok: true, request_id: record.input.request_id, data: { ready: true } }),
+    );
+    child.emit("close", 0);
+  });
+  const bridge = createBridge(config(), spawn);
+  const result = await bridge.call(
+    "plan.generate",
+    { task_id: "t1" },
+    { onProgress: (evt) => events.push(evt) },
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data, { ready: true });
+  assert.equal(events.length, 2);
+  assert.deepEqual(events[0], {
+    stage: "plan.generate",
+    message: "生成批次 1/2",
+    done: 1,
+    total: 2,
+  });
+  assert.deepEqual(events[1], {
+    stage: "plan.generate",
+    done: 2,
+    total: 2,
+  });
 });

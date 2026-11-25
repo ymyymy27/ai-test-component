@@ -1,11 +1,21 @@
 import type {
   AcceptanceItem,
   Candidate,
+  CaseJudgement,
   CaseResult,
+  CodeGraph,
+  CodeGraphChunk,
+  CodeGraphConflict,
+  CodeGraphEdge,
+  CodeGraphLayer,
+  CodeGraphNode,
+  ConfidenceSummary,
+  ConfidenceTier,
   Confirmation,
   Counts,
   Delivery,
   EvidenceRef,
+  ExcludedItemSnapshot,
   FailureAnalysis,
   Feature,
   GithubSnapshot,
@@ -13,12 +23,17 @@ import type {
   IssueOccurrence,
   LinkData,
   LinkNode,
+  LocalGitInfo,
   Module,
   Plan,
   PlanCase,
+  PreflightReport,
+  ProbeFinding,
+  ProbeResult,
   Project,
   ProjectCheck,
   ProjectConfig,
+  ProjectConvention,
   ProjectMap,
   QuickCheck,
   Report,
@@ -30,6 +45,7 @@ import type {
   RunItem,
   Task,
   TemplateResult,
+  TokenUsage,
   UnknownArea,
 } from "@/domain/types";
 import { hashText, isoNow } from "@/domain/ids";
@@ -37,13 +53,18 @@ import { compareItemNo } from "@/domain/derive";
 
 export { compareItemNo };
 import type {
+  CodeGraphDto,
   Delivery as DeliveryDto,
   EvidenceItem,
+  ExcludedItemDto,
   Issue as IssueDto,
   LinkLocation,
+  LocalGitDto,
   Module as ModuleDto,
   PlanCase as PlanCaseDto,
   PlanDetail,
+  PreflightReportDto,
+  ProbeResultDto,
   Project as ProjectDto,
   ProjectConfig as ProjectConfigDto,
   Report as ReportDto,
@@ -97,6 +118,289 @@ function asLayer(value: unknown): "L1" | "L2" | "L3" {
 
 function asConfidence(value: unknown): "high" | "medium" | "low" {
   return value === "high" || value === "low" ? value : "medium";
+}
+
+function asConfidenceTier(value: unknown): ConfidenceTier {
+  const raw = str(value).trim().toLowerCase();
+  if (raw === "confirmed" || raw === "confirmed_defect") return "confirmed";
+  if (raw === "suspected" || raw === "suspected_issue") return "suspected";
+  if (raw === "blocked") return "blocked";
+  return "";
+}
+
+function asGraphLayer(value: unknown): CodeGraphLayer {
+  if (value === "frontend" || value === "api" || value === "backend" || value === "storage") {
+    return value;
+  }
+  return "backend";
+}
+
+function asGraphImpact(value: unknown): "none" | "direct" | "transitive" {
+  if (value === "direct" || value === "transitive") {
+    return value;
+  }
+  return "none";
+}
+
+/** 从堆栈片段或错误签名中安全提取相对源码文件路径与 1-based 行号。 */
+export function extractSourceLocation(text: string): { file: string; line: number } | null {
+  if (!text) {
+    return null;
+  }
+  const pyFileMatch = /File\s+"([^"\n]+\.(?:py|ts|tsx|js|jsx|vue|html|sql))",\s*line\s*(\d+)/i.exec(text);
+  if (pyFileMatch?.[1]) {
+    const clean = pyFileMatch[1].replace(/\\/g, "/").replace(/^[./]+/, "");
+    return { file: clean, line: Math.max(1, Number(pyFileMatch[2]) || 1) };
+  }
+  const relMatch = /(?:^|[\s(])([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:py|ts|tsx|js|jsx|vue|html|sql))(?::(\d+)|#L(\d+))?/i.exec(
+    text.replace(/\\/g, "/"),
+  );
+  if (relMatch?.[1] && !relMatch[1].startsWith("http")) {
+    const clean = relMatch[1].replace(/^[./]+/, "");
+    const lineNum = Number(relMatch[2] ?? relMatch[3] ?? 1);
+    return { file: clean, line: Number.isFinite(lineNum) && lineNum > 0 ? lineNum : 1 };
+  }
+  return null;
+}
+
+export function mapConventions(raw: unknown): ProjectConvention[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : isRecord(raw) && Array.isArray(raw.items)
+      ? raw.items
+      : [];
+  return records(list)
+    .map((entry, idx) => {
+      const pattern = str(entry.pattern).trim();
+      if (!pattern) return null;
+      return {
+        id: str(entry.id) || `conv_${idx}`,
+        pattern,
+        reason: str(entry.reason) || "项目正常约定",
+        matchType: entry.match_type === "regex" ? ("regex" as const) : ("contains" as const),
+        scope: str(entry.scope) || "all",
+      };
+    })
+    .filter((item): item is ProjectConvention => item !== null);
+}
+
+export function mapPreflight(raw: PreflightReportDto | Record<string, unknown> | null | undefined): PreflightReport | null {
+  if (!raw || !isRecord(raw)) {
+    return null;
+  }
+  return {
+    ok: raw.ok !== false,
+    orderedServices: strList(raw.ordered_services),
+    conflictedServices: strList(raw.conflicted_services),
+    reusedServices: strList(raw.reused_services),
+    portChecks: records(raw.port_checks),
+    envChecks: records(raw.env_checks),
+    toolChecks: records(raw.tool_checks),
+    blockingReasons: strList(raw.blocking_reasons),
+    warnings: strList(raw.warnings),
+  };
+}
+
+function mapProbeFinding(entry: Record<string, unknown>, matchedDefault = false): ProbeFinding {
+  return {
+    kind: str(entry.kind),
+    detail: str(entry.detail),
+    source: str(entry.source),
+    path: str(entry.path || entry.href || entry.url),
+    line: num(entry.line, 0),
+    method: str(entry.method),
+    conventionMatched: Boolean(entry.convention_matched ?? matchedDefault),
+    conventionReason: str(entry.convention_reason),
+  };
+}
+
+export function mapProbes(raw: ProbeResultDto[] | unknown[] | undefined): ProbeResult[] {
+  return records(raw).map((probe, idx) => ({
+    probeId: str(probe.probe_id) || `probe_${idx}`,
+    name: str(probe.name) || str(probe.probe_id) || `探针 ${idx + 1}`,
+    status: str(probe.status) || "skipped",
+    checked: num(probe.checked, 0),
+    summary: str(probe.summary),
+    findings: records(probe.findings).map((f) => mapProbeFinding(f, false)),
+    suppressedFindings: records(probe.suppressed_findings).map((f) => mapProbeFinding(f, true)),
+  }));
+}
+
+export function mapConfidenceSummary(
+  raw: Record<string, unknown> | null | undefined,
+  caseDetails?: ReportCaseDetail[],
+): ConfidenceSummary | null {
+  if (raw && isRecord(raw)) {
+    return {
+      confirmed: num(raw.confirmed, 0),
+      suspected: num(raw.suspected, 0),
+      blocked: num(raw.blocked, 0),
+    };
+  }
+  if (!caseDetails || caseDetails.length === 0) {
+    return null;
+  }
+  const summary: ConfidenceSummary = { confirmed: 0, suspected: 0, blocked: 0 };
+  for (const item of caseDetails) {
+    if (item.confidence === "confirmed") summary.confirmed += 1;
+    else if (item.confidence === "suspected") summary.suspected += 1;
+    else if (item.confidence === "blocked") summary.blocked += 1;
+  }
+  if (summary.confirmed + summary.suspected + summary.blocked === 0) {
+    return null;
+  }
+  return summary;
+}
+
+function mapTokenUsage(raw: unknown): TokenUsage | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const calls = num(raw.calls, 0);
+  const total = num(raw.total_tokens, 0);
+  if (calls === 0 && total === 0) {
+    return null;
+  }
+  return {
+    promptTokens: num(raw.prompt_tokens, 0),
+    completionTokens: num(raw.completion_tokens, 0),
+    totalTokens: total,
+    calls,
+  };
+}
+
+export function mapLocalGit(raw: LocalGitDto | Record<string, unknown> | null | undefined): LocalGitInfo | null {
+  if (!raw || !isRecord(raw)) {
+    return null;
+  }
+  return {
+    isGit: Boolean(raw.is_git),
+    available: Boolean(raw.available),
+    reason: str(raw.reason),
+    branch: str(raw.branch),
+    detached: Boolean(raw.detached),
+    head: str(raw.head),
+    shortHead: str(raw.short_head),
+    headAuthor: str(raw.head_author),
+    headTime: str(raw.head_time),
+    headSubject: str(raw.head_subject),
+    baseBranch: str(raw.base_branch),
+    remoteUrl: str(raw.remote_url),
+    latestTag: str(raw.latest_tag),
+    ahead: num(raw.ahead, 0),
+    behind: num(raw.behind, 0),
+    dirty: Boolean(raw.dirty),
+    stagedFiles: strList(raw.staged_files),
+    unstagedFiles: strList(raw.unstaged_files),
+    untrackedFiles: strList(raw.untracked_files),
+    changedFiles: strList(raw.changed_files),
+    diffStat: records(raw.diff_stat).map((row) => ({
+      path: str(row.path),
+      additions: num(row.additions, 0),
+      deletions: num(row.deletions, 0),
+      status: str(row.status),
+    })),
+    changedHunks: records(raw.changed_hunks).map((hunk) => ({
+      path: str(hunk.path),
+      start: num(hunk.start, 0),
+      count: num(hunk.count, 0),
+    })),
+    recentCommits: records(raw.recent_commits).map((c) => ({
+      sha: str(c.sha),
+      shortSha: str(c.short_sha),
+      author: str(c.author),
+      date: str(c.date),
+      subject: str(c.subject),
+    })),
+    hotspots: records(raw.hotspots).map((spot) => ({
+      path: str(spot.path),
+      commits: num(spot.commits, 0),
+    })),
+  };
+}
+
+export function mapCodeGraph(raw: CodeGraphDto | Record<string, unknown> | null | undefined): CodeGraph | null {
+  if (!raw || !isRecord(raw)) {
+    return null;
+  }
+  const statsRaw = isRecord(raw.stats) ? raw.stats : {};
+  const nodes: CodeGraphNode[] = records(raw.nodes).map((n) => ({
+    id: str(n.id),
+    label: str(n.label),
+    layer: asGraphLayer(n.layer),
+    kind: str(n.kind),
+    file: str(n.file),
+    line: num(n.line, 0),
+    module: str(n.module, "root"),
+    meta: isRecord(n.meta) ? n.meta : {},
+    hasConflict: Boolean(n.has_conflict),
+    impact: asGraphImpact(n.impact),
+  }));
+  const edges: CodeGraphEdge[] = records(raw.edges).map((e) => ({
+    id: str(e.id),
+    source: str(e.source),
+    target: str(e.target),
+    kind: str(e.kind),
+    label: str(e.label),
+    conflict: Boolean(e.conflict),
+  }));
+  const conflicts: CodeGraphConflict[] = records(raw.conflicts).map((c) => ({
+    kind: str(c.kind),
+    severity: str(c.severity, "warning"),
+    detail: str(c.detail),
+    file: str(c.file),
+    nodeIds: strList(c.node_ids),
+  }));
+  const moduleChunks: CodeGraphChunk[] = records(raw.module_chunks).map((chunk) => {
+    const layersRaw = isRecord(chunk.layers) ? chunk.layers : {};
+    return {
+      chunkId: str(chunk.chunk_id),
+      module: str(chunk.module),
+      files: strList(chunk.files),
+      nodeIds: strList(chunk.node_ids),
+      layers: {
+        frontend: num(layersRaw.frontend, 0),
+        api: num(layersRaw.api, 0),
+        backend: num(layersRaw.backend, 0),
+        storage: num(layersRaw.storage, 0),
+      },
+      contentHash: str(chunk.content_hash),
+      summary: str(chunk.summary),
+    };
+  });
+  const externalSystems = records(raw.external_systems).map((ext) => ({
+    id: str(ext.id),
+    name: str(ext.name),
+    category: str(ext.category),
+    detail: str(ext.detail),
+    source: str(ext.source),
+  }));
+  const impactRaw = isRecord(raw.impact) ? raw.impact : {};
+  return {
+    generatedAt: str(raw.generated_at),
+    sourceHash: str(raw.source_hash),
+    stats: {
+      totalFiles: num(statsRaw.total_files, 0),
+      frontend: num(statsRaw.frontend, 0),
+      api: num(statsRaw.api, 0),
+      backend: num(statsRaw.backend, 0),
+      storage: num(statsRaw.storage, 0),
+      edges: num(statsRaw.edges, edges.length),
+      conflicts: num(statsRaw.conflicts, conflicts.length),
+    },
+    nodes,
+    edges,
+    conflicts,
+    moduleChunks,
+    externalSystems,
+    impact: {
+      changedFiles: strList(impactRaw.changed_files),
+      directNodeIds: strList(impactRaw.direct_node_ids),
+      affectedNodeIds: strList(impactRaw.affected_node_ids),
+      affectedModules: strList(impactRaw.affected_modules),
+      affectedRoutes: strList(impactRaw.affected_routes),
+    },
+  };
 }
 
 export function mapModule(dto: ModuleDto): Module {
@@ -154,13 +458,15 @@ export function mapConfig(raw: ProjectConfigDto): ProjectConfig {
           link.log_path ??
           (Array.isArray(link.log_paths) ? link.log_paths.join(", ") : ""),
       ),
-      query: str(link.query),
+      query: str(link.query ?? link.db_query),
     },
     data: {
       ...data,
       cleanupCommand: str(data.cleanupCommand ?? data.cleanup ?? data.cleanup_command),
       dataPrefix: str(data.dataPrefix ?? data.data_prefix),
     },
+    ...(raw.conventions !== undefined ? { conventions: mapConventions(raw.conventions) } : {}),
+    ...(isRecord(raw.environments) ? { environments: { ...raw.environments } } : {}),
   };
 }
 
@@ -172,8 +478,16 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
   const data = config.data ?? {};
   const { healthUrl, baseUrl, ...serviceRest } = services;
   const { singleFileMb, mediaMb, video, ...evidenceRest } = evidence;
-  const { logPath, log_path: legacyLogPath, ...linkRest } = link;
+  const {
+    logPath,
+    log_path: legacyLogPath,
+    query,
+    db_query: legacyDbQuery,
+    ...linkRest
+  } = link;
   void legacyLogPath;
+  const hasQuery = "query" in link || "db_query" in link;
+  const queryValue = str(query ?? legacyDbQuery);
   const dataRest = { ...data };
   delete dataRest.cleanupCommand;
   delete dataRest.cleanup_command;
@@ -209,13 +523,20 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
     link: {
       ...linkRest,
       log_paths: logPaths,
-      ...(logPaths.length === 1 ? { log_path: logPaths[0] } : {}),
+      ...(logPaths.length === 1
+        ? { log_path: logPaths[0] }
+        : logPaths.length === 0 && "logPath" in link
+          ? { log_path: "" }
+          : {}),
+      ...(hasQuery ? { db_query: queryValue, query: queryValue } : {}),
     },
     data: {
       ...dataRest,
       cleanup: cleanupCommand,
       data_prefix: str(data.dataPrefix ?? data.data_prefix),
     },
+    ...(config.conventions !== undefined ? { conventions: config.conventions as unknown as ProjectConfigDto["conventions"] } : {}),
+    ...(config.environments !== undefined ? { environments: { ...config.environments } } : {}),
   };
 }
 
@@ -296,13 +617,18 @@ function mapUnknowns(raw: Record<string, unknown> | null): UnknownArea[] {
   }));
 }
 
-function mapCatalog(
+export function buildCatalogFromFeatures(
   features: Feature[],
   tasks: Array<{ task: TaskDto }>,
   projectId: string,
+  ignoredFeatures: string[] = [],
 ): AcceptanceItem[] {
+  const ignoredSet = new Set(ignoredFeatures);
   const items: AcceptanceItem[] = [];
   features.forEach((feature) => {
+    if (ignoredSet.has(feature.name)) {
+      return;
+    }
     feature.testableItems.forEach((text) => {
       items.push({
         id: `ai_catalog_${projectId.slice(-6)}_${items.length}`,
@@ -352,12 +678,15 @@ export function mapProjectMap(
   if (!raw) {
     return null;
   }
+  const mergedIgnored = [
+    ...new Set([...strList(raw.ignored_features), ...(sidecar.ignored[projectId] ?? [])]),
+  ];
   return {
     revision: num(raw.project_revision ?? raw.revision, 0),
     sourceCommit: str(raw.source_commit, "unknown"),
     generatedAt: str(raw.generated_at, isoNow()),
     features: mapFeatures(raw, projectId),
-    ignoredFeatures: [...(sidecar.ignored[projectId] ?? [])],
+    ignoredFeatures: mergedIgnored,
     unknowns: mapUnknowns(raw),
     stale,
     staleReason,
@@ -405,9 +734,13 @@ export function mapPlanCase(dto: PlanCaseDto): PlanCase {
     dependsOn: dto.depends_on ?? null,
     scriptName: dto.script_name ?? null,
     scriptContent: dto.script_content ?? null,
-    manual:
-      dto.layer === "L3" &&
-      (!dto.verify_method || dto.verify_method.trim() === "" || dto.verify_method.startsWith("manual:")),
+    manual: (() => {
+      if (dto.layer !== "L3") {
+        return false;
+      }
+      const method = (dto.verify_method ?? "").trim().toLowerCase();
+      return method === "" || method === "manual" || method.startsWith("manual:");
+    })(),
   };
 }
 
@@ -428,6 +761,20 @@ export function mapTemplateResult(dto: TemplateResultDto): TemplateResult {
   };
 }
 
+function mapExcludedItems(
+  raw: ExcludedItemDto[] | null | undefined,
+): ExcludedItemSnapshot[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+  return raw.map((entry, index) => ({
+    id: str(entry.item_id, `excluded_${index}`),
+    no: str(entry.no, String(index + 1).padStart(2, "0")),
+    text: str(entry.text),
+    moduleId: entry.module_id ?? null,
+  }));
+}
+
 export function mapPlan(
   detail: PlanDetail,
   projectId: string,
@@ -437,6 +784,7 @@ export function mapPlan(
   const dto = detail.plan;
   const selected = dto.scope.acceptance_item_ids ?? [];
   const applicable = detail.coverage?.applicable ?? dto.applicable_count ?? selected.length;
+  const excludedItems = mapExcludedItems(dto.excluded_items);
   return {
     id: dto.plan_id,
     projectId,
@@ -456,12 +804,14 @@ export function mapPlan(
     applicableCount: applicable,
     rulesVersionId: dto.rules_version_id ?? null,
     cases: dto.cases.map(mapPlanCase),
+    itemTexts: dto.item_texts,
     templates: (dto.templates ?? []).map(mapTemplateResult),
     unselectedByModule: (dto.unselected_by_module ?? []).map((entry) => ({
       moduleId: entry.module_id ?? "",
       moduleName: entry.module_name,
       count: entry.count,
     })),
+    ...(excludedItems !== undefined ? { excludedItems } : {}),
     warnings: dto.warnings ?? [],
     sourceSignature: dto.source_signature ?? "",
     confirmation: sidecar.confirmations[dto.plan_id] ?? null,
@@ -537,6 +887,24 @@ function mapProjectChecks(raw: unknown): ProjectCheck[] {
       });
     });
   }
+  if (Array.isArray(raw.cases)) {
+    records(raw.cases).forEach((item, index) => {
+      const attempts = records(item.attempts);
+      const lastAttempt = attempts[attempts.length - 1];
+      const refs = strList(item.evidence_refs);
+      const caseId = str(item.case_id, `l1_case_${index}`);
+      checks.push({
+        key: caseId,
+        name: str(item.title, caseId),
+        method: str(item.verify_method ?? item.expected),
+        result: asCaseResult(item.result, "not_run"),
+        detail: str(lastAttempt?.message) || str(item.message),
+        time: str(lastAttempt?.finished_at ?? lastAttempt?.started_at),
+        reason: asCaseResult(item.result, "not_run") === "passed" ? "" : str(lastAttempt?.message),
+        evidenceRef: refs[0] ?? "",
+      });
+    });
+  }
   if (blocking.length && checks.length === 0) {
     checks.push({
       key: "blocking",
@@ -594,6 +962,22 @@ function mapLink(raw: LinkLocation | null, runId: string): LinkData | null {
   };
 }
 
+function mapJudgement(raw: unknown): CaseJudgement | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  return {
+    verdict: str(raw.verdict),
+    source: str(raw.source),
+    reason: str(raw.reason),
+    evidencePoints: strList(raw.evidence_points),
+    suggestedFix: str(raw.suggested_fix),
+    ...(typeof raw.convention_id === "string" && raw.convention_id
+      ? { conventionId: raw.convention_id }
+      : {}),
+  };
+}
+
 function mapRunCase(
   dto: RunCaseDto,
   planCase: PlanCase | null,
@@ -604,6 +988,11 @@ function mapRunCase(
   const caseItemIds = planCase
     ? [planCase.itemId, ...planCase.extraItemIds].filter(Boolean)
     : [];
+  const loc = extractSourceLocation(`${dto.stack_key ?? ""}\n${dto.actual ?? ""}\n${lastAttempt?.message ?? ""}`);
+  const confidence = asConfidenceTier(dto.confidence_tier);
+  const judgement = mapJudgement(dto.judgement);
+  const serviceLogIssues = strList(dto.service_log_issues);
+  const phaseFailed = str(lastAttempt?.stage);
   return {
     id: dto.case_id,
     caseId: dto.case_id,
@@ -629,6 +1018,12 @@ function mapRunCase(
       note: attempt.message ?? "",
       at: attempt.finished_at ?? attempt.started_at ?? "",
     })),
+    ...(confidence ? { confidence } : {}),
+    ...(dto.confidence_reason ? { confidenceReason: str(dto.confidence_reason) } : {}),
+    ...(judgement ? { judgement } : {}),
+    ...(serviceLogIssues.length ? { serviceLogIssues } : {}),
+    ...(phaseFailed ? { phaseFailed } : {}),
+    ...(loc ? { file: loc.file, line: loc.line } : {}),
   };
 }
 
@@ -673,8 +1068,18 @@ export function mapRun(
   const parsedStarted = new Date(dto.started_at).getTime();
   const started = Number.isFinite(parsedStarted) ? parsedStarted : Date.now();
   const startedAt = Number.isFinite(parsedStarted) ? dto.started_at : isoNow();
-  const elapsedSeconds = num(dto.elapsed_seconds);
-  const elapsedMs = dto.status === "running" ? Math.max(0, Date.now() - started) : elapsedSeconds * 1000;
+  const hasElapsed = typeof dto.elapsed_seconds === "number" && Number.isFinite(dto.elapsed_seconds);
+  const endCandidate =
+    dto.finished_at ?? (typeof dto.heartbeat_at === "string" ? dto.heartbeat_at : "");
+  const parsedEnd = endCandidate ? new Date(endCandidate).getTime() : NaN;
+  const elapsedMs =
+    dto.status === "running"
+      ? Math.max(0, Date.now() - started)
+      : hasElapsed
+        ? Math.max(0, (dto.elapsed_seconds as number) * 1000)
+        : Number.isFinite(parsedEnd)
+          ? Math.max(0, parsedEnd - started)
+          : 0;
   return {
     id: dto.run_id,
     projectId: dto.project_id,
@@ -688,7 +1093,10 @@ export function mapRun(
     finishedAt:
       dto.status === "running"
         ? ""
-        : (dto.finished_at ?? new Date(started + elapsedSeconds * 1000).toISOString()),
+        : (dto.finished_at ||
+          (typeof dto.heartbeat_at === "string" && dto.heartbeat_at
+            ? dto.heartbeat_at
+            : new Date(started + elapsedMs).toISOString())),
     elapsedMs,
     confirmedBy: dto.confirmed_by ?? "",
     confirmationId: dto.confirmation_id ?? "",
@@ -728,6 +1136,22 @@ export function mapRun(
       ok: entry.ok,
       evidenceRef: entry.evidence_ref ?? "",
     })),
+    ...(mapExcludedItems(detail.excluded_items ?? dto.excluded_items) !== undefined
+      ? { excludedItems: mapExcludedItems(detail.excluded_items ?? dto.excluded_items) }
+      : {}),
+    ...(dto.token_usage && (dto.token_usage.calls ?? 0) > 0
+      ? {
+          tokenUsage: {
+            promptTokens: num(dto.token_usage.prompt_tokens, 0),
+            completionTokens: num(dto.token_usage.completion_tokens, 0),
+            totalTokens: num(dto.token_usage.total_tokens, 0),
+            calls: num(dto.token_usage.calls, 0),
+          },
+        }
+      : {}),
+    ...(dto.preflight ? { preflight: mapPreflight(dto.preflight) } : {}),
+    ...(dto.probe_results?.length ? { probeResults: mapProbes(dto.probe_results) } : {}),
+    ...(dto.resumed_from_run_id ? { resumedFromRunId: dto.resumed_from_run_id } : {}),
   };
 }
 
@@ -752,8 +1176,8 @@ function layerCounts(cases: Array<{ layer: "L1" | "L2" | "L3"; result: CaseResul
 }
 
 function mapAnalysis(raw: Record<string, unknown>[]): FailureAnalysis {
-  const first = raw[0];
-  if (!first) {
+  const latest = raw[raw.length - 1];
+  if (!latest) {
     return {
       status: "not_generated",
       reason: "no_failures",
@@ -765,20 +1189,22 @@ function mapAnalysis(raw: Record<string, unknown>[]): FailureAnalysis {
     };
   }
   const status =
-    first.status === "generated" || first.status === "not_generated" || first.status === "invalid"
-      ? first.status
+    latest.status === "generated" ||
+    latest.status === "not_generated" ||
+    latest.status === "invalid"
+      ? latest.status
       : "invalid";
   return {
     status,
-    reason: (first.reason as FailureAnalysis["reason"]) ?? "",
-    observed: str(first.observed),
-    evidenceRefs: strList(first.evidence_refs),
-    candidateCauses: records(first.candidate_causes).map((cause) => ({
+    reason: (latest.reason as FailureAnalysis["reason"]) ?? "",
+    observed: str(latest.observed),
+    evidenceRefs: strList(latest.evidence_refs),
+    candidateCauses: records(latest.candidate_causes).map((cause) => ({
       cause: str(cause.cause),
       confidence: asConfidence(cause.confidence),
     })),
-    unverified: strList(first.unverified),
-    nextSteps: strList(first.next_steps),
+    unverified: strList(latest.unverified),
+    nextSteps: strList(latest.next_steps),
   };
 }
 
@@ -807,7 +1233,25 @@ export function mapReport(
   const caseDetails: ReportCaseDetail[] = records(dto.case_details).map((testCase) => {
     const caseId = str(testCase.case_id);
     const planCase = plan?.cases.find((entry) => entry.id === caseId) ?? null;
+    const matchedRunCase = run?.cases.find((entry) => entry.id === caseId) ?? null;
     const refs = strList(testCase.evidence_refs);
+    const attRecords = records(testCase.attempts);
+    const lastAttemptRec = attRecords[attRecords.length - 1];
+    const confidence =
+      asConfidenceTier(testCase.confidence_tier) || matchedRunCase?.confidence || "";
+    const confidenceReason =
+      str(testCase.confidence_reason) || matchedRunCase?.confidenceReason || "";
+    const judgement = mapJudgement(testCase.judgement) ?? matchedRunCase?.judgement ?? null;
+    const serviceLogIssues = strList(testCase.service_log_issues).length
+      ? strList(testCase.service_log_issues)
+      : (matchedRunCase?.serviceLogIssues ?? []);
+    const phaseFailed =
+      str(lastAttemptRec?.stage) || matchedRunCase?.phaseFailed || "";
+    const errorType = str(testCase.error_type) || matchedRunCase?.errorType || "";
+    const stackKey = str(testCase.stack_key) || matchedRunCase?.stackKey || "";
+    const loc =
+      extractSourceLocation(`${stackKey}\n${str(lastAttemptRec?.message)}`) ??
+      (matchedRunCase?.file ? { file: matchedRunCase.file, line: matchedRunCase.line ?? 1 } : null);
     return {
       caseId,
       itemId: str(testCase.acceptance_item_id),
@@ -817,7 +1261,7 @@ export function mapReport(
       method: planCase?.verifyMethod ?? "",
       expected: str(testCase.expected),
       actual:
-        str(records(testCase.attempts)[records(testCase.attempts).length - 1]?.message) ||
+        str(lastAttemptRec?.message) ||
         (str(testCase.result) === "passed" ? "通过" : "未记录"),
       result: asCaseResult(testCase.result),
       evidence: evidence.filter((entry) => refs.includes(entry.id) || refs.includes(entry.name)),
@@ -830,6 +1274,14 @@ export function mapReport(
         | "unverified"
         | null,
       testNodes: strList(testCase.test_nodes),
+      ...(confidence ? { confidence } : {}),
+      ...(confidenceReason ? { confidenceReason } : {}),
+      ...(judgement ? { judgement } : {}),
+      ...(serviceLogIssues.length ? { serviceLogIssues } : {}),
+      ...(phaseFailed ? { phaseFailed } : {}),
+      ...(errorType ? { errorType } : {}),
+      ...(stackKey ? { stackKey } : {}),
+      ...(loc ? { file: loc.file, line: loc.line } : {}),
     };
   });
   const caseLayers = layerCounts(
@@ -849,6 +1301,19 @@ export function mapReport(
   });
   const mockRecords = records(dto.mock_judgement);
   const mockKind = (entry: Record<string, unknown>): unknown => entry.kind ?? entry.result;
+  const mockLimitReached = mockRecords.some((entry) => entry.limit_reached === true);
+  const mockDetails = mockRecords
+    .map((entry) => {
+      const name = str(entry.name);
+      const kind = str(mockKind(entry));
+      const reason = str(entry.reason);
+      if (!name) return reason;
+      return `${name}(${kind || "unknown"})${reason ? `：${reason}` : ""}`;
+    })
+    .filter(Boolean);
+  const mockRefs = [
+    ...new Set(mockRecords.flatMap((entry) => strList(entry.evidence_refs))),
+  ];
   const mock = {
     real: mockRecords.filter((entry) => mockKind(entry) === "real").length,
     mock: mockRecords.filter((entry) => mockKind(entry) === "mock").length,
@@ -856,9 +1321,13 @@ export function mapReport(
     unknown: mockRecords.filter((entry) => mockKind(entry) === "unknown").length,
     realChain: dto.real_chain === true,
     note: mockRecords.length
-      ? "Mock 真实性由后端判定；含模拟或无法判断的用例不能获得真实链路通过。"
+      ? `${mockLimitReached ? "部分依赖达到读取上限（unknown）；" : ""}${
+          mockDetails.length
+            ? `依据：${mockDetails.slice(0, 4).join("；")}${mockDetails.length > 4 ? ` 等 ${mockDetails.length} 项` : ""}`
+            : "Mock 真实性由后端判定；含模拟或无法判断的用例不能获得真实链路通过。"
+        }`
       : "本次没有 Mock 判定记录；未产生真实链路通过结论。",
-    refs: [],
+    refs: mockRefs,
   };
   const l1 = mapProjectChecks(dto.l1);
   const backendLayers = isRecord(dto.layers) ? dto.layers : {};
@@ -919,6 +1388,20 @@ export function mapReport(
     summarySource: dto.summary_source ?? (dto.summary ? "fallback" : "none"),
     opinion: dto.opinion ?? null,
     status: "final",
+    ...(dto.preflight ?? run?.preflight
+      ? { preflight: mapPreflight(dto.preflight) ?? run?.preflight ?? null }
+      : {}),
+    ...(dto.probe_results?.length
+      ? { probeResults: mapProbes(dto.probe_results) }
+      : run?.probeResults?.length
+        ? { probeResults: run.probeResults }
+        : {}),
+    ...(mapConfidenceSummary(dto.confidence_summary, caseDetails)
+      ? { confidenceSummary: mapConfidenceSummary(dto.confidence_summary, caseDetails) }
+      : {}),
+    ...(mapTokenUsage(dto.token_usage) ?? run?.tokenUsage
+      ? { tokenUsage: mapTokenUsage(dto.token_usage) ?? run?.tokenUsage ?? null }
+      : {}),
   };
 }
 
@@ -934,12 +1417,14 @@ export function mapIssue(
     runId: occurrence.run_id,
     caseId: occurrence.case_id,
     time: occurrence.at,
-    // last_result 只描述最新一次发生，不能按数组下标硬套。
-    result: latest && occurrence.at === latest.at ? asCaseResult(dto.last_result) : "not_run",
+    // 问题发生记录均对应一次真实失败；不把当前整体状态 last_result 覆写进历史发生。
+    result: "failed",
     note: "",
     evidenceRefs: occurrence.evidence_refs ?? [],
   }));
   const evidenceRefs = [...new Set(dto.occurrences.flatMap((entry) => entry.evidence_refs ?? []))];
+  const confidence = asConfidenceTier(dto.confidence_tier);
+  const loc = extractSourceLocation(`${dto.signature}\n${dto.actual}`);
   return {
     id: dto.issue_id,
     projectId,
@@ -965,6 +1450,9 @@ export function mapIssue(
     evidenceRefs,
     verificationRunId: dto.verification_run_id,
     unstable: dto.unstable,
+    ...(confidence ? { confidence } : {}),
+    ...(dto.confidence_reason ? { confidenceReason: str(dto.confidence_reason) } : {}),
+    ...(loc ? { file: loc.file, line: loc.line } : {}),
     createdAt: dto.occurrences[0]?.at ?? isoNow(),
     updatedAt: latest?.at ?? isoNow(),
   };
@@ -1012,7 +1500,11 @@ export function mapTask(
   } else {
     stage = "result";
   }
-  const selected = sidecar.scopes[task.task_id] ?? latestPlan?.scope.acceptanceItemIds ?? applicable;
+  const savedScope = sidecar.scopes[task.task_id];
+  const selected =
+    savedScope && savedScope.length > 0
+      ? savedScope
+      : (latestPlan?.scope.acceptanceItemIds ?? applicable);
   return {
     id: task.task_id,
     projectId: task.project_id,
@@ -1063,6 +1555,8 @@ export function mapProject(input: {
   map: Record<string, unknown> | null;
   mapStale: boolean;
   mapStaleReason: string;
+  localGit?: LocalGitDto | null;
+  codeGraph?: CodeGraphDto | null;
   config: ProjectConfigDto;
   rules: RuleDto[];
   tasks: RawTaskBundle[];
@@ -1070,6 +1564,7 @@ export function mapProject(input: {
   issues: IssueDto[];
   runDetails: Map<string, RunDetail>;
   evidence: Map<string, EvidenceRef[]>;
+  github?: Record<string, unknown> | null;
   sidecar: HostSidecar;
 }): Project {
   const { project, sidecar } = input;
@@ -1082,7 +1577,13 @@ export function mapProject(input: {
     input.mapStaleReason,
   );
   const features = projectMap?.features ?? [];
-  const catalog = mapCatalog(features, input.tasks, project.project_id);
+  const ignoredFeatures = projectMap?.ignoredFeatures ?? sidecar.ignored[project.project_id] ?? [];
+  const catalog = buildCatalogFromFeatures(
+    features,
+    input.tasks,
+    project.project_id,
+    ignoredFeatures,
+  );
   const tasks = input.tasks.map((bundle) => {
     const plans = bundle.plans.map((detail) =>
       mapPlan(detail, project.project_id, bundle.task.task_id, sidecar),
@@ -1155,13 +1656,15 @@ export function mapProject(input: {
     candidates: analysis?.candidates ?? [],
     modules,
     map: projectMap,
+    ...(input.localGit ? { localGit: mapLocalGit(input.localGit) } : {}),
+    ...(input.codeGraph ? { codeGraph: mapCodeGraph(input.codeGraph) } : {}),
     catalog,
     tasks,
     activeTaskId,
     rules: input.rules.map(mapRule),
     rulesVersionId: project.rules_version_id ?? null,
     config: mapConfig(input.config),
-    github: sidecar.github[project.project_id] ?? null,
+    github: sidecar.github[project.project_id] ?? (input.github ? mapGithub(input.github) : null),
     quickChecks: sidecar.quickChecks[project.project_id] ?? [],
     issues,
     reports,
@@ -1169,7 +1672,14 @@ export function mapProject(input: {
 }
 
 export function mapProjectSummary(
-  dto: { project_id: string; name: string; root: string; updated_at?: string; revision?: number },
+  dto: {
+    project_id: string;
+    name: string;
+    root: string;
+    updated_at?: string;
+    revision?: number;
+    archived?: boolean;
+  },
   sidecar: HostSidecar,
 ): Project {
   return {
@@ -1195,7 +1705,7 @@ export function mapProjectSummary(
     quickChecks: sidecar.quickChecks[dto.project_id] ?? [],
     issues: [],
     reports: [],
-    archived: false,
+    archived: dto.archived === true,
     summaryOnly: true,
   };
 }
@@ -1281,19 +1791,46 @@ export function mapConfirmation(
   };
 }
 
-export function mapGithub(dto: Record<string, unknown>): GithubSnapshot {  const change = isRecord(dto.change) ? dto.change : dto;
+export function mapGithub(dto: Record<string, unknown>): GithubSnapshot {
+  const change = isRecord(dto.change) ? dto.change : dto;
   return {
     repo: str(change.repo),
     branch: str(change.branch, "main"),
     commit: str(change.commit),
     files: strList(change.files),
-    prs: records(change.prs).map((pr) => str(pr.number ?? pr.title)),
-    checks: records(change.checks).map((check) => str(check.name ?? check.conclusion)),
+    prs: Array.isArray(change.prs)
+      ? change.prs
+          .map((pr) => {
+            if (typeof pr === "string") {
+              return pr;
+            }
+            if (isRecord(pr)) {
+              const title = str(pr.title);
+              if (typeof pr.number === "number") {
+                return title ? `#${pr.number} ${title}` : `#${pr.number}`;
+              }
+              return str(pr.number ?? pr.title);
+            }
+            return "";
+          })
+          .filter(Boolean)
+      : [],
+    checks: Array.isArray(change.checks)
+      ? change.checks
+          .map((check) =>
+            typeof check === "string"
+              ? check
+              : isRecord(check)
+                ? str(check.name ?? check.conclusion)
+                : "",
+          )
+          .filter(Boolean)
+      : [],
     deployment: change.deployment ? JSON.stringify(change.deployment) : "",
     account: str(change.account),
     host: str(change.host, "github.com"),
     fetchedAt: str(change.fetched_at, isoNow()),
-    cached: str(dto.cached ?? "") === "true" ? true : false,
+    cached: dto.cached === true || str(dto.cached) === "true",
     unavailableReason: "",
   };
 }

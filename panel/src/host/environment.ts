@@ -5,6 +5,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function formatCheckItem(item: unknown): string {
+  if (typeof item === "string") {
+    return item;
+  }
+  if (!isRecord(item)) {
+    return String(item ?? "");
+  }
+  const parts = [
+    item.project_id,
+    item.kind,
+    item.detail ?? item.message ?? item.path ?? item.name,
+  ]
+    .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
+    .map((part) => String(part).trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : JSON.stringify(item);
+}
+
 function repairFor(facts: DoctorFacts, key: string): string {
   const repairs = Array.isArray(facts.repairs) ? facts.repairs : [];
   if (repairs.length === 0) {
@@ -47,6 +65,8 @@ export function mapDoctorFacts(facts: DoctorFacts): EnvironmentCheck[] {
   const proxyConfigured = isRecord(proxy.configured)
     ? Object.keys(proxy.configured).join("、")
     : "";
+  const proxyOk = proxy.ok !== false;
+  const hasProxy = proxyConfigured.length > 0;
   return [
     {
       key: "python",
@@ -96,11 +116,15 @@ export function mapDoctorFacts(facts: DoctorFacts): EnvironmentCheck[] {
     {
       key: "proxy",
       name: "代理",
-      value: proxy.ok === true ? "已配置" : "未配置 · 直连",
-      ok: true,
-      detail: proxyConfigured ? `已配置项：${proxyConfigured}` : "没有代理配置。",
-      repair: "",
-      risk: "none",
+      value: !proxyOk ? "配置错误" : hasProxy ? "已配置" : "未配置 · 直连",
+      ok: proxyOk,
+      detail: !proxyOk
+        ? String((proxy as Record<string, unknown>).error ?? "代理配置不合法。")
+        : hasProxy
+          ? `已配置项：${proxyConfigured}`
+          : "没有代理配置。",
+      repair: proxyOk ? "" : repairFor(facts, "proxy"),
+      risk: proxyOk ? "none" : risk,
     },
     {
       key: "config",
@@ -109,7 +133,7 @@ export function mapDoctorFacts(facts: DoctorFacts): EnvironmentCheck[] {
       ok: config.ok === true,
       detail:
         Array.isArray(config.problems) && config.problems.length > 0
-          ? `问题：${config.problems.map((item) => String(item)).join("；")}`
+          ? `问题：${config.problems.map(formatCheckItem).join("；")}`
           : "项目配置读取正常。",
       repair: config.ok === true ? "" : repairFor(facts, "config"),
       risk: config.ok === true ? "none" : risk,
@@ -121,7 +145,7 @@ export function mapDoctorFacts(facts: DoctorFacts): EnvironmentCheck[] {
       ok: references.ok === true,
       detail:
         Array.isArray(references.missing) && references.missing.length > 0
-          ? `缺失：${references.missing.map((item) => String(item)).join("；")}`
+          ? `缺失：${references.missing.map(formatCheckItem).join("；")}`
           : "记录引用完整。",
       repair: references.ok === true ? "" : repairFor(facts, "references"),
       risk: references.ok === true ? "none" : "medium",

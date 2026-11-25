@@ -22,6 +22,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectProject: [projectId: string];
   openOverview: [projectId: string];
+  openArchitecture: [projectId: string];
   openIssues: [projectId: string];
   openHistory: [projectId: string];
   openQuick: [projectId: string];
@@ -390,19 +391,27 @@ defineExpose({ focusSearch, focusClose, focusTasks });
       </button>
     </div>
 
-    <label class="sidebar-search">
-      <span class="visually-hidden">搜索项目和任务</span>
-      <input
-        ref="searchInput"
-        v-model="query"
-        type="search"
-        placeholder="搜索项目、路径或任务"
-        autocomplete="off"
-      />
-    </label>
-    <button v-if="query" class="link-btn sidebar-clear-search" type="button" @click="clearSearch">
-      清除搜索
-    </button>
+    <div class="sidebar-search-wrap" :class="{ 'has-query': Boolean(query) }">
+      <label class="sidebar-search">
+        <span class="visually-hidden">搜索项目和任务</span>
+        <input
+          ref="searchInput"
+          v-model="query"
+          type="search"
+          placeholder="搜索项目、路径或任务"
+          autocomplete="off"
+        />
+      </label>
+      <button
+        v-if="query"
+        class="sidebar-clear-search"
+        type="button"
+        aria-label="清除搜索"
+        @click="clearSearch"
+      >
+        清除
+      </button>
+    </div>
 
     <div class="sidebar-scroll">
       <div class="sidebar-section-label">
@@ -459,6 +468,13 @@ defineExpose({ focusSearch, focusClose, focusTasks });
             <span class="side-project-name">{{ project.name }}</span>
             <span class="side-project-meta">{{ projectStatus(project).label }}</span>
           </span>
+          <span
+            v-if="project.id === currentProjectId"
+            class="side-project-chevron"
+            aria-hidden="true"
+          >
+            <Icon name="chevron-right" :size="13" />
+          </span>
         </button>
         <div
           v-if="project.id === currentProjectId"
@@ -486,6 +502,16 @@ defineExpose({ focusSearch, focusClose, focusTasks });
               <button
                 class="side-nav-item"
                 type="button"
+                :class="{ 'is-active': section === 'architecture' }"
+                :aria-current="section === 'architecture' ? 'page' : undefined"
+                @click="emit('openArchitecture', project.id)"
+              >
+                <Icon name="arch" :size="14" />
+                <span class="side-nav-label">架构</span>
+              </button>
+              <button
+                class="side-nav-item"
+                type="button"
                 :class="{ 'is-active': section === 'issues' }"
                 :aria-current="section === 'issues' ? 'page' : undefined"
                 @click="emit('openIssues', project.id)"
@@ -504,27 +530,6 @@ defineExpose({ focusSearch, focusClose, focusTasks });
                 <Icon name="history" :size="14" />
                 <span class="side-nav-label">运行记录</span>
                 <span v-if="runCount" class="side-nav-count">{{ runCount }}</span>
-              </button>
-              <div class="sidebar-section-label"><span>项目设置</span></div>
-              <button
-                class="side-nav-item"
-                type="button"
-                :class="{ 'is-active': section === 'quick' }"
-                :aria-current="section === 'quick' ? 'page' : undefined"
-                @click="emit('openQuick', project.id)"
-              >
-                <Icon name="shield" :size="14" />
-                <span class="side-nav-label">快速检查</span>
-              </button>
-              <button
-                class="side-nav-item"
-                type="button"
-                :class="{ 'is-active': section === 'settings' }"
-                :aria-current="section === 'settings' ? 'page' : undefined"
-                @click="emit('openSettings', project.id)"
-              >
-                <Icon name="settings" :size="14" />
-                <span class="side-nav-label">设置</span>
               </button>
             </nav>
           </div>
@@ -673,10 +678,24 @@ defineExpose({ focusSearch, focusClose, focusTasks });
     </div>
 
     <div class="sidebar-footer">
-      <button class="btn btn-ghost btn-sm" type="button" @click="emit('addProject')">
-        <Icon name="plus" :size="14" />
-        建立项目
-      </button>
+      <div class="sidebar-footer-actions">
+        <button class="btn btn-sm btn-new-project" type="button" @click="emit('addProject')">
+          <Icon name="plus" :size="14" />
+          新建项目
+        </button>
+        <button
+          v-if="currentProjectId"
+          class="btn btn-sm btn-settings-compact"
+          :class="{ 'is-active': section === 'settings' }"
+          type="button"
+          aria-label="项目设置"
+          title="项目设置"
+          @click="emit('openSettings', currentProjectId)"
+        >
+          <Icon name="settings" :size="14" />
+          <span>设置</span>
+        </button>
+      </div>
       <p v-if="workspacePath" class="sidebar-workspace" :title="workspacePath">
         {{ workspacePath }}
       </p>

@@ -102,6 +102,12 @@ const router = createRouter({
           meta: { title: "项目概览" },
         },
         {
+          path: "architecture",
+          name: "architecture",
+          component: () => import("@/views/ArchitectureView.vue"),
+          meta: { title: "架构视图" },
+        },
+        {
           path: "tasks/new",
           name: "new-task",
           component: () => import("@/views/NewTaskView.vue"),

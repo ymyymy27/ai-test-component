@@ -19,7 +19,7 @@ await build({
   format: "esm",
   outfile: join(fixture, "runtime.mjs"),
 });
-const { findPython, pythonCandidates, INSTALL_HINT } = await import(
+const { findPython, pythonCandidates, ensureRuntime, INSTALL_HINT } = await import(
   pathToFileURL(join(fixture, "runtime.mjs")).href
 );
 
@@ -198,4 +198,20 @@ test("a timed-out probe is retried once and reported as a timeout, not as a miss
   assert.equal(result.candidates.every((item) => item.failure === "timeout"), true);
   assert.match(result.candidates[0].detail, /已重试/);
   assert.match(result.missing.join("、"), /探测超时/);
+});
+
+test("ensureRuntime rejects invalid explicit pythonPath without falling back to portable download", async () => {
+  const { spawn, calls } = fakeSpawn(() => ({ spawnError: "ENOENT" }));
+  const runtimeHome = join(fixture, "unused-runtime-home");
+  const result = await ensureRuntime(
+    { pythonPath: "C:/explicit-missing/python.exe", workspacePath: join(fixture, "ws") },
+    { spawn, runtimeHome, wheelDir: join(fixture, "empty-wheels") },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.source, "existing");
+  assert.equal(result.failure?.code, "EXPLICIT_PYTHON_INVALID");
+  assert.deepEqual(
+    calls.map((call) => call.command),
+    ["C:/explicit-missing/python.exe"],
+  );
 });

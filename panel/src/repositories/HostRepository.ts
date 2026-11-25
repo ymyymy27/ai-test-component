@@ -14,6 +14,7 @@ import type {
   Plan,
   Project,
   ProjectConfig,
+  ProjectConvention,
   QuickCheck,
   Report,
   RuleVersion,
@@ -24,6 +25,7 @@ import { RepositoryError } from "@/repositories/errors";
 import type {
   BackupPayload,
   ConfirmPlanInput,
+  ConventionInput,
   CreateProjectInput,
   CreateTaskInput,
   DeliveryInput,
@@ -37,12 +39,22 @@ import type {
   RuleInput,
   TaskPatch,
 } from "@/repositories/ProjectRepository";
-import { readHostContext } from "@/host/bridge";
+import { HostError, readHostContext } from "@/host/bridge";
 import { api, type Api } from "@/host/commands";
-import type { DeliveryDraft, RunDetail, Task as TaskDto } from "@/host/dto";
+import type {
+  DeliveryDraft,
+  EvidencePreview,
+  PlanDetail,
+  RunDetail,
+  RunLogTailEntry,
+  Task as TaskDto,
+} from "@/host/dto";
 import {
+  buildCatalogFromFeatures,
   mapCandidate,
+  mapConfig,
   mapConfirmation,
+  mapConventions,
   mapEvidence,
   mapGithub,
   mapProject,
@@ -113,8 +125,40 @@ export class HostRepository implements ProjectRepository {
 
   private readonly sidecar = new HostSidecar();
   private readonly pendingProjects = new Map<string, Promise<Project | null>>();
+  private readonly projectCache = new Map<string, Project>();
 
   constructor(private readonly client: Api = api) {}
+
+  cachedProject(projectId: string): Project | null {
+    return this.projectCache.get(projectId) ?? null;
+  }
+
+  private async cachedOrLoad(projectId: string): Promise<Project> {
+    const cached = this.projectCache.get(projectId);
+    if (cached) {
+      return cached;
+    }
+    const loaded = await this.getProject(projectId);
+    if (!loaded) {
+      throw new RepositoryError("NOT_FOUND", "项目不存在。");
+    }
+    return loaded;
+  }
+
+  private updateCachedTask(projectId: string, project: Project, updatedTask: Task): Project {
+    const tasks = project.tasks.map((entry) => (entry.id === updatedTask.id ? updatedTask : entry));
+    const next: Project = { ...project, tasks };
+    this.projectCache.set(projectId, next);
+    return next;
+  }
+
+  private rulesLabelFor(project: Project | null, rulesVersionId?: string | null): string {
+    if (!rulesVersionId) {
+      return "未绑定规则";
+    }
+    const rule = project?.rules.find((entry) => entry.id === rulesVersionId);
+    return rule ? `${rule.name} v${rule.version}` : rulesVersionId;
+  }
 
   /** 当前 CLI 工作空间；面板顶部据此说明“项目为何不在这里”。 */
   workspacePath(): string {
@@ -145,19 +189,82 @@ export class HostRepository implements ProjectRepository {
     // evidence.list/showReport per entity made navigation take seconds.
     const snapshot = await this.client.projectSnapshot(projectId);
     const runDetails = snapshot.runs;
+    const knownTaskIds = new Set(snapshot.tasks.map((bundle) => bundle.task.task_id));
     const taskRuns = new Map<string, RunDetail[]>();
+    const orphanRuns: RunDetail[] = [];
     runDetails.forEach((detail) => {
       if (detail.run.kind === "project_check") {
         return;
       }
       const taskId = detail.task?.task_id ?? detail.plan?.task_id ?? "";
-      if (!taskId) {
+      if (!taskId || !knownTaskIds.has(taskId)) {
+        orphanRuns.push(detail);
         return;
       }
       const list = taskRuns.get(taskId) ?? [];
       list.push(detail);
       taskRuns.set(taskId, list);
     });
+    const taskBundles = snapshot.tasks.map((bundle) => ({
+      ...bundle,
+      runs: taskRuns.get(bundle.task.task_id) ?? [],
+    }));
+    if (orphanRuns.length > 0) {
+      const archivedPlans = new Map<string, PlanDetail>();
+      const archivedItems = new Map<string, TaskDto["acceptance_items"][number]>();
+      orphanRuns.forEach((detail) => {
+        if (detail.plan && !archivedPlans.has(detail.plan.plan_id)) {
+          archivedPlans.set(detail.plan.plan_id, {
+            plan: detail.plan,
+            coverage: {
+              selected: detail.plan.scope.acceptance_item_ids.length,
+              applicable: detail.plan.applicable_count,
+            },
+            stale: false,
+            stale_reason: "",
+          });
+        }
+        detail.task?.acceptance_items.forEach((item) => {
+          archivedItems.set(item.item_id, item);
+        });
+        Object.entries(detail.plan?.item_texts ?? {}).forEach(([itemId, text]) => {
+          if (!archivedItems.has(itemId)) {
+            archivedItems.set(itemId, {
+              item_id: itemId,
+              text,
+              observable: true,
+              status: "active",
+            });
+          }
+        });
+        detail.run.scope.acceptance_item_ids.forEach((itemId) => {
+          if (!archivedItems.has(itemId)) {
+            archivedItems.set(itemId, {
+              item_id: itemId,
+              text: itemId,
+              observable: true,
+              status: "active",
+            });
+          }
+        });
+      });
+      taskBundles.push({
+        task: {
+          task_id: "__archived_runs__",
+          project_id: projectId,
+          title: "历史归档运行（原任务已移除）",
+          goal: "原任务或计划快照已缺失的历史运行记录，仅保留只读回溯。",
+          intent: "business",
+          origin: "manual",
+          acceptance_items: [...archivedItems.values()],
+          stage: "result",
+          revision: 1,
+        },
+        plans: [...archivedPlans.values()],
+        delivery: null,
+        runs: orphanRuns,
+      });
+    }
     const evidence = new Map<string, EvidenceRef[]>(
       Object.entries(snapshot.evidence).map(([runId, items]) => [
         runId,
@@ -173,16 +280,16 @@ export class HostRepository implements ProjectRepository {
       map: snapshot.map,
       mapStale: snapshot.map_stale,
       mapStaleReason: "",
+      localGit: snapshot.local_git ?? null,
+      codeGraph: snapshot.code_graph ?? null,
       config: snapshot.config,
       rules: snapshot.rules,
-      tasks: snapshot.tasks.map((bundle) => ({
-        ...bundle,
-        runs: taskRuns.get(bundle.task.task_id) ?? [],
-      })),
+      tasks: taskBundles,
       reports: snapshot.reports,
       issues: snapshot.issues,
       runDetails: runDetailMap,
       evidence,
+      github: snapshot.github ?? null,
       sidecar: this.sidecar,
     });
     if (!this.sidecar.analysis[projectId]) {
@@ -201,6 +308,7 @@ export class HostRepository implements ProjectRepository {
       project.tasks.map((task) => task.id),
       project.tasks.flatMap((task) => task.plans.map((plan) => plan.id)),
     );
+    this.projectCache.set(projectId, project);
     return project;
   }
 
@@ -209,7 +317,7 @@ export class HostRepository implements ProjectRepository {
   }
 
   async createProject(input: CreateProjectInput): Promise<Project> {
-    const created = await this.client.addProject(input.root, input.name);
+    const created = await this.client.addProject(input.root, input.name, input.goal);
     this.sidecar.setAnalysis(created.project_id, {
       status: "analyzing",
       error: "",
@@ -303,33 +411,43 @@ export class HostRepository implements ProjectRepository {
     if (!mapData.map) {
       project.map = null;
     }
+    this.projectCache.set(projectId, project);
     return project;
   }
 
   async beginAnalysis(projectId: string): Promise<Project> {
+    const current = await this.cachedOrLoad(projectId);
+    const existingCandidates = this.sidecar.analysis[projectId]?.candidates ?? current.candidates;
     this.sidecar.setAnalysis(projectId, {
       status: "analyzing",
       error: "",
-      candidates: this.sidecar.analysis[projectId]?.candidates ?? [],
+      candidates: existingCandidates,
     });
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    return project;
+    const next: Project = {
+      ...current,
+      analysisStatus: "analyzing",
+      analysisError: "",
+      candidates: [...existingCandidates],
+    };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async failAnalysis(projectId: string, message: string): Promise<Project> {
+    const current = await this.cachedOrLoad(projectId);
     this.sidecar.setAnalysis(projectId, {
       status: "failed",
       error: message,
       candidates: [],
     });
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    return project;
+    const next: Project = {
+      ...current,
+      analysisStatus: "failed",
+      analysisError: message,
+      candidates: [],
+    };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async ensureDraftTask(): Promise<Task> {
@@ -340,10 +458,7 @@ export class HostRepository implements ProjectRepository {
   }
 
   async createTask(projectId: string, input: CreateTaskInput): Promise<Task> {
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
+    const project = await this.cachedOrLoad(projectId);
     const candidate = input.candidateId
       ? (this.sidecar.analysis[projectId]?.candidates.find(
           (entry) => entry.id === input.candidateId,
@@ -372,14 +487,31 @@ export class HostRepository implements ProjectRepository {
               featureName: "任务目标",
             },
           ];
-    const selected = candidate
-      ? fallbackCatalog.filter((item) => candidate.featureNames.includes(item.featureName))
+    const featureSet = new Set(
+      input.featureNames && input.featureNames.length > 0
+        ? input.featureNames
+        : candidate?.featureNames ?? [],
+    );
+    const selected = featureSet.size
+      ? fallbackCatalog.filter((item) => featureSet.has(item.featureName))
       : fallbackCatalog;
     const chosen = selected.length > 0 ? selected : fallbackCatalog;
+    const requirementParts: string[] = [];
+    if (input.flowSteps?.length) {
+      requirementParts.push(`业务链路：${input.flowSteps.join(" -> ")}`);
+    }
+    if (input.featureNames?.length) {
+      requirementParts.push(`涉及功能：${input.featureNames.join("、")}`);
+    }
+    if (input.requirement?.trim()) {
+      requirementParts.push(input.requirement.trim());
+    }
+    const requirementText = requirementParts.join("\n").trim();
     const created = await this.client.addTask({
       projectId,
       title: input.goal,
       goal: input.goal,
+      requirement: requirementText || undefined,
       intent: candidate?.intent ?? "business",
       origin: input.origin ?? "goal",
       sourceMapRevision: project.map?.revision ?? 0,
@@ -404,8 +536,8 @@ export class HostRepository implements ProjectRepository {
   }
 
   async updateTask(projectId: string, taskId: string, patch: TaskPatch): Promise<Task> {
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
+    const project = await this.cachedOrLoad(projectId);
+    const task = project.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
@@ -440,11 +572,28 @@ export class HostRepository implements ProjectRepository {
     if (!updated) {
       throw new RepositoryError("NOT_FOUND", "任务更新后无法读取。");
     }
-    const ids = new Set(updated.acceptanceItems.map((item) => item.id));
-    this.sidecar.setScope(
-      taskId,
-      (this.sidecar.scopes[taskId] ?? []).filter((id) => ids.has(id)),
-    );
+    if (this.sidecar.scopes[taskId] !== undefined) {
+      const ids = new Set(updated.acceptanceItems.map((item) => item.id));
+      const filtered = this.sidecar.scopes[taskId].filter((id) => ids.has(id));
+      const applicableIds = updated.acceptanceItems
+        .filter((item) => item.observable && item.status === "active")
+        .map((item) => item.id);
+      if (filtered.length === 0 && applicableIds.length > 0) {
+        this.sidecar.clearScope(taskId);
+        const latestPlanIds = updated.plans[0]?.scope.acceptanceItemIds.filter((id) =>
+          applicableIds.includes(id),
+        );
+        const fallbackSelected =
+          latestPlanIds && latestPlanIds.length > 0 ? latestPlanIds : applicableIds;
+        const syncedTask: Task = { ...updated, selectedItemIds: fallbackSelected };
+        this.updateCachedTask(projectId, refreshed!, syncedTask);
+        return syncedTask;
+      }
+      this.sidecar.setScope(taskId, filtered);
+      const syncedTask: Task = { ...updated, selectedItemIds: filtered };
+      this.updateCachedTask(projectId, refreshed!, syncedTask);
+      return syncedTask;
+    }
     return updated;
   }
 
@@ -455,43 +604,68 @@ export class HostRepository implements ProjectRepository {
   }
 
   async selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task> {
-    this.sidecar.setScope(taskId, itemIds);
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
+    const project = await this.cachedOrLoad(projectId);
+    const task = project.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
-    return task;
+    const applicable = new Set(
+      task.acceptanceItems
+        .filter((item) => item.observable && item.status === "active")
+        .map((item) => item.id),
+    );
+    const filtered = itemIds.filter((id) => applicable.has(id));
+    this.sidecar.setScope(taskId, filtered);
+    const updatedTask: Task = { ...task, selectedItemIds: filtered };
+    this.updateCachedTask(projectId, project, updatedTask);
+    return updatedTask;
   }
 
   async reviseScope(projectId: string, taskId: string): Promise<Task> {
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
+    const project = await this.cachedOrLoad(projectId);
+    const task = project.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
     if (task.stage === "planned" || task.stage === "result") {
+      const previousStage = task.stage;
       this.sidecar.setStage(taskId, {
         stage: "scope",
-        previousStage: task.stage,
+        previousStage,
       });
+      const updatedTask: Task = { ...task, stage: "scope", previousStage };
+      this.updateCachedTask(projectId, project, updatedTask);
+      return updatedTask;
     }
-    const refreshed = await this.getProject(projectId);
-    const updated = refreshed?.tasks.find((entry) => entry.id === taskId);
-    if (!updated) {
-      throw new RepositoryError("NOT_FOUND", "任务不存在。");
-    }
-    return updated;
+    return task;
   }
 
   async cancelRevision(projectId: string, taskId: string): Promise<Task> {
-    this.sidecar.setStage(taskId, null);
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
+    const project = await this.cachedOrLoad(projectId);
+    const task = project.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
-    return task;
+    this.sidecar.setStage(taskId, null);
+    const latestPlan = task.plans[0] ?? null;
+    const latestRun = task.runs[0] ?? null;
+    const hasRunning = task.runs.some((run) => run.status === "running");
+    const restoredStage: Task["stage"] = hasRunning
+      ? "running"
+      : !latestPlan
+        ? "scope"
+        : !latestRun
+          ? "planned"
+          : latestPlan.createdAt > latestRun.startedAt
+            ? "planned"
+            : "result";
+    const updatedTask: Task = {
+      ...task,
+      stage: restoredStage,
+      previousStage: null,
+    };
+    this.updateCachedTask(projectId, project, updatedTask);
+    return updatedTask;
   }
 
   async repairRunDependencies(
@@ -541,6 +715,7 @@ export class HostRepository implements ProjectRepository {
       preset: "selected",
       moduleIds: [],
       acceptanceItemIds: selected,
+      rulesVersionId: project?.rulesVersionId,
     });
     const refreshed = await this.getProject(projectId);
     const plan = refreshed?.tasks
@@ -553,17 +728,17 @@ export class HostRepository implements ProjectRepository {
   }
 
   async setActiveTask(projectId: string, taskId: string): Promise<Project> {
+    const project = await this.cachedOrLoad(projectId);
     this.sidecar.setActiveTask(projectId, taskId);
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    return project;
+    const nextId = taskId && project.tasks.some((entry) => entry.id === taskId) ? taskId : null;
+    const next: Project = { ...project, activeTaskId: nextId };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async generatePlan(projectId: string, taskId: string): Promise<Plan> {
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
+    const project = await this.cachedOrLoad(projectId);
+    const task = project.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new RepositoryError("NOT_FOUND", "任务不存在。");
     }
@@ -577,6 +752,7 @@ export class HostRepository implements ProjectRepository {
       preset: selected.length > 0 ? "selected" : "all_applicable",
       moduleIds: [],
       acceptanceItemIds: selected,
+      rulesVersionId: project?.rulesVersionId,
     });
     this.sidecar.setStage(taskId, null);
     const refreshed = await this.getProject(projectId);
@@ -595,8 +771,8 @@ export class HostRepository implements ProjectRepository {
     planId: string,
     input: ConfirmPlanInput,
   ): Promise<Confirmation> {
-    const project = await this.getProject(projectId);
-    const plan = project?.tasks
+    const project = await this.cachedOrLoad(projectId);
+    const plan = project.tasks
       .find((task) => task.id === taskId)
       ?.plans.find((entry) => entry.id === planId);
     if (!plan) {
@@ -627,17 +803,42 @@ export class HostRepository implements ProjectRepository {
     planId: string,
     confirmedBy = "本机用户",
   ): Promise<Run> {
-    const project = await this.getProject(projectId);
-    const plan = project?.tasks
+    return this.startRunScoped(projectId, taskId, planId, confirmedBy);
+  }
+
+  async startTargetedRerun(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    itemIds: string[],
+    confirmedBy = "本机用户",
+  ): Promise<Run> {
+    if (itemIds.length === 0) {
+      throw new RepositoryError("SCOPE_EMPTY", "至少选择 1 项才能定向复测。");
+    }
+    return this.startRunScoped(projectId, taskId, planId, confirmedBy, itemIds);
+  }
+
+  private async startRunScoped(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    confirmedBy = "本机用户",
+    scopedItemIds?: string[],
+  ): Promise<Run> {
+    const project = await this.cachedOrLoad(projectId);
+    const plan = project.tasks
       .find((task) => task.id === taskId)
       ?.plans.find((entry) => entry.id === planId);
     if (!plan) {
       throw new RepositoryError("NOT_FOUND", "计划不存在。");
     }
+    const targetItems =
+      scopedItemIds && scopedItemIds.length > 0 ? scopedItemIds : plan.scope.acceptanceItemIds;
     const started = await this.client.startRun(
       projectId,
       planId,
-      plan.scope.acceptanceItemIds,
+      targetItems,
       confirmedBy,
     );
     if (started.confirmation) {
@@ -653,7 +854,7 @@ export class HostRepository implements ProjectRepository {
     } catch {
       // 启动已成功，读回失败不能算启动失败，否则重试会创建第二个运行。
     }
-    const selected = plan.scope.acceptanceItemIds;
+    const selected = targetItems;
     const confirmation = started.confirmation;
     return {
       id: started.run_id,
@@ -670,7 +871,7 @@ export class HostRepository implements ProjectRepository {
       confirmedBy: confirmation?.confirmed_by ?? confirmedBy,
       confirmationId: confirmation?.confirmation_id ?? "",
       confirmationFingerprint: confirmation?.fingerprint ?? "",
-      scope: plan.scope,
+      scope: { ...plan.scope, acceptanceItemIds: [...selected] },
       cases: [],
       l1: [],
       items: selected.map((itemId) => ({
@@ -705,12 +906,36 @@ export class HostRepository implements ProjectRepository {
     };
   }
 
-  async getRun(projectId: string, runId: string): Promise<Run | null> {
+  async detectProjectConfig(projectId: string): Promise<ProjectConfig> {
+    const res = await this.client.detectProjectConfig(projectId);
+    return mapConfig(res.draft);
+  }
+
+  async previewEvidence(
+    projectId: string,
+    runId: string,
+    ref: string,
+  ): Promise<EvidencePreview | null> {
+    const res = await this.client.previewEvidence(projectId, runId, ref);
+    return res.preview ?? null;
+  }
+
+  async fetchRunLogTail(projectId: string, runId: string): Promise<RunLogTailEntry[]> {
+    const detail = await this.client.runStatus(projectId, runId, true);
+    return detail.log_tail ?? [];
+  }
+
+  async getRun(
+    projectId: string,
+    runId: string,
+    includeEvidence = true,
+  ): Promise<Run | null> {
     const detail = await this.client.runStatus(projectId, runId);
-    const evidenceData = await this.client
-      .listEvidence(projectId, runId)
-      .catch(() => ({ evidence: [] }));
-    const evidence = evidenceData.evidence.map(mapEvidence);
+    const evidence = includeEvidence
+      ? (
+          await this.client.listEvidence(projectId, runId).catch(() => ({ evidence: [] }))
+        ).evidence.map(mapEvidence)
+      : [];
     return mapRun(detail, hostTaskItems(detail.task), evidence);
   }
 
@@ -739,6 +964,15 @@ export class HostRepository implements ProjectRepository {
   }
 
   async markRunInterrupted(projectId: string, runId: string): Promise<Run> {
+    if (typeof this.client.cancelRun === "function") {
+      try {
+        await this.client.cancelRun(projectId, runId, { markInterrupted: true });
+      } catch (error) {
+        if (!(error instanceof HostError && error.code === "RUN_STATE_CONFLICT")) {
+          throw error;
+        }
+      }
+    }
     const run = await this.getRun(projectId, runId);
     if (!run) {
       throw new RepositoryError("NOT_FOUND", "运行不存在。");
@@ -752,15 +986,45 @@ export class HostRepository implements ProjectRepository {
     caseId: string,
     input: ManualResultInput,
   ): Promise<Run> {
-    await this.client.recordManual(
-      projectId,
-      runId,
-      caseId,
-      "面板记录人工结果",
-      input.result,
-      input.note,
-      input.evidence.map((entry) => entry.sourcePath).filter(Boolean),
+    const cachedProject = this.projectCache.get(projectId);
+    const cachedTask = cachedProject?.tasks.find((task) =>
+      task.runs.some((entry) => entry.id === runId),
     );
+    const cachedRun = cachedTask?.runs.find((entry) => entry.id === runId);
+    const cachedPlan = cachedTask?.plans.find((plan) => plan.id === cachedRun?.planId);
+    let planSteps =
+      cachedPlan?.cases.find((testCase) => testCase.id === caseId)?.steps ?? [];
+    if (planSteps.length === 0) {
+      const statusDetail = await this.client.runStatus(projectId, runId).catch(() => null);
+      planSteps =
+        statusDetail?.plan?.cases.find((testCase) => testCase.case_id === caseId)?.steps ?? [];
+    }
+    const evidencePaths = input.evidence
+      .map((entry) => entry.sourcePath?.trim() ?? "")
+      .filter(Boolean)
+      .map((raw) => {
+        const normalized = raw.replace(/\\/g, "/");
+        const prefix = `runs/${runId}/`;
+        return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : raw;
+      });
+    const steps = planSteps.map((step) => step.trim()).filter(Boolean);
+    const batchSteps =
+      steps.length > 0
+        ? steps.map((step, index) => ({
+            step,
+            result: input.result,
+            note: input.note,
+            ...(index === 0 && evidencePaths.length ? { evidence: evidencePaths } : {}),
+          }))
+        : [
+            {
+              step: "面板记录人工结果",
+              result: input.result,
+              note: input.note,
+              ...(evidencePaths.length ? { evidence: evidencePaths } : {}),
+            },
+          ];
+    await this.client.recordManualBatch(projectId, runId, caseId, batchSteps);
     const run = await this.getRun(projectId, runId);
     if (!run) {
       throw new RepositoryError("NOT_FOUND", "运行不存在。");
@@ -830,7 +1094,7 @@ export class HostRepository implements ProjectRepository {
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.reason ? { reason: patch.reason } : {}),
       ...(patch.disposition !== undefined ? { disposition: patch.disposition } : {}),
-      ...(patch.fixVersion ? { fix_version: patch.fixVersion } : {}),
+      ...(patch.fixVersion !== undefined ? { fix_version: patch.fixVersion } : {}),
       ...(patch.severity ? { severity: patch.severity } : {}),
     });
     const project = await this.getProject(projectId);
@@ -956,10 +1220,15 @@ export class HostRepository implements ProjectRepository {
   }
 
   async applyTemplate(projectId: string, taskId: string, templateId: string): Promise<Task> {
+    const cachedTask = this.projectCache
+      .get(projectId)
+      ?.tasks.find((entry) => entry.id === taskId);
+    const planId = cachedTask?.currentPlanId ?? cachedTask?.plans[0]?.id ?? undefined;
     const data = await this.client.applyTemplate({
       projectId,
       taskId,
       templateName: templateId,
+      ...(planId ? { planId } : {}),
     });
     const existing = this.sidecar.templates[taskId] ?? [];
     this.sidecar.setTemplates(taskId, [
@@ -1014,16 +1283,60 @@ export class HostRepository implements ProjectRepository {
     return project;
   }
 
+  async addConvention(projectId: string, input: ConventionInput): Promise<ProjectConvention[]> {
+    const res = await this.client.addProjectConvention(projectId, {
+      pattern: input.pattern,
+      reason: input.reason,
+      ...(input.matchType ? { match_type: input.matchType } : {}),
+      ...(input.scope ? { scope: input.scope } : {}),
+    });
+    const list = mapConventions(res.conventions);
+    const cached = this.projectCache.get(projectId);
+    if (cached) {
+      this.projectCache.set(projectId, {
+        ...cached,
+        config: { ...cached.config, conventions: list },
+      });
+    }
+    return list;
+  }
+
+  async removeConvention(projectId: string, conventionId: string): Promise<ProjectConvention[]> {
+    const res = await this.client.removeProjectConvention(projectId, conventionId);
+    const list = mapConventions(res.conventions);
+    const cached = this.projectCache.get(projectId);
+    if (cached) {
+      this.projectCache.set(projectId, {
+        ...cached,
+        config: { ...cached.config, conventions: list },
+      });
+    }
+    return list;
+  }
+
   async saveGithubSnapshot(
     projectId: string,
     snapshot: GithubSnapshot | null,
   ): Promise<Project> {
+    const current = await this.cachedOrLoad(projectId);
     this.sidecar.setGithub(projectId, snapshot);
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
+    if (snapshot?.commit?.trim() && typeof this.client.saveGithubSnapshot === "function") {
+      await this.client.saveGithubSnapshot(projectId, {
+        repo: snapshot.repo,
+        branch: snapshot.branch,
+        commit: snapshot.commit,
+        files: snapshot.files,
+        prs: snapshot.prs,
+        checks: snapshot.checks,
+        deployment: snapshot.deployment,
+        account: snapshot.account,
+        host: snapshot.host,
+        fetched_at: snapshot.fetchedAt,
+      });
     }
-    return project;
+    const next: Project = { ...current, github: snapshot };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async addModule(projectId: string, input: ModuleInput): Promise<Module> {
@@ -1031,6 +1344,7 @@ export class HostRepository implements ProjectRepository {
       name: input.name,
       responsibility: input.responsibility,
       owner: input.owner,
+      status: input.status,
       deps: input.dependencies,
     });
     const project = await this.getProject(projectId);
@@ -1047,7 +1361,6 @@ export class HostRepository implements ProjectRepository {
     patch: Partial<ModuleInput>,
   ): Promise<Module> {
     await this.client.updateModule(projectId, moduleId, {
-      ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.responsibility !== undefined
         ? { responsibility: patch.responsibility }
         : {}),
@@ -1068,18 +1381,34 @@ export class HostRepository implements ProjectRepository {
     featureName: string,
     ignored: boolean,
   ): Promise<Project> {
-    const set = new Set(this.sidecar.ignored[projectId] ?? []);
+    const current = await this.cachedOrLoad(projectId);
+    const set = new Set(current.map?.ignoredFeatures ?? this.sidecar.ignored[projectId] ?? []);
     if (ignored) {
       set.add(featureName);
     } else {
       set.delete(featureName);
     }
-    this.sidecar.setIgnored(projectId, [...set]);
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
+    const ignoredList = [...set];
+    this.sidecar.setIgnored(projectId, ignoredList);
+    if (typeof this.client.setIgnoredFeatures === "function") {
+      await this.client.setIgnoredFeatures(projectId, ignoredList);
     }
-    return project;
+    const nextCatalog = current.map
+      ? buildCatalogFromFeatures(current.map.features, [], projectId, ignoredList)
+      : current.catalog.filter((item) => !set.has(item.featureName));
+    const nextCandidates = current.candidates.filter(
+      (candidate) =>
+        candidate.featureNames.length === 0 ||
+        candidate.featureNames.some((name) => !set.has(name)),
+    );
+    const next: Project = {
+      ...current,
+      catalog: nextCatalog,
+      candidates: nextCandidates,
+      map: current.map ? { ...current.map, ignoredFeatures: ignoredList } : null,
+    };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async importLink(projectId: string, runId: string): Promise<Run> {
@@ -1114,12 +1443,14 @@ export class HostRepository implements ProjectRepository {
   }
 
   async recordQuickCheck(projectId: string, quick: QuickCheck): Promise<Project> {
+    const current = await this.cachedOrLoad(projectId);
     this.sidecar.addQuickCheck(projectId, quick);
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    return project;
+    const next: Project = {
+      ...current,
+      quickChecks: [...(this.sidecar.quickChecks[projectId] ?? [quick])],
+    };
+    this.projectCache.set(projectId, next);
+    return next;
   }
 
   async runQuickCheck(projectId: string): Promise<QuickCheck> {
@@ -1132,7 +1463,7 @@ export class HostRepository implements ProjectRepository {
       if (detail.run.status !== "running") {
         break;
       }
-      await delay(600);
+      await delay(1500);
     }
     if (!detail) {
       throw new RepositoryError("NOT_FOUND", "快速检查运行不存在。");
@@ -1146,6 +1477,13 @@ export class HostRepository implements ProjectRepository {
     }
     const quick = mapQuickCheck(detail, projectId);
     this.sidecar.addQuickCheck(projectId, quick);
+    const cached = this.projectCache.get(projectId);
+    if (cached) {
+      this.projectCache.set(projectId, {
+        ...cached,
+        quickChecks: [...(this.sidecar.quickChecks[projectId] ?? [quick])],
+      });
+    }
     return quick;
   }
 
@@ -1157,9 +1495,10 @@ export class HostRepository implements ProjectRepository {
   }
 
   async listReports(projectId: string, runId: string): Promise<Report[]> {
+    const cached = this.projectCache.get(projectId);
     const [project, versions] = await Promise.all([
-      this.getProject(projectId),
-      this.client.listReports(projectId, runId),
+      cached ? Promise.resolve(cached) : this.getProject(projectId),
+      this.client.listReports(projectId, runId, true),
     ]);
     const run = project?.tasks
       .flatMap((task) => task.runs)
@@ -1167,20 +1506,19 @@ export class HostRepository implements ProjectRepository {
     const task = project?.tasks.find((entry) => entry.id === run?.taskId);
     const plan = task?.plans.find((entry) => entry.id === run?.planId) ?? null;
     const evidence = run?.evidence ?? [];
-    const rulesLabel =
-      project?.rules.find((entry) => entry.id === project.rulesVersionId)?.name ?? "未绑定规则";
     const results: Report[] = [];
     for (const version of versions.reports) {
-      const shown = await this.client.showReport(projectId, version.report_id);
+      const reportDto =
+        version.report ?? (await this.client.showReport(projectId, version.report_id)).report;
       results.push(
         mapReport(
-          shown.report,
+          reportDto,
           projectId,
           task?.id ?? "",
           plan,
           run ?? null,
           evidence,
-          rulesLabel,
+          this.rulesLabelFor(project, reportDto.rules_version_id),
         ),
       );
     }
@@ -1188,16 +1526,16 @@ export class HostRepository implements ProjectRepository {
   }
 
   async getReport(projectId: string, reportId: string): Promise<Report | null> {
-    const project = await this.getProject(projectId);
-    const existing = project?.reports.find((entry) => entry.id === reportId);
+    const project = await this.cachedOrLoad(projectId);
+    const existing = project.reports.find((entry) => entry.id === reportId);
     if (existing) {
       return existing;
     }
     const shown = await this.client.showReport(projectId, reportId);
-    const run = project?.tasks
+    const run = project.tasks
       .flatMap((task) => task.runs)
       .find((entry) => entry.id === shown.report.run_id);
-    const task = project?.tasks.find((entry) => entry.id === run?.taskId);
+    const task = project.tasks.find((entry) => entry.id === run?.taskId);
     const plan = task?.plans.find((entry) => entry.id === run?.planId) ?? null;
     return mapReport(
       shown.report,
@@ -1206,7 +1544,7 @@ export class HostRepository implements ProjectRepository {
       plan,
       run ?? null,
       run?.evidence ?? [],
-      "未绑定规则",
+      this.rulesLabelFor(project, shown.report.rules_version_id),
     );
   }
 

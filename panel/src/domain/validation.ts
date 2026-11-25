@@ -220,9 +220,17 @@ export function validateProjectConfig(raw: unknown): ConfigValidation {
     const section = l1 as Record<string, unknown>;
     for (const key of ["build", "entry", "smokeCommand", "smoke_command"] as const) {
       const command = section[key];
-      if (command !== undefined && command !== null && typeof command !== "string") {
-        return { ok: false, message: `项目级检查 ${key} 必须是字符串或 null。` };
+      if (command === undefined || command === null || typeof command === "string") {
+        continue;
       }
+      if (
+        key === "entry" &&
+        Array.isArray(command) &&
+        command.every((item) => typeof item === "string")
+      ) {
+        continue;
+      }
+      return { ok: false, message: `项目级检查 ${key} 必须是字符串或 null。` };
     }
   }
   return { ok: true, config: value as ProjectConfig };

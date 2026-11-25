@@ -5,6 +5,11 @@ import { useRoute, useRouter } from "vue-router";
 import ErrorState from "@/components/ErrorState.vue";
 import IssueStatusDialog from "@/components/IssueStatusDialog.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import {
+  buildIssueFixPrompt,
+  buildMinimalReproCommand,
+  confidenceTierLabel,
+} from "@/domain/aiPrompt";
 import { issueCloseGate } from "@/domain/derive";
 import { DISPOSITION_LABEL, ISSUE_STATUS_LABEL, statusText } from "@/domain/labels";
 import type { Issue, IssueDisposition, IssueStatus, Run, Task } from "@/domain/types";
@@ -66,6 +71,18 @@ const rerunBusy = computed(
     Boolean(issue.value?.taskId) &&
     workspace.busyKey(`rerun:${issue.value?.taskId}`),
 );
+const matchedPlanCase = computed(() => {
+  if (!issue.value || !plan.value) return null;
+  return plan.value.cases.find((entry) => entry.id === issue.value?.caseId) ?? null;
+});
+const reproCommand = computed(() =>
+  buildMinimalReproCommand({
+    method: matchedPlanCase.value?.verifyMethod,
+    file: issue.value?.file,
+    projectRoot: project.value?.root,
+  }),
+);
+const confidenceText = computed(() => confidenceTierLabel(issue.value?.confidence));
 
 function runLabel(runId: string): string {
   if (!runId) {
@@ -133,6 +150,78 @@ async function closeIssue(): Promise<void> {
   }
 }
 
+async function copyFixContext(): Promise<void> {
+  if (!issue.value) {
+    return;
+  }
+  const text = buildIssueFixPrompt({
+    projectName: project.value?.name,
+    projectRoot: project.value?.root,
+    issue: issue.value,
+    reproCommand: reproCommand.value,
+  });
+  try {
+    if (!navigator.clipboard?.writeText) {
+      ui.showToast("当前环境不支持剪贴板写入。", "error");
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    ui.showToast("AI 修复任务包已复制到剪贴板。", "success");
+  } catch {
+    ui.showToast("复制失败，请检查剪贴板权限。", "error");
+  }
+}
+
+async function copyReproCommand(): Promise<void> {
+  if (!reproCommand.value) return;
+  try {
+    if (!navigator.clipboard?.writeText) {
+      ui.showToast("当前环境不支持剪贴板写入。", "error");
+      return;
+    }
+    await navigator.clipboard.writeText(reproCommand.value);
+    ui.showToast("最小复现命令已复制到剪贴板。", "success");
+  } catch {
+    ui.showToast("复制失败，请检查剪贴板权限。", "error");
+  }
+}
+
+function jumpToSource(): void {
+  if (!issue.value?.file) return;
+  void workspace.openSourceLocation(issue.value.file, Math.max(1, issue.value.line ?? 1));
+}
+
+async function pushDiagnostics(): Promise<void> {
+  const count = await workspace.syncHostDiagnostics(projectId.value);
+  ui.showToast(
+    count > 0 ? `已向编辑器问题面板推送 ${count} 条诊断红线。` : "暂无携带源码坐标的缺陷。",
+    "info",
+  );
+}
+
+async function markAsConvention(): Promise<void> {
+  if (!issue.value) return;
+  const pattern = (issue.value.actual || issue.value.title).trim();
+  const reason = await ui.askConfirm({
+    title: "标为项目正常约定（写入错题本）",
+    body: `将“${pattern.slice(0, 64)}”记录到项目错题本，后续类似运行不再误报。`,
+    confirmLabel: "加入错题本",
+    requireText: true,
+    textLabel: "正常约定原因",
+    placeholder: "例如：沙盒环境预期行为",
+  });
+  if (reason === null) return;
+  try {
+    await workspace.addConvention(projectId.value, {
+      pattern,
+      reason,
+      scope: "case",
+    });
+  } catch {
+    // store 已提示。
+  }
+}
+
 async function rerun(): Promise<void> {
   if (!issue.value || rerunBusy.value) {
     return;
@@ -160,7 +249,58 @@ async function rerun(): Promise<void> {
         <span class="badge" :class="issue.status === 'closed' ? 'is-neutral' : 'is-warn'">
           {{ ISSUE_STATUS_LABEL[issue.status] }}
         </span>
+        <span
+          v-if="confidenceText"
+          class="badge"
+          :class="
+            issue.confidence === 'confirmed'
+              ? 'is-fail'
+              : issue.confidence === 'suspected'
+                ? 'is-warn'
+                : 'is-neutral'
+          "
+        >
+          {{ confidenceText }}
+        </span>
         <span v-if="issue.unstable" class="badge is-warn">疑似不稳定</span>
+        <button
+          v-if="issue.file && workspace.mode === 'host'"
+          class="btn btn-ghost btn-sm"
+          type="button"
+          @click="jumpToSource"
+        >
+          跳源码 ({{ issue.file }}:{{ Math.max(1, issue.line ?? 1) }})
+        </button>
+        <button
+          v-if="reproCommand"
+          class="btn btn-sm"
+          type="button"
+          @click="copyReproCommand"
+        >
+          复制最小复现命令
+        </button>
+        <button
+          class="btn btn-primary btn-sm"
+          type="button"
+          @click="copyFixContext"
+        >
+          复制 AI 修复任务包
+        </button>
+        <button
+          v-if="issue.file && workspace.mode === 'host'"
+          class="btn btn-ghost btn-sm"
+          type="button"
+          @click="pushDiagnostics"
+        >
+          推送红线
+        </button>
+        <button
+          class="btn btn-ghost btn-sm"
+          type="button"
+          @click="markAsConvention"
+        >
+          标为正常约定
+        </button>
         <button
           class="btn btn-sm"
           type="button"

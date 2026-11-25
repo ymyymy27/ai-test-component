@@ -136,24 +136,43 @@ function inferIntent(goal: string): "smoke" | "business" {
 export function confirmDraftTask(
   project: Project,
   draft: Task,
-  input: { goal: string; candidate: Candidate | null; origin?: Task["origin"] },
+  input: {
+    goal: string;
+    candidate: Candidate | null;
+    origin?: Task["origin"];
+    requirement?: string;
+    featureNames?: string[];
+    flowSteps?: string[];
+  },
 ): Task {
   const ignored = new Set(project.map?.ignoredFeatures ?? []);
   const catalog = project.catalog
     .filter((item) => !ignored.has(item.featureName))
     .map((item) => ({ ...item }));
   const observable = catalog.filter((item) => item.observable && item.status === "active");
-  const recommended = input.candidate
-    ? observable
-        .filter((item) => input.candidate?.featureNames.includes(item.featureName))
-        .map((item) => item.id)
+  const featureSet = new Set(
+    input.featureNames && input.featureNames.length > 0
+      ? input.featureNames
+      : input.candidate?.featureNames ?? [],
+  );
+  const recommended = featureSet.size
+    ? observable.filter((item) => featureSet.has(item.featureName)).map((item) => item.id)
     : observable.map((item) => item.id);
   const title = input.candidate?.title ?? input.goal.trim();
+  const scopeParts: string[] = [];
+  if (input.flowSteps?.length) {
+    scopeParts.push(`业务路径：${input.flowSteps.join(" -> ")}`);
+  }
+  if (input.requirement?.trim()) {
+    scopeParts.push(input.requirement.trim());
+  }
+  const nextScope = scopeParts.join("\n").trim();
   const now = isoNow();
   return {
     ...draft,
     title: title.length > 80 ? `${title.slice(0, 78)}…` : title,
     goal: input.goal.trim(),
+    scope: nextScope || draft.scope,
     intent: input.candidate?.intent ?? inferIntent(input.goal),
     origin: input.origin ?? "goal",
     sourceMapRevision: project.map?.revision ?? 0,

@@ -64,6 +64,10 @@ const COPY: Record<string, Copy> = {
     title: "模型返回的内容不合格",
     next: "重试一次，或改用手工补充这一项",
   },
+  TOKEN_BUDGET_EXCEEDED: {
+    title: "本次模型 Token 消耗已达预算上限",
+    next: "在设置中调高 model.max_token_budget 或缩小测试范围后重试",
+  },
   GITHUB_UNAVAILABLE: {
     title: "GitHub 没有登录或读取失败",
     next: "安装并登录 gh 后重试；本地测试不受影响",
@@ -136,27 +140,76 @@ const COPY: Record<string, Copy> = {
     title: "与编辑器的连接中断",
     next: "重新打开测试面板",
   },
+  EXPLICIT_PYTHON_INVALID: {
+    title: "显式设置的 Python 解释器不可用",
+    next: "在扩展设置里修正 aitest.pythonPath，或清空该设置以自动发现/准备环境",
+  },
+  UNTRUSTED_WORKSPACE: {
+    title: "当前工作区尚未授予信任",
+    next: "请在编辑器顶部横幅点击“信任此工作区”后重试",
+  },
+  PYTHON_PROBE_TIMEOUT: {
+    title: "探测 Python 运行时超时",
+    next: "检查磁盘/杀毒占用后重试，或显式设置 aitest.pythonPath",
+  },
+  CLI_CANCELLED: {
+    title: "操作已取消",
+    next: "确认当前状态后按需重试",
+  },
+  MODEL_TIMEOUT: {
+    title: "模型调用超时",
+    next: "检查网络与代理后重试，或减少单批范围",
+  },
+  FILE_BUSY: {
+    title: "数据文件正被其他程序占用",
+    next: "关闭占用文件或等待片刻后重试",
+  },
+  PATH_TOO_LONG: {
+    title: "工作空间路径过长",
+    next: "把用户数据工作空间移到更短的目录路径下",
+  },
+  EXPECTATION_UNVERIFIED: {
+    title: "存在预期未证实的用例",
+    next: "先确认用例预期逐字引用了对应验收项再发布执行",
+  },
+  NOT_FOUND: {
+    title: "找不到目标记录",
+    next: "刷新页面重新确认记录状态",
+  },
+  VALIDATION: {
+    title: "输入或状态校验未通过",
+    next: "按提示补正内容后重试",
+  },
+  CONFLICT: {
+    title: "当前状态冲突，暂不可执行该操作",
+    next: "刷新当前页面状态后再尝试",
+  },
 };
 
 export function describeError(error: unknown): FriendlyError {
   if (error && typeof error === "object") {
-    const code = "code" in error ? String((error as { code: unknown }).code) : "";
-    const message = "message" in error ? String((error as { message: unknown }).message) : "";
-    const nextStep =
-      "nextStep" in error ? String((error as { nextStep: unknown }).nextStep) : "";
+    const obj = error as Record<string, unknown>;
+    const code = typeof obj.code === "string" ? obj.code : String(obj.code ?? "");
+    const message = typeof obj.message === "string" ? obj.message : String(obj.message ?? "");
+    const rawNext =
+      typeof obj.nextStep === "string"
+        ? obj.nextStep
+        : typeof obj.next_step === "string"
+          ? obj.next_step
+          : "";
     const known = COPY[code];
     if (known) {
       return {
         title: known.title,
         detail: message.trim(),
-        next: nextStep.trim() || known.next,
+        next: rawNext.trim() || known.next,
       };
     }
     if (message.trim()) {
       return {
         title: "这次操作没有完成",
         detail: message.trim(),
-        next: nextStep.trim() || "检查当前状态后重试",
+        next: rawNext.trim() || "检查当前状态后重试",
       };
     }
   }

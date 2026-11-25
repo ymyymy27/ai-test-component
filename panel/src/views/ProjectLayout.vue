@@ -11,7 +11,7 @@ const project = computed(() => workspace.currentProject);
 
 <template>
   <div v-if="project" class="project-layout">
-    <div v-if="workspace.localMode" class="page">
+    <div v-if="workspace.localMode" class="local-demo-strip">
       <p class="local-demo-banner" role="status">本地演示数据 · 未读取真实仓库</p>
     </div>
     <RouterView />

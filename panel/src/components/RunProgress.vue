@@ -37,7 +37,13 @@ const currentItem = computed(() =>
           <strong class="num">{{ total }}</strong> 条用例检查 · {{ durationText(elapsedMs / 1000) }}
         </p>
       </div>
-      <span v-if="run.simulated" class="badge is-accent">本地模拟</span>
+      <div class="run-progress-badges">
+        <span v-if="run.resumedFromRunId" class="badge is-neutral">断点续跑</span>
+        <span v-if="run.tokenUsage?.totalTokens" class="badge is-neutral">
+          Token {{ run.tokenUsage.totalTokens }}
+        </span>
+        <span v-if="run.simulated" class="badge is-accent">本地模拟</span>
+      </div>
     </div>
     <div
       v-if="total > 0"

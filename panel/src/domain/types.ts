@@ -23,6 +23,185 @@ export type MockKind = "real" | "mock" | "mixed" | "unknown";
 export type AnalysisRunStatus = "generated" | "not_generated" | "invalid";
 export type TemplateDisposition = "applicable" | "not_applicable" | "unsupported" | "unknown";
 export type Confidence = "high" | "medium" | "low";
+export type ConfidenceTier = "confirmed" | "suspected" | "blocked" | "";
+export type CodeGraphLayer = "frontend" | "api" | "backend" | "storage";
+
+export interface ProjectConvention {
+  id: string;
+  pattern: string;
+  reason: string;
+  matchType: "contains" | "regex";
+  scope: string;
+}
+
+export interface CaseJudgement {
+  verdict: string;
+  source: string;
+  reason: string;
+  evidencePoints: string[];
+  suggestedFix: string;
+  conventionId?: string;
+}
+
+export interface PreflightReport {
+  ok: boolean;
+  orderedServices: string[];
+  conflictedServices: string[];
+  reusedServices: string[];
+  portChecks: Array<Record<string, unknown>>;
+  envChecks: Array<Record<string, unknown>>;
+  toolChecks: Array<Record<string, unknown>>;
+  blockingReasons: string[];
+  warnings: string[];
+}
+
+export interface ProbeFinding {
+  kind: string;
+  detail: string;
+  source: string;
+  path: string;
+  line: number;
+  method: string;
+  conventionMatched: boolean;
+  conventionReason: string;
+}
+
+export interface ProbeResult {
+  probeId: string;
+  name: string;
+  status: string;
+  checked: number;
+  summary: string;
+  findings: ProbeFinding[];
+  suppressedFindings: ProbeFinding[];
+}
+
+export interface ConfidenceSummary {
+  confirmed: number;
+  suspected: number;
+  blocked: number;
+}
+
+export interface LocalGitDiffStat {
+  path: string;
+  additions: number;
+  deletions: number;
+  status: string;
+}
+
+export interface LocalGitHunk {
+  path: string;
+  start: number;
+  count: number;
+}
+
+export interface LocalGitHotspot {
+  path: string;
+  commits: number;
+}
+
+export interface LocalGitInfo {
+  isGit: boolean;
+  available: boolean;
+  reason: string;
+  branch: string;
+  detached: boolean;
+  head: string;
+  shortHead: string;
+  headAuthor: string;
+  headTime: string;
+  headSubject: string;
+  baseBranch: string;
+  remoteUrl: string;
+  latestTag: string;
+  ahead: number;
+  behind: number;
+  dirty: boolean;
+  stagedFiles: string[];
+  unstagedFiles: string[];
+  untrackedFiles: string[];
+  changedFiles: string[];
+  diffStat: LocalGitDiffStat[];
+  changedHunks: LocalGitHunk[];
+  recentCommits: Array<{ sha: string; shortSha: string; author: string; date: string; subject: string }>;
+  hotspots: LocalGitHotspot[];
+}
+
+export interface CodeGraphNode {
+  id: string;
+  label: string;
+  layer: CodeGraphLayer;
+  kind: string;
+  file: string;
+  line: number;
+  module: string;
+  meta: Record<string, unknown>;
+  hasConflict: boolean;
+  impact: "none" | "direct" | "transitive";
+}
+
+export interface CodeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: string;
+  label: string;
+  conflict: boolean;
+}
+
+export interface CodeGraphConflict {
+  kind: string;
+  severity: string;
+  detail: string;
+  file: string;
+  nodeIds: string[];
+}
+
+export interface CodeGraphChunk {
+  chunkId: string;
+  module: string;
+  files: string[];
+  nodeIds: string[];
+  layers: Record<CodeGraphLayer, number>;
+  contentHash: string;
+  summary: string;
+}
+
+export interface CodeGraphImpact {
+  changedFiles: string[];
+  directNodeIds: string[];
+  affectedNodeIds: string[];
+  affectedModules: string[];
+  affectedRoutes: string[];
+}
+
+export interface CodeGraphExternalSystem {
+  id: string;
+  name: string;
+  category: string;
+  detail: string;
+  source: string;
+}
+
+export interface CodeGraph {
+  generatedAt: string;
+  sourceHash: string;
+  stats: {
+    totalFiles: number;
+    frontend: number;
+    api: number;
+    backend: number;
+    storage: number;
+    edges: number;
+    conflicts: number;
+  };
+  nodes: CodeGraphNode[];
+  edges: CodeGraphEdge[];
+  conflicts: CodeGraphConflict[];
+  moduleChunks: CodeGraphChunk[];
+  externalSystems?: CodeGraphExternalSystem[];
+  impact: CodeGraphImpact;
+}
 
 export interface ModuleDependency {
   to: string;
@@ -127,6 +306,8 @@ export interface ProjectConfig {
     dataPrefix?: string;
     [key: string]: unknown;
   };
+  conventions?: ProjectConvention[];
+  environments?: Record<string, unknown>;
 }
 
 export interface RuleVersion {
@@ -221,6 +402,20 @@ export interface TemplateResult {
   summary: Record<TemplateDisposition, number>;
 }
 
+export interface ExcludedItemSnapshot {
+  id: string;
+  no: string;
+  text: string;
+  moduleId?: string | null;
+}
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  calls: number;
+}
+
 export interface Plan {
   id: string;
   projectId: string;
@@ -238,6 +433,7 @@ export interface Plan {
   itemTexts?: Record<string, string>;
   templates: TemplateResult[];
   unselectedByModule: Array<{ moduleId: string; moduleName: string; count: number }>;
+  excludedItems?: ExcludedItemSnapshot[];
   warnings: string[];
   sourceSignature: string;
   confirmation: Confirmation | null;
@@ -293,6 +489,13 @@ export interface RunCase {
     note: string;
     at: string;
   }>;
+  confidence?: ConfidenceTier;
+  confidenceReason?: string;
+  judgement?: CaseJudgement | null;
+  serviceLogIssues?: string[];
+  phaseFailed?: string;
+  file?: string;
+  line?: number;
 }
 
 export interface RunItem {
@@ -364,6 +567,11 @@ export interface Run {
   environment?: Record<string, string>;
   dependencySuggestions?: DependencySuggestion[];
   dependencyRepairs?: DependencyRepair[];
+  excludedItems?: ExcludedItemSnapshot[];
+  tokenUsage?: TokenUsage;
+  preflight?: PreflightReport | null;
+  probeResults?: ProbeResult[];
+  resumedFromRunId?: string;
 }
 
 export interface IssueOccurrence {
@@ -400,13 +608,17 @@ export interface Issue {
   evidenceRefs: string[];
   verificationRunId: string;
   unstable: boolean;
+  confidence?: ConfidenceTier;
+  confidenceReason?: string;
+  file?: string;
+  line?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FailureAnalysis {
   status: AnalysisRunStatus;
-  reason: "no_failures" | "model_missing" | "model_invalid" | "model_error" | "";
+  reason: "no_failures" | "model_missing" | "model_invalid" | "model_error" | "execution_error" | "";
   observed: string;
   evidenceRefs: string[];
   candidateCauses: Array<{ cause: string; confidence: Confidence }>;
@@ -475,6 +687,15 @@ export interface ReportCaseDetail {
   analysis: FailureAnalysis | null;
   coverageKind?: "direct" | "file" | "shared" | "manual" | "unverified" | null;
   testNodes?: string[];
+  confidence?: ConfidenceTier;
+  confidenceReason?: string;
+  judgement?: CaseJudgement | null;
+  serviceLogIssues?: string[];
+  phaseFailed?: string;
+  errorType?: string;
+  stackKey?: string;
+  file?: string;
+  line?: number;
 }
 
 export interface Opinion {
@@ -529,6 +750,10 @@ export interface Report {
   summarySource?: "ai" | "fallback" | "none";
   opinion: Opinion | null;
   status: "final" | "superseded";
+  preflight?: PreflightReport | null;
+  probeResults?: ProbeResult[];
+  confidenceSummary?: ConfidenceSummary | null;
+  tokenUsage?: TokenUsage | null;
 }
 
 export interface QuickCheck {
@@ -610,6 +835,8 @@ export interface Project {
   candidates: Candidate[];
   modules: Module[];
   map: ProjectMap | null;
+  localGit?: LocalGitInfo | null;
+  codeGraph?: CodeGraph | null;
   catalog: AcceptanceItem[];
   tasks: Task[];
   activeTaskId: string | null;

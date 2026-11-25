@@ -54,6 +54,7 @@ export const state = {
   maxActiveBridges: 0,
   holdBridge: false,
   rejectPosts: false,
+  colorThemeKind: 1,
 };
 
 class FakeWebview {
@@ -143,6 +144,13 @@ export const commands = {
 };
 
 export const window = {
+  get activeColorTheme() {
+    return { kind: state.colorThemeKind };
+  },
+  onDidChangeActiveColorTheme: (cb) => {
+    state.themeListener = cb;
+    return { dispose() {} };
+  },
   registerWebviewViewProvider: (id, provider, options) => {
     state.viewProvider = { id, provider, options };
     return { dispose() {} };
@@ -825,4 +833,27 @@ test("openPanel 在旧 webview 已销毁时重建面板", () => {
   }
   assert.equal(state.panels.length, before + 1);
   assert.equal(state.panels[state.panels.length - 1].webview.html.includes("AI 辅助测试"), true);
+});
+
+test("onDidChangeActiveColorTheme posts live dark/light updates to active webviews", async () => {
+  reset();
+  const editor = lastEditor();
+  editor.webview.fire({ type: "ready" });
+  await tick();
+  const beforeCount = messagesFor(editor.webview.id).length;
+
+  state.colorThemeKind = 2;
+  state.themeListener();
+  await tick();
+  state.colorThemeKind = 1;
+  state.themeListener();
+  await tick();
+
+  const themeMessages = messagesFor(editor.webview.id)
+    .slice(beforeCount)
+    .filter((message) => message.type === "theme");
+  assert.deepEqual(themeMessages, [
+    { type: "theme", theme: "dark" },
+    { type: "theme", theme: "light" },
+  ]);
 });

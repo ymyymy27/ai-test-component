@@ -66,7 +66,7 @@ test("窄屏返回指向上一级，运行记录不横向滚动", async ({ page 
   const projectId = await createAndRun(page, "窄屏导航验证", "D:/work/responsive-back");
   await page.setViewportSize({ width: 320, height: 900 });
   const resultBack = page.locator(".breadcrumb-back");
-  await expect(resultBack).toHaveAttribute("href", /\/plan$/);
+  await expect(resultBack).toHaveAttribute("href", /\/overview$/);
 
   await page.goto(`/projects/${projectId}/history`);
   await expect(page.locator(".breadcrumb-back")).toHaveAttribute("href", /\/overview$/);

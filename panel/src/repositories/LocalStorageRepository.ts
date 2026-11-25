@@ -45,6 +45,7 @@ import type {
   Plan,
   Project,
   ProjectConfig,
+  ProjectConvention,
   QuickCheck,
   Report,
   RuleVersion,
@@ -59,6 +60,7 @@ import { RepositoryError } from "./errors";
 import type {
   BackupPayload,
   ConfirmPlanInput,
+  ConventionInput,
   CreateProjectInput,
   CreateTaskInput,
   DeliveryInput,
@@ -562,6 +564,9 @@ export class LocalStorageRepository implements ProjectRepository {
         goal: input.goal,
         candidate,
         origin: input.origin,
+        requirement: input.requirement,
+        featureNames: input.featureNames,
+        flowSteps: input.flowSteps,
       });
       const index = project.tasks.findIndex((task) => task.id === draft?.id);
       project.tasks[index] = confirmed;
@@ -886,6 +891,85 @@ export class LocalStorageRepository implements ProjectRepository {
       task.runs.push(run);
       task.currentRunId = run.id;
       assertTransition(task.stage, "startRun", "running");
+      task.stage = "running";
+      task.previousStage = null;
+      task.updatedAt = isoNow();
+      return run;
+    });
+  }
+
+  async startTargetedRerun(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    itemIds: string[],
+    confirmedBy = "本机用户",
+  ): Promise<Run> {
+    if (itemIds.length === 0) {
+      throw new RepositoryError("SCOPE_EMPTY", "至少选择 1 项才能定向复测。");
+    }
+    return this.mutate(projectId, (project) => {
+      const active = hasActiveRun(project);
+      if (active) {
+        throw new RepositoryError(
+          "RUN_ACTIVE",
+          `同一项目已有运行：${active.id}。`,
+          "等待、查询或先停止现有运行。",
+        );
+      }
+      const task = findTask(project, taskId);
+      const plan = findPlan(task, planId);
+      if (plan.stale || plan.taskContract !== taskContract(task) || plan.sourceSignature !== sourceSignature(project, task)) {
+        plan.stale = true;
+        throw new RepositoryError("PLAN_STALE", "计划已过期，不能直接复测。", "重新生成计划。");
+      }
+      const targetSet = new Set(itemIds);
+      const selectedIds = plan.scope.acceptanceItemIds.filter((id) => targetSet.has(id));
+      if (selectedIds.length === 0) {
+        throw new RepositoryError("SCOPE_EMPTY", "所选验收项不在该计划范围内。");
+      }
+      const selectedSet = new Set(selectedIds);
+      const scopedCases = plan.cases.filter(
+        (testCase) =>
+          !testCase.itemId ||
+          selectedSet.has(testCase.itemId) ||
+          testCase.extraItemIds.some((id) => selectedSet.has(id)),
+      );
+      const scopedPlan: Plan = {
+        ...plan,
+        cases: scopedCases,
+        scope: {
+          ...plan.scope,
+          acceptanceItemIds: selectedIds,
+          coverage: {
+            selected: selectedIds.length,
+            applicable: plan.scope.coverage.applicable,
+          },
+        },
+      };
+      const conf: Confirmation = plan.confirmation
+        ? {
+            ...plan.confirmation,
+            acceptanceItemIds: [...selectedIds],
+            confirmedBy,
+            confirmedAt: isoNow(),
+          }
+        : {
+            id: newId("conf"),
+            planId: plan.id,
+            planRevision: plan.revision,
+            acceptanceItemIds: [...selectedIds],
+            environment: {},
+            credentials: {},
+            sideEffects: sideEffectsFor(project),
+            dependencies: [],
+            fingerprint: `targeted:${plan.sourceSignature}`,
+            confirmedBy,
+            confirmedAt: isoNow(),
+          };
+      const run = buildRun(project, task, scopedPlan, conf);
+      task.runs.push(run);
+      task.currentRunId = run.id;
       task.stage = "running";
       task.previousStage = null;
       task.updatedAt = isoNow();
@@ -1293,6 +1377,39 @@ export class LocalStorageRepository implements ProjectRepository {
     });
   }
 
+  async addConvention(projectId: string, input: ConventionInput): Promise<ProjectConvention[]> {
+    return this.mutate(projectId, (project) => {
+      const pattern = input.pattern.trim();
+      if (!pattern) {
+        throw new RepositoryError("VALIDATION", "约定匹配模式不能为空。");
+      }
+      const scope = (input.scope ?? "all").trim().toLowerCase() || "all";
+      const existing = project.config.conventions ?? [];
+      const nextItem: ProjectConvention = {
+        id: newId("conv"),
+        pattern,
+        reason: input.reason.trim() || "项目正常约定",
+        matchType: input.matchType === "regex" ? "regex" : "contains",
+        scope,
+      };
+      const updated = [
+        ...existing.filter((item) => !(item.pattern === pattern && item.scope === scope)),
+        nextItem,
+      ];
+      project.config = { ...project.config, conventions: updated };
+      return clone(updated);
+    });
+  }
+
+  async removeConvention(projectId: string, conventionId: string): Promise<ProjectConvention[]> {
+    return this.mutate(projectId, (project) => {
+      const existing = project.config.conventions ?? [];
+      const updated = existing.filter((item) => item.id !== conventionId);
+      project.config = { ...project.config, conventions: updated };
+      return clone(updated);
+    });
+  }
+
   async saveGithubSnapshot(projectId: string, snapshot: GithubSnapshot | null): Promise<Project> {
     return this.mutate(projectId, (project) => {
       project.github = snapshot ? clone(snapshot) : null;
@@ -1328,7 +1445,6 @@ export class LocalStorageRepository implements ProjectRepository {
       if (!module) {
         throw new RepositoryError("NOT_FOUND", "模块不存在。");
       }
-      if (patch.name !== undefined) module.name = patch.name.trim();
       if (patch.responsibility !== undefined) module.responsibility = patch.responsibility.trim();
       if (patch.owner !== undefined) module.owner = patch.owner.trim();
       if (patch.status !== undefined) module.status = patch.status.trim();

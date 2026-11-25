@@ -55,7 +55,7 @@ function toggleWarnings(event: Event): void {
   <section class="confirm-block" :class="{ 'is-active': checked }" aria-labelledby="confirm-title">
     <div class="confirm-head">
       <h2 id="confirm-title" class="confirm-title">执行前确认</h2>
-      <span class="confirm-note">确认绑定计划版本、范围、环境、依赖与副作用</span>
+      <span class="confirm-note">需人工确认后启动</span>
     </div>
     <p v-if="stale" class="notice is-warn" role="alert">
       {{ plan.staleReason || "验收项或验证方式已变化，需要生成新计划。" }}
@@ -76,15 +76,15 @@ function toggleWarnings(event: Event): void {
       <div class="confirm-item">
         <dt>环境</dt>
         <dd>
-          {{ missingEnvironment ? `缺失 ${missingEnvironment} 项` : "通过" }}
-          <span v-if="environmentLine" class="confirm-env">{{ environmentLine }}</span>
-          <span v-if="missingEnvironment" class="confirm-env">
-            缺失只影响对应能力，本地记录、证据与报告仍可用。
-          </span>
+          {{ missingEnvironment ? `有 ${missingEnvironment} 项待配置` : "已就绪" }}
+          <details v-if="environmentLine" class="details-tech" style="margin-top: 4px; padding-top: 4px;">
+            <summary>查看运行环境核对</summary>
+            <span class="confirm-env">{{ environmentLine }}</span>
+          </details>
         </dd>
       </div>
     </dl>
-    <h3 class="side-effects-title">副作用</h3>
+    <h3 class="side-effects-title">副作用说明</h3>
     <ul class="side-effects">
       <li v-for="effect in effects" :key="effect">{{ effect }}</li>
     </ul>
@@ -101,7 +101,7 @@ function toggleWarnings(event: Event): void {
       <span>我已确认本次范围、依赖和副作用，同意开始测试。</span>
     </label>
     <p id="confirm-start-hint" class="field-hint">
-      勾选后按 Ctrl / Cmd + Enter 也可以开始；未勾选时不会启动。
+      勾选后按 Ctrl / Cmd + Enter 也可以开始；未勾选前不会执行任何操作。
     </p>
     <template v-if="plan.warnings.length">
       <ul class="list-plain confirm-warnings">

@@ -52,6 +52,7 @@ const rows = computed(() =>
         {{ row.run.counts.incomplete }} 未完成
       </span>
       <span class="row-side">{{ durationText(row.run.elapsedMs / 1000) }}</span>
+      <span class="row-chevron" aria-hidden="true">›</span>
     </button>
   </div>
   <EmptyState

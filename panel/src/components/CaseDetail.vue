@@ -12,13 +12,15 @@ const props = withDefaults(
     result: CaseResult;
     allowManual?: boolean;
     manualBusy?: boolean;
+    allowCopyFix?: boolean;
   }>(),
-  { allowManual: false, manualBusy: false },
+  { allowManual: false, manualBusy: false, allowCopyFix: false },
 );
 
 const emit = defineEmits<{
   manual: [caseId: string];
   showEvidence: [evidence: EvidenceRef];
+  copyFix: [testCase: RunCase];
 }>();
 
 const bad = computed(() => ["failed", "blocked", "error"].includes(props.result));
@@ -53,9 +55,9 @@ const canRecordManual = computed(
       </div>
     </div>
     <p v-if="testCase.message" class="case-message">{{ testCase.message }}</p>
-    <div v-if="testCase.evidence.length" class="evidence-row">
+    <div v-if="(testCase.evidence?.length ?? 0) > 0" class="evidence-row">
       <button
-        v-for="evidence in testCase.evidence"
+        v-for="evidence in testCase.evidence ?? []"
         :key="evidence.id"
         class="evidence-chip"
         type="button"
@@ -69,14 +71,21 @@ const canRecordManual = computed(
         <template v-else-if="evidence.truncated"> · 已截断</template>
       </button>
     </div>
-    <ol v-if="testCase.manualSteps.length" class="list-plain manual-steps">
-      <li v-for="(step, index) in testCase.manualSteps" :key="index">
+    <ol v-if="(testCase.manualSteps?.length ?? 0) > 0" class="list-plain manual-steps">
+      <li v-for="(step, index) in testCase.manualSteps ?? []" :key="index">
         {{ step.step }} · {{ statusText(step.result) }} ·
         {{ step.note || "无说明" }}
       </li>
     </ol>
-    <div v-if="canRecordManual" class="case-actions">
+    <div
+      v-if="
+        canRecordManual ||
+        (allowCopyFix && (result === 'failed' || result === 'error' || result === 'blocked'))
+      "
+      class="case-actions"
+    >
       <button
+        v-if="canRecordManual"
         class="btn btn-sm"
         type="button"
         :disabled="manualBusy"
@@ -84,6 +93,14 @@ const canRecordManual = computed(
         @click="emit('manual', testCase.id)"
       >
         {{ result === "manual_pending" ? "记录人工结果" : "修改人工结果" }}
+      </button>
+      <button
+        v-if="allowCopyFix && (result === 'failed' || result === 'error' || result === 'blocked')"
+        class="btn btn-ghost btn-sm"
+        type="button"
+        @click="emit('copyFix', testCase)"
+      >
+        复制修复上下文
       </button>
     </div>
   </article>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
@@ -115,22 +115,60 @@ watch(
 );
 
 let saveChain: Promise<unknown> = Promise.resolve();
-let saveFailed = false;
+let saveSeq = 0;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingIds: string[] | null = null;
 
-function persist(ids: string[]): void {
+function enqueueSave(ids: string[]): Promise<unknown> {
+  const seq = ++saveSeq;
   saveState.value = "saving";
+  const snapshot = [...ids];
   saveChain = saveChain
-    .then(() => workspace.selectScope(projectId.value, taskId.value, ids))
+    .catch(() => undefined)
+    .then(() => workspace.selectScope(projectId.value, taskId.value, snapshot))
     .then(() => {
-      if (!saveFailed) {
+      if (seq === saveSeq) {
         saveState.value = "saved";
       }
     })
     .catch(() => {
-      saveFailed = true;
-      saveState.value = "error";
-      selected.value = task.value ? [...task.value.selectedItemIds] : [];
+      if (seq === saveSeq) {
+        saveState.value = "error";
+        selected.value = task.value ? [...task.value.selectedItemIds] : [];
+      }
     });
+  return saveChain;
+}
+
+function persist(ids: string[]): void {
+  saveSeq += 1;
+  saveState.value = "saving";
+  pendingIds = [...ids];
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    const batch = pendingIds;
+    pendingIds = null;
+    if (batch !== null) {
+      void enqueueSave(batch);
+    }
+  }, 250);
+}
+
+async function flushPersist(): Promise<void> {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  const batch = pendingIds;
+  pendingIds = null;
+  if (batch !== null) {
+    await enqueueSave(batch);
+  } else {
+    await saveChain;
+  }
 }
 
 function toggleItem(itemId: string): void {
@@ -196,9 +234,8 @@ async function generatePlan(): Promise<void> {
   if (!canGenerate.value) {
     return;
   }
-  await saveChain;
-  if (saveFailed) {
-    saveFailed = false;
+  await flushPersist();
+  if (saveState.value === "error") {
     ui.showToast("范围保存失败，未生成计划；请重新选择后重试。", "error");
     return;
   }
@@ -235,6 +272,7 @@ async function cancelAdjust(): Promise<void> {
   if (!task.value) {
     return;
   }
+  await flushPersist();
   try {
     const restored = await workspace.cancelRevision(projectId.value, taskId.value);
     const stage = restored.stage;
@@ -251,6 +289,10 @@ async function cancelAdjust(): Promise<void> {
     // store 已提示。
   }
 }
+
+onBeforeUnmount(() => {
+  void flushPersist();
+});
 
 onMounted(async () => {
   if (!task.value) {

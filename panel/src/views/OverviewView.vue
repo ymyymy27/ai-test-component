@@ -110,6 +110,26 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
     // store 已提示；对话框保留输入，可修改后重试。
   }
 }
+
+function openSource(file: string, line: number): void {
+  void workspace.openSourceLocation(file, line);
+}
+
+function refreshGraph(): void {
+  if (!projectId.value) {
+    return;
+  }
+  void workspace.refreshProject(projectId.value);
+}
+
+function testAffected(goalText: string): void {
+  if (!projectId.value) {
+    return;
+  }
+  void router.push(
+    `/projects/${projectId.value}/tasks/new?mode=target&goal=${encodeURIComponent(goalText)}`,
+  );
+}
 </script>
 
 <template>
@@ -119,8 +139,10 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
       :analyzing="analyzing"
       :analysis-error="project.analysisError"
       :analyzing-busy="analyzingBusy"
-      @new-task="router.push(`/projects/${projectId}/tasks/new`)"
-      @view-candidates="router.push(`/projects/${projectId}/tasks/new?mode=target`)"
+      :dirty-files="workspace.dirtyFiles"
+      @new-task="ui.openNewTaskDrawer()"
+      @open-quick-check="ui.openQuickCheckDrawer()"
+      @open-architecture="router.push(`/projects/${projectId}/architecture`)"
       @open-task="openTask"
       @open-run="(runId) => router.push(`/projects/${projectId}/history?run=${runId}`)"
       @open-issue="(issueId) => router.push(`/projects/${projectId}/issues/${issueId}`)"
@@ -130,6 +152,9 @@ async function saveModule(input: Parameters<typeof workspace.addModule>[1]): Pro
       @add-module="addModule"
       @edit-module="editModule"
       @toggle-feature="toggleFeature"
+      @open-source="openSource"
+      @refresh-graph="refreshGraph"
+      @test-affected="testAffected"
     />
     <ModuleEditorDialog v-model="moduleOpen" :module="editingModule" @save="saveModule" />
   </div>

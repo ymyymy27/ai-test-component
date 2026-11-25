@@ -30,6 +30,8 @@ export interface HostSidecarState {
   github: Record<string, GithubSnapshot>;
   templates: Record<string, TemplateResult[]>;
   quickChecks: Record<string, QuickCheck[]>;
+  projectTasks: Record<string, string[]>;
+  projectPlans: Record<string, string[]>;
 }
 
 const KEY = "aitest.host.ui.v1";
@@ -49,6 +51,8 @@ function emptyState(): HostSidecarState {
     github: {},
     templates: {},
     quickChecks: {},
+    projectTasks: {},
+    projectPlans: {},
   };
 }
 
@@ -109,6 +113,12 @@ export class HostSidecar {
           : {},
         quickChecks: isRecord(parsed.quickChecks)
           ? (parsed.quickChecks as Record<string, QuickCheck[]>)
+          : {},
+        projectTasks: isRecord(parsed.projectTasks)
+          ? (parsed.projectTasks as Record<string, string[]>)
+          : {},
+        projectPlans: isRecord(parsed.projectPlans)
+          ? (parsed.projectPlans as Record<string, string[]>)
           : {},
       };
     } catch {
@@ -183,6 +193,13 @@ export class HostSidecar {
     this.save();
   }
 
+  clearScope(taskId: string): void {
+    if (taskId in this.state.scopes) {
+      delete this.state.scopes[taskId];
+      this.save();
+    }
+  }
+
   setRecommended(taskId: string, ids: string[]): void {
     this.state.recommended[taskId] = [...ids];
     this.save();
@@ -232,24 +249,37 @@ export class HostSidecar {
     this.save();
   }
 
-  /** 删除已不存在的项目/任务/计划派生状态，避免 sidecar 无界增长。 */
+  /** 只清理明确曾归属当前项目的失效任务/计划，绝不误删其他项目状态。 */
   prune(projectId: string, taskIds: string[], planIds: string[]): void {
     const taskSet = new Set(taskIds);
     const planSet = new Set(planIds);
-    [this.state.scopes, this.state.recommended, this.state.stage, this.state.templates].forEach(
-      (record) => {
-        Object.keys(record).forEach((key) => {
-          if (!taskSet.has(key)) {
-            delete record[key];
-          }
-        });
-      },
+    const otherTasks = new Set(
+      Object.entries(this.state.projectTasks)
+        .filter(([pid]) => pid !== projectId)
+        .flatMap(([, ids]) => ids),
     );
-    Object.keys(this.state.confirmations).forEach((key) => {
-      if (!planSet.has(key)) {
-        delete this.state.confirmations[key];
+    const otherPlans = new Set(
+      Object.entries(this.state.projectPlans)
+        .filter(([pid]) => pid !== projectId)
+        .flatMap(([, ids]) => ids),
+    );
+    const previousTasks = this.state.projectTasks[projectId] ?? [];
+    for (const staleTaskId of previousTasks) {
+      if (!taskSet.has(staleTaskId) && !otherTasks.has(staleTaskId)) {
+        delete this.state.scopes[staleTaskId];
+        delete this.state.recommended[staleTaskId];
+        delete this.state.stage[staleTaskId];
+        delete this.state.templates[staleTaskId];
       }
-    });
+    }
+    const previousPlans = this.state.projectPlans[projectId] ?? [];
+    for (const stalePlanId of previousPlans) {
+      if (!planSet.has(stalePlanId) && !otherPlans.has(stalePlanId)) {
+        delete this.state.confirmations[stalePlanId];
+      }
+    }
+    this.state.projectTasks[projectId] = [...taskIds];
+    this.state.projectPlans[projectId] = [...planIds];
     if (this.state.activeTask[projectId] && !taskSet.has(this.state.activeTask[projectId])) {
       delete this.state.activeTask[projectId];
     }
@@ -258,6 +288,37 @@ export class HostSidecar {
 
   pruneProjects(existingProjectIds: string[]): void {
     const known = new Set(existingProjectIds);
+    const activeTasks = new Set(
+      existingProjectIds.flatMap((pid) => this.state.projectTasks[pid] ?? []),
+    );
+    const activePlans = new Set(
+      existingProjectIds.flatMap((pid) => this.state.projectPlans[pid] ?? []),
+    );
+    Object.keys(this.state.projectTasks).forEach((pid) => {
+      if (known.has(pid)) {
+        return;
+      }
+      for (const taskId of this.state.projectTasks[pid] ?? []) {
+        if (!activeTasks.has(taskId)) {
+          delete this.state.scopes[taskId];
+          delete this.state.recommended[taskId];
+          delete this.state.stage[taskId];
+          delete this.state.templates[taskId];
+        }
+      }
+      delete this.state.projectTasks[pid];
+    });
+    Object.keys(this.state.projectPlans).forEach((pid) => {
+      if (known.has(pid)) {
+        return;
+      }
+      for (const planId of this.state.projectPlans[pid] ?? []) {
+        if (!activePlans.has(planId)) {
+          delete this.state.confirmations[planId];
+        }
+      }
+      delete this.state.projectPlans[pid];
+    });
     [this.state.analysis, this.state.ignored, this.state.github, this.state.quickChecks].forEach(
       (record) => {
         Object.keys(record).forEach((key) => {
@@ -272,6 +333,9 @@ export class HostSidecar {
         delete this.state.activeTask[key];
       }
     });
+    if (this.state.lastProjectId && !known.has(this.state.lastProjectId)) {
+      this.state.lastProjectId = "";
+    }
     this.save();
   }
 }

@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-import { buildProjectAnalysis, type ProjectAnalysis } from "@/domain/analysis";
+import { buildProjectAnalysis, listBuiltinTemplates, type ProjectAnalysis } from "@/domain/analysis";
 import {
   activeTask as findActiveTask,
   allReports,
@@ -21,6 +21,7 @@ import type {
   Plan,
   Project,
   ProjectConfig,
+  ProjectConvention,
   QuickCheck,
   Report,
   Run,
@@ -29,11 +30,25 @@ import type {
 import { RepositoryError } from "@/repositories/errors";
 import { HostRepository } from "@/repositories/HostRepository";
 import { LocalStorageRepository } from "@/repositories/LocalStorageRepository";
-import { callHost, hostBridge, HostError } from "@/host/bridge";
+import {
+  callHost,
+  clearHostDiagnostics,
+  hostBridge,
+  onHostContext,
+  onHostWorkspaceDirty,
+  openHostSource,
+  publishHostDiagnostics,
+  readHostContext,
+  setHostActivityObserver,
+  type HostCapabilitiesFlags,
+  type HostDiagnosticInput,
+  type HostGitSummary,
+} from "@/host/bridge";
 import { mapDoctorFacts } from "@/host/environment";
-import type { DoctorFacts } from "@/host/dto";
+import type { DoctorFacts, EvidencePreview, RunLogTailEntry, TemplateSummary } from "@/host/dto";
 import type {
   ConfirmPlanInput,
+  ConventionInput,
   CreateProjectInput,
   CreateTaskInput,
   DeliveryInput,
@@ -48,9 +63,8 @@ import type {
 } from "@/repositories/ProjectRepository";
 import { buildEnvironmentChecks } from "@/services/environmentService";
 import { downloadBytes, downloadText } from "@/services/exportService";
-import { simulateOutcome } from "@/services/execution";
-import { RunSimulator } from "@/services/runSimulator";
 import { useUiStore } from "./ui";
+import { createSimulationDriver, errorMessage } from "./workspaceHelpers";
 
 const OPERATOR = "本机用户";
 const ANALYSIS_DELAY_MS = 800;
@@ -58,9 +72,6 @@ const RUN_STALE_MS = 10 * 60 * 1000;
 
 let repository: ProjectRepository | null = null;
 let repositoryLocked = false;
-let simulator: RunSimulator | null = null;
-let simulatorRunId = "";
-let simulatorProjectId = "";
 
 export function setRepository(next: ProjectRepository | null): void {
   repository = next;
@@ -77,13 +88,6 @@ function repo(): ProjectRepository {
   return repository;
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof RepositoryError || error instanceof HostError) {
-    return error.nextStep ? `${error.message} ${error.nextStep}` : error.message;
-  }
-  return error instanceof Error ? error.message : "操作失败，请重试。";
-}
-
 export const useWorkspaceStore = defineStore("workspace", () => {
   const projects = ref<Project[]>([]);
   const currentProjectId = ref<string | null>(null);
@@ -96,12 +100,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const quickCheck = ref<QuickCheck | null>(null);
   const initialized = ref(false);
   const quickCheckError = ref("");
+  const dirtyFiles = ref<string[]>([]);
+  const hostCapabilities = ref<Partial<HostCapabilitiesFlags>>({});
+  const hostGit = ref<HostGitSummary | null>(null);
   let bootstrapPromise: Promise<void> | null = null;
   const analysisTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const quickCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  let hostPollTimer: ReturnType<typeof setInterval> | null = null;
+  let hostPollTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollToken = 0;
+  let switchSeq = 0;
   let storageListenerInstalled = false;
   let focusListenerInstalled = false;
+  let hostContextInstalled = false;
+  let hostDirtyInstalled = false;
+  let lastContextProjectId = "";
 
   const mode = computed(() => repo().mode);
   const capabilities = computed(() => repo().capabilities);
@@ -181,16 +193,54 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
   }
 
+  function updateTaskInProject(projectId: string, updatedTask: Task): void {
+    const project = projects.value.find((entry) => entry.id === projectId);
+    if (!project) {
+      return;
+    }
+    const nextTasks = project.tasks.some((entry) => entry.id === updatedTask.id)
+      ? project.tasks.map((entry) => (entry.id === updatedTask.id ? updatedTask : entry))
+      : [updatedTask, ...project.tasks];
+    replaceProject({ ...project, tasks: nextTasks });
+  }
+
   async function refreshProject(projectId: string): Promise<Project | null> {
     const project = await repo().getProject(projectId);
     if (project) {
       replaceProject(project);
+      if (currentProjectId.value === projectId) {
+        dirtyFiles.value = [];
+        void syncHostDiagnostics(projectId);
+      }
     }
     return project;
   }
 
+  async function syncOrRefreshProject(projectId: string): Promise<Project | null> {
+    const cached = repo().cachedProject?.(projectId);
+    if (cached) {
+      replaceProject(cached);
+      return cached;
+    }
+    return refreshProject(projectId);
+  }
+
   async function refreshAll(): Promise<void> {
-    projects.value = await repo().listProjects();
+    const listed = await repo().listProjects();
+    const existingById = new Map(projects.value.map((entry) => [entry.id, entry]));
+    projects.value = listed.map((summary) => {
+      const existing = existingById.get(summary.id);
+      if (existing && !existing.summaryOnly) {
+        return {
+          ...existing,
+          name: summary.name,
+          root: summary.root,
+          archived: summary.archived,
+          updatedAt: summary.updatedAt || existing.updatedAt,
+        };
+      }
+      return summary;
+    });
     workspaceRoot.value = repo().workspacePath?.() ?? "";
   }
 
@@ -227,7 +277,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   function installFocusRefresh(): void {
     // 项目可能在另一个窗口/CLI 里登记；回到面板时重新读一次 project.list，
-    // 避免“项目明明建好了却不显示”。节流到 3 秒，避免焦点抖动造成重复调用。
+    // 节流到 30 秒，避免窗口切换与焦点抖动造成高频 CLI 冷启动。
     if (focusListenerInstalled || typeof window === "undefined") {
       return;
     }
@@ -238,7 +288,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     let lastRun = 0;
     const refresh = () => {
       const now = Date.now();
-      if (status.value !== "ready" || now - lastRun < 3000) {
+      if (status.value !== "ready" || now - lastRun < 30_000) {
         return;
       }
       lastRun = now;
@@ -250,6 +300,87 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         refresh();
       }
     });
+  }
+
+  const COMMAND_LABELS: Record<string, string> = {
+    "plan.generate": "正在生成测试计划",
+    "project.map.refresh": "正在刷新项目静态图谱",
+    "task.add": "正在拆解验收项与创建任务",
+    "task.suggest": "正在分析可测试目标",
+    "delivery.draft": "正在生成交付清单草稿",
+    "report.generate": "正在生成测试报告",
+    "run.repair": "正在安装依赖并修复环境",
+    "backup.create": "正在创建数据备份",
+    "backup.restore": "正在恢复工作空间备份",
+    "analysis.run": "正在分析运行失败原因",
+    "github.read": "正在读取 GitHub 仓库与提交变更",
+  };
+
+  function installHostActivityObserver(): void {
+    setHostActivityObserver({
+      onStart: (command, cancel) =>
+        useUiStore().startTask(command, COMMAND_LABELS[command] ?? `正在执行 ${command}`, cancel),
+      onProgress: (token, event) => {
+        useUiStore().updateTaskProgress(token, event);
+      },
+      onEnd: (token) => {
+        useUiStore().finishTask(token);
+      },
+    });
+  }
+
+  function installHostContextListener(): void {
+    if (hostContextInstalled || repo().mode !== "host") {
+      return;
+    }
+    hostContextInstalled = true;
+    const initialCtx = readHostContext();
+    if (initialCtx?.capabilities) {
+      hostCapabilities.value = initialCtx.capabilities;
+    }
+    if (initialCtx?.hostGit !== undefined) {
+      hostGit.value = initialCtx.hostGit ?? null;
+    }
+    onHostContext((ctx) => {
+      if (typeof ctx.workspacePath === "string") {
+        workspaceRoot.value = ctx.workspacePath.trim();
+      }
+      if (ctx.capabilities) {
+        hostCapabilities.value = ctx.capabilities;
+      }
+      if (ctx.hostGit !== undefined) {
+        hostGit.value = ctx.hostGit ?? null;
+      }
+      const nextId = typeof ctx.projectId === "string" ? ctx.projectId.trim() : "";
+      if (
+        nextId &&
+        nextId !== lastContextProjectId &&
+        initialized.value &&
+        projects.value.some((entry) => entry.id === nextId) &&
+        currentProjectId.value !== nextId
+      ) {
+        lastContextProjectId = nextId;
+        void setCurrentProject(nextId).catch(() => undefined);
+      }
+    });
+    if (!hostDirtyInstalled) {
+      hostDirtyInstalled = true;
+      onHostWorkspaceDirty((event) => {
+        const currentRoot = currentProject.value?.root ?? "";
+        if (currentRoot && event.projectRoot && !sameRootPath(currentRoot, event.projectRoot)) {
+          return;
+        }
+        const merged = new Set([...dirtyFiles.value, ...(event.changedPaths || [])]);
+        dirtyFiles.value = [...merged].slice(-80);
+      });
+    }
+  }
+
+  function sameRootPath(left: string, right: string): boolean {
+    return (
+      left.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() ===
+      right.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+    );
   }
 
   async function withBusy<T>(key: string, callback: () => Promise<T>): Promise<T> {
@@ -322,9 +453,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       const project = await repo().beginAnalysis(projectId);
       replaceProject(project);
       try {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, ANALYSIS_DELAY_MS);
-        });
+        if (repo().mode !== "host") {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, ANALYSIS_DELAY_MS);
+          });
+        }
         const analysis = buildProjectAnalysis(project);
         const saved = await repo().saveAnalysis(projectId, analysis);
         replaceProject(saved);
@@ -350,8 +483,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       const loaded = await repo().listProjects();
       projects.value = loaded;
       workspaceRoot.value = repo().workspacePath?.() ?? "";
-      environment.value =
-        repo().mode === "host" ? await loadHostEnvironment() : buildEnvironmentChecks();
+      if (repo().mode === "host") {
+        // 宿主 doctor 需要探测外部命令与模型，放到首屏后异步刷新，避免阻塞渲染。
+        environment.value = [];
+        void refreshEnvironment();
+      } else {
+        environment.value = buildEnvironmentChecks();
+      }
       const last = await repo().getLastProjectId();
       const preferred = last && loaded.some((project) => project.id === last) ? last : null;
       currentProjectId.value = preferred ?? loaded[0]?.id ?? null;
@@ -367,18 +505,25 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         }
         replaceProject(full);
       }
+      lastContextProjectId = currentProjectId.value ?? "";
       status.value = "ready";
       initialized.value = true;
       installStorageListener();
       installFocusRefresh();
+      installHostContextListener();
+      installHostActivityObserver();
       for (const project of projects.value) {
         if (project.analysisStatus === "analyzing") {
-          const started = new Date(project.analysisStartedAt || project.createdAt).getTime();
-          const elapsed = Date.now() - started;
-          if (elapsed >= ANALYSIS_DELAY_MS) {
+          if (repo().mode === "host") {
             void completeAnalysis(project.id);
           } else {
-            scheduleAnalysis(project, ANALYSIS_DELAY_MS - elapsed);
+            const started = new Date(project.analysisStartedAt || project.createdAt).getTime();
+            const elapsed = Date.now() - started;
+            if (elapsed >= ANALYSIS_DELAY_MS) {
+              void completeAnalysis(project.id);
+            } else {
+              scheduleAnalysis(project, ANALYSIS_DELAY_MS - elapsed);
+            }
           }
         }
         for (const task of project.tasks) {
@@ -386,8 +531,8 @@ export const useWorkspaceStore = defineStore("workspace", () => {
             if (run.status !== "running") {
               continue;
             }
-            const startedAt = new Date(run.startedAt).getTime();
-            if (Date.now() - startedAt > RUN_STALE_MS) {
+            const lastActivity = new Date(run.heartbeatAt || run.startedAt).getTime();
+            if (Number.isFinite(lastActivity) && Date.now() - lastActivity > RUN_STALE_MS) {
               void repo()
                 .markRunInterrupted(project.id, run.id)
                 .then(() => refreshProject(project.id))
@@ -405,7 +550,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function setCurrentProject(projectId: string): Promise<Project | null> {
+    const seq = ++switchSeq;
     const full = await repo().getProject(projectId);
+    if (seq !== switchSeq) {
+      return null;
+    }
     if (!full) {
       throw new RepositoryError(
         "NOT_FOUND",
@@ -419,15 +568,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     } catch {
       useUiStore().showToast("已切换项目，但未能记住上次项目。", "info");
     }
+    if (seq !== switchSeq) {
+      return null;
+    }
     if (currentProjectId.value !== projectId) {
       // 轮询绑定的是旧项目；离开时必须停止，避免继续查询隐藏项目。
       stopHostPolling();
     }
     currentProjectId.value = projectId;
+    dirtyFiles.value = [];
     quickCheck.value = null;
     quickCheckError.value = "";
     clearQuickCheckTimers();
     replaceProject(full);
+    void syncHostDiagnostics(projectId);
     const runningTaskEntry = full.tasks.find((task) =>
       task.runs.some((run) => run.status === "running"),
     );
@@ -446,10 +600,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   function resetRuntime(clearBusyFlags = false): void {
-    simulator?.stop();
-    simulator = null;
-    simulatorRunId = "";
-    simulatorProjectId = "";
+    simulator.stop();
     stopHostPolling();
     clearQuickCheckTimers();
     analysisTimers.forEach((timer) => clearTimeout(timer));
@@ -466,12 +617,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function createProject(input: CreateProjectInput): Promise<Project> {
     return withBusy("create-project", async () => {
       const project = await repo().createProject(input);
-      projects.value.push(project);
+      replaceProject(project);
       currentProjectId.value = project.id;
       quickCheck.value = null;
       clearQuickCheckTimers();
       await repo().setLastProjectId(project.id);
-      scheduleAnalysis(project, ANALYSIS_DELAY_MS);
+      if (repo().mode === "host") {
+        void completeAnalysis(project.id);
+      } else {
+        scheduleAnalysis(project, ANALYSIS_DELAY_MS);
+      }
       return project;
     });
   }
@@ -493,8 +648,8 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     ignored: boolean,
   ): Promise<void> {
     await withBusy(`map:${projectId}`, async () => {
-      await repo().setFeatureIgnored(projectId, featureName, ignored);
-      await refreshProject(projectId);
+      const updated = await repo().setFeatureIgnored(projectId, featureName, ignored);
+      replaceProject(updated);
     });
   }
 
@@ -522,10 +677,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function createTask(projectId: string, input: CreateTaskInput): Promise<Task> {
     return withBusy(`create-task:${projectId}`, async () => {
       const task = await repo().createTask(projectId, input);
-      const project = await refreshProject(projectId);
+      const project = await syncOrRefreshProject(projectId);
       if (project && project.activeTaskId !== task.id) {
-        await repo().setActiveTask(projectId, task.id);
-        await refreshProject(projectId);
+        const updated = await repo().setActiveTask(projectId, task.id);
+        replaceProject(updated);
       }
       return task;
     });
@@ -534,7 +689,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function updateTask(projectId: string, taskId: string, patch: TaskPatch): Promise<Task> {
     return withBusy(`task:${taskId}`, async () => {
       const task = await repo().updateTask(projectId, taskId, patch);
-      await refreshProject(projectId);
+      updateTaskInProject(projectId, task);
       return task;
     });
   }
@@ -542,14 +697,14 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function deleteTask(projectId: string, taskId: string): Promise<void> {
     return withBusy(`task-delete:${taskId}`, async () => {
       await repo().deleteTask(projectId, taskId);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
     });
   }
 
   async function selectScope(projectId: string, taskId: string, itemIds: string[]): Promise<Task> {
     return withBusy(`scope:${taskId}`, async () => {
       const task = await repo().selectScope(projectId, taskId, itemIds);
-      await refreshProject(projectId);
+      updateTaskInProject(projectId, task);
       return task;
     });
   }
@@ -557,7 +712,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function reviseScope(projectId: string, taskId: string): Promise<Task> {
     return withBusy(`revise:${taskId}`, async () => {
       const task = await repo().reviseScope(projectId, taskId);
-      await refreshProject(projectId);
+      updateTaskInProject(projectId, task);
       return task;
     });
   }
@@ -565,7 +720,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function cancelRevision(projectId: string, taskId: string): Promise<Task> {
     return withBusy(`revise:${taskId}`, async () => {
       const task = await repo().cancelRevision(projectId, taskId);
-      await refreshProject(projectId);
+      updateTaskInProject(projectId, task);
       return task;
     });
   }
@@ -577,7 +732,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Plan> {
     return withBusy(`rerun:${taskId}`, async () => {
       const plan = await repo().prepareRerun(projectId, taskId, itemIds);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return plan;
     });
   }
@@ -594,7 +749,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     return withBusy(`plan:${taskId}`, async () => {
       try {
         const plan = await repo().generatePlan(projectId, taskId);
-        await refreshProject(projectId);
+        await syncOrRefreshProject(projectId);
         delete planFailures.value[taskId];
         return plan;
       } catch (cause) {
@@ -614,7 +769,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<void> {
     return withBusy(`repair:${runId}`, async () => {
       await repo().repairRunDependencies(projectId, runId, packages, OPERATOR);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
     });
   }
 
@@ -656,166 +811,182 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
-  async function startSimulation(projectId: string, task: Task, run: Run): Promise<void> {
-    if (simulator && simulatorRunId === run.id) {
-      return;
-    }
-    if (simulator) {
-      const previousRun = simulatorRunId;
-      const previousProject = simulatorProjectId;
-      simulator.stop();
-      // 被替换的旧运行必须落为中断，不能永久停在 running。
-      if (previousRun && previousProject) {
-        void repo()
-          .markRunInterrupted(previousProject, previousRun)
-          .catch((cause) => toastError(cause));
+  async function startTargetedRerun(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    itemIds: string[],
+  ): Promise<Run> {
+    return withBusy(`start:${taskId}`, async () => {
+      const targetRepo = repo();
+      if (!targetRepo.startTargetedRerun) {
+        throw new RepositoryError("CONFLICT", "当前仓库不支持零模型定向复测。");
       }
-    }
-    const instance = new RunSimulator();
-    simulator = instance;
-    simulatorRunId = run.id;
-    simulatorProjectId = projectId;
-    const taskRunCount = task.runs.length;
-    const project = projects.value.find((entry) => entry.id === projectId);
-    if (!project) {
-      return;
-    }
-    const manualCases = run.cases.filter(
-      (testCase) => testCase.layer === "L3" && testCase.result === "not_run",
-    );
-    await Promise.all(
-      manualCases.map((testCase) =>
-        repo().recordRunCase(projectId, run.id, testCase.id, {
-          result: "manual_pending",
-          actual: "等待人工记录",
-          message: "运行结束后由人记录步骤结果。",
-          errorType: "",
-          stackKey: "",
-          evidence: [],
-        }),
-      ),
-    );
-    if (manualCases.length > 0) {
+      const run = await targetRepo.startTargetedRerun(
+        projectId,
+        taskId,
+        planId,
+        itemIds,
+        OPERATOR,
+      );
       await refreshProject(projectId);
-    }
-    const autoCases = run.cases.filter(
-      (testCase) => testCase.layer !== "L3" && testCase.result === "not_run",
-    );
-    if (autoCases.length === 0) {
-      await finishSimulation(projectId, run.id);
-      return;
-    }
-    instance.start(
-      autoCases.map((testCase) => () => {
-        const outcome = simulateOutcome(project, task, run, testCase, taskRunCount);
-        void repo()
-          .recordRunCase(projectId, run.id, testCase.id, outcome)
-          .then(() => refreshProject(projectId))
-          .catch((cause) => {
-            instance.stop();
-            if (simulator === instance) {
-              simulator = null;
-              simulatorRunId = "";
-              simulatorProjectId = "";
-            }
-            toastError(cause);
-          });
-      }),
-      () => {
-        void finishSimulation(projectId, run.id);
-      },
-    );
+      if (targetRepo.mode === "host") {
+        startHostPolling(projectId, taskId, run.id);
+      } else {
+        const task = projects.value
+          .find((entry) => entry.id === projectId)
+          ?.tasks.find((entry) => entry.id === taskId);
+        if (task) {
+          await startSimulation(projectId, task, run);
+        }
+      }
+      return run;
+    });
   }
 
-  async function finishSimulation(projectId: string, runId: string): Promise<void> {
-    try {
-      await repo().completeRun(projectId, runId);
-      await refreshProject(projectId);
-      simulator = null;
-      simulatorRunId = "";
-      simulatorProjectId = "";
-      const project = projects.value.find((entry) => entry.id === projectId);
-      const run = project
-        ? project.tasks.flatMap((task) => task.runs).find((entry) => entry.id === runId)
-        : null;
-      useUiStore().showToast(
-        run ? `运行结束：${run.verdict === "passed" ? "通过" : "已生成结果"}。` : "运行结束。",
-        run?.verdict === "passed" ? "success" : "info",
-      );
-    } catch (cause) {
-      toastError(cause);
-      simulator = null;
-      simulatorRunId = "";
+  async function detectProjectConfig(projectId: string): Promise<ProjectConfig | null> {
+    const fn = repo().detectProjectConfig;
+    if (!fn) {
+      return null;
     }
+    return withBusy(`detect-config:${projectId}`, async () => fn.call(repo(), projectId));
+  }
+
+  async function previewEvidence(
+    projectId: string,
+    runId: string,
+    ref: string,
+  ): Promise<EvidencePreview | null> {
+    const fn = repo().previewEvidence;
+    if (!fn) {
+      return null;
+    }
+    return fn.call(repo(), projectId, runId, ref);
+  }
+
+  async function fetchRunLogTail(projectId: string, runId: string): Promise<RunLogTailEntry[]> {
+    const fn = repo().fetchRunLogTail;
+    if (!fn) {
+      return [];
+    }
+    return fn.call(repo(), projectId, runId);
+  }
+
+  const simulator = createSimulationDriver({
+    repo,
+    getProject: (projectId) => projects.value.find((entry) => entry.id === projectId),
+    refreshProject,
+    onError: toastError,
+    onToast: (message, tone) => useUiStore().showToast(message, tone),
+  });
+
+  async function startSimulation(projectId: string, task: Task, run: Run): Promise<void> {
+    await simulator.start(projectId, task, run);
   }
 
   function stopHostPolling(): void {
+    pollToken += 1;
     if (hostPollTimer !== null) {
-      clearInterval(hostPollTimer);
+      clearTimeout(hostPollTimer);
       hostPollTimer = null;
     }
   }
 
   function startHostPolling(projectId: string, taskId: string, runId: string): void {
     stopHostPolling();
+    const myToken = pollToken;
     let postprocessTicks = 0;
-    hostPollTimer = setInterval(() => {
-      void (async () => {
-        try {
-          const run = await repo().getRun?.(projectId, runId);
-          if (!run) {
-            return;
-          }
-          const project = projects.value.find((entry) => entry.id === projectId);
-          const task = project?.tasks.find((entry) => entry.id === taskId);
-          if (!project || !task) {
-            return;
-          }
-          const index = task.runs.findIndex((entry) => entry.id === run.id);
-          if (index >= 0) {
-            task.runs[index] = run;
-          } else {
-            task.runs.push(run);
-          }
-          task.currentRunId = run.id;
-          task.stage = run.status === "running" ? "running" : "result";
-          const processing =
-            run.status !== "running" &&
-            (run.postprocess === "running" || run.postprocess === "pending");
-          if (processing) {
-            postprocessTicks += 1;
-            // 后处理独立轮询到 done/error；超时只提示“仍在生成”，不冒充运行结束。
-            if (postprocessTicks < 400) {
-              return;
-            }
-            stopHostPolling();
-            await refreshProject(projectId);
-            useUiStore().showToast(
-              "运行已结束，但报告后处理仍在进行；稍后刷新结果页查看。",
-              "info",
-            );
-            return;
-          }
-          if (run.status !== "running") {
-            stopHostPolling();
-            await refreshProject(projectId);
-            useUiStore().showToast(
-              `运行结束：${
-                run.verdict === "passed"
-                  ? "通过"
-                  : run.verdict === "failed"
-                    ? "失败"
-                    : "未完成"
-              }。`,
-              run.verdict === "passed" ? "success" : "info",
-            );
-          }
-        } catch (cause) {
-          stopHostPolling();
-          toastError(cause);
+    let consecutiveErrors = 0;
+
+    const pollInterval = (): number =>
+      typeof document !== "undefined" && document.visibilityState === "hidden" ? 5000 : 1500;
+
+    const scheduleNext = (ms?: number): void => {
+      if (myToken !== pollToken) {
+        return;
+      }
+      hostPollTimer = setTimeout(() => {
+        void pollOnce();
+      }, ms ?? pollInterval());
+    };
+
+    const pollOnce = async (): Promise<void> => {
+      if (myToken !== pollToken) {
+        return;
+      }
+      try {
+        // 运行态只查 run.status，避免每次轮询再附带派生 evidence.list CLI 进程。
+        const run = await repo().getRun?.(projectId, runId, false);
+        if (myToken !== pollToken) {
+          return;
         }
-      })();
-    }, 1500);
+        consecutiveErrors = 0;
+        if (!run) {
+          scheduleNext();
+          return;
+        }
+        const project = projects.value.find((entry) => entry.id === projectId);
+        const task = project?.tasks.find((entry) => entry.id === taskId);
+        if (!project || !task) {
+          return;
+        }
+        const index = task.runs.findIndex((entry) => entry.id === run.id);
+        if (index >= 0) {
+          task.runs[index] = run;
+        } else {
+          task.runs.push(run);
+        }
+        task.currentRunId = run.id;
+        task.stage = run.status === "running" ? "running" : "result";
+        const processing =
+          run.status !== "running" &&
+          (run.postprocess === "running" || run.postprocess === "pending");
+        if (processing) {
+          postprocessTicks += 1;
+          // 后处理独立轮询到 done/error；超时只提示“仍在生成”，不冒充运行结束。
+          if (postprocessTicks < 400) {
+            scheduleNext();
+            return;
+          }
+          stopHostPolling();
+          await refreshProject(projectId);
+          useUiStore().showToast(
+            "运行已结束，但报告后处理仍在进行；稍后刷新结果页查看。",
+            "info",
+          );
+          return;
+        }
+        if (run.status !== "running") {
+          stopHostPolling();
+          await refreshProject(projectId);
+          useUiStore().showToast(
+            `运行结束：${
+              run.verdict === "passed"
+                ? "通过"
+                : run.verdict === "failed"
+                  ? "失败"
+                  : "未完成"
+            }。`,
+            run.verdict === "passed" ? "success" : "info",
+          );
+          return;
+        }
+        scheduleNext();
+      } catch (cause) {
+        if (myToken !== pollToken) {
+          return;
+        }
+        consecutiveErrors += 1;
+        if (consecutiveErrors < 5) {
+          scheduleNext(Math.min(5000, 1500 * consecutiveErrors));
+          return;
+        }
+        stopHostPolling();
+        toastError(cause);
+      }
+    };
+
+    scheduleNext(1500);
   }
 
   function resumeRun(project: Project, task: Task, run: Run): void {
@@ -827,36 +998,36 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function stopRun(projectId: string, runId: string): Promise<Run> {
-    simulator?.stop();
-    simulator = null;
-    simulatorRunId = "";
-    if (repo().mode === "host") {
-      stopHostPolling();
-      await repo().cancelRun(projectId, runId);
-      const deadline = Date.now() + 60_000;
-      let run = await repo().getRun?.(projectId, runId);
-      while (run && run.status === "running" && Date.now() < deadline) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 700);
-        });
-        run = await repo().getRun?.(projectId, runId);
+    return withBusy(`stop:${runId}`, async () => {
+      simulator.stop();
+      if (repo().mode === "host") {
+        stopHostPolling();
+        await repo().cancelRun(projectId, runId);
+        const deadline = Date.now() + 60_000;
+        let run = await repo().getRun?.(projectId, runId, false);
+        while (run && run.status === "running" && Date.now() < deadline) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 700);
+          });
+          run = await repo().getRun?.(projectId, runId, false);
+        }
+        await refreshProject(projectId);
+        const refreshed = projects.value
+          .find((entry) => entry.id === projectId)
+          ?.tasks.flatMap((task) => task.runs)
+          .find((entry) => entry.id === runId);
+        if (refreshed) {
+          return refreshed;
+        }
+        if (run) {
+          return run;
+        }
+        throw new RepositoryError("NOT_FOUND", "运行记录不存在。");
       }
+      const run = await repo().cancelRun(projectId, runId);
       await refreshProject(projectId);
-      const refreshed = projects.value
-        .find((entry) => entry.id === projectId)
-        ?.tasks.flatMap((task) => task.runs)
-        .find((entry) => entry.id === runId);
-      if (refreshed) {
-        return refreshed;
-      }
-      if (run) {
-        return run;
-      }
-      throw new RepositoryError("NOT_FOUND", "运行记录不存在。");
-    }
-    const run = await repo().cancelRun(projectId, runId);
-    await refreshProject(projectId);
-    return run;
+      return run;
+    });
   }
 
   async function recordManual(
@@ -899,7 +1070,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function createIssue(projectId: string, input: IssueCreateInput): Promise<Issue> {
     return withBusy("issue-create", async () => {
       const issue = await repo().createIssue(projectId, input);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return issue;
     });
   }
@@ -911,7 +1082,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Issue> {
     return withBusy(`issue:${issueId}`, async () => {
       const issue = await repo().updateIssue(projectId, issueId, patch);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return issue;
     });
   }
@@ -924,7 +1095,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Issue> {
     return withBusy(`issue-close:${issueId}`, async () => {
       const issue = await repo().closeIssue(projectId, issueId, runId, reason);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return issue;
     });
   }
@@ -932,7 +1103,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function regenerateReport(projectId: string, runId: string): Promise<Report> {
     return withBusy(`report:${runId}`, async () => {
       const report = await repo().regenerateReport(projectId, runId);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return report;
     });
   }
@@ -945,7 +1116,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Report> {
     return withBusy(`opinion:${reportId}`, async () => {
       const report = await repo().saveOpinion(projectId, reportId, by, text);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return report;
     });
   }
@@ -982,7 +1153,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Task> {
     return withBusy(`delivery:${taskId}`, async () => {
       const task = await repo().saveDelivery(projectId, taskId, input);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return task;
     });
   }
@@ -1000,7 +1171,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<Task> {
     return withBusy(`template:${taskId}`, async () => {
       const task = await repo().applyTemplate(projectId, taskId, templateId);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
       return task;
     });
   }
@@ -1014,16 +1185,107 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function bindRule(projectId: string, ruleId: string): Promise<void> {
     await withBusy(`rule-bind:${projectId}`, async () => {
-      await repo().bindRule(projectId, ruleId);
-      await refreshProject(projectId);
+      const updated = await repo().bindRule(projectId, ruleId);
+      replaceProject(updated);
     });
   }
 
   async function saveConfig(projectId: string, config: ProjectConfig): Promise<void> {
     await withBusy(`config:${projectId}`, async () => {
-      await repo().saveConfig(projectId, config);
-      await refreshProject(projectId);
+      const updated = await repo().saveConfig(projectId, config);
+      replaceProject(updated);
     });
+  }
+
+  async function addConvention(projectId: string, input: ConventionInput): Promise<ProjectConvention[]> {
+    return withBusy(`convention:${projectId}`, async () => {
+      const fn = repo().addConvention;
+      if (!fn) {
+        throw new RepositoryError("CONFLICT", "当前仓库不支持配置错题本。");
+      }
+      const list = await fn.call(repo(), projectId, input);
+      const target = projects.value.find((entry) => entry.id === projectId);
+      if (target) {
+        replaceProject({
+          ...target,
+          config: { ...target.config, conventions: list },
+        });
+      }
+      useUiStore().showToast("已加入项目正常约定（错题本），后续将自动豁免同类误报。", "success");
+      return list;
+    });
+  }
+
+  async function removeConvention(projectId: string, conventionId: string): Promise<ProjectConvention[]> {
+    return withBusy(`convention:${projectId}`, async () => {
+      const fn = repo().removeConvention;
+      if (!fn) {
+        throw new RepositoryError("CONFLICT", "当前仓库不支持删除错题本。");
+      }
+      const list = await fn.call(repo(), projectId, conventionId);
+      const target = projects.value.find((entry) => entry.id === projectId);
+      if (target) {
+        replaceProject({
+          ...target,
+          config: { ...target.config, conventions: list },
+        });
+      }
+      useUiStore().showToast("已从项目错题本移除该约定。", "info");
+      return list;
+    });
+  }
+
+  async function openSourceLocation(file: string, line = 1, column = 1): Promise<boolean> {
+    if (!file.trim()) {
+      return false;
+    }
+    try {
+      return await openHostSource(file, line, column);
+    } catch (cause) {
+      toastError(cause);
+      return false;
+    }
+  }
+
+  async function syncHostDiagnostics(projectId = currentProjectId.value ?? ""): Promise<number> {
+    if (repo().mode !== "host") {
+      return 0;
+    }
+    const target = projects.value.find((entry) => entry.id === projectId);
+    if (!target) {
+      await clearHostDiagnostics();
+      return 0;
+    }
+    const items: HostDiagnosticInput[] = [];
+    for (const issue of target.issues) {
+      if (issue.status === "closed" || !issue.file) {
+        continue;
+      }
+      items.push({
+        file: issue.file,
+        line: issue.line ?? 1,
+        message: `[${issue.severity}${issue.confidence === "confirmed" ? " 铁证缺陷" : ""}] ${issue.title}：${issue.actual || issue.expected}`,
+        severity: issue.confidence === "confirmed" || issue.severity === "P0" ? "error" : "warning",
+        code: issue.id,
+      });
+      if (items.length >= 20) break;
+    }
+    for (const conflict of target.codeGraph?.conflicts ?? []) {
+      if (items.length >= 30) break;
+      if (!conflict.file) continue;
+      items.push({
+        file: conflict.file,
+        line: 1,
+        message: `[代码图跨层冲突] ${conflict.detail}`,
+        severity: conflict.severity === "error" ? "error" : "warning",
+        code: conflict.kind,
+      });
+    }
+    if (items.length === 0) {
+      await clearHostDiagnostics();
+      return 0;
+    }
+    return publishHostDiagnostics(items);
   }
 
   async function saveGithubSnapshot(
@@ -1031,15 +1293,15 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     snapshot: Parameters<ProjectRepository["saveGithubSnapshot"]>[1],
   ): Promise<void> {
     await withBusy(`github:${projectId}`, async () => {
-      await repo().saveGithubSnapshot(projectId, snapshot);
-      await refreshProject(projectId);
+      const updated = await repo().saveGithubSnapshot(projectId, snapshot);
+      replaceProject(updated);
     });
   }
 
   async function addModule(projectId: string, input: ModuleInput): Promise<void> {
     await withBusy(`module:${projectId}`, async () => {
       await repo().addModule(projectId, input);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
     });
   }
 
@@ -1050,7 +1312,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   ): Promise<void> {
     await withBusy(`module:${moduleId}`, async () => {
       await repo().updateModule(projectId, moduleId, patch);
-      await refreshProject(projectId);
+      await syncOrRefreshProject(projectId);
     });
   }
 
@@ -1158,55 +1420,69 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function startQuickCheck(projectId: string): Promise<QuickCheck> {
-    const project = projects.value.find((entry) => entry.id === projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    if (project.tasks.some((task) => task.runs.some((run) => run.status === "running"))) {
-      throw new RepositoryError("RUN_ACTIVE", "有任务正在运行，完成或停止后再做快速检查。");
-    }
-    quickCheckError.value = "";
-    const hostRepo = repo();
-    if (hostRepo.mode === "host" && hostRepo.runQuickCheck) {
-      quickCheck.value = {
-        ...buildQuickCheckRun(project),
-        // 宿主快速检查是真实 CLI 检查，不能标成本地模拟。
-        simulated: false,
-        status: "running",
-      };
-      try {
-        const completed = await hostRepo.runQuickCheck(projectId);
-        quickCheck.value = completed;
-        await refreshProject(projectId);
-        return completed;
-      } catch (cause) {
-        quickCheck.value = null;
-        quickCheckError.value = errorMessage(cause);
-        toastError(cause);
-        throw cause;
+    return withBusy(`quick-check:${projectId}`, async () => {
+      const project = projects.value.find((entry) => entry.id === projectId);
+      if (!project) {
+        throw new RepositoryError("NOT_FOUND", "项目不存在。");
       }
-    }
-    const quick = buildQuickCheckRun(project);
-    quickCheck.value = quick;
-    clearQuickCheckTimers();
-    const timer = setTimeout(() => {
-      quickCheckTimers.delete(projectId);
-      if (currentProjectId.value !== projectId) {
-        return;
+      if (project.tasks.some((task) => task.runs.some((run) => run.status === "running"))) {
+        throw new RepositoryError("RUN_ACTIVE", "有任务正在运行，完成或停止后再做快速检查。");
       }
-      const completed = completeQuickCheck(project, quick);
-      quickCheck.value = completed;
-      void repo()
-        .recordQuickCheck(projectId, completed)
-        .then((updated) => {
+      quickCheckError.value = "";
+      const hostRepo = repo();
+      if (hostRepo.mode === "host" && hostRepo.runQuickCheck) {
+        quickCheck.value = {
+          ...buildQuickCheckRun(project),
+          // 宿主快速检查是真实 CLI 检查，不能标成本地模拟。
+          simulated: false,
+          status: "running",
+        };
+        try {
+          const completed = await hostRepo.runQuickCheck(projectId);
           if (currentProjectId.value === projectId) {
-            replaceProject(updated);
+            quickCheck.value = completed;
           }
-        })
-        .catch((cause) => toastError(cause));
-    }, 900);
-    quickCheckTimers.set(projectId, timer);
-    return quick;
+          const latest = projects.value.find((entry) => entry.id === projectId);
+          if (latest) {
+            replaceProject({
+              ...latest,
+              quickChecks: [
+                completed,
+                ...latest.quickChecks.filter((entry) => entry.id !== completed.id),
+              ].slice(0, 20),
+            });
+          }
+          return completed;
+        } catch (cause) {
+          if (currentProjectId.value === projectId) {
+            quickCheck.value = null;
+            quickCheckError.value = errorMessage(cause);
+          }
+          throw cause;
+        }
+      }
+      const quick = buildQuickCheckRun(project);
+      quickCheck.value = quick;
+      clearQuickCheckTimers();
+      const timer = setTimeout(() => {
+        quickCheckTimers.delete(projectId);
+        if (currentProjectId.value !== projectId) {
+          return;
+        }
+        const completed = completeQuickCheck(project, quick);
+        quickCheck.value = completed;
+        void repo()
+          .recordQuickCheck(projectId, completed)
+          .then((updated) => {
+            if (currentProjectId.value === projectId) {
+              replaceProject(updated);
+            }
+          })
+          .catch((cause) => toastError(cause));
+      }, 900);
+      quickCheckTimers.set(projectId, timer);
+      return quick;
+    });
   }
 
   async function loadHostEnvironment(): Promise<EnvironmentCheck[]> {
@@ -1231,6 +1507,64 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function refreshEnvironment(): Promise<void> {
     environment.value =
       repo().mode === "host" ? await loadHostEnvironment() : buildEnvironmentChecks();
+  }
+
+  /** 调用宿主 doctor({ repair: true }) 一键修复缺失环境；本地模式仅刷新提示。 */
+  async function repairEnvironment(): Promise<void> {
+    if (repo().mode !== "host") {
+      await refreshEnvironment();
+      useUiStore().showToast("本地演示模式不支持自动修复环境。", "info");
+      return;
+    }
+    return withBusy("doctor-repair", async () => {
+      const facts = await callHost<DoctorFacts>("doctor", { repair: true });
+      environment.value = mapDoctorFacts(facts);
+      const stillMissing = environment.value.filter((item) => !item.ok).length;
+      if (stillMissing === 0) {
+        useUiStore().showToast("运行环境已检查并修复就绪。", "success");
+      } else {
+        useUiStore().showToast(`已尝试修复，仍有 ${stillMissing} 项需确认或手工配置。`, "info");
+      }
+    });
+  }
+
+  /** 对指定运行触发 AI 失败根因分析（宿主调用 analysis.run 并刷新项目数据）。 */
+  async function runAnalysis(projectId: string, runId: string): Promise<boolean> {
+    if (repo().mode !== "host") {
+      useUiStore().showToast("本地演示模式已在运行结束时生成基线分析。", "info");
+      return true;
+    }
+    return withBusy(`analysis-run:${runId}`, async () => {
+      await callHost("analysis.run", { project_id: projectId, run_id: runId });
+      await refreshProject(projectId);
+      useUiStore().showToast("AI 根因诊断已完成，结果已更新。", "success");
+      return true;
+    });
+  }
+
+  /** 获取可用的参考核查模板列表（宿主读取 template.list，本地模式使用内置清单）。 */
+  async function listTemplates(): Promise<
+    Array<{ id: string; name: string; version: string; itemCount: number }>
+  > {
+    if (repo().mode !== "host") {
+      return listBuiltinTemplates();
+    }
+    try {
+      const payload = await callHost<{ templates: TemplateSummary[] }>("template.list", {});
+      const list = Array.isArray(payload?.templates) ? payload.templates : [];
+      if (list.length === 0) {
+        return listBuiltinTemplates();
+      }
+      return list.map((entry) => ({
+        id: entry.template_id,
+        name: entry.name,
+        version: entry.version,
+        itemCount: entry.item_count,
+      }));
+    } catch (cause) {
+      toastError(cause);
+      return listBuiltinTemplates();
+    }
   }
 
   async function backup(): Promise<void> {
@@ -1336,6 +1670,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     generatePlan,
     repairRunDependencies,
     confirmAndStart,
+    startTargetedRerun,
+    detectProjectConfig,
+    previewEvidence,
+    fetchRunLogTail,
     stopRun,
     recordManual,
     addEvidence,
@@ -1348,9 +1686,18 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     saveDelivery,
     draftDelivery,
     applyTemplate,
+    listTemplates,
+    runAnalysis,
     saveRule,
     bindRule,
     saveConfig,
+    addConvention,
+    removeConvention,
+    openSourceLocation,
+    syncHostDiagnostics,
+    dirtyFiles,
+    hostCapabilities,
+    hostGit,
     saveGithubSnapshot,
     addModule,
     updateModule,
@@ -1363,6 +1710,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     openHostPath,
     startQuickCheck,
     refreshEnvironment,
+    repairEnvironment,
     backup,
     restoreBackup,
     clearData,

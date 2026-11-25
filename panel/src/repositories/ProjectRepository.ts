@@ -1,4 +1,5 @@
 import type { ProjectAnalysis } from "@/domain/analysis";
+import type { EvidencePreview, RunLogTailEntry } from "@/host/dto";
 import type {
   AcceptanceItem,
   BackupResult,
@@ -18,6 +19,7 @@ import type {
   Plan,
   Project,
   ProjectConfig,
+  ProjectConvention,
   QuickCheck,
   Report,
   RuleVersion,
@@ -40,6 +42,14 @@ export interface CreateTaskInput {
   writeProjectGoal?: boolean;
   /** 任务来源：按目标测试或按范围测试。 */
   origin?: "goal" | "range";
+  /** 粘贴或摘要生成的需求描述，用于后端 AI 生成交付与计划。 */
+  requirement?: string;
+  /** 业务建测入口方式。 */
+  intent?: "changes" | "flow" | "requirement";
+  /** 选中的业务功能名称。 */
+  featureNames?: string[];
+  /** 按流程测试自动串联的端到端步骤。 */
+  flowSteps?: string[];
 }
 
 export interface TaskPatch {
@@ -140,6 +150,13 @@ export interface LinkAssertInput {
   operator: string;
 }
 
+export interface ConventionInput {
+  pattern: string;
+  reason: string;
+  matchType?: "contains" | "regex";
+  scope?: string;
+}
+
 export interface RepositoryCapabilities {
   hostGithub: boolean;
   evidenceFiles: boolean;
@@ -159,6 +176,8 @@ export interface ProjectRepository {
   workspacePath?(): string;
   listProjects(): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | null>;
+  /** 仅宿主页内存同步：写动作刚通过 getProject 更新缓存时直接复用，避免二次 snapshot。 */
+  cachedProject?(projectId: string): Project | null;
   createProject(input: CreateProjectInput): Promise<Project>;
   /** 宿主支持时弹出原生目录选择器；浏览器模式返回 null。 */
   pickDirectory?(): Promise<string | null>;
@@ -195,6 +214,20 @@ export interface ProjectRepository {
     input: ConfirmPlanInput,
   ): Promise<Confirmation>;
   startRun(projectId: string, taskId: string, planId: string, confirmedBy?: string): Promise<Run>;
+  startTargetedRerun?(
+    projectId: string,
+    taskId: string,
+    planId: string,
+    itemIds: string[],
+    confirmedBy?: string,
+  ): Promise<Run>;
+  detectProjectConfig?(projectId: string): Promise<ProjectConfig>;
+  previewEvidence?(
+    projectId: string,
+    runId: string,
+    ref: string,
+  ): Promise<EvidencePreview | null>;
+  fetchRunLogTail?(projectId: string, runId: string): Promise<RunLogTailEntry[]>;
   recordRunCase(
     projectId: string,
     runId: string,
@@ -228,6 +261,8 @@ export interface ProjectRepository {
   saveRule(projectId: string, input: RuleInput): Promise<RuleVersion>;
   bindRule(projectId: string, ruleId: string): Promise<Project>;
   saveConfig(projectId: string, config: ProjectConfig): Promise<Project>;
+  addConvention?(projectId: string, input: ConventionInput): Promise<ProjectConvention[]>;
+  removeConvention?(projectId: string, conventionId: string): Promise<ProjectConvention[]>;
   saveGithubSnapshot(projectId: string, snapshot: GithubSnapshot | null): Promise<Project>;
   addModule(projectId: string, input: ModuleInput): Promise<Module>;
   updateModule(projectId: string, moduleId: string, patch: Partial<ModuleInput>): Promise<Module>;
@@ -237,7 +272,7 @@ export interface ProjectRepository {
 
   recordQuickCheck(projectId: string, quick: QuickCheck): Promise<Project>;
 
-  getRun?(projectId: string, runId: string): Promise<Run | null>;
+  getRun?(projectId: string, runId: string, includeEvidence?: boolean): Promise<Run | null>;
   runQuickCheck?(projectId: string): Promise<QuickCheck>;
   readGithub?(projectId: string, repo: string, ref: string): Promise<GithubSnapshot>;
   listReports?(projectId: string, runId: string): Promise<Report[]>;

@@ -47,10 +47,16 @@ export function worstResult(results: CaseResult[]): CaseResult {
 }
 
 export function projectCheckBlocks(run: Run, dependency: "build" | "service"): boolean {
-  const keys = dependency === "build" ? ["build", "l1-build"] : ["service", "entry", "smoke"];
-  return run.l1.some(
-    (check) => keys.includes(check.key) && ["failed", "blocked", "error"].includes(check.result),
-  );
+  return run.l1.some((check) => {
+    const isBuild = check.key === "build" || check.key === "l1-build";
+    const isEntryOrService =
+      check.key === "service" ||
+      check.key === "entry" ||
+      check.key === "smoke" ||
+      check.key.startsWith("entry_");
+    const relevant = dependency === "build" ? isBuild || isEntryOrService : isEntryOrService;
+    return relevant && ["failed", "blocked", "error"].includes(check.result);
+  });
 }
 
 export function effectiveCaseResult(runCase: RunCase, run: Run): CaseResult {
@@ -89,6 +95,43 @@ export function displayItemOutcome(run: Run, itemId: string): CaseResult {
     }
   }
   return itemOutcome(run, itemId);
+}
+
+export type ItemDiffKind = "regressed" | "fixed" | "persisted";
+
+/**
+ * 对比当前运行与上一次运行同一验收项的结果变化，用于结果页差异角标展示。
+ */
+export function itemDiffTag(
+  previousRun: Run | null | undefined,
+  currentRun: Run,
+  itemId: string,
+): ItemDiffKind | null {
+  if (!previousRun || previousRun.id === currentRun.id) {
+    return null;
+  }
+  const hasPrev = previousRun.cases.some((c) =>
+    (c.caseItemIds ?? [c.itemId]).includes(itemId),
+  );
+  const hasCurr = currentRun.cases.some((c) =>
+    (c.caseItemIds ?? [c.itemId]).includes(itemId),
+  );
+  if (!hasPrev || !hasCurr) {
+    return null;
+  }
+  const prev = displayItemOutcome(previousRun, itemId);
+  const curr = displayItemOutcome(currentRun, itemId);
+  const bad = new Set<CaseResult>(["failed", "error", "blocked"]);
+  if (prev === "passed" && bad.has(curr)) {
+    return "regressed";
+  }
+  if (bad.has(prev) && curr === "passed") {
+    return "fixed";
+  }
+  if ((prev === "failed" || prev === "error") && (curr === "failed" || curr === "error")) {
+    return "persisted";
+  }
+  return null;
 }
 
 export function compareItemNo(first: string, second: string): number {
@@ -183,7 +226,7 @@ export function sortedRunItems(run: Run): Run["items"] {
     if (firstRank !== secondRank) {
       return secondRank - firstRank;
     }
-    return first.no.localeCompare(second.no);
+    return compareItemNo(first.no, second.no);
   });
 }
 

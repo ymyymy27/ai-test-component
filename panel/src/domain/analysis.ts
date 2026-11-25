@@ -284,6 +284,21 @@ export const BUILTIN_TEMPLATES: TemplateDefinition[] = [
   },
 ];
 
+/** 导出本地演示模式内置核查模板列表，与宿主 template.list 结构对齐。 */
+export function listBuiltinTemplates(): Array<{
+  id: string;
+  name: string;
+  version: string;
+  itemCount: number;
+}> {
+  return BUILTIN_TEMPLATES.map((template) => ({
+    id: template.id,
+    name: template.name,
+    version: template.version,
+    itemCount: template.items.length,
+  }));
+}
+
 function hasPageSignal(project: Project): boolean {
   const parts: string[] = [project.goal, project.name];
   (project.map?.features ?? []).forEach((feature) => {

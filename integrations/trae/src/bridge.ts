@@ -32,17 +32,30 @@ export const DEFAULT_TIMEOUT_MS = 120_000;
 
 /**
  * 已知凭据变量（名字像密钥且值足够长）在落盘前替换。
- * 在 JSON 序列化之前逐个替换字符串值，避免把引号/反斜杠拼进 JSON 结构。
+ * 缓存匹配的敏感变量名列表并在密钥数或环境键数变化时自动刷新，兼顾性能与测试动态注入准确性。
  */
+const SECRET_KEY_RE = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL)/i;
+let cachedEnvKeyCount = -1;
+let cachedSecretKeys: string[] = [];
+
+function currentEnvSecrets(): string[] {
+  const keys = Object.keys(process.env);
+  if (keys.length !== cachedEnvKeyCount) {
+    cachedSecretKeys = keys.filter((name) => SECRET_KEY_RE.test(name));
+    cachedEnvKeyCount = keys.length;
+  }
+  const values: string[] = [];
+  for (const name of cachedSecretKeys) {
+    const secret = process.env[name];
+    if (typeof secret === "string" && secret.length >= 8) {
+      values.push(secret);
+    }
+  }
+  return values;
+}
+
 function redactSecrets(value: unknown): unknown {
-  const secrets = Object.entries(process.env)
-    .filter(
-      ([name, secret]) =>
-        typeof secret === "string" &&
-        secret.length >= 8 &&
-        /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL)/i.test(name),
-    )
-    .map(([, secret]) => secret as string);
+  const secrets = currentEnvSecrets();
   if (secrets.length === 0) {
     return value;
   }
@@ -99,6 +112,8 @@ export interface CallOptions {
   readonly timeoutMs?: number;
   /** 面板取消或超时后终止子进程；已产生的副作用由 CLI 记录，不在这里回滚。 */
   readonly signal?: AbortSignal;
+  /** 从 CLI stderr 实时解析 `[aitest-progress]` 行触发的进度回调。 */
+  readonly onProgress?: (event: Record<string, unknown>) => void;
 }
 
 export interface BridgeError {
@@ -181,12 +196,36 @@ function parseEnvelope(raw: string): Record<string, unknown> | null {
   return found;
 }
 
+const PROGRESS_PREFIX = "[aitest-progress] ";
+
+function parseProgressLine(
+  line: string,
+  onProgress?: (event: Record<string, unknown>) => void,
+): void {
+  if (!onProgress) {
+    return;
+  }
+  const trimmed = line.trim();
+  if (!trimmed.startsWith(PROGRESS_PREFIX)) {
+    return;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed.slice(PROGRESS_PREFIX.length));
+    if (isRecord(parsed)) {
+      onProgress(parsed);
+    }
+  } catch {
+    // 忽略非合法进度行，防止阻塞日志收集。
+  }
+}
+
 function runProcess(
   spawnFn: SpawnFn,
   command: string,
   args: string[],
   timeoutMs: number,
   signal?: AbortSignal,
+  onProgress?: (event: Record<string, unknown>) => void,
 ): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
     if (signal?.aborted) {
@@ -222,6 +261,7 @@ function runProcess(
 
     let stdout = "";
     let stderr = "";
+    let stderrLineBuf = "";
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let settled = false;
@@ -264,6 +304,14 @@ function runProcess(
           return;
         }
         stderr += chunk;
+        if (onProgress) {
+          stderrLineBuf += chunk;
+          const lines = stderrLineBuf.split(/\r?\n/);
+          stderrLineBuf = lines.pop() ?? "";
+          for (const line of lines) {
+            parseProgressLine(line, onProgress);
+          }
+        }
       }
     };
 
@@ -282,6 +330,10 @@ function runProcess(
       });
     });
     child.on("close", (code: number | null) => {
+      if (onProgress && stderrLineBuf) {
+        parseProgressLine(stderrLineBuf, onProgress);
+        stderrLineBuf = "";
+      }
       finish({ code, stdout, stderr, timedOut: false, oversized: false });
     });
   });
@@ -360,6 +412,7 @@ export class Bridge {
         args,
         timeoutMs,
         options.signal,
+        options.onProgress,
       );
       return this.interpret(result, requestId, timeoutMs);
     } catch (error) {

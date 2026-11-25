@@ -1,61 +1,118 @@
-/* 设计 token：冷灰绿工作台。颜色、间距、圆角只在 token 层定义。 */
+/* 设计 token：Swiss Precision Studio（浅色晨曦纸感 + 深色曜石工作台）。颜色、间距、圆角只在 token 层定义。 */
 :root {
   color-scheme: light;
 
-  --canvas: #f2f4f1;
-  --side: #e7ebe7;
-  --surface: #fcfdfb;
-  --surface-2: #f0f4f0;
-  --surface-3: #e6ebe6;
-  --surface-hover: #edf1ed;
+  --canvas: #ffffff;
+  --side: #f4f4f2;
+  --surface: #ffffff;
+  --surface-2: #f7f7f5;
+  --surface-3: #efefe9;
+  --surface-elevated: #ffffff;
+  --surface-hover: #f3f3f0;
+  --header-bg: rgba(255, 255, 255, 0.88);
+  --float-bg: rgba(255, 255, 255, 0.94);
+  --segment-bg: #f1f1ee;
 
-  --ink: #1b201c;
-  --ink-2: #4e574f;
-  --ink-3: #5b665e;
+  --ink: #111318;
+  --ink-2: #4b5563;
+  --ink-3: #525c6b;
 
-  --line: #d8ded8;
-  --line-strong: #7f8c81;
-  --backdrop: rgba(15, 23, 20, 0.42);
+  --line: #e4e4e7;
+  --line-subtle: #eeeeef;
+  --line-strong: #c8c8cf;
+  --backdrop: rgba(17, 19, 24, 0.36);
+  --mask-opaque: #000000;
 
-  --accent: #205e53;
-  --accent-hover: #184d43;
-  --accent-soft: #e3efeb;
+  /* 炭墨主动作按钮（高对比 18.7:1）与深松绿品牌强调 */
+  --primary-bg: #111318;
+  --primary-hover: #27272a;
+  --primary-ink: #ffffff;
+  --accent: #0e6655;
+  --accent-hover: #0a4d40;
+  --accent-soft: #eef5f2;
+  --accent-border: rgba(14, 102, 85, 0.28);
+  --accent-ring: rgba(14, 102, 85, 0.22);
   --accent-contrast: #ffffff;
+  --brand-bg: #111318;
+  --brand-ink: #ffffff;
+  --accent-grad: linear-gradient(180deg, #1b1e25 0%, #111318 100%);
+  --accent-grad-hover: linear-gradient(180deg, #27272a 0%, #18181b 100%);
+  --graph-grid: rgba(17, 19, 24, 0.05);
   --on-danger: #ffffff;
+  --danger-fill: #dc2626;
+  --danger-fill-hover: #b91c1c;
 
-  --pass: #2f684b;
-  --fail: #9b3b31;
-  --warn: #84601b;
-  --info: #245b8a;
-  --pass-bg: #e8f6ee;
-  --fail-bg: #fdecea;
-  --warn-bg: #fbf3e4;
-  --info-bg: #eaf2fb;
-  --neutral-bg: #eef1ee;
+  --pass: #15803d;
+  --fail: #b91c1c;
+  --warn: #b45309;
+  --info: #1d4ed8;
+  --pass-bg: #f0fdf4;
+  --fail-bg: #fef2f2;
+  --warn-bg: #fffbeb;
+  --info-bg: #eff6ff;
+  --neutral-bg: #f4f4f5;
+  --pass-border: rgba(21, 128, 61, 0.24);
+  --fail-border: rgba(185, 28, 28, 0.26);
+  --warn-border: rgba(180, 83, 9, 0.26);
+  --info-border: rgba(29, 78, 216, 0.24);
 
-  --focus: #205e53;
-  --shadow-1: 0 1px 2px rgba(27, 32, 28, 0.06);
-  --shadow-strip: 0 1px 2px rgba(27, 32, 28, 0.05), 0 6px 18px rgba(27, 32, 28, 0.05);
-  --shadow-pop: 0 18px 48px rgba(27, 32, 28, 0.18);
+  --arch-fe-bg: #f0fdff;
+  --arch-fe-border: #38bdf8;
+  --arch-fe-icon-bg: #e0f2fe;
+  --arch-fe-ink: #0e7490;
+  --arch-be-bg: #eef5f2;
+  --arch-be-border: #10b981;
+  --arch-be-icon-bg: #d1fae5;
+  --arch-be-ink: #0e6655;
+  --arch-st-bg: #f6f4fe;
+  --arch-st-border: #a78bfa;
+  --arch-st-icon-bg: #ede9fe;
+  --arch-st-ink: #6d28d9;
+  --arch-ext-bg: #f8fafc;
+  --arch-ext-border: #94a3b8;
+  --arch-ext-icon-bg: #e2e8f0;
+  --arch-ext-ink: #475569;
+
+  --scrollbar-thumb: rgba(100, 116, 139, 0.35);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.58);
+
+  --toast-bg: #111318;
+  --toast-ink: #f8fafc;
+  --toast-border: #27272a;
+  --toast-error-bg: #7f1d1d;
+  --toast-error-border: #b91c1c;
+  --toast-success-bg: #0e6655;
+  --toast-success-border: #15803d;
+
+  --focus: #0e6655;
+  --shadow-1: none;
+  --shadow-card: none;
+  --shadow-card-hover: 0 2px 8px rgba(17, 19, 24, 0.06);
+  --shadow-strip: none;
+  --shadow-btn-primary: none;
+  --shadow-pop: 0 18px 44px rgba(17, 19, 24, 0.14);
 
   --font-ui:
     "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB",
     sans-serif;
   --font-display:
     "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  --font-num: "Bahnschrift", "Cascadia Mono", "Consolas", monospace;
+  --font-num:
+    "Inter", "Segoe UI Variable Text", "Segoe UI", "Cascadia Mono", "Consolas", monospace;
   --font-mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
 
-  --text-10: 10px;
-  --text-11: 11px;
+  /* 基准字号阶梯（正文与标签全部保持 >=12px）；保留既有语义别名兼容。 */
+  --text-10: 12px;
+  --text-11: 12px;
   --text-12: 12px;
   --text-13: 13px;
   --text-14: 14px;
   --text-16: 16px;
-  --text-19: 19px;
-  --text-23: 23px;
-  --text-25: 25px;
-  --text-28: 28px;
+  --text-20: 20px;
+  --text-24: 24px;
+  --text-23: var(--text-20);
+  --text-25: var(--text-24);
+  --text-32: 32px;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -68,14 +125,14 @@
 
   --radius-row: 4px;
   --radius-control: 6px;
-  --radius-strip: 10px;
-  --radius-dialog: 8px;
+  --radius-strip: 8px;
+  --radius-dialog: 10px;
 
   --btn-h: 36px;
   --btn-h-sm: 30px;
   --control-h: 36px;
-  --sidebar-w: 248px;
-  --content-max: 820px;
+  --sidebar-w: 264px;
+  --content-max: 1180px;
   --header-h: 52px;
 
   --motion-fast: 120ms;
@@ -97,39 +154,93 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --canvas: #101512;
-  --side: #0b100d;
-  --surface: #171d19;
-  --surface-2: #1d251f;
-  --surface-3: #263029;
-  --surface-hover: #222b25;
+  --canvas: #0d0f12;
+  --side: #14171c;
+  --surface: #181b21;
+  --surface-2: #1f232b;
+  --surface-3: #272c36;
+  --surface-elevated: #22262f;
+  --surface-hover: #252a34;
+  --header-bg: rgba(13, 15, 18, 0.88);
+  --float-bg: rgba(24, 27, 33, 0.94);
+  --segment-bg: #1c2028;
 
-  --ink: #e7ece7;
-  --ink-2: #adb8ae;
-  --ink-3: #96a298;
+  --ink: #f3f4f6;
+  --ink-2: #cbd5e1;
+  --ink-3: #9ca3af;
 
-  --line: #2b342d;
-  --line-strong: #5f6f63;
-  --backdrop: rgba(0, 0, 0, 0.62);
+  --line: #272b33;
+  --line-subtle: #1f232a;
+  --line-strong: #3f4654;
+  --backdrop: rgba(0, 0, 0, 0.72);
+  --mask-opaque: #000000;
 
-  --accent: #8fd5c2;
-  --accent-hover: #a8e5d4;
-  --accent-soft: #17332c;
-  --accent-contrast: #06201b;
+  /* 深色曜石下瓷白主按钮（高对比 17:1）与薄荷青强调 */
+  --primary-bg: #f3f4f6;
+  --primary-hover: #ffffff;
+  --primary-ink: #111318;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: rgba(45, 212, 191, 0.14);
+  --accent-border: rgba(45, 212, 191, 0.34);
+  --accent-ring: rgba(45, 212, 191, 0.24);
+  --accent-contrast: #0d0f12;
+  --brand-bg: #f3f4f6;
+  --brand-ink: #111318;
+  --accent-grad: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
+  --accent-grad-hover: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+  --graph-grid: rgba(148, 163, 184, 0.14);
   --on-danger: #ffffff;
+  --danger-fill: #dc2626;
+  --danger-fill-hover: #ef4444;
 
-  --pass: #7cc79a;
-  --fail: #ee9182;
-  --warn: #d9ad61;
-  --info: #8abce6;
-  --pass-bg: #143025;
-  --fail-bg: #321d1d;
-  --warn-bg: #322716;
-  --info-bg: #162a3a;
-  --neutral-bg: #1c231e;
+  --pass: #4ade80;
+  --fail: #f87171;
+  --warn: #fbbf24;
+  --info: #38bdf8;
+  --pass-bg: rgba(34, 197, 94, 0.16);
+  --fail-bg: rgba(239, 68, 68, 0.18);
+  --warn-bg: rgba(245, 158, 11, 0.18);
+  --info-bg: rgba(56, 189, 248, 0.16);
+  --neutral-bg: #1e232c;
+  --pass-border: rgba(74, 222, 128, 0.32);
+  --fail-border: rgba(248, 113, 113, 0.34);
+  --warn-border: rgba(251, 191, 36, 0.34);
+  --info-border: rgba(56, 189, 248, 0.32);
 
-  --focus: #8fd5c2;
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-strip: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.28);
-  --shadow-pop: 0 22px 56px rgba(0, 0, 0, 0.55);
+  --arch-fe-bg: rgba(14, 165, 233, 0.12);
+  --arch-fe-border: #38bdf8;
+  --arch-fe-icon-bg: rgba(56, 189, 248, 0.22);
+  --arch-fe-ink: #7dd3fc;
+  --arch-be-bg: rgba(45, 212, 191, 0.12);
+  --arch-be-border: #2dd4bf;
+  --arch-be-icon-bg: rgba(45, 212, 191, 0.20);
+  --arch-be-ink: #5eead4;
+  --arch-st-bg: rgba(139, 92, 246, 0.14);
+  --arch-st-border: #a78bfa;
+  --arch-st-icon-bg: rgba(167, 139, 250, 0.22);
+  --arch-st-ink: #c4b5fd;
+  --arch-ext-bg: rgba(100, 116, 139, 0.16);
+  --arch-ext-border: #64748b;
+  --arch-ext-icon-bg: rgba(148, 163, 184, 0.20);
+  --arch-ext-ink: #cbd5e1;
+
+  --scrollbar-thumb: rgba(148, 163, 184, 0.28);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
+
+  --toast-bg: #1f232b;
+  --toast-ink: #f3f4f6;
+  --toast-border: #3f4654;
+  --toast-error-bg: #7f1d1d;
+  --toast-error-border: #b91c1c;
+  --toast-success-bg: #0f4c3a;
+  --toast-success-border: #15803d;
+
+  --focus: #2dd4bf;
+  --shadow-1: none;
+  --shadow-card: none;
+  --shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.36);
+  --shadow-strip: none;
+  --shadow-btn-primary: none;
+  --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.56);
 }

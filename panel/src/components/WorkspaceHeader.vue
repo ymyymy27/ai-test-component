@@ -14,11 +14,14 @@ defineProps<{
   missingCount: number | null;
   envOpen?: boolean;
   sidebarOpen: boolean;
+  theme: "light" | "dark";
 }>();
 
 const emit = defineEmits<{
   toggleSidebar: [];
   toggleEnv: [];
+  openCommandPalette: [];
+  toggleTheme: [];
 }>();
 
 const toggleButton = ref<HTMLButtonElement | null>(null);
@@ -76,7 +79,7 @@ defineExpose({ focusToggle, focusEnv, isEnvButtonTarget });
             v-if="taskRoute"
             class="breadcrumb-task"
             :to="taskRoute"
-              >{{ taskTitle }}</RouterLink
+            >{{ taskTitle }}</RouterLink
           >
           <span v-else class="breadcrumb-task">{{ taskTitle }}</span>
           <span class="breadcrumb-separator" aria-hidden="true">/</span>
@@ -89,6 +92,17 @@ defineExpose({ focusToggle, focusEnv, isEnvButtonTarget });
     </nav>
 
     <div class="workspace-actions">
+      <button
+        class="cmd-trigger-btn"
+        type="button"
+        aria-label="打开搜索或命令"
+        @click="emit('openCommandPalette')"
+      >
+        <Icon name="search" :size="14" />
+        <span>搜索或命令</span>
+        <kbd class="cmd-kbd">Ctrl K</kbd>
+      </button>
+
       <button
         ref="envButton"
         class="env-button"
@@ -108,19 +122,21 @@ defineExpose({ focusToggle, focusEnv, isEnvButtonTarget });
             missingCount === null
               ? "未检查"
               : missingCount > 0
-                ? `${missingCount} 项未接入`
-                : "环境正常"
+                ? `${missingCount} 项待配置`
+                : "环境就绪"
           }}
         </span>
       </button>
-      <RouterLink
-        v-if="projectId"
-        class="icon-btn"
-        :to="`/projects/${projectId}/settings`"
-        aria-label="打开设置"
+
+      <button
+        class="header-icon-btn"
+        type="button"
+        :aria-label="theme === 'dark' ? '切换浅色主题' : '切换深色主题'"
+        :title="theme === 'dark' ? '切换浅色主题' : '切换深色主题'"
+        @click="emit('toggleTheme')"
       >
-        <Icon name="settings" :size="16" />
-      </RouterLink>
+        <Icon :name="theme === 'dark' ? 'sun' : 'moon'" :size="15" />
+      </button>
     </div>
   </header>
 </template>

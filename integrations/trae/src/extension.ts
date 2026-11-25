@@ -5,14 +5,29 @@
  * - 扩展读取 `aitest.pythonPath` / `aitest.workspacePath`，经 `runtime.ts` 发现解释器；
  * - 所有业务数据由 `bridge.ts` 调 `python -m aitest.cli` 取回并原样转给面板。
  */
-import { appendFileSync, readFileSync, realpathSync, renameSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { tmpdir, homedir } from "node:os";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import * as vscode from "vscode";
 
 import { createBridge, type BridgeError, type BridgeResult } from "./bridge";
+import {
+  COMMAND_TIMEOUT_MS,
+  CONFIRMABLE_COMMANDS,
+  PANEL_COMMANDS,
+  callKey,
+  isRecord,
+  resolveOpenablePath,
+} from "./ext_commands";
+import { PANEL_TITLE, logExt, truncate } from "./ext_log";
+import {
+  createHostCapabilities,
+  type DiagnosticInput,
+  type HostApiLike,
+  type HostCapabilitiesController,
+  type HostGitSummary,
+} from "./host_capabilities";
 import {
   ensureRuntime,
   findPreparedPython,
@@ -22,135 +37,12 @@ import {
   type RuntimeCheck,
   type RuntimeStageResult,
 } from "./runtime";
+import { renderPanelHtml, trustWarningHtml } from "./webview_html";
 
 const VIEW_ID = "aitest.sidebar";
-const PANEL_TITLE = "AI 辅助测试";
-const EXT_LOG = join(tmpdir(), "aitest-extension.log");
-const EXT_LOG_MAX_BYTES = 1024 * 1024;
-const PANEL_ERROR_MAX_CHARS = 2000;
-/** 面板一次最多派生多少个 CLI 进程；轮询/快照/doctor 不再无限并行。 */
+/** 单次并发总上限（与扩展测试契约 4 个槽位一致），保证按 FIFO 派发。 */
 const MAX_CONCURRENT_CALLS = 4;
-let logWrites = 0;
-
-function truncate(value: unknown, limit = PANEL_ERROR_MAX_CHARS): string {
-  const text = typeof value === "string" ? value : String(value ?? "");
-  return text.length <= limit ? text : `${text.slice(0, limit)}…（已截断）`;
-}
-
-function logExt(event: Record<string, unknown>): void {
-  try {
-    logWrites += 1;
-    if (logWrites % 50 === 0) {
-      try {
-        if (statSync(EXT_LOG).size > EXT_LOG_MAX_BYTES) {
-          renameSync(EXT_LOG, `${EXT_LOG}.1`);
-        }
-      } catch {
-        // 文件不存在或无法轮转时继续写新日志。
-      }
-    }
-    appendFileSync(
-      EXT_LOG,
-      JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n",
-      "utf8",
-    );
-  } catch {
-    // 诊断日志不能影响业务调用。
-  }
-}
-
-/** 面板可调用的命令白名单；新增命令先在这里显式放行。 */
-const PANEL_COMMANDS: ReadonlySet<string> = new Set([
-  "doctor",
-  "project.add",
-  "project.config",
-  "project.list",
-  "project.map",
-  "project.snapshot",
-  "project.map.refresh",
-  "project.show",
-  "project.update",
-  "task.add",
-  "task.list",
-  "task.show",
-  "task.suggest",
-  "module.suggest",
-  "module.add",
-  "module.update",
-  "task.update",
-  "task.delete",
-  "delivery.draft",
-  "delivery.save",
-  "delivery.show",
-  "template.list",
-  "template.apply",
-  "plan.generate",
-  "plan.show",
-  "plan.update",
-  "run.start",
-  "run.quick",
-  "run.status",
-  "run.list",
-  "run.cancel",
-  "run.manual",
-  "run.repair",
-  "analysis.run",
-  "evidence.list",
-  "evidence.add",
-  "rules.save",
-  "rules.list",
-  "rules.show",
-  "rules.import",
-  "rules.export",
-  "rules.bind",
-  "github.read",
-  "link.import",
-  "link.assert",
-  "issue.add",
-  "issue.list",
-  "issue.show",
-  "issue.update",
-  "issue.close",
-  "report.generate",
-  "report.show",
-  "report.list",
-  "report.export",
-  "report.opinion",
-  "backup.create",
-  "backup.restore",
-]);
-
-/** 只有用户显式确认的命令才接受 `--confirm`。 */
-const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set([
-  "run.start",
-  "run.quick",
-  "run.repair",
-]);
-
-const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
-  "run.start": 60_000,
-  "run.quick": 60_000,
-  "run.repair": 630_000,
-  "project.map.refresh": 210_000,
-  "plan.generate": 210_000,
-  "task.add": 210_000,
-  "task.suggest": 60_000,
-  "module.suggest": 60_000,
-  "delivery.draft": 210_000,
-  "template.list": 30_000,
-  "template.apply": 120_000,
-  "analysis.run": 120_000,
-  "report.generate": 330_000,
-  "report.export": 60_000,
-  "rules.import": 30_000,
-  "rules.export": 30_000,
-  "github.read": 150_000,
-  "link.import": 150_000,
-  "project.config": 30_000,
-  "backup.create": 630_000,
-  "backup.restore": 630_000,
-  doctor: 30_000,
-};
+const ROOTS_CACHE_TTL_MS = 2_000;
 
 interface WorkspaceBinding {
   readonly projectId: string;
@@ -188,16 +80,78 @@ let workspaceBinding: WorkspaceBinding = {
   workspaceFolderCount: 0,
 };
 let bindingInFlight: Promise<WorkspaceBinding> | null = null;
-/** 正在执行的面板调用：用于取消与同请求去重。 */
-const inFlightById = new Map<
-  string,
-  { key: string; controller: AbortController; promise: Promise<BridgeResult> }
->();
-const inFlightByKey = new Map<string, AbortController>();
+interface InFlightEntry {
+  readonly key: string;
+  readonly controller: AbortController;
+  promise: Promise<BridgeResult>;
+  readonly subscribers: Map<string, vscode.Webview>;
+}
+
+/** 正在执行的面板调用：用于取消、同请求去重与进度广播。 */
+const inFlightByKey = new Map<string, InFlightEntry>();
 let runningCalls = 0;
 const waitingCalls: (() => void)[] = [];
+let rootsCache: { key: string; expiresAt: number; value: { project_id: string; root: string }[] } | null = null;
+let rootsInFlight: { key: string; promise: Promise<{ project_id: string; root: string }[]> } | null = null;
 /** 当前运行时阶段订阅者；面板心跳据此重置超时。 */
 const stageListeners = new Set<(stage: RuntimeStageResult) => void>();
+let hostCapabilities: HostCapabilitiesController | null = null;
+let watchedProjectRoot = "";
+let latestHostGit: HostGitSummary | null = null;
+let latestDiagCount = 0;
+let activeStatusNote = "";
+
+function refreshStatusBar(stateLabel?: string): void {
+  if (stateLabel !== undefined) {
+    activeStatusNote = stateLabel;
+  }
+  const parts: string[] = ["$(beaker) AI 测试"];
+  if (latestHostGit?.branch) {
+    parts.push(`${latestHostGit.branch}${latestHostGit.dirtyCount > 0 ? "*" : ""}`);
+  }
+  if (activeStatusNote) {
+    parts.push(activeStatusNote);
+  }
+  if (latestDiagCount > 0) {
+    parts.push(`问题红线 ${latestDiagCount}`);
+  }
+  const tooltip = [
+    latestHostGit?.branch ? `分支：${latestHostGit.branch}` : "",
+    latestHostGit ? `未提交改动：${latestHostGit.dirtyCount}` : "",
+    activeStatusNote ? `状态：${activeStatusNote}` : "",
+    latestDiagCount > 0 ? `问题红线：${latestDiagCount} 条` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  getHostCapabilities().updateStatusBar(parts.join(" · "), tooltip || "打开 AI 测试面板");
+}
+
+function getHostCapabilities(context?: vscode.ExtensionContext): HostCapabilitiesController {
+  if (hostCapabilities === null) {
+    hostCapabilities = createHostCapabilities(vscode as unknown as HostApiLike, context);
+  }
+  return hostCapabilities;
+}
+
+function resolveSourceRoot(): string {
+  return workspaceBinding.projectRoot || workspaceRoots()[0] || "";
+}
+
+function syncWorkspaceWatcher(projectRoot: string): void {
+  if (projectRoot === watchedProjectRoot) {
+    return;
+  }
+  watchedProjectRoot = projectRoot;
+  getHostCapabilities().watchWorkspace(projectRoot, (changedPaths) => {
+    for (const webview of activeWebviews()) {
+      sendToWebview(webview, {
+        type: "workspaceDirty",
+        projectRoot,
+        changedPaths: changedPaths.slice(0, 50),
+      });
+    }
+  });
+}
 
 function defaultWorkspacePath(): string {
   const appData = (process.env.APPDATA ?? "").trim();
@@ -219,6 +173,8 @@ export function readSettings(): Settings {
 function clearRuntimeCache(): void {
   runtimeCache = null;
   discoveryCache = null;
+  rootsCache = null;
+  rootsInFlight = null;
 }
 
 function runtimeFor(settings: Settings): Promise<PreparedRuntime> {
@@ -309,46 +265,62 @@ function sameRoot(left: string, right: string): boolean {
   return normalizeRoot(left) === normalizeRoot(right);
 }
 
-/** 只读取 project.list 的根目录；缺少工作空间或解释器时安静返回空。 */
+/** 只读取 project.list 的根目录；内置 2 秒缓存与并发去重，缺少工作空间或解释器时安静返回空。 */
 async function listProjectRoots(): Promise<{ project_id: string; root: string }[]> {
   const settings = readSettings();
   if (!settings.workspacePath) {
     return [];
   }
-  try {
-    const runtime = await discoveredRuntime(settings);
-    if (!runtime.ok || runtime.pythonPath === null) {
-      return [];
-    }
-    const bridge = createBridge({
-      pythonPath: runtime.pythonPath,
-      pythonArgs: runtime.pythonArgs,
-      workspacePath: settings.workspacePath,
-      timeoutMs: COMMAND_TIMEOUT_MS["project.list"],
-    });
-    const result = await bridge.call("project.list", {}, {});
-    if (!result.ok || !isRecord(result.data)) {
-      return [];
-    }
-    const projects = result.data["projects"];
-    if (!Array.isArray(projects)) {
-      return [];
-    }
-    const roots: { project_id: string; root: string }[] = [];
-    for (const item of projects) {
-      if (!isRecord(item)) {
-        continue;
-      }
-      const projectId = typeof item["project_id"] === "string" ? item["project_id"] : "";
-      const root = typeof item["root"] === "string" ? item["root"] : "";
-      if (projectId && root) {
-        roots.push({ project_id: projectId, root });
-      }
-    }
-    return roots;
-  } catch {
-    return [];
+  const cacheKey = `${settings.pythonPath}\u0000${settings.workspacePath}`;
+  if (rootsCache && rootsCache.key === cacheKey && Date.now() < rootsCache.expiresAt) {
+    return rootsCache.value;
   }
+  if (rootsInFlight && rootsInFlight.key === cacheKey) {
+    return rootsInFlight.promise;
+  }
+  const loader = (async (): Promise<{ project_id: string; root: string }[]> => {
+    try {
+      const runtime = await discoveredRuntime(settings);
+      if (!runtime.ok || runtime.pythonPath === null) {
+        return [];
+      }
+      const bridge = createBridge({
+        pythonPath: runtime.pythonPath,
+        pythonArgs: runtime.pythonArgs,
+        workspacePath: settings.workspacePath,
+        timeoutMs: COMMAND_TIMEOUT_MS["project.list"],
+      });
+      const result = await bridge.call("project.list", {}, {});
+      if (!result.ok || !isRecord(result.data)) {
+        return [];
+      }
+      const projects = result.data["projects"];
+      if (!Array.isArray(projects)) {
+        return [];
+      }
+      const roots: { project_id: string; root: string }[] = [];
+      for (const item of projects) {
+        if (!isRecord(item)) {
+          continue;
+        }
+        const projectId = typeof item["project_id"] === "string" ? item["project_id"] : "";
+        const root = typeof item["root"] === "string" ? item["root"] : "";
+        if (projectId && root) {
+          roots.push({ project_id: projectId, root });
+        }
+      }
+      rootsCache = { key: cacheKey, expiresAt: Date.now() + ROOTS_CACHE_TTL_MS, value: roots };
+      return roots;
+    } catch {
+      return [];
+    } finally {
+      if (rootsInFlight?.key === cacheKey) {
+        rootsInFlight = null;
+      }
+    }
+  })();
+  rootsInFlight = { key: cacheKey, promise: loader };
+  return loader;
 }
 
 /** 单个工作区目录才自动绑定；多目录或父目录一律留给用户选择。 */
@@ -384,6 +356,10 @@ function refreshWorkspaceBinding(): Promise<WorkspaceBinding> {
 
 export function activate(context: vscode.ExtensionContext): void {
   extensionRoot = context.extensionUri.fsPath;
+  hostCapabilities?.dispose();
+  hostCapabilities = null;
+  watchedProjectRoot = "";
+  const caps = getHostCapabilities(context);
   // 不在激活时探测项目：等面板真正请求 context 或 runStatus 命令再算绑定。
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view: vscode.WebviewView): void {
@@ -412,7 +388,38 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
 
+  const optionalSubscriptions: vscode.Disposable[] = [];
+  const winWithTheme = vscode.window as unknown as {
+    onDidChangeActiveColorTheme?: (cb: () => void) => vscode.Disposable;
+  };
+  if (typeof winWithTheme.onDidChangeActiveColorTheme === "function") {
+    optionalSubscriptions.push(
+      winWithTheme.onDidChangeActiveColorTheme(() => {
+        postTheme();
+      }),
+    );
+  }
+  const wsWithTrust = vscode.workspace as unknown as {
+    onDidGrantWorkspaceTrust?: (cb: () => void) => vscode.Disposable;
+  };
+  if (typeof wsWithTrust.onDidGrantWorkspaceTrust === "function") {
+    optionalSubscriptions.push(
+      wsWithTrust.onDidGrantWorkspaceTrust(() => {
+        void postContext();
+      }),
+    );
+  }
+
   context.subscriptions.push(
+    {
+      dispose: () => {
+        caps.dispose();
+        if (hostCapabilities === caps) {
+          hostCapabilities = null;
+          watchedProjectRoot = "";
+        }
+      },
+    },
     vscode.commands.registerCommand("aitest.openPanel", () => openPanel(context)),
     vscode.commands.registerCommand("aitest.checkEnvironment", () => checkEnvironment(context)),
     vscode.commands.registerCommand("aitest.runStatus", () => showRunStatus(context)),
@@ -423,10 +430,13 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      // 多根工作区增删后，项目绑定必须重算并推给面板。
+      // 多根工作区增删后，项目绑定与根目录缓存必须立即重算并推给面板。
+      rootsCache = null;
+      rootsInFlight = null;
       workspaceBinding = { projectId: "", projectRoot: "", workspaceFolderCount: 0 };
       void postContext();
     }),
+    ...optionalSubscriptions,
   );
 }
 
@@ -473,6 +483,10 @@ function openPanel(context: vscode.ExtensionContext): void {
   created.onDidDispose(() => {
     listener.dispose();
     releaseWebview(created.webview);
+    const index = context.subscriptions.indexOf(created);
+    if (index >= 0) {
+      context.subscriptions.splice(index, 1);
+    }
   });
   context.subscriptions.push(created);
 }
@@ -563,6 +577,13 @@ function activeWebviews(): vscode.Webview[] {
   return targets;
 }
 
+function currentThemeKind(): "dark" | "light" {
+  const kind = (
+    vscode.window as unknown as { activeColorTheme?: { kind?: number } }
+  )?.activeColorTheme?.kind;
+  return kind === 2 || kind === 3 ? "dark" : "light";
+}
+
 function sendToWebview(webview: vscode.Webview, message: unknown): void {
   const state = stateFor(webview);
   if (!state.ready) {
@@ -575,9 +596,31 @@ function sendToWebview(webview: vscode.Webview, message: unknown): void {
   });
 }
 
+async function safePost(webview: vscode.Webview, message: unknown): Promise<void> {
+  try {
+    await webview.postMessage(message);
+  } catch {
+    releaseWebview(webview);
+  }
+}
+
+function postTheme(): void {
+  const theme = currentThemeKind();
+  for (const webview of activeWebviews()) {
+    sendToWebview(webview, { type: "theme", theme });
+  }
+}
+
 async function postContext(): Promise<void> {
   const settings = readSettings();
   const binding = await refreshWorkspaceBinding();
+  const themeKind = currentThemeKind();
+  const caps = getHostCapabilities();
+  const capabilities = caps.detectCapabilities();
+  const hostGit = binding.projectRoot ? await caps.readGitSummary(binding.projectRoot) : null;
+  latestHostGit = hostGit;
+  syncWorkspaceWatcher(binding.projectRoot);
+  refreshStatusBar();
   for (const webview of activeWebviews()) {
     sendToWebview(webview, {
       type: "context",
@@ -586,6 +629,9 @@ async function postContext(): Promise<void> {
       projectId: binding.projectId,
       projectRoot: binding.projectRoot,
       workspaceFolderCount: binding.workspaceFolderCount,
+      themeKind,
+      capabilities: { ...capabilities },
+      hostGit: hostGit ? { ...hostGit } : null,
     });
   }
 }
@@ -595,318 +641,23 @@ function attachWebview(
   webview: vscode.Webview,
 ): vscode.Disposable {
   const nonce = randomBytes(24).toString("hex");
+  const settings = readSettings();
+  const initialContext = {
+    pythonPath: settings.pythonPath,
+    workspacePath: settings.workspacePath,
+    projectId: workspaceBinding.projectId,
+    projectRoot: workspaceBinding.projectRoot,
+    workspaceFolderCount: workspaceBinding.workspaceFolderCount,
+    themeKind: currentThemeKind(),
+    capabilities: { ...getHostCapabilities(context).detectCapabilities() },
+    hostGit: null,
+  };
   // 先注册消息监听再赋 HTML：webview 可能在 html 赋值后立刻发 ready。
   const disposable = webview.onDidReceiveMessage((message: unknown) => {
     void handleMessage(message, webview);
   });
-  webview.html = renderPanelHtml(context, nonce);
+  webview.html = renderPanelHtml(context.extensionUri, nonce, initialContext);
   return disposable;
-}
-
-/** 加载共享面板构建产物，并把脚本与样式内联进宿主 HTML。 */
-function renderPanelHtml(
-  context: vscode.ExtensionContext,
-  nonce: string,
-): string {
-  try {
-    const panelRoot = vscode.Uri.joinPath(context.extensionUri, "media", "panel");
-    const template = readFileSync(vscode.Uri.joinPath(panelRoot, "index.html").fsPath, "utf8");
-    // 扩展构建产出单文件 panel.js / panel.css。Trae 的 webview 资源 URI 与
-    // cspSource 可能不同源，内联可避免 CSS/脚本被 CSP 或 URI 改写拦掉。
-    const script = readFileSync(vscode.Uri.joinPath(panelRoot, "panel.js").fsPath, "utf8")
-      .replace(/<\/script/gi, "<\\/script")
-      .split("<!--")
-      .join("<\\u0021--");
-    const style = readFileSync(vscode.Uri.joinPath(panelRoot, "panel.css").fsPath, "utf8");
-    const csp = [
-      "default-src 'none'",
-      `script-src 'nonce-${nonce}'`,
-      "style-src 'unsafe-inline'",
-      "img-src data:",
-      "font-src data:",
-      "connect-src 'none'",
-    ].join("; ");
-    const html = template
-      .replace(/<script\b[^>]*\bsrc="[^"]*"[^>]*>\s*<\/script>/gi, "")
-      .replace(/<link\b[^>]*\bhref="[^"]*\.css"[^>]*>/gi, "")
-      .replace(
-        /<head>/i,
-        () => `<head>
-    <meta http-equiv="Content-Security-Policy" content="${csp}">
-    <style nonce="${nonce}">${style}</style>
-    <script nonce="${nonce}">${BRIDGE_SCRIPT}</script>`,
-      )
-      .replace(
-        "</body>",
-        () => `<script nonce="${nonce}">${script}</script>\n  </body>`,
-      );
-    return html;
-  } catch {
-    return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
-      <title>${PANEL_TITLE}</title></head><body>
-      <p>面板资源缺失：media/panel/panel.js 未随扩展安装。请先运行 npm run build。</p></body></html>`;
-  }
-}
-
-/** 注入到 webview 的桥：只转发调用与状态，不解释业务结果。 */
-const BRIDGE_SCRIPT = `(function () {
-  var api = acquireVsCodeApi();
-  var pending = new Map();
-  var seq = 0;
-  var context = null;
-  window.addEventListener("message", function (event) {
-    var message = event.data;
-    if (!message) return;
-    if (message.type === "context") {
-      context = message;
-      return;
-    }
-    if (message.type === "progress") {
-      var active = pending.get(message.id);
-      if (!active) return;
-      if (typeof active.onProgress === "function") {
-        try { active.onProgress(message); } catch (ignored) {}
-      }
-      return;
-    }
-    if (message.type !== "result" || !message.id) return;
-    var entry = pending.get(message.id);
-    if (!entry) return;
-    pending.delete(message.id);
-    if (message.ok) {
-      entry.resolve({ ok: true, data: message.data === undefined ? null : message.data });
-    } else {
-      entry.resolve({
-        ok: false,
-        error: message.error || { code: "INTERNAL", message: "未知错误" }
-      });
-    }
-  });
-  window.aitestHost = {
-    call: function (command, payload, options) {
-      var id = "host-" + (++seq);
-      var opts = options || {};
-      return new Promise(function (resolve) {
-        pending.set(id, {
-          resolve: resolve,
-          onProgress: typeof opts.onProgress === "function" ? opts.onProgress : null
-        });
-        api.postMessage({
-          type: "call",
-          id: id,
-          command: command,
-          payload: payload || {},
-          options: { confirm: opts.confirm === true }
-        });
-      });
-    },
-    cancel: function (command, payload, options) {
-      var opts = options || {};
-      api.postMessage({
-        type: "cancel",
-        command: command,
-        payload: payload || {},
-        options: { confirm: opts.confirm === true }
-      });
-    },
-    openPath: function (path) {
-      var id = "open-" + (++seq);
-      return new Promise(function (resolve) {
-        pending.set(id, { resolve: resolve });
-        api.postMessage({ type: "openPath", id: id, path: path });
-      });
-    },
-    pickDirectory: function () {
-      var id = "pick-" + (++seq);
-      return new Promise(function (resolve) {
-        pending.set(id, { resolve: resolve });
-        api.postMessage({ type: "pickDirectory", id: id });
-      });
-    },
-    getState: function () { return api.getState(); },
-    setState: function (state) { api.setState(state); },
-    getContext: function () { return context; }
-  };
-  function reportPanelError(kind, detail) {
-    try {
-      var text = detail && detail.message ? detail.message : detail;
-      api.postMessage({ type: "panel-error", kind: kind, message: String(text || "") });
-    } catch (ignored) {}
-  }
-  window.addEventListener("error", function (event) {
-    reportPanelError("error", event.error || event.message);
-  });
-  window.addEventListener("unhandledrejection", function (event) {
-    reportPanelError("rejection", event.reason);
-  });
-  api.postMessage({ type: "ready" });
-})();`;
-
-function trustWarningHtml(): string {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
-    <title>${PANEL_TITLE}</title></head><body>
-    <p>请先通过编辑器确认工作区信任，再打开 AI 测试面板。</p></body></html>`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** 可执行/脚本类文件不允许用系统默认程序直接打开。 */
-const BLOCKED_OPEN_EXTENSIONS: ReadonlySet<string> = new Set([
-  ".exe",
-  ".bat",
-  ".cmd",
-  ".com",
-  ".scr",
-  ".msi",
-  ".ps1",
-  ".vbs",
-  ".vbe",
-  ".js",
-  ".jse",
-  ".wsf",
-  ".wsh",
-  ".jar",
-  ".lnk",
-  ".reg",
-  ".hta",
-]);
-
-interface OpenPathDenied {
-  readonly ok: false;
-  readonly code: string;
-  readonly message: string;
-  readonly nextStep: string;
-}
-
-/**
- * 证据路径只允许落在用户数据工作空间内，且必须是普通文件。
- * 拒绝 UNC、相对路径、越界路径与可执行文件，避免把任意宿主路径交给系统打开。
- */
-function resolveOpenablePath(
-  raw: string,
-  workspacePath: string,
-): { ok: true; path: string } | OpenPathDenied {
-  const text = raw.trim();
-  if (!text) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "没有提供要打开的文件路径",
-      nextStep: "刷新证据列表后重试",
-    };
-  }
-  if (/^[\\/]{2}/.test(text) || /^\\\\[.?]\\/.test(text)) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "不允许打开网络共享（UNC）路径",
-      nextStep: "把证据导出到工作空间后再打开",
-    };
-  }
-  if (!isAbsolute(text)) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "只允许打开工作空间内的绝对路径",
-      nextStep: "刷新证据列表后重试",
-    };
-  }
-  const workspace = (workspacePath ?? "").trim();
-  if (!workspace) {
-    return {
-      ok: false,
-      code: "WORKSPACE_NOT_CONFIGURED",
-      message: "尚未设置 aitest.workspacePath，无法校验证据路径",
-      nextStep: "在设置中填写用户数据工作空间",
-    };
-  }
-  let target: string;
-  try {
-    target = realpathSync(resolve(text));
-  } catch {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "文件不存在或无法读取",
-      nextStep: "刷新证据列表后重试",
-    };
-  }
-  let root: string;
-  try {
-    root = realpathSync(resolve(workspace));
-  } catch {
-    root = resolve(workspace);
-  }
-  const rel = relative(root, target);
-  const outside =
-    rel === "" ||
-    rel.startsWith("..") ||
-    isAbsolute(rel) ||
-    (process.platform === "win32" && relative(root.toLowerCase(), target.toLowerCase()).startsWith(".."));
-  if (outside) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "证据路径不在用户数据工作空间内",
-      nextStep: "只打开工作空间内的证据或报告",
-    };
-  }
-  let stat;
-  try {
-    stat = statSync(target);
-  } catch {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "文件不存在或无法读取",
-      nextStep: "刷新证据列表后重试",
-    };
-  }
-  if (!stat.isFile()) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "只能打开文件，不能打开目录",
-      nextStep: "选择具体证据文件",
-    };
-  }
-  const dot = target.lastIndexOf(".");
-  const extension = dot >= 0 ? target.slice(dot).toLowerCase() : "";
-  if (BLOCKED_OPEN_EXTENSIONS.has(extension)) {
-    return {
-      ok: false,
-      code: "INVALID_PATH",
-      message: "不允许用系统程序直接打开可执行或脚本文件",
-      nextStep: "改用文本方式查看证据内容",
-    };
-  }
-  return { ok: true, path: target };
-}
-
-/** 稳定的请求键：去重与取消都按“命令 + 参数 + 是否确认”匹配。 */
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
-  }
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-function callKey(
-  command: string,
-  payload: Record<string, unknown>,
-  confirm: boolean,
-): string {
-  return `${command}\u0000${confirm ? "1" : "0"}\u0000${stableStringify(payload)}`;
 }
 
 async function withCallSlot<T>(work: () => Promise<T>): Promise<T> {
@@ -949,7 +700,7 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
     state.ready = true;
     // 先冲刷 ready 之前排队的旧消息，再发最新上下文，保证面板最后看到的是当前状态。
     for (const item of state.queued) {
-      await webview.postMessage(item);
+      await safePost(webview, item);
     }
     state.queued = [];
     await postContext();
@@ -967,14 +718,14 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
         canSelectMany: false,
         openLabel: "选择项目目录",
       });
-      await webview.postMessage({
+      await safePost(webview, {
         type: "result",
         id,
         ok: true,
         data: picked?.[0]?.fsPath ?? "",
       });
     } catch {
-      await webview.postMessage({
+      await safePost(webview, {
         type: "result",
         id,
         ok: false,
@@ -995,7 +746,7 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
     }
     const checked = resolveOpenablePath(raw, readSettings().workspacePath);
     if (!checked.ok) {
-      await webview.postMessage({
+      await safePost(webview, {
         type: "result",
         id,
         ok: false,
@@ -1011,7 +762,7 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
       const opened = await vscode.env.openExternal(vscode.Uri.file(checked.path));
       if (opened === false) {
         // 系统没有关联程序时 openExternal 返回 false，不能当成成功。
-        await webview.postMessage({
+        await safePost(webview, {
           type: "result",
           id,
           ok: false,
@@ -1023,9 +774,9 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
         });
         return;
       }
-      await webview.postMessage({ type: "result", id, ok: true, data: true });
+      await safePost(webview, { type: "result", id, ok: true, data: true });
     } catch {
-      await webview.postMessage({
+      await safePost(webview, {
         type: "result",
         id,
         ok: false,
@@ -1034,14 +785,84 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
     }
     return;
   }
+  if (message["type"] === "openSource") {
+    const id = typeof message["id"] === "string" ? message["id"] : "";
+    const filePath =
+      typeof message["path"] === "string"
+        ? message["path"]
+        : typeof message["file"] === "string"
+          ? message["file"]
+          : "";
+    const line = typeof message["line"] === "number" ? message["line"] : 1;
+    const column = typeof message["column"] === "number" ? message["column"] : 1;
+    if (!workspaceBinding.projectRoot && workspaceRoots().length === 1) {
+      await refreshWorkspaceBinding();
+    }
+    const result = await getHostCapabilities().jumpToSource(
+      resolveSourceRoot(),
+      filePath,
+      line,
+      column,
+    );
+    if (id) {
+      if (result.ok) {
+        await safePost(webview, { type: "result", id, ok: true, data: result });
+      } else {
+        await safePost(webview, {
+          type: "result",
+          id,
+          ok: false,
+          error: {
+            code: result.code,
+            message: result.message,
+            next_step: result.nextStep,
+          },
+        });
+      }
+    }
+    return;
+  }
+  if (message["type"] === "publishDiagnostics") {
+    const id = typeof message["id"] === "string" ? message["id"] : "";
+    const rawItems = Array.isArray(message["items"]) ? message["items"] : [];
+    const items: DiagnosticInput[] = rawItems
+      .filter((item): item is Record<string, unknown> => isRecord(item) && typeof item["file"] === "string" && typeof item["message"] === "string")
+      .map((item) => ({
+        file: String(item["file"]),
+        message: String(item["message"]),
+        ...(typeof item["line"] === "number" ? { line: item["line"] } : {}),
+        ...(typeof item["endLine"] === "number" ? { endLine: item["endLine"] } : {}),
+        ...(item["severity"] === "error" || item["severity"] === "warning" || item["severity"] === "info"
+          ? { severity: item["severity"] }
+          : {}),
+        ...(typeof item["code"] === "string" ? { code: item["code"] } : {}),
+      }));
+    const published = getHostCapabilities().publishDiagnostics(resolveSourceRoot(), items);
+    latestDiagCount = published.count;
+    refreshStatusBar();
+    if (id) {
+      await safePost(webview, { type: "result", id, ok: true, data: published });
+    }
+    return;
+  }
+  if (message["type"] === "clearDiagnostics") {
+    const id = typeof message["id"] === "string" ? message["id"] : "";
+    getHostCapabilities().clearDiagnostics();
+    latestDiagCount = 0;
+    refreshStatusBar();
+    if (id) {
+      await safePost(webview, { type: "result", id, ok: true, data: true });
+    }
+    return;
+  }
   if (message["type"] === "cancel") {
     const command = typeof message["command"] === "string" ? message["command"] : "";
     const payload = isRecord(message["payload"]) ? message["payload"] : {};
     const options = isRecord(message["options"]) ? message["options"] : {};
     const confirm = options["confirm"] === true || message["confirm"] === true;
-    const controller = inFlightByKey.get(callKey(command, payload, confirm));
-    if (controller) {
-      controller.abort();
+    const entry = inFlightByKey.get(callKey(command, payload, confirm));
+    if (entry) {
+      entry.controller.abort();
       logExt({ phase: "cancel", command });
     }
     return;
@@ -1063,35 +884,73 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   const existing = inFlightByKey.get(key);
   let promise: Promise<BridgeResult>;
   if (existing) {
-    // 同一请求仍在执行：复用结果，避免面板超时后重试造成重复安装/重复建任务。
-    const prior = [...inFlightById.values()].find((entry) => entry.controller === existing);
-    promise = prior?.promise ?? execute(command, payload, confirm, existing.signal);
+    // 同一请求仍在执行：复用结果并同步接收进度心跳，避免面板超时后重试造成重复执行。
+    existing.subscribers.set(id, webview);
+    promise = existing.promise.finally(() => {
+      existing.subscribers.delete(id);
+    });
     logExt({ phase: "dedupe", command });
   } else {
     const controller = new AbortController();
-    inFlightByKey.set(key, controller);
-    const heartbeat = setInterval(() => {
-      sendToWebview(webview, { type: "progress", id, phase: "running" });
-    }, 10_000);
-    const onStage = (stage: RuntimeStageResult): void => {
-      sendToWebview(webview, {
-        type: "progress",
-        id,
-        phase: "runtime",
-        stage: stage.stage,
-        ok: stage.ok,
-      });
+    const subscribers = new Map<string, vscode.Webview>([[id, webview]]);
+    const entry: InFlightEntry = {
+      key,
+      controller,
+      promise: Promise.resolve({ ok: true, data: null }),
+      subscribers,
     };
-    stageListeners.add(onStage);
-    promise = withCallSlot(() => execute(command, payload, confirm, controller.signal)).finally(() => {
-      clearInterval(heartbeat);
-      stageListeners.delete(onStage);
-      inFlightById.delete(id);
-      if (inFlightByKey.get(key) === controller) {
+    inFlightByKey.set(key, entry);
+    promise = withCallSlot(async () => {
+      // 仅当真正获得并发执行槽位开始运行 CLI 时，才启动进度心跳与阶段广播。
+      const heartbeat = setInterval(() => {
+        for (const [subId, subView] of entry.subscribers) {
+          sendToWebview(subView, { type: "progress", id: subId, phase: "running" });
+        }
+      }, 10_000);
+      const onStage = (stage: RuntimeStageResult): void => {
+        for (const [subId, subView] of entry.subscribers) {
+          sendToWebview(subView, {
+            type: "progress",
+            id: subId,
+            phase: "runtime",
+            stage: stage.stage,
+            ok: stage.ok,
+          });
+        }
+      };
+      const onCliProgress = (event: Record<string, unknown>): void => {
+        const phase = typeof event["phase"] === "string" ? event["phase"] : "running";
+        const msgText = typeof event["message"] === "string" ? event["message"] : "";
+        getHostCapabilities().appendOutput(
+          `[aitest][${command}] ${phase}${msgText ? `：${truncate(msgText, 240)}` : ""}`,
+        );
+        for (const [subId, subView] of entry.subscribers) {
+          sendToWebview(subView, {
+            ...event,
+            type: "progress",
+            id: subId,
+            phase,
+          });
+        }
+      };
+      stageListeners.add(onStage);
+      if (command === "run.start" || command === "run.quick") {
+        getHostCapabilities().appendOutput(`[aitest][${command}] 开始执行...`);
+        refreshStatusBar("运行中");
+      }
+      try {
+        return await execute(command, payload, confirm, controller.signal, onCliProgress);
+      } finally {
+        clearInterval(heartbeat);
+        stageListeners.delete(onStage);
+      }
+    }).finally(() => {
+      entry.subscribers.delete(id);
+      if (inFlightByKey.get(key) === entry) {
         inFlightByKey.delete(key);
       }
     });
-    inFlightById.set(id, { key, controller, promise });
+    entry.promise = promise;
   }
 
   let result: BridgeResult;
@@ -1111,6 +970,12 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
     );
   }
   logExt({ phase: "result", command, ok: result.ok, code: result.ok ? "" : (result.error?.code ?? "") });
+  if (command === "run.start" || command === "run.quick") {
+    getHostCapabilities().appendOutput(
+      `[aitest][${command}] 执行结束：${result.ok ? "成功" : `失败 (${result.error?.code ?? ""})`}`,
+    );
+    refreshStatusBar(result.ok ? "就绪" : "异常");
+  }
   postResult(webview, id, result);
 }
 
@@ -1119,6 +984,7 @@ async function execute(
   payload: Record<string, unknown>,
   confirmRequested: boolean,
   signal?: AbortSignal,
+  onProgress?: (event: Record<string, unknown>) => void,
 ): Promise<BridgeResult> {
   if (!PANEL_COMMANDS.has(command)) {
     return localError(
@@ -1170,8 +1036,10 @@ async function execute(
       { runtime },
     );
   }
-  // 运行时已可用后，工作区绑定应能看到便携解释器；清掉旧的“没有解释器”发现结果。
-  discoveryCache = null;
+  if (runtime.source === "portable-new") {
+    // 刚新建便携运行时后，工作区绑定应能看到新解释器；此时才清掉旧发现缓存。
+    discoveryCache = null;
+  }
   const bridge = createBridge({
     pythonPath: runtime.pythonPath,
     pythonArgs: runtime.pythonArgs,
@@ -1179,7 +1047,21 @@ async function execute(
     timeoutMs: COMMAND_TIMEOUT_MS[command],
   });
   const confirm = confirmRequested && CONFIRMABLE_COMMANDS.has(command);
-  return bridge.call(command, payload, { confirm, ...(signal ? { signal } : {}) });
+  const result = await bridge.call(command, payload, {
+    confirm,
+    ...(signal ? { signal } : {}),
+    ...(onProgress ? { onProgress } : {}),
+  });
+  if (
+    result.ok &&
+    (command === "project.add" ||
+      command === "project.update" ||
+      command === "backup.restore" ||
+      command === "data.cleanup")
+  ) {
+    rootsCache = null;
+  }
+  return result;
 }
 
 function localError(
@@ -1198,12 +1080,17 @@ function localError(
 
 export function deactivate(): void {
   // 关闭面板或扩展不取消业务运行；运行状态由 CLI 的 run.json 保存。
+  hostCapabilities?.dispose();
+  hostCapabilities = null;
+  watchedProjectRoot = "";
+  latestHostGit = null;
+  latestDiagCount = 0;
+  activeStatusNote = "";
   webviewStates.clear();
   sidebarPanel = null;
   editorPanel = null;
-  for (const controller of inFlightByKey.values()) {
-    controller.abort();
+  for (const entry of inFlightByKey.values()) {
+    entry.controller.abort();
   }
   inFlightByKey.clear();
-  inFlightById.clear();
 }

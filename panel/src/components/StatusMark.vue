@@ -23,15 +23,23 @@ const props = defineProps<{
         stroke-linecap="round"
         stroke-linejoin="round"
       />
-      <rect
-        v-else-if="props.result === 'failed'"
-        x="4"
-        y="4"
-        width="8"
-        height="8"
-        fill="currentColor"
-        stroke="none"
-      />
+      <template v-else-if="props.result === 'failed'">
+        <rect
+          x="2"
+          y="2"
+          width="12"
+          height="12"
+          rx="3"
+          fill="var(--danger-fill)"
+          stroke="none"
+        />
+        <path
+          d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+          stroke="var(--on-danger)"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+      </template>
       <template v-else-if="props.result === 'blocked'">
         <rect x="3.5" y="3.5" width="9" height="9" />
         <path d="M4.5 11.5l7-7" />

@@ -5,9 +5,12 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { missingEnvironmentCount } from "@/services/environmentService";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
+import CommandPalette from "./CommandPalette.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import LoadingState from "./LoadingState.vue";
+import NewTaskDrawer from "./NewTaskDrawer.vue";
 import ProjectSidebar from "./ProjectSidebar.vue";
+import QuickCheckDrawer from "./QuickCheckDrawer.vue";
 import Toast from "./Toast.vue";
 import WorkspaceHeader from "./WorkspaceHeader.vue";
 
@@ -32,6 +35,7 @@ const taskScoped = computed(() =>
 const currentSection = computed(() => {
   const name = String(route.name ?? "");
   if (name === "overview") return "overview";
+  if (name === "architecture") return "architecture";
   if (name === "issues" || name === "issue-detail") return "issues";
   if (name === "history") return "history";
   if (name === "quick-check") return "quick";
@@ -64,7 +68,7 @@ const backRoute = computed(() => {
       : overview;
   }
   if (name === "result" || name === "run") {
-    return currentTask ? `${taskBase}/plan` : overview;
+    return overview;
   }
   if (name === "scope" && currentTask?.previousStage) {
     if (currentTask.previousStage === "planned") {
@@ -148,15 +152,15 @@ function routeForTask(taskId: string): string {
 
 async function openProjectSection(
   projectIdValue: string,
-  section: "overview" | "issues" | "history",
+  section: "overview" | "architecture" | "issues" | "history",
 ): Promise<void> {
   ui.closeSidebar();
   await router.push(`/projects/${projectIdValue}/${section}`);
 }
 
-async function openQuick(projectIdValue: string): Promise<void> {
+async function openQuick(): Promise<void> {
   ui.closeSidebar();
-  await router.push(`/projects/${projectIdValue}/quick-check`);
+  ui.openQuickCheckDrawer();
 }
 
 async function selectProject(projectIdValue: string): Promise<void> {
@@ -232,7 +236,15 @@ async function deleteTask(
 
 async function newTask(projectIdValue: string): Promise<void> {
   ui.closeSidebar();
-  await router.push(`/projects/${projectIdValue}/tasks/new`);
+  if (workspace.currentProjectId !== projectIdValue) {
+    try {
+      await workspace.setCurrentProject(projectIdValue);
+    } catch {
+      // store 已提示。
+      return;
+    }
+  }
+  ui.openNewTaskDrawer();
 }
 
 async function refreshProjects(): Promise<void> {
@@ -278,11 +290,31 @@ function skipToMain(event: MouseEvent): void {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (event.key.toLowerCase() === "k" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    ui.toggleCommandPalette();
+    return;
+  }
   if (event.key !== "Escape") {
     return;
   }
   // 模态对话框在顶层：一次 Esc 只关闭最上层，不能同时关掉抽屉/浮层。
   if (typeof document !== "undefined" && document.querySelector("dialog[open]")) {
+    return;
+  }
+  if (ui.commandPaletteOpen) {
+    event.preventDefault();
+    ui.closeCommandPalette();
+    return;
+  }
+  if (ui.newTaskDrawerOpen) {
+    event.preventDefault();
+    ui.closeNewTaskDrawer();
+    return;
+  }
+  if (ui.quickCheckDrawerOpen) {
+    event.preventDefault();
+    ui.closeQuickCheckDrawer();
     return;
   }
   if (ui.sidebarOpen) {
@@ -315,6 +347,9 @@ watch(
   () => route.fullPath,
   async () => {
     ui.closeEnv();
+    ui.closeCommandPalette();
+    ui.closeQuickCheckDrawer();
+    ui.closeNewTaskDrawer();
     const name = String(route.name ?? "");
     // 只有页面变化才移动焦点；筛选条件等 query-only 变化不能抢走键盘焦点。
     if (name === lastRouteName) {
@@ -371,6 +406,7 @@ onBeforeUnmount(() => {
       :modal="ui.narrow && ui.sidebarOpen"
       @select-project="selectProject"
       @open-overview="(id) => openProjectSection(id, 'overview')"
+      @open-architecture="(id) => openProjectSection(id, 'architecture')"
       @open-issues="(id) => openProjectSection(id, 'issues')"
       @open-history="(id) => openProjectSection(id, 'history')"
       @open-quick="openQuick"
@@ -405,8 +441,11 @@ onBeforeUnmount(() => {
         :missing-count="missingCount"
         :env-open="ui.envOpen"
         :sidebar-open="ui.sidebarOpen"
+        :theme="ui.resolvedTheme"
         @toggle-sidebar="toggleSidebar"
         @toggle-env="ui.toggleEnv"
+        @open-command-palette="ui.openCommandPalette"
+        @toggle-theme="ui.toggleTheme"
       />
       <div
         v-if="ui.envOpen"
@@ -432,15 +471,70 @@ onBeforeUnmount(() => {
                 : "全部检查通过。"
           }}
         </p>
-        <RouterLink
-          v-if="projectId"
-          :to="`/projects/${projectId}/settings?section=settings-environment`"
-          class="link-btn"
-        >
-          打开环境设置
-        </RouterLink>
+        <div class="env-popover-actions">
+          <button
+            class="btn btn-sm btn-ghost"
+            type="button"
+            @click="void workspace.refreshEnvironment()"
+          >
+            重新检查
+          </button>
+          <button
+            v-if="workspace.mode === 'host' && (missingCount ?? 0) > 0"
+            class="btn btn-sm btn-primary"
+            type="button"
+            :disabled="workspace.busyKey('doctor-repair')"
+            :aria-busy="workspace.busyKey('doctor-repair')"
+            @click="void workspace.repairEnvironment()"
+          >
+            {{ workspace.busyKey("doctor-repair") ? "正在修复…" : "修复环境" }}
+          </button>
+          <RouterLink
+            v-if="projectId"
+            :to="`/projects/${projectId}/settings?section=settings-environment`"
+            class="link-btn"
+          >
+            打开环境设置
+          </RouterLink>
+        </div>
       </div>
       <div class="workspace-main">
+        <div
+          v-if="ui.activeTask"
+          class="active-task-bar"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="active-task-main">
+            <span class="active-task-label">{{ ui.activeTask.label }}</span>
+            <span class="active-task-msg">{{ ui.activeTask.message }}</span>
+          </div>
+          <div
+            v-if="typeof ui.activeTask.total === 'number' && ui.activeTask.total > 0"
+            class="active-task-meta"
+          >
+            <div class="active-task-progress">
+              <div
+                class="active-task-progress-fill"
+                :style="{
+                  width: `${Math.min(
+                    100,
+                    Math.round(((ui.activeTask.done ?? 0) / ui.activeTask.total) * 100),
+                  )}%`,
+                }"
+              />
+            </div>
+            <span>{{ ui.activeTask.done ?? 0 }}/{{ ui.activeTask.total }}</span>
+          </div>
+          <button
+            v-if="ui.activeTask.cancel"
+            class="btn btn-ghost btn-sm"
+            type="button"
+            @click="ui.activeTask?.cancel?.()"
+          >
+            取消请求
+          </button>
+        </div>
         <main id="main-content" ref="mainRef" class="main" tabindex="-1">
           <div v-if="workspace.loading && !workspace.initialized" class="page">
             <LoadingState text="正在读取工作空间…" :lines="3" />
@@ -450,6 +544,9 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+  <CommandPalette />
+  <QuickCheckDrawer />
+  <NewTaskDrawer />
   <Toast />
   <ConfirmDialog />
 </template>

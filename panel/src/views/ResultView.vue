@@ -1,28 +1,52 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import CaseLedger from "@/components/CaseLedger.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import EvidenceDialog from "@/components/EvidenceDialog.vue";
+import Icon from "@/components/Icon.vue";
+import LinkPanel from "@/components/LinkPanel.vue";
 import ManualResultDialog from "@/components/ManualResultDialog.vue";
 import PageHeader from "@/components/PageHeader.vue";
-import ReportStrip from "@/components/ReportStrip.vue";
+import PreflightAndProbesCard from "@/components/PreflightAndProbesCard.vue";
 import ResultSummary from "@/components/ResultSummary.vue";
 import StatusMark from "@/components/StatusMark.vue";
 import StatusText from "@/components/StatusText.vue";
+import ReportCaseTable from "@/components/report/ReportCaseTable.vue";
+import ReportConclusionSection from "@/components/report/ReportConclusionSection.vue";
+import ReportDetailDialog from "@/components/report/ReportDetailDialog.vue";
+import ReportOpinionAndExport from "@/components/report/ReportOpinionAndExport.vue";
+import ReportScopeAndChecks from "@/components/report/ReportScopeAndChecks.vue";
+import { commandText, type ReportDetail } from "@/components/report/reportFormat";
+import { buildCaseFixPrompt, buildMinimalReproCommand } from "@/domain/aiPrompt";
 import {
   currentPlan,
   currentRun,
   displayItemOutcome,
+  effectiveCaseResult,
+  normalizeReport,
   reportsForRun,
   sortedRunItems,
   unselectedItems,
 } from "@/domain/derive";
-import type { CaseResult, EvidenceRef, Run, RunCase, Task } from "@/domain/types";
+import { ANALYSIS_REASON_LABEL, ANALYSIS_REASON_TEXT } from "@/domain/labels";
+import type {
+  CaseResult,
+  EvidenceRef,
+  ExportResult,
+  Report,
+  ReportCaseDetail,
+  Run,
+  RunCase,
+  RunItem,
+  Task,
+} from "@/domain/types";
+import type { EvidenceInput, LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
-import type { EvidenceInput } from "@/repositories/ProjectRepository";
+
+type ResultTab = "summary" | "report" | "links";
 
 const route = useRoute();
 const router = useRouter();
@@ -48,6 +72,20 @@ const run = computed<Run | null>(() => {
   return currentRun(task.value);
 });
 const plan = computed(() => (task.value ? currentPlan(task.value) : null));
+
+const activeTab = ref<ResultTab>(
+  route.query.tab === "report" || route.query.tab === "links" ? route.query.tab : "summary",
+);
+watch(activeTab, () => {
+  const query = { ...route.query };
+  if (activeTab.value === "summary") {
+    delete query.tab;
+  } else {
+    query.tab = activeTab.value;
+  }
+  void router.replace({ query });
+});
+
 const environmentRows = computed(() => {
   const environment = run.value?.environment ?? {};
   return [
@@ -78,7 +116,6 @@ function toggleRepair(packageName: string): void {
   repairSelection.value = repairSelection.value.includes(packageName)
     ? repairSelection.value.filter((entry) => entry !== packageName)
     : [...repairSelection.value, packageName];
-  // 确认必须对应当前勾选；改选后重新确认。
   repairConfirmed.value = false;
 }
 
@@ -98,15 +135,14 @@ async function installDependenciesAndRerun(): Promise<void> {
       [...repairSelection.value],
     );
   } catch {
-    // store 已提示安装失败；停留在本页保留选择。
     return;
   }
-  // 安装成功后生成新的重跑计划；这一步失败与安装失败分开提示。
   const prepared = await rerun();
   if (!prepared) {
     ui.showToast("依赖已安装，但准备重跑计划失败；可稍后点“按未完成项重新生成计划”。", "error");
   }
 }
+
 const filter = ref<"all" | "problems" | "unfinished">(
   route.query.filter === "problems" || route.query.filter === "unfinished"
     ? route.query.filter
@@ -121,7 +157,9 @@ watch(filter, () => {
   }
   void router.replace({ query });
 });
+
 const caseLedgerRef = ref<InstanceType<typeof CaseLedger> | null>(null);
+const caseTableRef = ref<InstanceType<typeof ReportCaseTable> | null>(null);
 const manualOpen = ref(false);
 const manualCase = ref<RunCase | null>(null);
 const evidenceOpen = ref(false);
@@ -156,17 +194,68 @@ const unfinishedCount = computed(
       ),
     ).length,
 );
+
 const reports = computed(() =>
-  project.value && run.value ? reportsForRun(project.value, run.value.id) : [],
+  project.value && run.value
+    ? reportsForRun(project.value, run.value.id).map((entry) => normalizeReport(entry))
+    : [],
 );
-const latestReport = computed(() => reports.value[0] ?? null);
+const selectedReportId = ref("");
+const activeReport = computed<Report | null>(() => {
+  if (reports.value.length === 0) {
+    return null;
+  }
+  return reports.value.find((r) => r.id === selectedReportId.value) ?? reports.value[0] ?? null;
+});
+const isLatestReport = computed(
+  () => Boolean(activeReport.value && reports.value[0]?.id === activeReport.value.id),
+);
+const activeAnalysis = computed(() => activeReport.value?.analysis ?? null);
+const analyzingRun = computed(() =>
+  run.value ? workspace.busyKey(`analysis-run:${run.value.id}`) : false,
+);
+
+const activeLink = computed(() => activeReport.value?.link ?? run.value?.link ?? null);
+const linkBusy = computed(
+  () =>
+    Boolean(run.value) &&
+    (workspace.busyKey(`link:${run.value?.id}`) ||
+      workspace.busyKey(`link-assert:${run.value?.id}`)),
+);
+
 const exporting = ref(false);
+const savingOpinion = ref(false);
+const exportResult = ref<ExportResult | null>(null);
+const detailContent = ref<ReportDetail | null>(null);
+const activeReportItemId = ref("");
+
 const reportBusy = computed(
   () => exporting.value || Boolean(run.value && workspace.busyKey(`report:${run.value.id}`)),
 );
-const unselected = computed(() =>
-  task.value && run.value ? unselectedItems(task.value, run.value.scope.acceptanceItemIds) : [],
+const busyOpinion = computed(
+  () =>
+    savingOpinion.value ||
+    Boolean(activeReport.value && workspace.busyKey(`opinion:${activeReport.value.id}`)),
 );
+
+const unselected = computed(() => {
+  if (!task.value || !run.value) {
+    return [];
+  }
+  const runPlan = task.value.plans.find((entry) => entry.id === run.value?.planId);
+  const snapshot = run.value.excludedItems ?? runPlan?.excludedItems;
+  if (snapshot !== undefined) {
+    return snapshot.map((entry, index) => ({
+      id: entry.id,
+      no:
+        entry.no ||
+        task.value?.acceptanceItems.find((item) => item.id === entry.id)?.no ||
+        String(index + 1).padStart(2, "0"),
+      text: entry.text,
+    }));
+  }
+  return unselectedItems(task.value, run.value.scope.acceptanceItemIds);
+});
 const supportsEvidence = computed(() => workspace.capabilities.evidenceFiles);
 const evidenceLimits = computed(() => ({
   singleFileMb: project.value?.config.evidence?.singleFileMb,
@@ -175,15 +264,243 @@ const evidenceLimits = computed(() => ({
 const manualBusy = computed(() =>
   manualCase.value ? workspace.busyKey(`manual:${manualCase.value.id}`) : false,
 );
+const previousRun = computed<Run | null>(() => {
+  if (!task.value || !run.value) {
+    return null;
+  }
+  const ordered = [...task.value.runs].sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+  );
+  const idx = ordered.findIndex((entry) => entry.id === run.value?.id);
+  return idx > 0 ? (ordered[idx - 1] ?? null) : null;
+});
+const failedAndBlockedItemIds = computed(() =>
+  items.value
+    .filter((item) =>
+      ["failed", "error", "blocked"].includes(outcomes.value[item.itemId] ?? "not_run"),
+    )
+    .map((item) => item.itemId),
+);
+const manualPendingCases = computed(() => {
+  const current = run.value;
+  if (!current) {
+    return [] as RunCase[];
+  }
+  return current.cases.filter(
+    (entry) => entry.layer === "L3" && effectiveCaseResult(entry, current) === "manual_pending",
+  );
+});
+const targetedRerunBusy = ref(false);
+const batchManualBusy = ref(false);
+
+async function triggerRunAnalysis(): Promise<void> {
+  if (!run.value || analyzingRun.value) {
+    return;
+  }
+  try {
+    await workspace.runAnalysis(projectId.value, run.value.id);
+    await workspace.ensureReportVersions(projectId.value, run.value.id);
+  } catch {
+    // store 已提示。
+  }
+}
+
+function filterReportCasesByItem(itemId: string): void {
+  activeReportItemId.value = activeReportItemId.value === itemId ? "" : itemId;
+  if (!activeReportItemId.value) {
+    return;
+  }
+  void nextTick(() => {
+    caseTableRef.value?.scrollIntoView();
+  });
+}
+
+async function targetedRerun(): Promise<void> {
+  if (
+    !run.value ||
+    !task.value ||
+    !plan.value ||
+    failedAndBlockedItemIds.value.length === 0 ||
+    targetedRerunBusy.value
+  ) {
+    return;
+  }
+  const ok = await ui.askConfirm({
+    title: "直接复测未通过项",
+    body: `将复用计划 ${plan.value.no}（第 ${plan.value.revision} 版）中的已有用例，仅执行 ${failedAndBlockedItemIds.value.length} 个未通过/阻塞验收项，不重建计划。`,
+    confirmLabel: "确认并开始执行",
+  });
+  if (ok === null) {
+    return;
+  }
+  targetedRerunBusy.value = true;
+  try {
+    const nextRun = await workspace.startTargetedRerun(
+      projectId.value,
+      task.value.id,
+      plan.value.id,
+      [...failedAndBlockedItemIds.value],
+    );
+    await router.push(`/projects/${projectId.value}/tasks/${task.value.id}/run?run=${nextRun.id}`);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("PLAN_STALE") || error.message.includes("过时"))
+    ) {
+      ui.showToast("计划与最新代码状态已不一致，请点击右侧重新生成计划后再试。", "error");
+    }
+  } finally {
+    targetedRerunBusy.value = false;
+  }
+}
+
+async function batchMarkManualPassed(): Promise<void> {
+  const current = run.value;
+  if (!current || manualPendingCases.value.length === 0 || batchManualBusy.value) {
+    return;
+  }
+  const ok = await ui.askConfirm({
+    title: "全部人工项标记通过",
+    body: `确认将当前剩余 ${manualPendingCases.value.length} 条待核验人工用例全部标记为“通过”吗？该操作会同步刷新报告结论。`,
+    confirmLabel: "全部标记通过",
+  });
+  if (ok === null) {
+    return;
+  }
+  batchManualBusy.value = true;
+  let saved = 0;
+  let failed = 0;
+  try {
+    for (const entry of manualPendingCases.value) {
+      try {
+        await workspace.recordManual(projectId.value, current.id, entry.id, {
+          result: "passed",
+          note: "人工批量确认通过",
+          evidence: [],
+        });
+        saved += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    if (failed === 0) {
+      ui.showToast(`已将 ${saved} 条人工用例全部标记通过并更新报告。`, "success");
+    } else {
+      ui.showToast(`已完成 ${saved} 条，另有 ${failed} 条更新失败。`, "error");
+    }
+  } finally {
+    batchManualBusy.value = false;
+  }
+}
+
+async function copyCaseFix(testCase: RunCase, item: RunItem): Promise<void> {
+  const prompt = buildCaseFixPrompt({
+    projectName: project.value?.name,
+    projectRoot: project.value?.root,
+    taskTitle: task.value?.title,
+    item: { no: item.no, text: item.text },
+    testCase,
+  });
+  try {
+    if (!navigator.clipboard?.writeText) {
+      ui.showToast("当前环境不支持剪贴板写入。", "error");
+      return;
+    }
+    await navigator.clipboard.writeText(prompt);
+    ui.showToast("AI 修复任务包已复制到剪贴板。", "success");
+  } catch {
+    ui.showToast("复制失败，请检查剪贴板权限。", "error");
+  }
+}
+
+async function copyReportCaseFix(testCase: ReportCaseDetail): Promise<void> {
+  const matchedCase = run.value?.cases.find((entry) => entry.id === testCase.caseId);
+  const itemDetail = activeReport.value?.itemDetails.find(
+    (entry) => entry.itemId === testCase.itemId,
+  );
+  const prompt = buildCaseFixPrompt({
+    projectName: project.value?.name,
+    projectRoot: project.value?.root,
+    taskTitle: task.value?.title,
+    item: {
+      no: testCase.itemNo || itemDetail?.no || "",
+      text: itemDetail?.text || testCase.title,
+    },
+    testCase: matchedCase ?? {
+      id: testCase.caseId,
+      title: testCase.title,
+      method: testCase.method,
+      expected: testCase.expected,
+      actual: testCase.actual,
+      message: testCase.analysis?.observed ?? "",
+      errorType: testCase.errorType ?? "",
+      stackKey: testCase.stackKey ?? "",
+      evidence: testCase.evidence,
+      testNodes: testCase.testNodes ?? [],
+      confidence: testCase.confidence,
+      confidenceReason: testCase.confidenceReason,
+      phaseFailed: testCase.phaseFailed,
+      serviceLogIssues: testCase.serviceLogIssues,
+      judgement: testCase.judgement,
+      file: testCase.file,
+      line: testCase.line,
+    },
+  });
+  try {
+    if (!navigator.clipboard?.writeText) {
+      ui.showToast("当前环境不支持剪贴板写入。", "error");
+      return;
+    }
+    await navigator.clipboard.writeText(prompt);
+    ui.showToast("修复上下文已复制到剪贴板。", "success");
+  } catch {
+    ui.showToast("复制失败，请检查剪贴板权限。", "error");
+  }
+}
+
+async function addProbeConvention(input: {
+  pattern: string;
+  reason: string;
+  scope: string;
+}): Promise<void> {
+  try {
+    await workspace.addConvention(projectId.value, input);
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function markCaseConvention(testCase: ReportCaseDetail): Promise<void> {
+  const defaultPattern = (testCase.actual || testCase.title || testCase.caseId).trim();
+  const reason = await ui.askConfirm({
+    title: "标为服务或项目正常约定（后续不再误报）",
+    body: `后续再次出现匹配“${defaultPattern.slice(0, 64)}”的结果时，自动按已知惯例豁免。`,
+    confirmLabel: "记录惯例",
+    requireText: true,
+    textLabel: "原因说明",
+    placeholder: "例如：开发态预留端口探测日志，非故障",
+  });
+  if (reason === null) {
+    return;
+  }
+  try {
+    await workspace.addConvention(projectId.value, {
+      pattern: defaultPattern,
+      reason,
+      scope: "case",
+    });
+  } catch {
+    // store 已提示。
+  }
+}
+
 let disposed = false;
 
-// 宿主 worker 在运行状态结束后才异步构建报告；结果页短暂轮询版本列表。
 async function loadReportsUntilReady(): Promise<void> {
   for (let attempt = 0; attempt < 30 && !disposed; attempt += 1) {
     if (!run.value || reports.value.length > 0) {
       return;
     }
-    // 中断/取消/执行出错不会再有报告；后处理已失败也不再空轮询。
     if (
       ["interrupted", "cancelled", "execution_error"].includes(run.value.status) ||
       run.value.postprocess === "error"
@@ -193,7 +510,7 @@ async function loadReportsUntilReady(): Promise<void> {
     try {
       await workspace.ensureReportVersions(projectId.value, run.value.id);
     } catch {
-      // 报告拉取失败不阻塞结果页；下一轮重试。
+      // 忽略瞬时错误，待下次轮询
     }
     if (reports.value.length > 0) {
       return;
@@ -248,10 +565,11 @@ function openEvidence(): void {
 }
 
 async function focusFromSummary(itemId: string): Promise<void> {
+  activeTab.value = "summary";
   if (filter.value !== "all") {
     filter.value = "all";
-    await new Promise((resolve) => setTimeout(resolve, 0));
   }
+  await nextTick();
   await caseLedgerRef.value?.focusItem(itemId);
 }
 
@@ -280,7 +598,7 @@ async function saveEvidence(evidence: EvidenceInput[]): Promise<void> {
     ui.showToast(`已登记 ${saved} 个证据文件；报告已更新。`, "success");
   } else {
     ui.showToast(
-      `已登记 ${saved} 个；${failed.length} 个失败：${failed.join("、")}。重试相同文件不会重复登记。`,
+      `已登记 ${saved} 个；${failed.length} 个失败：${failed.join("、")}。`,
       "error",
     );
   }
@@ -320,7 +638,6 @@ async function rerun(): Promise<boolean> {
     await router.push(`/projects/${projectId.value}/tasks/${taskId.value}/plan`);
     return true;
   } catch {
-    // store 已提示。
     return false;
   }
 }
@@ -330,8 +647,9 @@ async function regenerate(): Promise<void> {
     return;
   }
   try {
-    await workspace.regenerateReport(projectId.value, run.value.id);
-    ui.showToast("报告已重新生成。", "success");
+    const next = await workspace.regenerateReport(projectId.value, run.value.id);
+    selectedReportId.value = next.id;
+    ui.showToast("正式报告已更新为最新版本。", "success");
   } catch {
     // store 已提示。
   }
@@ -343,11 +661,57 @@ async function exportReport(reportId: string): Promise<void> {
   }
   exporting.value = true;
   try {
-    await workspace.exportReport(projectId.value, reportId);
+    exportResult.value = await workspace.exportReport(projectId.value, reportId);
   } catch {
     // store 已提示。
   } finally {
     exporting.value = false;
+  }
+}
+
+async function saveOpinion(payload: { by: string; text: string }): Promise<void> {
+  if (!activeReport.value || busyOpinion.value) {
+    return;
+  }
+  savingOpinion.value = true;
+  try {
+    await workspace.saveOpinion(
+      projectId.value,
+      activeReport.value.id,
+      payload.by,
+      payload.text,
+    );
+    ui.showToast("验收意见已记录并署名。", "success");
+  } catch {
+    // store 已提示。
+  } finally {
+    savingOpinion.value = false;
+  }
+}
+
+async function importHostLinks(): Promise<void> {
+  if (!run.value || linkBusy.value) {
+    return;
+  }
+  try {
+    await workspace.importHostLink(projectId.value, run.value.id);
+    ui.showToast("运行期调用链与观测证据已同步刷新。", "success");
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function assertLink(input: LinkAssertInput): Promise<void> {
+  if (!run.value) {
+    return;
+  }
+  try {
+    await workspace.assertLink(projectId.value, run.value.id, input);
+    const next = await workspace.regenerateReport(projectId.value, run.value.id);
+    selectedReportId.value = next.id;
+    ui.showToast("调用链节点断言已记录，并同步更新报告。", "success");
+  } catch {
+    // store 已提示。
   }
 }
 
@@ -357,7 +721,7 @@ async function showEvidence(evidence: EvidenceRef): Promise<void> {
       await workspace.openHostPath(evidence.sourcePath);
       return;
     } catch {
-      // 宿主打不开时退回复制引用。
+      // 退回弹窗或剪贴板
     }
   }
   const reference = evidence.sourcePath || evidence.name;
@@ -365,21 +729,67 @@ async function showEvidence(evidence: EvidenceRef): Promise<void> {
     await navigator.clipboard.writeText(reference);
     ui.showToast(`证据引用已复制：${reference}`, "success");
   } catch {
-    ui.showToast(`证据引用：${reference}（复制失败，请手动选择）`, "error");
+    ui.showToast(`证据引用：${reference}`, "info");
+  }
+}
+
+function showReportCommand(testCase: ReportCaseDetail): void {
+  detailContent.value = {
+    kind: "command",
+    title: testCase.title,
+    command: commandText(testCase.method),
+    root: project.value?.root ?? "",
+  };
+}
+
+function openReportEvidence(evidence: EvidenceRef): void {
+  detailContent.value = { kind: "evidence", evidence };
+}
+
+async function copyRepro(command: string): Promise<void> {
+  const text = command || buildMinimalReproCommand({ method: command });
+  try {
+    await navigator.clipboard?.writeText(text);
+    ui.showToast("最小复现方式已复制。", "success");
+  } catch {
+    ui.showToast("复制失败，请检查剪贴板权限。", "error");
+  }
+}
+
+async function openExport(): Promise<void> {
+  if (!exportResult.value?.path) {
+    return;
+  }
+  try {
+    await workspace.openHostPath(exportResult.value.path);
+  } catch {
+    // store 已提示。
+  }
+}
+
+async function copyMarkdown(): Promise<void> {
+  if (!exportResult.value?.markdown) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(exportResult.value.markdown);
+    ui.showToast("报告 Markdown 已复制到剪贴板。", "success");
+  } catch {
+    ui.showToast("复制失败，请手动选中。", "error");
   }
 }
 
 function rerunLabel(): string {
   if (run.value?.verdict === "passed") {
-    return "重新生成计划";
+    return "按原范围再测一次";
   }
   if (run.value?.verdict === "failed") {
-    return "按未通过项重新生成计划";
+    return "仅围绕未通过项重建计划";
   }
   if (run.value?.verdict === "incomplete") {
-    return "按未完成项重新生成计划";
+    return "仅围绕未完成项重建计划";
   }
-  return "按原范围重新生成计划";
+  return "按原范围重建计划";
 }
 </script>
 
@@ -392,203 +802,456 @@ function rerunLabel(): string {
       @retry="router.push(`/projects/${projectId}/tasks/${taskId}/plan`)"
     />
   </div>
-  <div v-else class="page page-data">
+  <div v-else class="page page-wide">
     <PageHeader
       title="测试结果"
-      :subtitle="`${task.title} · ${plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : '计划快照缺失'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · ${run.confirmedBy} 确认`"
-    />
-
-    <p v-if="environmentRows.length" class="run-environment muted">
-      环境：{{ environmentRows.join(" · ") }}
-    </p>
-
-    <section
-      v-if="workspace.mode === 'host' && repairSuggestions.length"
-      class="section"
-      aria-label="依赖修复建议"
+      :subtitle="`${task.title} · ${plan ? `计划 ${plan.no}（第 ${plan.revision} 版）` : '计划快照'} · ${new Date(run.startedAt).toLocaleString('zh-CN')} · ${run.confirmedBy} 确认`"
     >
-      <div class="section-head">
-        <h2 class="section-title">依赖修复建议</h2>
-      </div>
-      <div class="repair-list">
-        <label
-          v-for="entry in repairSuggestions"
-          :key="`${entry.module}-${entry.package}`"
-          class="repair-row"
-        >
-          <input
-            type="checkbox"
-            :checked="repairSelection.includes(entry.package)"
-            @change="toggleRepair(entry.package)"
-          />
-          <span class="repair-package">{{ entry.package }}</span>
-          <span class="repair-module">缺失模块：{{ entry.module }}</span>
-          <span class="repair-source">
-            {{
-              entry.source === "declared"
-                ? "项目测试依赖"
-                : entry.source === "ai"
-                  ? "模型建议"
-                  : "内置映射"
-            }}
-          </span>
-          <span class="muted">{{ entry.reason }}</span>
-        </label>
-      </div>
-      <div class="empty-actions">
-        <label class="repair-confirm">
-          <input v-model="repairConfirmed" type="checkbox" />
-          我已确认安装以上依赖，并接受更新运行环境与证据记录
-        </label>
+      <template #actions>
         <button
-          class="btn btn-primary btn-sm"
+          v-if="activeReport"
+          class="btn btn-ghost btn-sm"
           type="button"
-          :disabled="
-            repairSelection.length === 0 || !repairConfirmed || repairing
-          "
-          :aria-busy="repairing"
-          @click="installDependenciesAndRerun"
+          @click="router.push(`/projects/${projectId}/reports/${activeReport.id}`)"
         >
-          {{ repairing ? "正在安装…" : "安装并准备重跑计划" }}
+          独立打开报告
         </button>
-      </div>
-      <details v-if="repairHistory.length" class="unselected-block">
-        <summary>依赖修复记录 {{ repairHistory.length }} 次</summary>
-        <ul class="list-plain">
-          <li v-for="entry in repairHistory" :key="`${entry.at}-${entry.confirmedBy}`">
-            {{ new Date(entry.at).toLocaleString("zh-CN") }} · {{ entry.confirmedBy }} ·
-            {{ entry.ok ? "安装成功" : "安装失败" }}
-            <span class="muted">
-              ·
-              {{
-                Object.entries(entry.packages)
-                  .map(([name, version]) => `${name} ${version || "版本未记录"}`)
-                  .join("；") || "没有包版本"
-              }}
-            </span>
-            <span v-if="entry.evidenceRef" class="muted"> · 证据 {{ entry.evidenceRef }}</span>
-          </li>
-        </ul>
-      </details>
-    </section>
-
-    <div v-if="unmappedCases.length" class="notice is-warn" role="alert">
-      <span>
-        {{ unmappedCases.length }} 条用例缺少计划快照，无法挂到验收项；预期按未核实处理：
-        {{ unmappedCases.map((testCase) => testCase.id).join("、") }}
-      </span>
-    </div>
+        <button
+          v-if="activeReport"
+          class="btn btn-sm btn-primary"
+          type="button"
+          :disabled="exporting"
+          :aria-busy="exporting"
+          @click="exportReport(activeReport.id)"
+        >
+          <Icon name="download" :size="14" />
+          {{
+            exporting
+              ? "正在导出…"
+              : workspace.mode === "host"
+                ? "导出到工作空间"
+                : "导出报告 (MD)"
+          }}
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="result-sheet">
-    <ResultSummary
-      :run="run"
-      :task="task"
-      :conclusion="latestReport?.conclusion"
-      @select="focusFromSummary"
-    />
+      <ResultSummary
+        :run="run"
+        :task="task"
+        :conclusion="activeReport?.conclusion"
+        @select="focusFromSummary"
+      />
 
-    <section v-if="run.l1.length" class="section" aria-labelledby="result-l1-title">
-      <div class="section-head">
-        <h2 id="result-l1-title" class="section-title">项目级检查</h2>
-        <span class="section-note">不计入 S/M 覆盖</span>
+      <!-- 三合一结果与报告切换条 -->
+      <div class="row-between" style="margin: var(--space-4) 0; flex-wrap: wrap; gap: 10px;">
+        <div class="tab-pills" role="tablist" aria-label="结果工作台分区">
+          <button
+            class="tab-pill"
+            :class="{ 'is-active': activeTab === 'summary' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'summary'"
+            @click="activeTab = 'summary'"
+          >
+            检查结果
+          </button>
+          <button
+            class="tab-pill"
+            :class="{ 'is-active': activeTab === 'report' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'report'"
+            @click="activeTab = 'report'"
+          >
+            验收报告
+            <span v-if="reports.length" class="muted"> (v{{ activeReport?.version ?? 1 }})</span>
+          </button>
+          <button
+            class="tab-pill"
+            :class="{ 'is-active': activeTab === 'links' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'links'"
+            @click="activeTab = 'links'"
+          >
+            调用链
+          </button>
+        </div>
+
+        <button
+          v-if="manualPendingCases.length >= 2 && activeTab === 'summary'"
+          class="btn btn-sm"
+          type="button"
+          :disabled="batchManualBusy"
+          :aria-busy="batchManualBusy"
+          @click="batchMarkManualPassed"
+        >
+          {{ batchManualBusy ? "正在批量记录…" : `全部人工项标记通过 (${manualPendingCases.length})` }}
+        </button>
       </div>
-      <div class="check-list">
-        <div v-for="check in run.l1" :key="check.key" class="check-row">
-          <StatusMark :result="check.result" />
-          <span class="check-name">{{ check.name }}</span>
-          <span class="check-method">{{ check.method }}</span>
-          <StatusText :result="check.result" />
-          <span v-if="check.reason" class="muted">{{ check.reason }}</span>
+
+      <!-- 标签页 1：检查结果 -->
+      <div v-if="activeTab === 'summary'" class="stack" role="tabpanel" aria-label="检查结果">
+        <section
+          v-if="workspace.mode === 'host' && repairSuggestions.length"
+          class="elevated-panel stack-sm"
+          aria-label="缺失依赖"
+        >
+          <div class="row-between">
+            <h2 class="section-title">缺失依赖</h2>
+            <span class="badge is-warn">安装后可续跑未完成项</span>
+          </div>
+          <div class="repair-list">
+            <label
+              v-for="entry in repairSuggestions"
+              :key="`${entry.module}-${entry.package}`"
+              class="repair-row"
+            >
+              <input
+                type="checkbox"
+                :checked="repairSelection.includes(entry.package)"
+                @change="toggleRepair(entry.package)"
+              />
+              <span class="repair-package">{{ entry.package }}</span>
+              <span class="repair-module">缺失：{{ entry.module }}</span>
+              <span class="repair-source">
+                {{
+                  entry.source === "declared"
+                    ? "项目声明依赖"
+                    : entry.source === "ai"
+                      ? "推荐"
+                      : "常用映射"
+                }}
+              </span>
+              <span class="muted">{{ entry.reason }}</span>
+            </label>
+          </div>
+          <div class="empty-actions">
+            <label class="repair-confirm">
+              <input v-model="repairConfirmed" type="checkbox" />
+              我已确认安装以上包，并允许记录环境变动凭证
+            </label>
+            <button
+              class="btn btn-primary btn-sm"
+              type="button"
+              :disabled="repairSelection.length === 0 || !repairConfirmed || repairing"
+              :aria-busy="repairing"
+              @click="installDependenciesAndRerun"
+            >
+              {{ repairing ? "正在安装…" : "安装并重跑" }}
+            </button>
+          </div>
+        </section>
+
+        <!-- 失败分析面板 -->
+        <section
+          v-if="problemCount > 0 || activeAnalysis?.status === 'generated'"
+          class="elevated-panel stack-sm"
+          aria-label="失败分析"
+        >
+          <div class="row-between">
+            <div class="row">
+              <h2 class="section-title">失败分析</h2>
+              <span class="badge is-neutral">仅供参考 · 不改结论</span>
+            </div>
+            <button
+              v-if="workspace.mode === 'host'"
+              class="btn btn-sm"
+              type="button"
+              :disabled="analyzingRun"
+              :aria-busy="analyzingRun"
+              @click="triggerRunAnalysis"
+            >
+              {{
+                analyzingRun
+                  ? "分析中…"
+                  : activeAnalysis?.status === "generated"
+                    ? "重新分析"
+                    : "分析失败原因"
+              }}
+            </button>
+          </div>
+          <template v-if="activeAnalysis && activeAnalysis.status === 'generated'">
+            <p class="doc-p">{{ activeAnalysis.observed }}</p>
+            <ul class="list-plain">
+              <li v-for="cause in activeAnalysis.candidateCauses" :key="cause.cause">
+                <span class="badge is-warn">可能性：{{ cause.confidence }}</span>
+                {{ cause.cause }}
+              </li>
+              <li v-for="step in activeAnalysis.nextSteps" :key="step" class="muted">
+                排查建议：{{ step }}
+              </li>
+            </ul>
+            <details v-if="activeAnalysis.unverified.length" class="details-tech">
+              <summary>待证实项 ({{ activeAnalysis.unverified.length }})</summary>
+              <ul class="list-plain">
+                <li v-for="item in activeAnalysis.unverified" :key="item">{{ item }}</li>
+              </ul>
+            </details>
+          </template>
+          <p v-else-if="activeAnalysis" class="field-hint">
+            {{
+              ANALYSIS_REASON_TEXT[activeAnalysis.reason] ||
+              `${ANALYSIS_REASON_LABEL[activeAnalysis.status === "invalid" ? "invalid" : "not_generated"]}；可点击右上按钮重新分析。`
+            }}
+          </p>
+          <p v-else class="field-hint">
+            有 {{ problemCount }} 项未通过或阻塞，可点击右上按钮分析原因。
+          </p>
+        </section>
+
+        <PreflightAndProbesCard
+          :preflight="run.preflight ?? null"
+          :probe-results="run.probeResults ?? []"
+          :can-open-source="workspace.mode === 'host'"
+          @add-convention="addProbeConvention"
+          @open-source="(file, line) => void workspace.openSourceLocation(file, line)"
+        />
+
+        <section v-if="run.l1.length" class="section" aria-labelledby="result-l1-title">
+          <div class="section-head">
+            <h2 id="result-l1-title" class="section-title">基础检查 (L1)</h2>
+            <span class="section-note">单独记录，不计入 S/M 验收覆盖分母</span>
+          </div>
+          <div class="check-list">
+            <div v-for="check in run.l1" :key="check.key" class="check-row">
+              <StatusMark :result="check.result" />
+              <span class="check-name">{{ check.name }}</span>
+              <span class="check-method">{{ check.method }}</span>
+              <StatusText :result="check.result" />
+              <span v-if="check.reason" class="muted check-reason">{{ check.reason }}</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="row-between" style="flex-wrap: wrap; gap: 10px;">
+          <div class="filter-bar" role="group" aria-label="筛选结果">
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': filter === 'all' }"
+              type="button"
+              :aria-pressed="filter === 'all'"
+              @click="filter = 'all'"
+            >
+              全部<span class="filter-count">{{ items.length }}</span>
+            </button>
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': filter === 'problems' }"
+              type="button"
+              :aria-pressed="filter === 'problems'"
+              @click="filter = 'problems'"
+            >
+              只看未通过<span class="filter-count">{{ problemCount }}</span>
+            </button>
+            <button
+              class="filter-btn"
+              :class="{ 'is-active': filter === 'unfinished' }"
+              type="button"
+              :aria-pressed="filter === 'unfinished'"
+              @click="filter = 'unfinished'"
+            >
+              未完成<span class="filter-count">{{ unfinishedCount }}</span>
+            </button>
+          </div>
+          <button v-if="supportsEvidence" class="btn btn-sm btn-ghost" type="button" @click="openEvidence">
+            + 补充人工证据
+          </button>
+        </div>
+
+        <CaseLedger
+          ref="caseLedgerRef"
+          :run="run"
+          :previous-run="previousRun"
+          :items="items"
+          :filter="filter"
+          allow-manual
+          allow-copy-fix
+          :manual-busy-case-id="manualCase?.id ?? ''"
+          @manual="openManual"
+          @show-evidence="showEvidence"
+          @copy-fix="copyCaseFix"
+          @reset-filter="filter = 'all'"
+        />
+      </div>
+
+      <!-- 标签页 2：验收报告 -->
+      <div v-else-if="activeTab === 'report'" class="stack" role="tabpanel" aria-label="验收报告">
+        <div v-if="!activeReport" class="elevated-panel stack-sm">
+          <p class="field-hint">
+            本次测试的正式验收报告尚在整理或未生成。如果运行已结束，可立即生成正式版本。
+          </p>
+          <div>
+            <button
+              class="btn btn-primary btn-sm"
+              type="button"
+              :disabled="reportBusy"
+              :aria-busy="reportBusy"
+              @click="regenerate"
+            >
+              {{ reportBusy ? "正在整理报告…" : "立即生成正式报告" }}
+            </button>
+          </div>
+        </div>
+        <template v-else>
+          <div class="row-between" style="flex-wrap: wrap; gap: 8px;">
+            <div v-if="reports.length > 1" class="filter-bar" role="group" aria-label="切换报告版本">
+              <button
+                v-for="ver in reports"
+                :key="ver.id"
+                class="filter-btn"
+                :class="{ 'is-active': ver.id === activeReport.id }"
+                type="button"
+                @click="selectedReportId = ver.id"
+              >
+                第 {{ ver.version }} 版
+              </button>
+            </div>
+            <div class="row">
+              <button
+                class="btn btn-ghost btn-sm"
+                type="button"
+                :disabled="reportBusy"
+                :aria-busy="reportBusy"
+                @click="regenerate"
+              >
+                {{ reportBusy ? "正在生成…" : "刷新生成新版报告" }}
+              </button>
+              <button
+                class="btn btn-sm"
+                type="button"
+                @click="router.push(`/projects/${projectId}/reports/${activeReport.id}`)"
+              >
+                独立打开报告
+              </button>
+            </div>
+          </div>
+
+          <section class="report-group">
+            <ReportConclusionSection :report="activeReport" />
+            <ReportScopeAndChecks
+              :report="activeReport"
+              :active-item-id="activeReportItemId"
+              :can-open-source="workspace.mode === 'host'"
+              @filter-item="filterReportCasesByItem"
+              @open-evidence="openReportEvidence"
+              @add-convention="addProbeConvention"
+              @open-source="(file, line) => void workspace.openSourceLocation(file, line)"
+            />
+            <ReportCaseTable
+              ref="caseTableRef"
+              :report="activeReport"
+              :run="run"
+              :active-item-id="activeReportItemId"
+              :can-open-source="workspace.mode === 'host'"
+              @clear-filter="activeReportItemId = ''"
+              @show-command="showReportCommand"
+              @open-evidence="openReportEvidence"
+              @copy-fix="copyReportCaseFix"
+              @copy-repro="copyRepro"
+              @mark-convention="markCaseConvention"
+              @open-source="(file, line) => void workspace.openSourceLocation(file, line)"
+            />
+            <ReportOpinionAndExport
+              :report="activeReport"
+              :is-latest="isLatestReport"
+              :busy-opinion="busyOpinion"
+              :export-result="exportResult"
+              @save-opinion="saveOpinion"
+              @open-export="openExport"
+              @copy-markdown="copyMarkdown"
+            />
+          </section>
+        </template>
+      </div>
+
+      <!-- 标签页 3：调用链 -->
+      <div v-else class="stack" role="tabpanel" aria-label="调用链">
+        <div class="elevated-panel stack-sm">
+          <div class="row-between" style="flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 class="section-title">运行调用链</h2>
+              <p class="field-hint">
+                查看前端到后端与数据层的实际调用，可补充预期断言。
+              </p>
+            </div>
+            <button
+              v-if="workspace.mode === 'host'"
+              class="btn btn-sm"
+              type="button"
+              :disabled="linkBusy"
+              :aria-busy="linkBusy"
+              @click="importHostLinks"
+            >
+              <Icon name="refresh" :size="14" />
+              {{ linkBusy ? "正在采集…" : "采集 / 刷新链路证据" }}
+            </button>
+          </div>
+          <LinkPanel :link="activeLink" :busy="linkBusy" @assert="assertLink" />
         </div>
       </div>
-    </section>
 
-    <ReportStrip
-      :report="latestReport"
-      :version-count="reports.length"
-      :run-status="run.status"
-      :postprocess="run.postprocess"
-      :busy="reportBusy"
-      @open="(reportId) => router.push(`/projects/${projectId}/reports/${reportId}`)"
-      @regenerate="regenerate"
-      @export="exportReport"
-    />
-
-    <div class="section-head result-cases-head">
-      <h2 class="section-title">验收结果</h2>
-      <span class="section-note">{{ items.length }} 项 · 按最差结果排序</span>
-      <button v-if="supportsEvidence" class="link-btn" type="button" @click="openEvidence">
-        补充证据
-      </button>
-    </div>
-
-    <div class="toolbar result-filter-bar">
-      <div class="filter-bar" role="group" aria-label="筛选结果">
-        <button
-          class="filter-btn"
-          :class="{ 'is-active': filter === 'all' }"
-          type="button"
-          :aria-pressed="filter === 'all'"
-          @click="filter = 'all'"
-        >
-          全部<span class="filter-count">{{ items.length }}</span>
-        </button>
-        <button
-          class="filter-btn"
-          :class="{ 'is-active': filter === 'problems' }"
-          type="button"
-          :aria-pressed="filter === 'problems'"
-          @click="filter = 'problems'"
-        >
-          只看未通过<span class="filter-count">{{ problemCount }}</span>
-        </button>
-        <button
-          class="filter-btn"
-          :class="{ 'is-active': filter === 'unfinished' }"
-          type="button"
-          :aria-pressed="filter === 'unfinished'"
-          @click="filter = 'unfinished'"
-        >
-          未完成<span class="filter-count">{{ unfinishedCount }}</span>
-        </button>
-      </div>
-    </div>
-
-    <CaseLedger
-      ref="caseLedgerRef"
-      :run="run"
-      :items="items"
-      :filter="filter"
-      allow-manual
-      :manual-busy-case-id="manualCase?.id ?? ''"
-      @manual="openManual"
-      @show-evidence="showEvidence"
-      @reset-filter="filter = 'all'"
-    />
-
-    <details v-if="unselected.length" class="unselected-block">
-      <summary>未纳入本次 {{ unselected.length }} 项 <span class="muted">不计入结论</span></summary>
-      <ul class="list-plain">
-        <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>
-      </ul>
-    </details>
+      <!-- 运行详情折叠区 -->
+      <details
+        v-if="unselected.length || environmentRows.length || unmappedCases.length || repairHistory.length"
+        class="details-tech"
+      >
+        <summary>运行详情（环境、未纳入项、依赖记录）</summary>
+        <div class="stack-sm" style="margin-top: 8px;">
+          <p v-if="environmentRows.length" class="muted mono">
+            运行环境：{{ environmentRows.join(" · ") }}
+          </p>
+          <p v-if="unmappedCases.length" class="muted">
+            无关联计划快照的追加记录 ({{ unmappedCases.length }} 条)：
+            {{ unmappedCases.map((c) => c.id).join("、") }}
+          </p>
+          <div v-if="unselected.length">
+            <strong>未纳入本次范围的验收项 ({{ unselected.length }} 项，不计入分母)</strong>
+            <ul class="list-plain">
+              <li v-for="item in unselected" :key="item.id">{{ item.no }} {{ item.text }}</li>
+            </ul>
+          </div>
+          <div v-if="repairHistory.length">
+            <strong>依赖安装历史 ({{ repairHistory.length }} 次)</strong>
+            <ul class="list-plain">
+              <li v-for="entry in repairHistory" :key="`${entry.at}-${entry.confirmedBy}`">
+                {{ new Date(entry.at).toLocaleString("zh-CN") }} · {{ entry.confirmedBy }} ·
+                {{ entry.ok ? "成功" : "失败" }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="actionbar">
       <div class="actionbar-inner">
         <div class="actionbar-facts">
-          <span class="fact-strong"
-            >计划 {{ plan?.no ?? "—" }} · 第 {{ plan?.revision ?? "—" }} 版</span
-          >
+          <span class="fact-strong">计划 {{ plan?.no ?? "—" }} · 第 {{ plan?.revision ?? "—" }} 版</span>
           <span>本次 {{ run.counts.selected }} 项 / 共 {{ run.counts.applicable }} 项</span>
         </div>
         <div class="actionbar-actions">
+          <button
+            v-if="plan && failedAndBlockedItemIds.length > 0"
+            class="btn btn-primary"
+            type="button"
+            :disabled="targetedRerunBusy"
+            :aria-busy="targetedRerunBusy"
+            @click="targetedRerun"
+          >
+            {{
+              targetedRerunBusy
+                ? "正在启动复测…"
+                : `直接复测未通过项 (${failedAndBlockedItemIds.length})`
+            }}
+          </button>
           <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>
           <button class="btn" type="button" @click="rerun">{{ rerunLabel() }}</button>
         </div>
       </div>
     </div>
-
 
     <ManualResultDialog
       v-model="manualOpen"
@@ -606,6 +1269,15 @@ function rerunLabel(): string {
       :busy="workspace.busyKey(`evidence:${run.id}`)"
       :limits="evidenceLimits"
       @save="saveEvidence"
+    />
+    <ReportDetailDialog
+      :detail="detailContent"
+      :simulated="Boolean(run?.simulated)"
+      :host-mode="workspace.mode === 'host'"
+      :project-id="projectId"
+      :run-id="run.id"
+      @close="detailContent = null"
+      @open-host-path="(p) => void workspace.openHostPath(p)"
     />
   </div>
 </template>

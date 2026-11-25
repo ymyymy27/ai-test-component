@@ -20,11 +20,49 @@ export interface HostProgressEvent {
   phase?: string;
   stage?: string;
   ok?: boolean;
+  message?: string;
+  done?: number;
+  total?: number;
 }
 
 export interface HostCallOptions {
   confirm?: boolean;
   onProgress?: (event: HostProgressEvent) => void;
+}
+
+export type HostCapabilityName =
+  | "git"
+  | "fileWatcher"
+  | "documentSymbols"
+  | "openSource"
+  | "diagnostics"
+  | "secretStorage"
+  | "statusBar"
+  | "outputChannel";
+
+export type HostCapabilitiesFlags = Record<HostCapabilityName, boolean>;
+
+export interface HostGitSummary {
+  available: boolean;
+  branch: string;
+  head: string;
+  ahead: number;
+  behind: number;
+  dirtyCount: number;
+}
+
+export interface HostDiagnosticInput {
+  file: string;
+  line?: number;
+  endLine?: number;
+  message: string;
+  severity?: "error" | "warning" | "info";
+  code?: string;
+}
+
+export interface WorkspaceDirtyEvent {
+  projectRoot: string;
+  changedPaths: string[];
 }
 
 export interface HostBridge {
@@ -37,8 +75,21 @@ export interface HostBridge {
   getState(): unknown;
   setState(state: unknown): void;
   getContext?(): unknown;
+  getTheme?(): string;
+  onContext?(cb: (context: HostContext) => void): () => void;
+  onTheme?(cb: (theme: string) => void): () => void;
   openPath?(path: string): Promise<HostCallResult<boolean>>;
   pickDirectory?(): Promise<HostCallResult<string>>;
+  openSource?(
+    path: string,
+    line?: number,
+    column?: number,
+  ): Promise<HostCallResult<{ path: string; line: number; column: number }>>;
+  publishDiagnostics?(
+    items: HostDiagnosticInput[],
+  ): Promise<HostCallResult<{ count: number; unsupported?: boolean }>>;
+  clearDiagnostics?(): Promise<HostCallResult<boolean>>;
+  onWorkspaceDirty?(cb: (event: WorkspaceDirtyEvent) => void): () => void;
 }
 
 export interface HostContext {
@@ -47,6 +98,9 @@ export interface HostContext {
   pythonPath?: string;
   workspacePath?: string;
   workspaceFolderCount?: number;
+  themeKind?: "dark" | "light";
+  capabilities?: Partial<HostCapabilitiesFlags>;
+  hostGit?: HostGitSummary | null;
 }
 
 declare global {
@@ -138,6 +192,41 @@ export function readHostContext(): HostContext | null {
   }
 }
 
+/** 读取宿主当前主题极性；非宿主环境或不支持时返回 null。 */
+export function readHostTheme(): "dark" | "light" | null {
+  try {
+    const host = hostBridge();
+    const direct = host?.getTheme?.();
+    if (direct === "dark" || direct === "light") {
+      return direct;
+    }
+    const fromCtx = readHostContext()?.themeKind;
+    return fromCtx === "dark" || fromCtx === "light" ? fromCtx : null;
+  } catch {
+    return null;
+  }
+}
+
+export function onHostContext(cb: (context: HostContext) => void): () => void {
+  const host = hostBridge();
+  if (!host || typeof host.onContext !== "function") {
+    return () => undefined;
+  }
+  return host.onContext(cb);
+}
+
+export function onHostTheme(cb: (theme: "dark" | "light") => void): () => void {
+  const host = hostBridge();
+  if (!host || typeof host.onTheme !== "function") {
+    return () => undefined;
+  }
+  return host.onTheme((value) => {
+    if (value === "dark" || value === "light") {
+      cb(value);
+    }
+  });
+}
+
 /** 让宿主弹出目录选择器；取消时返回 null。 */
 export async function pickHostDirectory(): Promise<string | null> {
   const host = hostBridge();
@@ -171,8 +260,88 @@ export async function openHostPath(path: string): Promise<boolean> {
   return Boolean(result.data);
 }
 
+/** 跳转到已绑定项目内的源码指定行，非宿主或不支持时抛出可读提示错误。 */
+export async function openHostSource(path: string, line = 1, column = 1): Promise<boolean> {
+  const host = hostBridge();
+  if (host === null || typeof host.openSource !== "function") {
+    throw new HostError({
+      code: "HOST_UNSUPPORTED",
+      message: "当前环境不支持一键跳源码",
+      next_step: "请在编辑器侧边文件树中打开该文件",
+    });
+  }
+  const result = await host.openSource(path, line, column);
+  if (!result.ok) {
+    throw new HostError(result.error);
+  }
+  return true;
+}
+
+/** 将结构化缺陷诊断推送到编辑器原生“问题（Problems）”面板；无宿主能力时静默跳过。 */
+export async function publishHostDiagnostics(items: HostDiagnosticInput[]): Promise<number> {
+  const host = hostBridge();
+  if (host === null || typeof host.publishDiagnostics !== "function") {
+    return 0;
+  }
+  try {
+    const result = await host.publishDiagnostics(items);
+    return result.ok ? result.data.count : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 清除由 AI 测试推送到宿主“问题”面板的诊断条目；无宿主能力时静默跳过。 */
+export async function clearHostDiagnostics(): Promise<boolean> {
+  const host = hostBridge();
+  if (host === null || typeof host.clearDiagnostics !== "function") {
+    return false;
+  }
+  try {
+    const result = await host.clearDiagnostics();
+    return result.ok ? Boolean(result.data) : false;
+  } catch {
+    return false;
+  }
+}
+
+/** 监听宿主工作区文件保存改动通知。 */
+export function onHostWorkspaceDirty(cb: (event: WorkspaceDirtyEvent) => void): () => void {
+  const host = hostBridge();
+  if (!host || typeof host.onWorkspaceDirty !== "function") {
+    return () => undefined;
+  }
+  return host.onWorkspaceDirty(cb);
+}
+
 /** 同一命令 + 参数仍在执行时复用同一个 Promise，避免超时重试造成重复副作用。 */
 const inFlight = new Map<string, Promise<unknown>>();
+
+export interface HostActivityObserver {
+  onStart(command: string, cancel: (() => void) | null): string;
+  onProgress(token: string, event: HostProgressEvent): void;
+  onEnd(token: string): void;
+}
+
+const LONG_RUNNING_COMMANDS: ReadonlySet<string> = new Set([
+  "plan.generate",
+  "project.map.refresh",
+  "task.add",
+  "task.suggest",
+  "delivery.draft",
+  "report.generate",
+  "run.repair",
+  "backup.create",
+  "backup.restore",
+  "analysis.run",
+  "github.read",
+]);
+
+let activityObserver: HostActivityObserver | null = null;
+
+export function setHostActivityObserver(observer: HostActivityObserver | null): void {
+  activityObserver = observer;
+}
 
 function callKey(command: string, payload: object, options: HostCallOptions): string {
   return `${command}\u0000${options.confirm === true ? "1" : "0"}\u0000${JSON.stringify(payload)}`;
@@ -192,31 +361,55 @@ export function callHost<T>(
   if (existing) {
     return existing as Promise<T>;
   }
+  const trackLong = LONG_RUNNING_COMMANDS.has(command) && activityObserver !== null;
+  const activityToken = trackLong
+    ? activityObserver!.onStart(
+        command,
+        typeof host.cancel === "function"
+          ? () => host.cancel?.(command, payload, { confirm: options.confirm === true })
+          : null,
+      )
+    : "";
   const promise = new Promise<T>((resolve, reject) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let hardTimer: ReturnType<typeof setTimeout> | null = null;
+    const baseTimeout = timeoutFor(command);
+    const hardCapMs = Math.max(baseTimeout * 2, 1_800_000);
     const clear = (): void => {
       if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
+      if (hardTimer !== null) {
+        clearTimeout(hardTimer);
+        hardTimer = null;
+      }
+    };
+    const failTimeout = (): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clear();
+      // 通知扩展终止子进程；查询类命令由用户刷新确认结果。
+      host.cancel?.(command, payload, { confirm: options.confirm === true });
+      reject(
+        new HostError({
+          code: "PANEL_TIMEOUT",
+          message: "这次操作等待超时，结果未知",
+          next_step: "先刷新状态确认是否已经生效，不要直接重复提交",
+        }),
+      );
     };
     const arm = (): void => {
-      clear();
-      // 宿主每收到一次进度/阶段事件就重置计时：下载、安装与长报告仍在推进时不算超时。
-      timer = setTimeout(() => {
-        settled = true;
-        // 通知扩展终止子进程；查询类命令由用户刷新确认结果。
-        host.cancel?.(command, payload, { confirm: options.confirm === true });
-        reject(
-          new HostError({
-            code: "PANEL_TIMEOUT",
-            message: "这次操作等待超时，结果未知",
-            next_step: "先刷新状态确认是否已经生效，不要直接重复提交",
-          }),
-        );
-      }, timeoutFor(command));
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      // 宿主每收到一次进度/阶段事件就重置活跃计时；总耗时仍受 hardCapMs 封顶保护。
+      timer = setTimeout(failTimeout, baseTimeout);
     };
+    hardTimer = setTimeout(failTimeout, hardCapMs);
     arm();
 
     host
@@ -226,6 +419,9 @@ export function callHost<T>(
         onProgress: (event) => {
           if (!settled) {
             arm();
+          }
+          if (activityToken) {
+            activityObserver?.onProgress(activityToken, event);
           }
           options.onProgress?.(event);
         },
@@ -265,6 +461,9 @@ export function callHost<T>(
   const cleanup = (): void => {
     if (inFlight.get(key) === promise) {
       inFlight.delete(key);
+    }
+    if (activityToken) {
+      activityObserver?.onEnd(activityToken);
     }
   };
   promise.then(cleanup, cleanup);

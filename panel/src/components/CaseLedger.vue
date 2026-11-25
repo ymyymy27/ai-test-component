@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, type ComponentPublicInstance } from "vue";
 
-import { displayItemOutcome, effectiveCaseResult, worstResult } from "@/domain/derive";
+import {
+  displayItemOutcome,
+  effectiveCaseResult,
+  itemDiffTag,
+  type ItemDiffKind,
+  worstResult,
+} from "@/domain/derive";
 import type { CaseResult, EvidenceRef, Run, RunCase, RunItem } from "@/domain/types";
 import CaseDetail from "./CaseDetail.vue";
 import Icon from "./Icon.vue";
@@ -11,20 +17,45 @@ import StatusText from "./StatusText.vue";
 const props = withDefaults(
   defineProps<{
     run: Run;
+    previousRun?: Run | null;
     items: RunItem[];
     filter?: "all" | "problems" | "unfinished";
     allowManual?: boolean;
     manualBusyCaseId?: string;
     running?: boolean;
+    allowCopyFix?: boolean;
   }>(),
-  { filter: "all", allowManual: false, manualBusyCaseId: "", running: false },
+  {
+    previousRun: null,
+    filter: "all",
+    allowManual: false,
+    manualBusyCaseId: "",
+    running: false,
+    allowCopyFix: false,
+  },
 );
 
 const emit = defineEmits<{
   manual: [caseId: string];
   resetFilter: [];
   showEvidence: [evidence: EvidenceRef];
+  copyFix: [testCase: RunCase, item: RunItem];
 }>();
+
+const DIFF_LABEL: Record<ItemDiffKind, string> = {
+  regressed: "新退化",
+  fixed: "已修复",
+  persisted: "持续失败",
+};
+
+function diffKind(itemId: string): ItemDiffKind | null {
+  return itemDiffTag(props.previousRun, props.run, itemId);
+}
+
+function diffLabel(itemId: string): string {
+  const kind = diffKind(itemId);
+  return kind ? DIFF_LABEL[kind] : "";
+}
 
 const elementMap = new Map<string, HTMLElement>();
 
@@ -103,6 +134,13 @@ defineExpose({ focusItem });
           <span class="ledger-index">{{ item.no }}</span>
           <span class="ledger-text">{{ item.text }}</span>
           <span class="ledger-state">
+            <span
+              v-if="diffLabel(item.itemId)"
+              class="diff-badge"
+              :class="`is-${diffKind(item.itemId)}`"
+            >
+              {{ diffLabel(item.itemId) }}
+            </span>
             <StatusMark :result="resultFor(item.itemId)" />
             <StatusText
               :result="resultFor(item.itemId)"
@@ -119,8 +157,10 @@ defineExpose({ focusItem });
             :result="effectiveCaseResult(testCase, run)"
             :allow-manual="allowManual"
             :manual-busy="manualBusyCaseId === testCase.id"
+            :allow-copy-fix="allowCopyFix"
             @manual="emit('manual', $event)"
             @show-evidence="emit('showEvidence', $event)"
+            @copy-fix="emit('copyFix', $event, item)"
           />
           <p v-if="casesFor(item.itemId).length === 0" class="doc-note">这个验收项没有用例。</p>
         </div>

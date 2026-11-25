@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
+import FormField from "@/components/FormField.vue";
 import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { validateProjectForm, type ProjectFormErrors } from "@/domain/validation";
@@ -142,11 +143,21 @@ async function clearAndRetry(): Promise<void> {
 
     <div class="setup-grid">
       <form class="setup-form" novalidate @submit.prevent="submit">
-        <div class="field" :class="{ 'has-error': errors.root }">
-          <label for="setup-root">项目目录</label>
+        <FormField
+          id="setup-root"
+          label="项目目录"
+          required
+          :hint="
+            workspace.mode === 'host'
+              ? '输入绝对路径，或从本机选择目录。'
+              : '输入绝对路径；浏览器演示模式无法读取本机目录。'
+          "
+          :error="errors.root"
+          v-slot="{ inputId, describedBy, invalid }"
+        >
           <div class="input-with-button">
             <input
-              id="setup-root"
+              :id="inputId"
               ref="rootInput"
               v-model="root"
               name="root"
@@ -154,10 +165,8 @@ async function clearAndRetry(): Promise<void> {
               autocomplete="off"
               spellcheck="false"
               placeholder="D:\work\service"
-              :aria-invalid="errors.root ? 'true' : undefined"
-              :aria-describedby="
-                errors.root ? 'setup-root-hint setup-root-error' : 'setup-root-hint'
-              "
+              :aria-invalid="invalid"
+              :aria-describedby="describedBy"
               :disabled="busy"
               @input="clearError('root')"
             />
@@ -182,40 +191,30 @@ async function clearAndRetry(): Promise<void> {
               }}
             </button>
           </div>
-          <p id="setup-root-hint" class="field-hint">
-            {{
-              workspace.mode === "host"
-                ? "输入绝对路径，或从本机选择目录。"
-                : "输入绝对路径；浏览器演示模式无法读取本机目录。"
-            }}
-          </p>
-          <p v-if="errors.root" id="setup-root-error" class="field-error" role="alert">
-            {{ errors.root }}
-          </p>
-        </div>
+        </FormField>
 
-        <div class="field" :class="{ 'has-error': errors.name }">
-          <label for="setup-name">项目名 <span class="optional">留空则取目录名</span></label>
+        <FormField
+          id="setup-name"
+          label="项目名"
+          optional="留空则取目录名"
+          hint="最多 40 个字；只用于面板显示。"
+          :error="errors.name"
+          v-slot="{ inputId, describedBy, invalid }"
+        >
           <input
-            id="setup-name"
+            :id="inputId"
             ref="nameInput"
             v-model="name"
             name="name"
             type="text"
             autocomplete="off"
             placeholder="例如：数据同步服务"
-            :aria-invalid="errors.name ? 'true' : undefined"
-            :aria-describedby="
-              errors.name ? 'setup-name-hint setup-name-error' : 'setup-name-hint'
-            "
+            :aria-invalid="invalid"
+            :aria-describedby="describedBy"
             :disabled="busy"
             @input="clearError('name')"
           />
-          <p id="setup-name-hint" class="field-hint">最多 40 个字；只用于面板显示。</p>
-          <p v-if="errors.name" id="setup-name-error" class="field-error" role="alert">
-            {{ errors.name }}
-          </p>
-        </div>
+        </FormField>
 
         <div class="setup-actions">
           <button class="btn btn-primary" type="submit" :disabled="busy" :aria-busy="busy">

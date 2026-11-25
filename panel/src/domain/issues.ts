@@ -56,6 +56,14 @@ export function applyIssueUpdate(
     ) {
       throw new IssueTransitionError("非缺陷、重复或延期必须写理由。");
     }
+  } else if (
+    patch.disposition !== undefined &&
+    patch.disposition !== issue.disposition &&
+    patch.disposition !== null &&
+    patch.disposition !== "fixed" &&
+    !reason
+  ) {
+    throw new IssueTransitionError("非缺陷、重复或延期必须写理由。");
   }
   const reopening = issue.status === "closed" && status === "in_progress";
   return {
