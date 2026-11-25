@@ -342,6 +342,79 @@ def _run_service_resets(
             handle.write(f"\n[reset exit={status}]\n".encode())
 
 
+def _has_reset_command(service_configs: list[tuple[str, dict[str, Any]]]) -> bool:
+    return any(str(cfg.get("reset") or "").strip() for _, cfg in service_configs)
+
+
+def _service_restart_allowed(
+    service_configs: list[tuple[str, dict[str, Any]]],
+) -> bool:
+    return all(cfg.get("restart_on_mutation") is not False for _, cfg in service_configs)
+
+
+def _restart_owned_services(
+    workdir: Path,
+    run_dir: Path,
+    service_states: list[dict[str, Any]],
+    run_env: dict[str, str],
+    secrets: list[str],
+    cancelled: Callable[[], bool],
+) -> bool:
+    """重启本次运行启动的本地服务，默认用于隔离破坏性用例的内存状态。"""
+    restarted = 0
+    ok = True
+    for state in service_states:
+        config = state.get("config")
+        log = state.get("log")
+        if (
+            not state.get("started")
+            or state.get("process") is None
+            or not isinstance(config, dict)
+            or not isinstance(log, Path)
+        ):
+            continue
+        _stop_service(config, workdir, log, secrets, run_env, state.get("process"))
+        started, healthy, process = _start_service(
+            config, workdir, log, secrets, run_env, cancelled
+        )
+        state.update({"started": started, "ok": healthy, "process": process})
+        restarted += 1
+        if not healthy:
+            ok = False
+    marker = run_dir / "service-isolation.log"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    with marker.open("ab") as handle:
+        if restarted:
+            handle.write(
+                f"重启本次运行启动的服务 {restarted} 个，用于隔离破坏性用例\n".encode()
+            )
+        else:
+            handle.write(
+                "未找到由本次运行启动的服务，无法重启隔离；依赖外部服务状态\n".encode()
+            )
+    return ok
+
+
+def _isolate_after_write(
+    workdir: Path,
+    run_dir: Path,
+    service_configs: list[tuple[str, dict[str, Any]]],
+    service_states: list[dict[str, Any]],
+    run_env: dict[str, str],
+    secrets: list[str],
+    cancelled: Callable[[], bool],
+    *,
+    destructive: bool,
+) -> bool:
+    if _has_reset_command(service_configs):
+        _run_service_resets(workdir, run_dir, service_configs, run_env, secrets)
+    elif destructive and _service_restart_allowed(service_configs):
+        return _restart_owned_services(
+            workdir, run_dir, service_states, run_env, secrets, cancelled
+        )
+    return all(state.get("ok", True) for state in service_states)
+
+
 
 
 def _downgrade_script_failures(plan: Plan, run: Run) -> None:
@@ -1014,6 +1087,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 case_isolation = _snapshot_isolation_enabled(config)
                 previous_risky = False
+                previous_destructive = False
                 for index, run_case in enumerate(exec_order):
                     if cancelled():
                         for rest in exec_order[index:]:
@@ -1024,20 +1098,25 @@ def main(argv: list[str] | None = None) -> int:
                         save_checkpoint(run_dir, plan, run, secret_list)
                         break
                     if index > 0 and previous_risky:
-                        _run_service_resets(
+                        service_ok = _isolate_after_write(
                             workdir,
                             run_dir,
                             service_configs,
+                            service_states,
                             run_env,
                             secret_list,
+                            cancelled,
+                            destructive=previous_destructive,
                         )
                         previous_risky = False
+                        previous_destructive = False
                     if index > 0 and case_isolation:
                         isolator_states = _reset_case_isolation(
                             workdir, run, run_dir, config, isolator_states
                         )
                     case = cases.get(run_case.case_id)
                     previous_risky = case is not None and _risky_retry(case)
+                    previous_destructive = case is not None and _destructive_case(case)
                     if case is None:
                         run_case.result = "error"
                         run_case.attempts.append(

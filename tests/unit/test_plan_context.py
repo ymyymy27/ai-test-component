@@ -1242,6 +1242,33 @@ def test_test_candidates_and_suggested_replacement(tmp_path: Path) -> None:
     assert case.script_content is None
 
 
+def test_command_mutation_detection_from_test_inputs() -> None:
+    from aitest.runtime.plan_commands import _command_mutates_state
+
+    summaries = {
+        "tests/test_documents.py": [
+            {
+                "name": "test_write",
+                "inputs": ["request('POST', '/api/documents', {'title': 'x'})"],
+            },
+            {
+                "name": "test_read",
+                "inputs": ["request('GET', '/api/documents')"],
+            },
+        ]
+    }
+    assert _command_mutates_state(
+        "python -m pytest tests/test_documents.py::test_write", summaries
+    )
+    assert not _command_mutates_state(
+        "python -m pytest tests/test_documents.py::test_read", summaries
+    )
+    # 无法从摘要证明只读时按写状态处理，避免命令类用例被重跑洗白。
+    assert _command_mutates_state(
+        "python -m pytest tests/test_documents.py::test_unknown", summaries
+    )
+
+
 def test_guard_rejects_boundary_item_without_input_construction() -> None:
     from aitest.runtime.plan_commands import _guard_suggested_tests
 

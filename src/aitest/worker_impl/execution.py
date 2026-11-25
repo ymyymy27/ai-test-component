@@ -131,11 +131,15 @@ def _http_case_text(case: Case) -> str:
 
 def _risky_retry(case: Case) -> bool:
     """写状态用例不能原样重跑：首次失败已经改了状态，重跑可能误通过。"""
+    if getattr(case, "mutates_state", False):
+        return True
     return bool(_WRITE_HTTP_RE.search(_http_case_text(case)))
 
 
 def _destructive_case(case: Case) -> bool:
     """修改/删除既有状态的用例排到最后，避免污染只读与创建类用例。"""
+    if getattr(case, "mutates_state", False):
+        return True
     return bool(_DESTRUCTIVE_HTTP_RE.search(_http_case_text(case)))
 
 

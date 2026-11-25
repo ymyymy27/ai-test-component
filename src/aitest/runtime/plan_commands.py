@@ -763,6 +763,21 @@ def _summary_inputs_for_command(
     )
 
 
+_COMMAND_WRITE_RE = re.compile(
+    r"(?i)(?:\b(?:POST|PATCH|PUT|DELETE)\b"
+    r"|requests\.(?:post|patch|put|delete)\s*\("
+    r"|\.(?:post|patch|put|delete)\s*\()"
+)
+
+
+def _command_mutates_state(command: str, test_summaries: object) -> bool:
+    """命令类测试是否写状态；无法证明只读时按写状态处理。"""
+    inputs = _summary_inputs_for_command(command, test_summaries)
+    if inputs is None:
+        return True
+    return bool(_COMMAND_WRITE_RE.search(inputs))
+
+
 def _guard_suggested_tests(
     suggested: dict[str, str],
     items: list[dict[str, Any]],
@@ -1250,6 +1265,12 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
+    test_summaries = context.get("test_summaries")
+    for case in cases:
+        if case.mutates_state or not case.verify_method.startswith("command:"):
+            continue
+        command = case.verify_method[len("command:") :].strip()
+        case.mutates_state = _command_mutates_state(command, test_summaries)
     cases.sort(
         key=lambda case: 0
         if "playwright" in case.verify_method.lower()

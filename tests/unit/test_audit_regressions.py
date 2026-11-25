@@ -27,8 +27,13 @@ from aitest.security import is_secret_field, redact
 from aitest.storage.files import read_json, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 from aitest.worker import _write_validated_script
-from aitest.worker_impl.execution import _risky_retry
-from aitest.worker_impl.lifecycle import _case_execution_rank, _run_service_resets
+from aitest.worker_impl.execution import _destructive_case, _risky_retry
+from aitest.worker_impl.lifecycle import (
+    _case_execution_rank,
+    _has_reset_command,
+    _run_service_resets,
+    _service_restart_allowed,
+)
 
 
 def _create_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Workspace, str]:
@@ -304,6 +309,27 @@ def test_service_reset_command_runs_after_destructive_case(tmp_path: Path) -> No
     )
     assert (tmp_path / "reset.txt").read_text(encoding="utf-8") == "1"
     assert (run_dir / "service-svc-reset.log").is_file()
+
+
+def test_service_reset_and_restart_flags() -> None:
+    assert _has_reset_command([("svc", {"reset": "reset.cmd"})])
+    assert not _has_reset_command([("svc", {"start": "start.cmd"})])
+    assert _service_restart_allowed([("svc", {"start": "start.cmd"})])
+    assert not _service_restart_allowed(
+        [("svc", {"start": "start.cmd", "restart_on_mutation": False})]
+    )
+
+
+def test_command_case_mutates_state_flag_skips_retry() -> None:
+    case = Case(
+        case_id="case_command_mutates",
+        layer="L2",
+        expected="写状态",
+        verify_method="command:python -m pytest tests/test_documents.py::test_write",
+        mutates_state=True,
+    )
+    assert _risky_retry(case)
+    assert _destructive_case(case)
 
 
 def test_excerpt_blocks_path_traversal_and_redacts_in_run_evidence(tmp_path: Path) -> None:
