@@ -771,6 +771,18 @@ def _normalize_http_expect(case: Case) -> None:
             if not isinstance(check, dict):
                 continue
             path = check.get("path")
+            if path == "status":
+                value = check.get("value")
+                # 字符串期望值（如 "ok"）不可能是 HTTP 状态码，按响应体字段处理；
+                # 模型即使漏写 body. 前缀也不会再被误判为 HTTP 200 断言。
+                if (
+                    isinstance(value, str)
+                    and value.strip()
+                    and not value.strip().isdigit()
+                ):
+                    check["path"] = "body.status"
+                    changed = True
+                    continue
             if isinstance(path, str) and path.startswith("body.") and len(path) > 5:
                 remainder = path[len("body.") :]
                 # ``status`` 保留给 HTTP 状态码；响应体字段恰好叫 status 时
