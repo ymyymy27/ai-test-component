@@ -44,16 +44,29 @@ _TMP_DIR_RE = re.compile(
 )
 _PORT_RE = re.compile(r"(127\.0\.0\.1|localhost):\d{4,5}")
 _DURATION_RE = re.compile(r"\bin\s+\d+(?:\.\d+)?\s*s\b", re.IGNORECASE)
+_LONG_HEX_RE = re.compile(r"\b[0-9a-f]{16,}\b", re.IGNORECASE)
+_DOC_ID_RE = re.compile(r"\bdoc_[0-9a-f]{6,}\b", re.IGNORECASE)
+_LONG_NUM_RE = re.compile(r"\b\d{9,}\b")
 _SUMMARY_RE = re.compile(
     r"^\d+\s+(?:passed|failed|error|errors|skipped|warning|warnings)\b", re.IGNORECASE
 )
 _EXC_RE = re.compile(
     r"\b(AssertionError|AttributeError|TypeError|ValueError|KeyError|RuntimeError"
-    r"|TimeoutError|OSError|ImportError|ModuleNotFoundError|Error)\b"
+    r"|TimeoutError|OSError|ImportError|ModuleNotFoundError|ConnectionError"
+    r"|\w*(?:Error|Exception))\b"
 )
 _TRACEBACK_FILE_RE = re.compile(r'File "(?P<file>[^"]+?\.py)", line (?P<line>\d+)')
 _PYTEST_FILE_RE = re.compile(
     r"(?<![\w./\\-])(?P<file>[A-Za-z0-9_][A-Za-z0-9_.\\/-]*\.py):(?P<line>\d+)"
+)
+_IGNORED_FRAME_PARTS = (
+    "_stage_runner.py",
+    "site-packages",
+    "dist-packages",
+    "\\pytest\\",
+    "/pytest/",
+    "_pytest",
+    "<frozen",
 )
 
 
@@ -70,6 +83,9 @@ def _normalize_stack_key(stack_key: str) -> str:
     text = _RUN_PREFIX_RE.sub("<RUN_DATA>", text)
     text = _TMP_DIR_RE.sub("<TMP>/", text)
     text = _PORT_RE.sub(r"\1:<PORT>", text)
+    text = _LONG_HEX_RE.sub("<HEX>", text)
+    text = _DOC_ID_RE.sub("<DOC_ID>", text)
+    text = _LONG_NUM_RE.sub("<NUM>", text)
     text = _DURATION_RE.sub("in <DURATION>", text)
     return text.strip()
 
@@ -94,16 +110,48 @@ def _is_summary_line(line: str) -> bool:
 
 
 def _pick_error_line(lines: list[str]) -> str:
+    # pytest 的 ``E + where`` 只是断言展开，真正的断言在更早的 ``E assert`` 行。
     for line in reversed(lines):
         if _is_summary_line(line):
             continue
-        if line.startswith(("E ", "AssertionError", "Traceback", "Error:")):
+        if line.startswith("E ") and (
+            "assert" in line.lower() or _EXC_RE.search(line)
+        ):
+            return line
+    for line in reversed(lines):
+        if _is_summary_line(line):
+            continue
+        if line.startswith(("E ", "AssertionError", "Traceback", "Error:")) or _EXC_RE.search(
+            line
+        ):
             return line
     for line in reversed(lines):
         if _is_summary_line(line):
             continue
         if _ERROR_HINT.search(line):
             return line
+    return ""
+
+
+def _location_key(texts: list[str]) -> str:
+    """用 traceback / pytest 的文件行做稳定签名，避免断言文案里的随机值。"""
+    traceback_hits: list[tuple[str, str]] = []
+    for text in texts:
+        for match in _TRACEBACK_FILE_RE.finditer(text):
+            path = match.group("file")
+            if any(part in path.lower() for part in _IGNORED_FRAME_PARTS):
+                continue
+            traceback_hits.append((path, match.group("line")))
+    if traceback_hits:
+        path, line = traceback_hits[-1]
+        return f"{Path(path).name}:{line}"
+    for text in texts:
+        for match in _PYTEST_FILE_RE.finditer(text):
+            path = match.group("file")
+            if any(part in path.lower() for part in _IGNORED_FRAME_PARTS):
+                continue
+            normalized_path = path.replace("\\", "/")
+            return f"{normalized_path}:{match.group('line')}"
     return ""
 
 
@@ -114,6 +162,7 @@ def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
         return "unknown", ""
     messages = [attempt.message for attempt in run_case.attempts if attempt.message]
     evidence: list[str] = []
+    texts: list[str] = []
     for ref in run_case.evidence_refs[:5]:
         path = evidence_path(run_dir, ref)
         if path is None or not path.is_file():
@@ -124,11 +173,13 @@ def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        texts.append(text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         chosen = _pick_error_line(lines)
         if chosen:
             evidence.append(chosen)
-    key = next((line for line in reversed(evidence) if line), "")
+    location = _location_key(texts)
+    key = location or next((line for line in reversed(evidence) if line), "")
     if not key and messages:
         key = next(
             (line for line in reversed(messages) if line and not _is_summary_line(line)),
@@ -140,12 +191,6 @@ def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
         if match:
             error_type = match.group(1).lower()
             break
-    else:
-        for candidate in [*reversed(evidence), *reversed(messages)]:
-            match = _ERROR_HINT.search(candidate or "")
-            if match:
-                error_type = match.group(1).lower()
-                break
     return error_type, key[:400]
 
 

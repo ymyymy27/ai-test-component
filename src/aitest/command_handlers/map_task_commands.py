@@ -151,10 +151,13 @@ def _task_signal_context(ws: Workspace, project: Project) -> str:
         path = root / name
         if not path.is_file():
             continue
+        # README 常承载完整验收契约，不能按清单文件的 1200 字截断；
+        # 否则后半部分的过期、越权等显式规则不会进入地图。
+        limit = 12000 if name.lower().startswith("readme") else 1200
         try:
             docs += f"\n--- {name} ---\n" + path.read_text(
                 encoding="utf-8", errors="replace"
-            )[:1200]
+            )[:limit]
         except OSError:
             continue
     if docs:

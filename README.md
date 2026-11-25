@@ -13,7 +13,7 @@
 | 项 | 当前值 |
 | --- | --- |
 | 产品版本 | **0.5.0**（`pyproject.toml`、`panel/package.json`、`integrations/trae/package.json` 一致） |
-| 代码规模 | **80** 个 Python 模块，约 **29,337** 行；**453** 个 pytest 节点；面板 vitest **155**、扩展 node test **101** |
+| 代码规模 | **80** 个 Python 模块，约 **29,400** 行；**458** 个 pytest 节点；面板 vitest **155**、扩展 node test **101** |
 | 基准考题 | 12 题跨类型埋雷基准考题库（CLI / Python 库 / 纯 API / 单文件 Web / 前后端分离全栈，召回率/一致率门禁） |
 | 运行环境 | Windows 11 x64；Python 3.11—3.13（完整回归与 CI 主任务使用 3.13，3.11/3.12 另有单元兼容任务） |
 | 宿主与出口 | Trae（VS Code 兼容扩展，可选复用 `HostCapabilities`）；外部跨智能体适配器 `integrations/agent-bridge/` + `SKILL.md`；面板可在浏览器调试 |

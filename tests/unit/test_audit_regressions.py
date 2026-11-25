@@ -15,6 +15,7 @@ from aitest.core.issues import (
     _case_location,
     _excerpt,
     _normalize_stack_key,
+    _pick_error_line,
     draft_failed_issues,
 )
 from aitest.models import Attempt, Case, Plan, Run, RunCase, Scope
@@ -24,6 +25,7 @@ from aitest.security import is_secret_field, redact
 from aitest.storage.files import read_json, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 from aitest.worker import _write_validated_script
+from aitest.worker_impl.execution import _risky_retry
 
 
 def _create_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Workspace, str]:
@@ -127,6 +129,63 @@ def test_case_error_ignores_pytest_duration_in_signature(
     assert "0.10" not in keys[0]
 
 
+def test_normalize_stack_key_strips_random_ids_and_timestamps() -> None:
+    first = _normalize_stack_key(
+        "AssertionError: dn-admin-1795602877 {'deleted': 'doc_c3e37b8a'}"
+    )
+    second = _normalize_stack_key(
+        "AssertionError: dn-admin-1795603064 {'deleted': 'doc_ae29294d'}"
+    )
+    assert first == second
+    assert "<NUM>" in first
+    assert "<DOC_ID>" in first
+
+
+def test_pick_error_line_prefers_assertion_over_where_expansion() -> None:
+    lines = [
+        "E       assert resp.status_code == 403",
+        "E        +  where 200 = resp.status_code",
+    ]
+    assert _pick_error_line(lines) == "E       assert resp.status_code == 403"
+
+
+def test_case_error_uses_traceback_location_for_stable_signature(
+    tmp_path: Path,
+) -> None:
+    keys: list[str] = []
+    types: list[str] = []
+    for index, doc_id in enumerate(("doc_abc12345", "doc_def67890"), start=1):
+        run_dir = tmp_path / f"run_{index}"
+        ev_dir = run_dir / "evidence"
+        ev_dir.mkdir(parents=True)
+        (ev_dir / f"case_{index}-0.log").write_text(
+            "Traceback (most recent call last):\n"
+            f'  File "C:\\runs\\run_{index}\\generated\\test_x.py", line 39, in verify\n'
+            f"AssertionError: {{'deleted': '{doc_id}'}}\n",
+            encoding="utf-8",
+        )
+        run = Run(
+            run_id=f"run_{index}",
+            plan_id="plan_x",
+            project_id="proj_x",
+            scope=Scope(preset="all_applicable"),
+            status="completed",
+            cases=[
+                RunCase(
+                    case_id=f"case_{index}",
+                    result="failed",
+                    evidence_refs=[f"evidence/case_{index}-0.log"],
+                    attempts=[Attempt(attempt=1, result="failed")],
+                )
+            ],
+        )
+        error_type, key = _case_error(run_dir, f"case_{index}", run)
+        types.append(error_type)
+        keys.append(key)
+    assert types == ["assertionerror", "assertionerror"]
+    assert keys == ["test_x.py:39", "test_x.py:39"]
+
+
 def test_case_location_extracts_project_pytest_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -162,6 +221,23 @@ def test_case_location_extracts_project_pytest_line(
         "tests/test_documents.py",
         15,
     )
+
+
+def test_mutating_http_scripts_are_not_auto_retried() -> None:
+    def case(content: str) -> Case:
+        return Case(
+            case_id="case_x",
+            layer="L2",
+            expected="只读",
+            verify_method="script:check.py",
+            script_content=content,
+        )
+
+    assert _risky_retry(case("call('PATCH', '/api/me', body={'role': 'admin'})"))
+    assert _risky_retry(case("requests.delete(BASE + '/api/documents/doc_1')"))
+    assert _risky_retry(case("call('DELETE', '/api/documents/doc_1')"))
+    assert not _risky_retry(case("call('GET', '/api/documents')"))
+    assert not _risky_retry(case("requests.post(BASE + '/api/documents', json={})"))
 
 
 def test_excerpt_blocks_path_traversal_and_redacts_in_run_evidence(tmp_path: Path) -> None:

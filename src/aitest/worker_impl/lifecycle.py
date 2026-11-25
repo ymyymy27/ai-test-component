@@ -84,6 +84,7 @@ from aitest.worker_impl.execution import (
     _mutates_seed_account,
     _repair_case_as_script,
     _repair_script_case,
+    _risky_retry,
     _screenshot_artifacts,
     _screenshot_files,
 )
@@ -1338,6 +1339,7 @@ def main(argv: list[str] | None = None) -> int:
                         and not cancelled()
                         and first_elapsed <= 60.0
                         and not fatal_log_errors
+                        and not _risky_retry(case)
                     ):
                         _persist_case_attempt(
                             run_dir=run_dir,

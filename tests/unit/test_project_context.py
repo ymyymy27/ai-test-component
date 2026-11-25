@@ -278,6 +278,21 @@ def test_task_signal_context_surfaces_sources_without_readme(tmp_path: Path) -> 
     assert "app.css(exists=False)" in app_signal
 
 
+def test_task_signal_context_keeps_explicit_rules_beyond_1200_chars(
+    tmp_path: Path,
+) -> None:
+    """README 后半部分的验收规则必须进入地图上下文，不能被 1200 字截断。"""
+    root = tmp_path / "long-readme"
+    _write(
+        root / "README.md",
+        "# 权限项目\n\n" + ("说明文字。\n" * 300) + "- 过期令牌访问必须返回 401\n",
+    )
+    ws = Workspace(tmp_path / "ws")
+    project = Project(project_id="proj_long", name="long", root=str(root))
+    signal = _task_signal_context(ws, project)
+    assert "过期令牌访问必须返回 401" in signal
+
+
 def test_workspace_fingerprint_ignores_runtime_data_and_tracks_html_css(
     tmp_path: Path,
 ) -> None:
