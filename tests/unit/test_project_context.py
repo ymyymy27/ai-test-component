@@ -151,6 +151,31 @@ def test_detect_standalone_python_http_service_and_do_not_override_monorepo(
     assert "db" in mono_services and "backend" in mono_services
 
 
+def test_standalone_detection_ignores_dict_get_default_as_port(tmp_path: Path) -> None:
+    """业务字典的默认值不能被当成监听端口，argparse 默认端口才有效。"""
+    app = tmp_path / "rbac"
+    _write(
+        app / "server.py",
+        (
+            "import argparse\n"
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            "class AppHandler(BaseHTTPRequestHandler):\n"
+            "    def do_POST(self):\n"
+            '        body = {"expires_in": 3600}\n'
+            '        ttl = body.get("expires_in", 3600)\n'
+            "        self.send_response(200)\n"
+            "if __name__ == '__main__':\n"
+            "    parser = argparse.ArgumentParser()\n"
+            '    parser.add_argument("--port", type=int, default=18765)\n'
+            "    args = parser.parse_args()\n"
+            "    ThreadingHTTPServer((args.host, args.port), AppHandler).serve_forever()\n"
+        ),
+    )
+    detected = detect_services(app)
+    assert detected["app"]["health"] == "http://127.0.0.1:18765/"
+    assert "expires_in" not in detected["app"]["health"]
+
+
 def test_http_handler_routes_and_frontend_contracts(tmp_path: Path) -> None:
     root = tmp_path / "web"
     _write(

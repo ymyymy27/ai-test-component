@@ -27,7 +27,7 @@ from aitest.core.evidence import (
 from aitest.core.issues import draft_failed_issues, prepare_issue_drafts
 from aitest.core.judge import compute_case_confidence, is_fatal_service_issue, judge_case_failure
 from aitest.core.manual import is_manual_case
-from aitest.core.plugins import DEFAULT_REGISTRY, Isolator
+from aitest.core.plugins import DEFAULT_REGISTRY, Isolator, LocalFileSnapshotIsolator
 from aitest.core.preflight import run_preflight
 from aitest.core.probes import run_deterministic_probes
 from aitest.core.project_context import (
@@ -272,6 +272,32 @@ def _allowed_hosts(
         if isinstance(val, str) and val.strip():
             hosts.append(val.strip())
     return list(dict.fromkeys(hosts))
+
+
+
+def _snapshot_isolation_enabled(config: dict[str, Any]) -> bool:
+    """只有显式配置 data.snapshot_files 时才在每个用例前做文件还原。"""
+    data_cfg = config.get("data")
+    files = data_cfg.get("snapshot_files") if isinstance(data_cfg, dict) else None
+    return isinstance(files, list) and any(
+        isinstance(item, str) and item.strip() for item in files
+    )
+
+
+def _reset_case_isolation(
+    workdir: Path,
+    run: Run,
+    run_dir: Path,
+    config: dict[str, Any],
+    states: list[tuple[Isolator, dict[str, Any]]],
+) -> list[tuple[Isolator, dict[str, Any]]]:
+    """在用例边界还原已配置的本地数据快照，避免前序用例污染后序用例。"""
+    if not states:
+        return states
+    for isolator, state in states:
+        if isinstance(isolator, LocalFileSnapshotIsolator):
+            isolator.cleanup(state)
+    return DEFAULT_REGISTRY.prepare_isolators(workdir, run.run_id, run_dir, config)
 
 
 
@@ -938,6 +964,7 @@ def main(argv: list[str] | None = None) -> int:
                     if isinstance(exec_cfg, dict)
                     else True
                 )
+                case_isolation = _snapshot_isolation_enabled(config)
                 for index, run_case in enumerate(exec_order):
                     if cancelled():
                         for rest in exec_order[index:]:
@@ -947,6 +974,10 @@ def main(argv: list[str] | None = None) -> int:
                         run.current_case_id = ""
                         save_checkpoint(run_dir, plan, run, secret_list)
                         break
+                    if index > 0 and case_isolation:
+                        isolator_states = _reset_case_isolation(
+                            workdir, run, run_dir, config, isolator_states
+                        )
                     case = cases.get(run_case.case_id)
                     if case is None:
                         run_case.result = "error"

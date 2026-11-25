@@ -155,7 +155,24 @@ def test_whole_suite_is_allowed_only_as_l1_smoke(tmp_path: Path) -> None:
         expected="整包测试通过",
         verify_method="command:python runtests.py",
     )
-    _validate_plan_cases([smoke_case], "business", {"root": str(tmp_path)})
+    _validate_plan_cases(
+        [smoke_case],
+        "smoke",
+        {"root": str(tmp_path), "test_commands": ["python runtests.py"]},
+    )
+
+
+def test_business_l1_case_bound_to_item_is_promoted_to_l2(tmp_path: Path) -> None:
+    case = Case(
+        case_id="case_business_l1",
+        acceptance_item_id="item_1",
+        layer="L1",
+        expected="用户列表返回 200",
+        verify_method="command:python -m pytest tests/test_users.py::test_list",
+    )
+    _validate_plan_cases([case], "business", {"root": str(tmp_path)})
+    assert case.layer == "L2"
+    assert any("规整为 L2" in warning for warning in case.warnings)
 
 
 def test_business_case_cannot_bind_multiple_items(tmp_path: Path) -> None:

@@ -1424,7 +1424,10 @@ export function mapIssue(
   }));
   const evidenceRefs = [...new Set(dto.occurrences.flatMap((entry) => entry.evidence_refs ?? []))];
   const confidence = asConfidenceTier(dto.confidence_tier);
-  const loc = extractSourceLocation(`${dto.signature}\n${dto.actual}`);
+  const loc =
+    typeof dto.file === "string" && dto.file
+      ? { file: dto.file, line: typeof dto.line === "number" ? dto.line : 1 }
+      : extractSourceLocation(`${dto.signature}\n${dto.actual}`);
   return {
     id: dto.issue_id,
     projectId,

@@ -772,8 +772,12 @@ def _normalize_http_expect(case: Case) -> None:
                 continue
             path = check.get("path")
             if isinstance(path, str) and path.startswith("body.") and len(path) > 5:
-                check["path"] = path[len("body.") :]
-                changed = True
+                remainder = path[len("body.") :]
+                # ``status`` 保留给 HTTP 状态码；响应体字段恰好叫 status 时
+                # 必须保留 body. 前缀，否则会被误判成状态码断言。
+                if remainder != "status":
+                    check["path"] = remainder
+                    changed = True
     if changed:
         case.verify_method = "http:" + json.dumps(specs, ensure_ascii=False)
 
@@ -806,6 +810,12 @@ def _validate_plan_cases(
     seen_broad: set[str] = set()
     for case in cases:
         _normalize_http_expect(case)
+        if intent == "business" and case.layer == "L1" and case_item_ids(case):
+            # L1 是项目级检查，不参与 S/M 覆盖；业务验收项必须由业务用例证明。
+            case.layer = "L2"
+            case.warnings.append(
+                "业务验收项用例被模型标为 L1，已按业务用例规整为 L2"
+            )
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
             raise invalid_request(
                 f"用例 ID 不合法：{case.case_id}",

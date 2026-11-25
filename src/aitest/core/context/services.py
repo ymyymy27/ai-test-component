@@ -196,23 +196,36 @@ def _health_hosts(services: dict[str, Any]) -> set[str]:
 
 
 def _extract_port_and_host(text: str) -> tuple[int | None, str]:
-    """从轻量服务端源码静态提取监听端口与可访问主机名。"""
+    """从轻量服务端源码静态提取监听端口与可访问主机名。
+
+    只认真正的监听调用或 argparse 默认端口，避免把
+    ``body.get("expires_in", 3600)`` 这类业务调用误判成 host/port。
+    """
+    bind_match = re.search(
+        r"(?:HTTPServer|ThreadingHTTPServer|make_server)\s*\(\s*\(\s*"
+        r"[\"']([^\"']*)[\"']\s*,\s*(\d{2,5})\s*\)",
+        text,
+    )
+    bind_host = bind_match.group(1).strip() if bind_match else ""
+    bind_port = _port(bind_match.group(2)) if bind_match else None
+
     port_patterns = (
         r"os\.(?:environ\.get|getenv)\(\s*[\"'][A-Z_]*PORT[\"']\s*,\s*[\"']?(\d{2,5})[\"']?\s*\)",
         r"^\s*[A-Z_]*PORT\s*=\s*int\([^\n]*?,\s*[\"']?(\d{2,5})[\"']?\s*\)",
         r"^\s*PORT\s*=\s*(\d{2,5})\b",
         r"\bport\s*[:=]\s*(\d{2,5})\b",
-        r"\(\s*(?:HOST|[\"'][^\"']*[\"'])\s*,\s*(\d{2,5})\s*\)",
+        r"add_argument\(\s*[\"']--port[\"'][\s\S]*?\bdefault\s*=\s*(\d{2,5})\b",
     )
-    port: int | None = None
-    for idx, pattern in enumerate(port_patterns):
-        flags = re.MULTILINE | (re.IGNORECASE if idx == 3 else 0)
-        match = re.search(pattern, text, flags)
-        if match:
-            candidate = _port(match.group(1))
-            if candidate is not None:
-                port = candidate
-                break
+    port: int | None = bind_port
+    if port is None:
+        for idx, pattern in enumerate(port_patterns):
+            flags = re.MULTILINE | (re.IGNORECASE if idx == 3 else 0)
+            match = re.search(pattern, text, flags)
+            if match:
+                candidate = _port(match.group(1))
+                if candidate is not None:
+                    port = candidate
+                    break
     if port is None:
         lowered = text.lower()
         if "flask" in lowered:
@@ -224,12 +237,8 @@ def _extract_port_and_host(text: str) -> tuple[int | None, str]:
     host_match = re.search(r"^\s*HOST\s*=\s*[\"']([^\"']*)[\"']", text, re.MULTILINE)
     if host_match:
         raw_host = host_match.group(1).strip()
-    else:
-        bind_match = re.search(
-            r"\(\s*[\"']([^\"']*)[\"']\s*,\s*\d{2,5}\s*\)", text
-        )
-        if bind_match:
-            raw_host = bind_match.group(1).strip()
+    elif bind_host:
+        raw_host = bind_host
     health_host = (
         "127.0.0.1"
         if not raw_host or raw_host in {"0.0.0.0", "::", "*"}

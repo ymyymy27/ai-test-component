@@ -310,6 +310,8 @@ class Issue(Model):
     steps: list[str] = Field(default_factory=list)
     expected: str = ""
     actual: str = ""
+    file: str | None = None
+    line: int | None = None
     severity: Literal["P0", "P1", "P2", "P3"] = "P2"
     status: IssueStatus = "pending"
     disposition: IssueDisposition | None = None

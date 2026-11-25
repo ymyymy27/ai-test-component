@@ -10,7 +10,13 @@ import pytest
 
 from aitest.commands import cmd_project_add
 from aitest.core.evidence import save_evidence
-from aitest.core.issues import _excerpt, draft_failed_issues
+from aitest.core.issues import (
+    _case_error,
+    _case_location,
+    _excerpt,
+    _normalize_stack_key,
+    draft_failed_issues,
+)
 from aitest.models import Attempt, Case, Plan, Run, RunCase, Scope
 from aitest.runners.http_runner import run_http_sequence
 from aitest.runtime_commands import _dedupe_script_names
@@ -74,6 +80,88 @@ def test_draft_failed_issues_handles_l1_case_without_acceptance_items(
 
     issue_ids = draft_failed_issues(ws, project_id, run_dir)
     assert len(issue_ids) == 1
+
+
+def test_case_error_ignores_pytest_duration_in_signature(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """同一断言两次运行只差 pytest 耗时，签名必须保持一致。"""
+    ws, project_id = _create_project(tmp_path, monkeypatch)
+    run_root = ws.project_dir(project_id) / "runs"
+    run_root.mkdir(parents=True, exist_ok=True)
+    evidence = (
+        "tests/test_documents.py:15: AssertionError\n"
+        "E       AssertionError: assert {'t2'} == {'t1'}\n"
+        "1 failed in {duration}s\n"
+    )
+    keys: list[str] = []
+    types: list[str] = []
+    for index, duration in enumerate(("0.10", "0.87"), start=1):
+        run_dir = run_root / f"run_{index}"
+        ev_dir = run_dir / "evidence"
+        ev_dir.mkdir(parents=True, exist_ok=True)
+        (ev_dir / f"case_{index}-0.log").write_text(
+            evidence.replace("{duration}", duration), encoding="utf-8"
+        )
+        run = Run(
+            run_id=f"run_{index}",
+            plan_id="plan_x",
+            project_id=project_id,
+            scope=Scope(preset="all_applicable"),
+            status="completed",
+            started_at=iso_now(),
+            cases=[
+                RunCase(
+                    case_id=f"case_{index}",
+                    result="failed",
+                    evidence_refs=[f"evidence/case_{index}-0.log"],
+                    attempts=[Attempt(attempt=1, result="failed")],
+                )
+            ],
+        )
+        error_type, key = _case_error(run_dir, f"case_{index}", run)
+        types.append(error_type)
+        keys.append(_normalize_stack_key(key))
+    assert types == ["assertionerror", "assertionerror"]
+    assert keys[0] == keys[1]
+    assert "0.10" not in keys[0]
+
+
+def test_case_location_extracts_project_pytest_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws, project_id = _create_project(tmp_path, monkeypatch)
+    project_root = Path(ws.load_project(project_id).root)
+    test_file = project_root / "tests" / "test_documents.py"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("def test_x():\n    assert False\n", encoding="utf-8")
+    run_dir = ws.project_dir(project_id) / "runs" / "run_loc"
+    ev_dir = run_dir / "evidence"
+    ev_dir.mkdir(parents=True)
+    (ev_dir / "case_loc-0.log").write_text(
+        "tests/test_documents.py:15: AssertionError\n"
+        'File "tests/test_documents.py", line 15, in test_x\n',
+        encoding="utf-8",
+    )
+    run = Run(
+        run_id="run_loc",
+        plan_id="plan_x",
+        project_id=project_id,
+        scope=Scope(preset="all_applicable"),
+        status="completed",
+        cases=[
+            RunCase(
+                case_id="case_loc",
+                result="failed",
+                evidence_refs=["evidence/case_loc-0.log"],
+                attempts=[Attempt(attempt=1, result="failed")],
+            )
+        ],
+    )
+    assert _case_location(run_dir, "case_loc", run, project_root) == (
+        "tests/test_documents.py",
+        15,
+    )
 
 
 def test_excerpt_blocks_path_traversal_and_redacts_in_run_evidence(tmp_path: Path) -> None:

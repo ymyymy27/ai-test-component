@@ -359,7 +359,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 - `verify_method` 必须合法：
   - `command:` 后非空；
   - `script:` 需要 `script_name` 与 `script_content`；
-  - `http:` 必须是非空 JSON 数组且每项有 `method/url`；默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝；未跟随的 3xx 在没有状态断言时按未完成处理；`expect.path` 从响应体根开始（如 `email`、`data.0.id`），写出的 `body.` 前缀会被去掉；
+  - `http:` 必须是非空 JSON 数组且每项有 `method/url`；默认不跟随重定向，只有 `follow_redirects: true` 才跟随；跨 host、HTTPS→HTTP 或其他 scheme 变化会被拒绝；未跟随的 3xx 在没有状态断言时按未完成处理；`expect.path` 从响应体根开始（如 `email`、`data.0.id`），写出的 `body.` 前缀会被去掉；`status` 保留给 HTTP 状态码，响应体字段恰好叫 `status` 时写 `body.status`（不会被去掉前缀）；
   - `playwright:` 路径必须是非空、项目内相对路径，且不得含 shell 元字符或危险命令；
   - `sql:`/`junit:`/`pytest:` 参数非空并经过危险命令扫描。
 - `case_id` 必须唯一，只允许字母、数字、下划线和连字符；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
@@ -489,7 +489,8 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "title": "下单生成两条订单", "severity": "P1", "error_type": "assertionerror", "stack_key": "assert 1 == 2", "expected": "只生成一条订单", "actual": "生成了两条订单", "steps": ["提交订单", "刷新列表"], "evidence_refs": ["evidence/run_1/case_1-0.log"]}
 ```
 
-- 失败签名 = 用例 ID + 错误类型 + 关键堆栈/断言标识摘要；同一签名返回现有 `issue_id` 并追加带证据的发生记录；
+- 失败签名 = 用例 ID + 错误类型 + 关键堆栈/断言标识摘要；同一签名返回现有 `issue_id` 并追加带证据的发生记录；签名忽略 pytest 耗时汇总行（如 `1 failed in 0.10s`）；
+- 问题记录 `file` / `line`（项目内源码坐标，可空）：自动从 pytest / traceback 证据解析；生成脚本位于运行目录时不记源码坐标；面板据此显示“跳源码/推送红线”；
 - `list` 返回 `issue_id/title/status/severity/occurrences`，并附带 `last_at`、`last_result`、`unstable`、`disposition`、`reason`、`verification_run_id`、`last_case_id`、`last_run_id` 供列表展示；
 - `show` 入参 `{"project_id", "issue_id"}`，返回完整问题（含 `occurrences`、证据引用、处置与状态）；问题保存发生时的 `item_no`/`item_text` 快照；
 - `update` 入参 `{"project_id", "issue_id", "status"|"disposition", "severity", "fix_version", "reason"}`；允许的流转是待确认→处理中，处理中→待复测或退回待确认，待复测→处理中或退回待确认，已关闭→处理中（重开必须写原因）。`update` 不能直接把状态改为 `closed`；关闭必须走 `issue.close` 并绑定新运行。非缺陷/重复/延期必须写理由；
@@ -674,7 +675,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `issue.json`：
 
 ```json
-{"schema_version": 1, "issue_id": "issue_...", "project_id": "proj_...", "signature": "...", "title": "", "severity": "P1", "status": "pending", "disposition": null, "occurrences": [], "fix_version": null, "evidence_refs": [], "revision": 1}
+{"schema_version": 1, "issue_id": "issue_...", "project_id": "proj_...", "signature": "...", "title": "", "severity": "P1", "status": "pending", "disposition": null, "file": "tests/test_users.py", "line": 15, "occurrences": [], "fix_version": null, "evidence_refs": [], "revision": 1}
 ```
 
 `confirmation.json`：

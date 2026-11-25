@@ -253,4 +253,29 @@ describe("audit regressions: host, sidecar, store & mappers", () => {
     );
     expect(issue.occurrences[0]?.result).toBe("failed");
   });
+
+  it("mapIssue prefers backend file/line over guessing from the Chinese actual text", () => {
+    const issue = mapIssue(
+      {
+        issue_id: "iss_loc",
+        signature: "ai_1:assertionerror:abcdef123456",
+        title: "用户列表越权",
+        expected: "返回 403",
+        actual: "实际返回 200，普通用户看到了用户列表",
+        file: "tests/test_documents.py",
+        line: 15,
+        steps: [],
+        severity: "P1",
+        status: "pending",
+        last_result: "failed",
+        reason: "",
+        occurrences: [],
+        unstable: false,
+      } as unknown as IssueDto,
+      "p1",
+      new Map(),
+    );
+    expect(issue.file).toBe("tests/test_documents.py");
+    expect(issue.line).toBe(15);
+  });
 });

@@ -43,6 +43,8 @@ _SYSTEM_MAP = (
     '"confidence": "high|medium|low"}], '
     '"unknowns": [{"area": "识别不了的部分", "reason": "原因"}]}。'
     "业务功能按用户能理解的业务名称分组，模块只作为对应关系；"
+    "对 README、需求文档与 OpenAPI 中每条显式可观察规则逐条保留到 testable_items，"
+    "不合并、不省略；过期、越权、请求体字段、查询参数等边界条件必须单独成项；"
     "只根据给出的项目事实，不要编造入口、测试命令或文件；"
     "没有依据的内容放进 unknowns，confidence 用 low；"
     "不要输出 JSON 之外的任何文本。"
@@ -70,10 +72,12 @@ _SYSTEM_CASES = (
     "不得写死邮箱或密码，也不得使用 admin@example.com/changethis 这类示例值；"
     "脚本必须自己构造满足产品前置条件的数据（例如必需的标题、字段或文件结构），"
     "创建类验证或新建用户测试必须使用唯一数据（uuid/时间戳）；"
-    "不得复用固定邮箱，也不得修改或删除项目种子账号（FIRST_SUPERUSER）；"
+    "不得复用固定邮箱，也不得修改或删除项目种子账号（FIRST_SUPERUSER、"
+    "README 测试账号、test_example 中出现的账号）；"
     "涉及用户自身的「删除当前用户」「修改当前用户资料」类验收项必须先注册一个一次性用户，"
     "用该用户登录后再删除/修改它，不得操作种子账号；"
-    "http: 的 expect.path 直接写响应体字段（如 email、data.0.id），不要加 body. 前缀；"
+    "http: 的 expect.path 直接写响应体字段（如 email、data.0.id）；"
+    "只有响应体字段恰好叫 status 时写 body.status（status 保留给 HTTP 状态码）；"
     "断言状态码前先查项目路由声明的 status_code 或既有测试，不要默认写 200；"
     "不确定时断言 2xx 范围（如 status >= 200 且 status < 300）；"
     "不得假设任意输入都能被产品接受；"

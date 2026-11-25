@@ -18,6 +18,14 @@ from aitest.security import is_secret_field, redact, redact_bytes, redact_tree, 
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _VAR_PATTERN = re.compile(r"\$\{vars\.([A-Za-z_][A-Za-z0-9_]*)\}")
+_BODY_PATH_PREFIX = "body."
+
+
+def _body_path(path: str) -> str:
+    """``body.status`` 用于断言响应体里恰好叫 status 的字段。"""
+    if path.startswith(_BODY_PATH_PREFIX) and len(path) > len(_BODY_PATH_PREFIX):
+        return path[len(_BODY_PATH_PREFIX) :]
+    return path
 
 
 def _finish(
@@ -397,7 +405,8 @@ def run_http_sequence(
             )
 
         for check in body_checks:
-            path = str(check.get("path", ""))
+            raw_path = str(check.get("path", ""))
+            path = _body_path(raw_path)
             operator = str(check.get("operator", "equals"))
             try:
                 expected = _substitute(check.get("value"), vars_store)
@@ -424,7 +433,7 @@ def run_http_sequence(
                 {
                     "request_index": index,
                     "url": url,
-                    "path": path,
+                    "path": raw_path,
                     "operator": operator,
                     "expected": expected,
                     "actual": None if actual is MISSING else actual,
@@ -437,7 +446,7 @@ def run_http_sequence(
                     fail_status,
                     stdout=last_body,
                     assertions=assertions,
-                    error=f"{label} assertion failed at {path!r} ({operator})",
+                    error=f"{label} assertion failed at {raw_path!r} ({operator})",
                     secrets=secret_values,
                 )
 

@@ -40,7 +40,9 @@ def _python(code: str) -> str:
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path == "/ok":
+        if self.path == "/health":
+            payload = {"status": "ok"}
+        elif self.path == "/ok":
             payload = {"data": {"id": 7, "name": "alpha"}, "items": [1, 2]}
         else:
             payload = {"data": {"id": 8, "name": "beta"}}
@@ -164,6 +166,28 @@ def test_run_http_sequence_failed_assertion(base_url: str) -> None:
     assert result.assertions[0]["passed"] is False
     assert result.assertions[0]["actual"] == 7
     assert "assertion failed" in result.error
+
+
+def test_http_body_status_field_is_not_http_status_code(base_url: str) -> None:
+    """响应体字段 status 用 body.status 断言；裸 status 仍表示 HTTP 状态码。"""
+    result = run_http_sequence(
+        [
+            {
+                "method": "GET",
+                "url": f"{base_url}/health",
+                "expect": [
+                    {"path": "status", "operator": "equals", "value": 200},
+                    {"path": "body.status", "operator": "equals", "value": "ok"},
+                ],
+            }
+        ],
+        timeout_seconds=5,
+    )
+    assert result.status == "passed", result.error
+    assert [item["passed"] for item in result.assertions] == [True, True]
+    assert result.assertions[0]["actual"] == 200
+    assert result.assertions[1]["actual"] == "ok"
+    assert result.assertions[1]["path"] == "body.status"
 
 
 def test_run_command_can_be_cancelled(tmp_path: Path) -> None:

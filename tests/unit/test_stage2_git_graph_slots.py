@@ -221,6 +221,34 @@ def test_plugins_slots_js_linter_and_file_snapshot_isolator(tmp_path: Path) -> N
     assert outside.read_text(encoding="utf-8") == "keep"
 
 
+def test_case_isolation_restores_snapshot_between_cases(tmp_path: Path) -> None:
+    from aitest.models import Run, Scope
+    from aitest.worker_impl.lifecycle import (
+        _reset_case_isolation,
+        _snapshot_isolation_enabled,
+    )
+
+    workdir = tmp_path / "app"
+    run_dir = tmp_path / "run_iso"
+    workdir.mkdir()
+    run_dir.mkdir()
+    target = workdir / "data.json"
+    target.write_text('{"role": "user"}', encoding="utf-8")
+    config = {"data": {"snapshot_files": ["data.json"]}}
+    assert _snapshot_isolation_enabled(config)
+    run = Run(
+        run_id="run_iso",
+        plan_id="plan_x",
+        project_id="proj_x",
+        scope=Scope(preset="all_applicable"),
+    )
+    states = DEFAULT_REGISTRY.prepare_isolators(workdir, run.run_id, run_dir, config)
+    target.write_text('{"role": "admin"}', encoding="utf-8")
+    states = _reset_case_isolation(workdir, run, run_dir, config, states)
+    assert target.read_text(encoding="utf-8") == '{"role": "user"}'
+    DEFAULT_REGISTRY.cleanup_isolators(states)
+
+
 def test_code_graph_layers_conflicts_git_impact_and_cache(tmp_path: Path) -> None:
     repo = tmp_path / "fullstack"
     repo.mkdir()

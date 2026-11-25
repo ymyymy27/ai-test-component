@@ -43,6 +43,18 @@ _TMP_DIR_RE = re.compile(
     r"(?:[A-Za-z]:)?[^\s\"']*(?:pytest-of-[^\s\\/]+|Temp[/\\][^\s\\/]+|runs[/\\]run_[0-9a-fA-F_]+)[/\\]"
 )
 _PORT_RE = re.compile(r"(127\.0\.0\.1|localhost):\d{4,5}")
+_DURATION_RE = re.compile(r"\bin\s+\d+(?:\.\d+)?\s*s\b", re.IGNORECASE)
+_SUMMARY_RE = re.compile(
+    r"^\d+\s+(?:passed|failed|error|errors|skipped|warning|warnings)\b", re.IGNORECASE
+)
+_EXC_RE = re.compile(
+    r"\b(AssertionError|AttributeError|TypeError|ValueError|KeyError|RuntimeError"
+    r"|TimeoutError|OSError|ImportError|ModuleNotFoundError|Error)\b"
+)
+_TRACEBACK_FILE_RE = re.compile(r'File "(?P<file>[^"]+?\.py)", line (?P<line>\d+)')
+_PYTEST_FILE_RE = re.compile(
+    r"(?<![\w./\\-])(?P<file>[A-Za-z0-9_][A-Za-z0-9_.\\/-]*\.py):(?P<line>\d+)"
+)
 
 
 def issues_dir(ws: Workspace, project_id: str) -> Path:
@@ -58,6 +70,7 @@ def _normalize_stack_key(stack_key: str) -> str:
     text = _RUN_PREFIX_RE.sub("<RUN_DATA>", text)
     text = _TMP_DIR_RE.sub("<TMP>/", text)
     text = _PORT_RE.sub(r"\1:<PORT>", text)
+    text = _DURATION_RE.sub("in <DURATION>", text)
     return text.strip()
 
 
@@ -72,8 +85,30 @@ def _signature(
     return f"{prefix}:{error_type}:{digest}"
 
 
+def _is_summary_line(line: str) -> bool:
+    """pytest 汇总行/分隔线不是稳定根因，不能进入问题签名。"""
+    return bool(
+        _SUMMARY_RE.match(line)
+        or line.startswith(("=", "-", "short test summary", "FAILED ", "ERROR "))
+    )
+
+
+def _pick_error_line(lines: list[str]) -> str:
+    for line in reversed(lines):
+        if _is_summary_line(line):
+            continue
+        if line.startswith(("E ", "AssertionError", "Traceback", "Error:")):
+            return line
+    for line in reversed(lines):
+        if _is_summary_line(line):
+            continue
+        if _ERROR_HINT.search(line):
+            return line
+    return ""
+
+
 def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
-    """从失败用例证据尾部提取最深根因异常与断言行，用于稳定生成问题签名。"""
+    """从失败用例证据中提取稳定的根因异常/断言行，用于问题签名去重。"""
     run_case = next((item for item in run.cases if item.case_id == case_id), None)
     if run_case is None:
         return "unknown", ""
@@ -90,26 +125,72 @@ def _case_error(run_dir: Path, case_id: str, run: Run) -> tuple[str, str]:
         except OSError:
             continue
         lines = [line.strip() for line in text.splitlines() if line.strip()]
-        # 优先倒序抓取最后一条 E 断言/异常行，而非日志开头无关提示
-        chosen = ""
-        for line in reversed(lines):
-            if line.startswith(("E ", "AssertionError", "Traceback")) or _ERROR_HINT.search(
-                line
-            ):
-                chosen = line
-                break
+        chosen = _pick_error_line(lines)
         if chosen:
             evidence.append(chosen)
     key = next((line for line in reversed(evidence) if line), "")
     if not key and messages:
-        key = messages[-1].strip()
+        key = next(
+            (line for line in reversed(messages) if line and not _is_summary_line(line)),
+            "",
+        )
     error_type = "unknown"
     for candidate in [*reversed(evidence), *reversed(messages)]:
-        match = _ERROR_HINT.search(candidate or "")
+        match = _EXC_RE.search(candidate or "")
         if match:
             error_type = match.group(1).lower()
             break
+    else:
+        for candidate in [*reversed(evidence), *reversed(messages)]:
+            match = _ERROR_HINT.search(candidate or "")
+            if match:
+                error_type = match.group(1).lower()
+                break
     return error_type, key[:400]
+
+
+def _case_location(
+    run_dir: Path, case_id: str, run: Run, project_root: Path
+) -> tuple[str | None, int | None]:
+    """从证据中提取项目内源码坐标；生成脚本位于运行目录，不当作源码坐标。"""
+    run_case = next((item for item in run.cases if item.case_id == case_id), None)
+    if run_case is None:
+        return None, None
+    try:
+        root = project_root.resolve()
+    except OSError:
+        return None, None
+    for ref in run_case.evidence_refs[:5]:
+        path = evidence_path(run_dir, ref)
+        if path is None or not path.is_file():
+            continue
+        if path.suffix.lower() not in {".log", ".txt", ".json", ".out", ".err", ""}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        matches: list[dict[str, Any]] = []
+        for pattern in (_TRACEBACK_FILE_RE, _PYTEST_FILE_RE):
+            matches = [match.groupdict() for match in pattern.finditer(text)]
+            if matches:
+                break
+        for match in reversed(matches):
+            raw = str(match.get("file") or "").strip()
+            if not raw:
+                continue
+            candidate = Path(raw)
+            if not candidate.is_absolute():
+                candidate = root / raw
+            try:
+                resolved = candidate.resolve()
+                relative = resolved.relative_to(root)
+            except (OSError, ValueError):
+                continue
+            if not resolved.is_file():
+                continue
+            return relative.as_posix(), int(match.get("line") or 0)
+    return None, None
 
 
 def add_issue(
@@ -135,9 +216,24 @@ def add_issue(
     confidence_tier: ConfidenceTier = "suspected",
     confidence_reason: str = "",
 ) -> dict[str, Any]:
-    if run_dir is not None and error_type == "unknown" and not stack_key:
-        run = read_model(run_dir / "run.json", Run)
+    run: Run | None = None
+    if run_dir is not None:
+        try:
+            run = read_model(run_dir / "run.json", Run)
+        except AiTestError:
+            run = None
+    if run is not None and run_dir is not None and error_type == "unknown" and not stack_key:
         error_type, stack_key = _case_error(run_dir, case_id, run)
+    source_file: str | None = None
+    source_line: int | None = None
+    if run is not None and run_dir is not None:
+        try:
+            project_root = Path(ws.load_project(project_id).root)
+            source_file, source_line = _case_location(
+                run_dir, case_id, run, project_root
+            )
+        except (AiTestError, OSError):
+            source_file, source_line = None, None
     if run_dir is not None and not target_key and (run_dir / "plan.json").is_file():
         try:
             plan_snapshot = read_model(run_dir / "plan.json", Plan)
@@ -188,6 +284,9 @@ def add_issue(
             issue.reason = "关闭后再次复现，待复测"
         if unstable:
             issue.unstable = True
+        if issue.file is None and source_file:
+            issue.file = source_file
+            issue.line = source_line
         if confidence_tier == "confirmed" or not issue.confidence_reason:
             if confidence_tier == "confirmed" or issue.confidence_tier != "confirmed":
                 issue.confidence_tier = confidence_tier
@@ -208,6 +307,8 @@ def add_issue(
         steps=list(steps or []),
         expected=expected,
         actual=actual,
+        file=source_file,
+        line=source_line,
         severity=severity,
         occurrences=[
             IssueOccurrence(run_id=run_id, case_id=case_id, at=iso_now(), evidence_refs=refs)

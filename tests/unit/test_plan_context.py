@@ -1144,13 +1144,14 @@ def test_http_body_prefix_is_normalized(tmp_path: Path) -> None:
         verify_method=(
             'http:[{"method":"POST","url":"http://127.0.0.1:1/signup",'
             '"expect":[{"path":"body.email","operator":"exists"},'
-            '{"path":"body","operator":"exists"}]}]'
+            '{"path":"body","operator":"exists"},'
+            '{"path":"body.status","operator":"equals","value":"ok"}]}]'
         ),
     )
     _normalize_http_expect(case)
     specs = json.loads(case.verify_method[len("http:") :])
     paths = [check["path"] for check in specs[0]["expect"]]
-    assert paths == ["email", "body"]
+    assert paths == ["email", "body", "body.status"]
 
 
 def test_overshared_bindings_keep_all_plausible_matches(tmp_path: Path) -> None:

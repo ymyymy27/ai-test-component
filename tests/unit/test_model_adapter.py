@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from aitest.adapters.model import ModelClient
+from aitest.adapters.model import _SYSTEM_CASES, _SYSTEM_MAP, ModelClient
 from aitest.errors import AiTestError
 
 _API_KEY = "sk-test-secret-key"
@@ -368,3 +368,10 @@ def test_suggest_modules_rejects_duplicate_names() -> None:
     with _serve(content) as base_url, pytest.raises(AiTestError) as exc:
         _client(base_url).suggest_modules({})
     _assert_error(exc, "MODEL_OUTPUT_INVALID")
+
+
+def test_prompts_preserve_explicit_rules_and_protect_seed_accounts() -> None:
+    assert "逐条" in _SYSTEM_MAP
+    assert "不合并" in _SYSTEM_MAP
+    assert "种子账号" in _SYSTEM_CASES
+    assert "body.status" in _SYSTEM_CASES

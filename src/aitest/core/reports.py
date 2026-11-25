@@ -19,6 +19,7 @@ from aitest.adapters.model import ModelClient
 from aitest.ai_features import collect_dependencies, judge_mock, summarize_report
 from aitest.config import known_secret_values
 from aitest.core.evidence import evidence_path, sha256_file
+from aitest.core.git_engine import inspect_local_git
 from aitest.core.judge import compute_case_confidence, summarize_confidence
 from aitest.core.scope import uncovered_items as scope_uncovered
 from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
@@ -171,24 +172,47 @@ def _module_impact(
     return _dedupe(changed), _dedupe(unmapped)
 
 
+_SINGLE_SERVICE_KEYS = frozenset({"start", "health", "stop"})
+
+
+def _service_report_rows(raw_services: object) -> list[dict[str, Any]]:
+    """兼容单服务与命名服务两种配置形态，避免报告把已启动服务写成“未配置”。"""
+    if not isinstance(raw_services, dict):
+        return []
+    if _SINGLE_SERVICE_KEYS & set(raw_services):
+        entries: list[tuple[str, object]] = [("default", raw_services)]
+    elif all(isinstance(value, dict) for value in raw_services.values()):
+        entries = sorted(raw_services.items())
+    else:
+        return []
+    rows: list[dict[str, Any]] = []
+    for name, value in entries:
+        if not isinstance(value, dict):
+            continue
+        rows.append(
+            {
+                "name": name or "default",
+                "health_configured": bool(str(value.get("health") or "").strip()),
+                "start_configured": bool(str(value.get("start") or "").strip()),
+            }
+        )
+    return rows
+
+
+def _local_source_commit(root: Path) -> str | None:
+    """交付未记录提交时，回退到被测项目当前本地 Git HEAD。"""
+    try:
+        head = str(inspect_local_git(root).get("head") or "").strip()
+    except (OSError, ValueError):
+        return None
+    return head or None
+
+
 def _environment(
     ws: Workspace, project_id: str, run: Run | None = None
 ) -> dict[str, Any]:
     config = load_project_config(ws, project_id)
-    services: list[dict[str, Any]] = []
-    raw_services = config.get("services")
-    if isinstance(raw_services, dict):
-        for name in sorted(raw_services):
-            value = raw_services[name]
-            if not isinstance(value, dict):
-                continue
-            services.append(
-                {
-                    "name": name,
-                    "health_configured": bool(str(value.get("health") or "").strip()),
-                    "start_configured": bool(str(value.get("start") or "").strip()),
-                }
-            )
+    services = _service_report_rows(config.get("services"))
     # Prefer the fingerprint the worker actually recorded for this run; fall
     # back to the host interpreter only for runs created before fingerprints.
     recorded: dict[str, Any] = dict(run.environment) if run is not None else {}
@@ -599,7 +623,11 @@ def build_report(
         if task is not None
         else None
     )
-    source_commit = delivery.commit if delivery is not None and delivery.commit else None
+    source_commit = (
+        delivery.commit
+        if delivery is not None and delivery.commit
+        else _local_source_commit(Path(project.root))
+    )
     github, github_files = _github_record(ws, project.project_id, source_commit)
     changed_modules, unmapped_files = _module_impact(delivery, project.modules, github_files)
     changed_modules = _dedupe(changed_modules)

@@ -563,6 +563,8 @@ export interface Issue {
   steps: string[];
   expected: string;
   actual: string;
+  file?: string | null;
+  line?: number | null;
   status: IssueStatus;
   severity: Severity;
   disposition?: IssueDisposition | null;
