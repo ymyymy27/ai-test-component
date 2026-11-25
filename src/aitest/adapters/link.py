@@ -205,9 +205,13 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
+_MAX_LOG_READ_BYTES = 32 * 1024 * 1024
+
+
 def _read_text(path: Path) -> str | None:
     try:
-        data = path.read_bytes()
+        with path.open("rb") as handle:
+            data = handle.read(_MAX_LOG_READ_BYTES)
     except OSError:
         return None
     try:
@@ -383,6 +387,8 @@ def _collect_db(
             command,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_DB_TIMEOUT_SECONDS,
             shell=True,
             check=False,
@@ -475,12 +481,20 @@ def import_link(
     del run_id
     center: datetime | None = None
     if isinstance(started_at, datetime):
-        center = started_at
+        center = (
+            started_at.replace(tzinfo=datetime.now().astimezone().tzinfo)
+            if started_at.tzinfo is None
+            else started_at
+        ).astimezone(UTC)
     elif isinstance(started_at, str):
         center = _parse_timestamp(started_at)
     finish: datetime | None = center
     if isinstance(ended_at, datetime):
-        finish = ended_at
+        finish = (
+            ended_at.replace(tzinfo=datetime.now().astimezone().tzinfo)
+            if ended_at.tzinfo is None
+            else ended_at
+        ).astimezone(UTC)
     elif ended_at:
         finish = _parse_timestamp(ended_at) or finish
     window: tuple[datetime, datetime] | None = None

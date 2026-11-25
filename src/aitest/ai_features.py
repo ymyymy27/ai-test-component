@@ -11,12 +11,15 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from aitest.adapters.model import ModelClient
+from aitest.security import redact, redact_tree
 
 _ALLOWED_KINDS = frozenset({"real", "mock", "mixed", "unknown"})
 
@@ -180,7 +183,11 @@ _SYSTEM_MOCK_JUDGE = (
 _SYSTEM_REPORT_SUMMARY = (
     "你是测试报告摘要助手。只输出一个 JSON 对象，格式为 "
     '{"summary": "只陈述事实的摘要"}。'
-    "只写事实，不写通过、不通过、质量、上线或发布建议等结论。"
+    "严格只陈述可观测事实"
+    "（如：本次范围 X/Y 项，符合预期 A 项，出现失败 B 项，阻塞或未完成 C 项，未覆盖 D 项）。"
+    "严禁在文本任意位置出现“通过”“不通过”“全部通过”“验收通过”“测试通过”"
+    "“质量良好”“可以上线”“建议发布”“passed”等结论词或统计用语；"
+    "需要表述成功数量时统一用“符合预期 N 项”或“执行成功 N 项”代替。"
     "不要输出 JSON 之外的任何文本。"
 )
 
@@ -239,29 +246,28 @@ def _collect_files(root: Path, max_files: int, max_depth: int) -> list[Path]:
     return files
 
 
-def _read_excerpt(path: Path) -> str:
+def _read_excerpt(path: Path, secrets: list[str] | None = None) -> str:
     try:
         with path.open("r", encoding="utf-8", errors="replace") as handle:
-            return handle.read(_MAX_EXCERPT_CHARS)
+            return redact(handle.read(_MAX_EXCERPT_CHARS), secrets or [])
     except OSError:
         return ""
 
 
 def _test_files(root: Path) -> list[Path]:
     files: list[Path] = []
-    for path in sorted(root.rglob("*")):
-        if len(files) >= _MAX_SCAN_FILES:
-            break
-        if not path.is_file():
-            continue
-        if any(part in _SKIP_DIRS for part in path.parts):
-            continue
-        lowered = path.as_posix().lower()
-        name = path.name.lower()
-        if not any(marker in lowered for marker in _TEST_NAME_MARKERS):
-            continue
-        if name.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go")):
-            files.append(path)
+    exts = (".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go")
+    for base, dirs, names in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in _SKIP_DIRS)
+        for file_name in sorted(names):
+            if len(files) >= _MAX_SCAN_FILES:
+                return files
+            if not file_name.lower().endswith(exts):
+                continue
+            path = Path(base) / file_name
+            lowered = path.as_posix().lower()
+            if any(marker in lowered for marker in _TEST_NAME_MARKERS):
+                files.append(path)
     return files
 
 
@@ -361,6 +367,7 @@ def _sampled_payload(
     max_files: int,
     max_depth: int,
     per_component_files: int,
+    secrets: list[str] | None = None,
 ) -> tuple[list[dict[str, str]], list[str], bool, list[dict[str, str]]]:
     """Read sample excerpts and return (payload, read_files, limit_reached, hashes)."""
     samples: list[dict[str, str]] = []
@@ -377,15 +384,31 @@ def _sampled_payload(
         collected = _collect_files(project_root, max_files + 1, max_depth)
         limit_reached = len(collected) > max_files
     else:
-        # Root-level manifests/config stay visible, but subprojects are sampled
-        # against their own budget instead of one shared pool.
+        # Root-level manifests/config and non-component source dirs (e.g. src/)
+        # stay visible, while subprojects keep their own budget.
         collected.extend(_collect_files(project_root, max_files, 0))
-        for component in components:
-            files = _collect_files(component, per_component_files + 1, max_depth)
-            if len(files) > per_component_files:
+        component_set = {item.resolve() for item in components}
+        try:
+            root_entries = sorted(project_root.iterdir(), key=lambda item: item.name)
+        except OSError:
+            root_entries = []
+        for entry in root_entries:
+            if not entry.is_dir() or entry.name in _MOCK_SKIP_DIRS:
+                continue
+            if entry.resolve() in component_set or max_depth <= 0:
+                continue
+            extra = _collect_files(entry, per_component_files + 1, max_depth - 1)
+            if len(extra) > per_component_files:
                 limit_reached = True
                 break
-            collected.extend(files)
+            collected.extend(extra)
+        if not limit_reached:
+            for component in components:
+                files = _collect_files(component, per_component_files + 1, max_depth)
+                if len(files) > per_component_files:
+                    limit_reached = True
+                    break
+                collected.extend(files)
         if len(collected) > max_files:
             limit_reached = True
 
@@ -396,7 +419,7 @@ def _sampled_payload(
             relative = path.name
         if relative in read_files:
             continue
-        samples.append({"path": relative, "content": _read_excerpt(path)})
+        samples.append({"path": relative, "content": _read_excerpt(path, secrets)})
         read_files.append(relative)
         hashes.append({"path": relative, "sha256": _file_digest(path)})
     return samples, read_files, limit_reached, hashes
@@ -579,7 +602,7 @@ def judge_mock(
                 return cached
     payload = {
         "dependencies": dependencies,
-        "evidence": evidence,
+        "evidence": [redact(str(item), []) for item in evidence],
         "files": samples,
     }
     try:
@@ -609,15 +632,22 @@ def judge_mock(
                 limit_reached=limit_reached,
             )
         )
+    safe_results = redact_tree(results, [])
     if cache_path is not None:
+        tmp_path: Path | None = None
         try:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text(
-                json.dumps(results, ensure_ascii=False), encoding="utf-8"
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{cache_path.name}.", dir=cache_path.parent
             )
+            tmp_path = Path(tmp_name)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(safe_results, ensure_ascii=False))
+            os.replace(tmp_path, cache_path)
         except OSError:
-            pass
-    return results
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
+    return list(safe_results)
 
 
 def _conclusion_free(text: str) -> bool:
@@ -626,25 +656,47 @@ def _conclusion_free(text: str) -> bool:
     return not any(word in compact for word in _BANNED_SUMMARY_WORDS)
 
 
-def summarize_report(facts: dict[str, Any], *, client: ModelClient) -> str | None:
-    """Return a factual summary, or ``None`` when the model is unusable or conclusive."""
-    try:
-        data = client.complete_json(
-            _SYSTEM_REPORT_SUMMARY,
-            json.dumps(facts, ensure_ascii=False, default=str),
-        )
-    except Exception:
-        return None
+def _extract_summary_text(data: object) -> str | None:
     if not isinstance(data, dict):
         return None
-    text: str | None = None
     for key in ("summary", "text", "report"):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
-            text = value.strip()
-            break
+            return value.strip()
+    return None
+
+
+def summarize_report(facts: dict[str, Any], *, client: ModelClient) -> str | None:
+    """Return a factual summary, retrying once if banned conclusion words appear."""
+    user_payload = json.dumps(facts, ensure_ascii=False, default=str)
+    try:
+        data = client.complete_json(_SYSTEM_REPORT_SUMMARY, user_payload)
+    except Exception:
+        return None
+    text = _extract_summary_text(data)
     if text is None:
         return None
-    if not _conclusion_free(text):
+    if _conclusion_free(text):
+        return text
+
+    retry_payload = json.dumps(
+        {
+            "facts": facts,
+            "correction": (
+                "你上次输出的 summary 包含禁止词汇"
+                "（例如“通过”“不通过”“passed”或发布/质量结论词）。"
+                "请用“符合预期 N 项、出现失败 M 项、阻塞或未完成 K 项”等纯客观事实重新表述，"
+                "绝不要出现任何禁止词。"
+            ),
+        },
+        ensure_ascii=False,
+        default=str,
+    )
+    try:
+        retry_data = client.complete_json(_SYSTEM_REPORT_SUMMARY, retry_payload)
+    except Exception:
         return None
-    return text
+    retry_text = _extract_summary_text(retry_data)
+    if retry_text is None or not _conclusion_free(retry_text):
+        return None
+    return retry_text

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import fnmatch
 import re
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -77,7 +80,7 @@ _SECRET_VALUE_PATTERNS = (
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
     re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(r"(?i)\bBasic\s+[A-Za-z0-9+/=]{12,}"),
-    re.compile(r"(?i)\b(?:https?|postgres|postgresql|mysql|mongodb|redis|amqp)://[^\s:@/]+:[^\s@/]+@"),
+    re.compile(r"(?i)\b[A-Za-z][A-Za-z0-9+.-]*://[^\s:@/]+:[^\s@/]+@"),
 )
 
 
@@ -105,7 +108,7 @@ def is_secret_field(name: str) -> bool:
         if segment == "key":
             if len(segments) == 1 or name.isupper():
                 return True
-            if segments[index - 1] in {
+            if index > 0 and segments[index - 1] in {
                 "api",
                 "access",
                 "secret",
@@ -170,6 +173,126 @@ def ensure_within(root: Path, target: Path) -> Path:
     return target_resolved
 
 
+_DEFAULT_IGNORE_PATTERNS: tuple[str, ...] = (
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "id_rsa",
+    "id_rsa.*",
+    "id_ed25519",
+    "id_ed25519.*",
+    "*.keystore",
+    ".npmrc",
+    ".pypirc",
+)
+
+_METADATA_HOSTS = frozenset(
+    {"169.254.169.254", "metadata.google.internal", "metadata.internal"}
+)
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+
+
+def load_ignore_patterns(root: Path) -> list[str]:
+    """合并 .gitignore、.aitestignore 与默认高危凭据文件排除规则。"""
+    patterns: list[str] = list(_DEFAULT_IGNORE_PATTERNS)
+    for filename in (".gitignore", ".aitestignore"):
+        ignore_file = root / filename
+        if not ignore_file.is_file():
+            continue
+        try:
+            lines = ignore_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or line.startswith("!"):
+                continue
+            if line not in patterns:
+                patterns.append(line)
+    return patterns
+
+
+def is_ignored_path(root: Path, path: Path, patterns: list[str]) -> bool:
+    """判断路径是否命中忽略或高危凭据规则。"""
+    try:
+        rel = path.resolve().relative_to(root.resolve()).as_posix()
+    except (OSError, ValueError):
+        return False
+    if not rel or rel == ".":
+        return False
+    parts = rel.split("/")
+    for raw_pattern in patterns:
+        pat = raw_pattern.strip().replace("\\", "/")
+        if not pat:
+            continue
+        is_dir_only = pat.endswith("/")
+        pat = pat.lstrip("/").rstrip("/")
+        if not pat:
+            continue
+        if "/" in pat:
+            if is_dir_only:
+                for idx in range(1, len(parts) + 1):
+                    prefix = "/".join(parts[:idx])
+                    if fnmatch.fnmatchcase(prefix, pat):
+                        return True
+            elif fnmatch.fnmatchcase(rel, pat):
+                return True
+        else:
+            targets = parts if (is_dir_only or path.is_dir()) else [parts[-1], *parts[:-1]]
+            if any(fnmatch.fnmatchcase(part, pat) for part in targets):
+                return True
+    return False
+
+
+def _normalize_allowed_host(entry: str) -> str:
+    text = entry.strip().lower()
+    if not text:
+        return ""
+    if "://" in text:
+        parsed = urllib.parse.urlsplit(text)
+        return (parsed.hostname or "").lower().strip(".")
+    if "/" in text:
+        text = text.split("/", 1)[0]
+    if text.startswith("[") and "]" in text:
+        return text[1 : text.index("]")].strip(".")
+    if text.count(":") == 1:
+        text = text.split(":", 1)[0]
+    return text.strip(".")
+
+
+def validate_target_url(url: str, allowed_hosts: list[str] | None = None) -> tuple[bool, str]:
+    """校验 HTTP 执行目标是否在允许范围内，阻止外发请求及云元数据探测。"""
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False, f"URL 格式非法：{url}"
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return False, f"只支持 http/https 协议：{url}"
+    if not parsed.hostname:
+        return False, f"URL 缺少有效主机名：{url}"
+    host = parsed.hostname.lower().strip(".")
+    if host in _METADATA_HOSTS:
+        return False, f"安全策略禁止访问云元数据地址：{host}"
+    if host in _LOOPBACK_HOSTS:
+        return True, ""
+    for raw in allowed_hosts or []:
+        if not isinstance(raw, str):
+            continue
+        candidate = _normalize_allowed_host(raw)
+        if not candidate:
+            continue
+        if host == candidate or fnmatch.fnmatchcase(host, candidate):
+            return True, ""
+    return (
+        False,
+        f"目标主机 {host} 不在允许白名单内；请在配置 services 或 security.allowed_hosts 后重试",
+    )
+
+
 def redact(text: str, secrets: list[str]) -> str:
     result = text
     ordered = sorted({secret for secret in secrets if secret}, key=len, reverse=True)
@@ -181,9 +304,21 @@ def redact(text: str, secrets: list[str]) -> str:
     return result
 
 
+_BINARY_PREFIXES = (
+    b"\x89PNG\r\n\x1a\n",
+    b"\xff\xd8\xff",
+    b"GIF87a",
+    b"GIF89a",
+    b"PK\x03\x04",
+    b"\x1a\x45\xdf\xa3",
+    b"RIFF",
+    b"%PDF-",
+)
+
+
 def redact_bytes(data: bytes, secrets: list[str]) -> bytes:
     """Redact known secrets and token-like text; binary media is returned unchanged."""
-    if not data:
+    if not data or data.startswith(_BINARY_PREFIXES):
         return data
     for encoding in ("utf-8", "utf-16", "gb18030"):
         try:
@@ -211,3 +346,102 @@ def redact_tree(value: Any, secrets: list[str]) -> Any:
     if isinstance(value, str):
         return redact(value, secrets)
     return value
+
+
+_SCRIPT_ASSERTION_MARKERS = (
+    "assert ",
+    "assert(",
+    "pytest.raises",
+    "self.assert",
+    "expect(",
+    ".to_be(",
+    ".to_have",
+    "should(",
+    "tobe(",
+    "tothrow(",
+    "toequal(",
+)
+
+
+def script_has_assertion(content: str) -> bool:
+    """仅当生成脚本包含实际产品断言时，才视为有效验证证据。"""
+    text = content.lower()
+    return any(marker in text for marker in _SCRIPT_ASSERTION_MARKERS)
+
+
+def _is_trivial_assert(node: ast.Assert) -> bool:
+    """识别恒真或同值比较的退化断言。"""
+    test = node.test
+    if isinstance(test, ast.Constant):
+        return bool(test.value)
+    if (
+        isinstance(test, ast.Compare)
+        and len(test.ops) == 1
+        and len(test.comparators) == 1
+        and isinstance(test.ops[0], (ast.Eq, ast.Is))
+    ):
+        return ast.dump(test.left) == ast.dump(test.comparators[0])
+    return False
+
+
+def _assertion_profile(tree: ast.AST) -> tuple[int, int, int, set[int], bool]:
+    """提取 Python 测试脚本中的断言数量、raises 次数、精确相等数与错误码集合。"""
+    assert_count = 0
+    raises_count = 0
+    eq_count = 0
+    error_in_codes: set[int] = set()
+    has_trivial = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assert):
+            assert_count += 1
+            if _is_trivial_assert(node):
+                has_trivial = True
+            for inner in ast.walk(node.test):
+                if not isinstance(inner, ast.Compare):
+                    continue
+                for op, comp in zip(inner.ops, inner.comparators, strict=False):
+                    if isinstance(op, ast.Eq):
+                        eq_count += 1
+                    elif isinstance(op, ast.In) and isinstance(
+                        comp, (ast.List, ast.Tuple, ast.Set)
+                    ):
+                        for el in comp.elts:
+                            if (
+                                isinstance(el, ast.Constant)
+                                and isinstance(el.value, int)
+                                and not isinstance(el.value, bool)
+                                and el.value >= 400
+                            ):
+                                error_in_codes.add(el.value)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute):
+                if func.attr == "raises":
+                    raises_count += 1
+                    assert_count += 1
+                elif func.attr.startswith("assert"):
+                    assert_count += 1
+            elif isinstance(func, ast.Name) and func.id.startswith("assert_"):
+                assert_count += 1
+    return assert_count, raises_count, eq_count, error_in_codes, has_trivial
+
+
+def assertions_preserved(original: str, repaired: str) -> bool:
+    """校验修复后的 Python 脚本未删减、退化或放宽原有断言强度。"""
+    if not original.strip():
+        return script_has_assertion(repaired)
+    try:
+        orig_tree = ast.parse(original)
+    except SyntaxError:
+        return script_has_assertion(repaired)
+    try:
+        rep_tree = ast.parse(repaired)
+    except SyntaxError:
+        return False
+    o_asserts, o_raises, o_eq, o_codes, _ = _assertion_profile(orig_tree)
+    r_asserts, r_raises, r_eq, r_codes, r_trivial = _assertion_profile(rep_tree)
+    if r_trivial or r_asserts == 0:
+        return False
+    if r_asserts < o_asserts or r_raises < o_raises or r_eq < o_eq:
+        return False
+    return not (r_codes - o_codes)

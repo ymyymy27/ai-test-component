@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from aitest.models import CaseResult, Plan, Run, Verdict, case_item_ids, new_id
+from aitest.models import Case, CaseResult, Plan, Run, Verdict, case_item_ids
 
 _FAILURE = "failed"
 _PENDING = {"blocked", "error", "not_run", "manual_pending"}
@@ -32,6 +32,11 @@ def worst_result(results: list[CaseResult]) -> CaseResult:
     return max(results, key=lambda item: _RANK[item])
 
 
+def _is_project_check_case(case: Case) -> bool:
+    """判定用例是否属于项目级检查（L1 或未绑定验收项），不计入 S/M 验收项覆盖。"""
+    return case.layer == "L1" or not case_item_ids(case)
+
+
 def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
     """Effective per-case results: an unverified expectation cannot pass."""
     by_case = {case.case_id: case for case in plan.cases}
@@ -41,6 +46,7 @@ def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
         result = run_case.result
         if (
             case is not None
+            and not _is_project_check_case(case)
             and case_item_ids(case)
             and not case.expectation_verified
             and result == "passed"
@@ -49,22 +55,12 @@ def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
             result = "blocked"
         if (
             case is not None
+            and not _is_project_check_case(case)
             and case_item_ids(case)
             and case.coverage_kind in {"file", "shared", "unverified"}
             and result == "passed"
         ):
-            # Whole-file or shared evidence cannot prove this specific item.
-            result = "blocked"
-        if (
-            case is not None
-            and case_item_ids(case)
-            and case.coverage_kind == "unverified"
-            and (case.verify_method or "").startswith(("script:", "http:", "sql:"))
-            and result == "failed"
-        ):
-            # A generated script can fail because the script itself is wrong
-            # (missing auth, invalid fixture). Keep the failure visible but do
-            # not attribute it to the product without human confirmation.
+            # 整文件、共享或未核验期望的证据不能单独证明验收项通过；保留为阻塞待核实。
             result = "blocked"
         results[run_case.case_id] = result
     return results
@@ -79,13 +75,20 @@ def _item_case_results(plan: Plan, run: Run) -> dict[str, list[CaseResult]]:
         item_id: [] for item_id in plan.scope.acceptance_item_ids
     }
     for case in plan.cases:
+        if _is_project_check_case(case):
+            continue
         ids = case_item_ids(case)
         if not ids:
             continue
         result = results.get(case.case_id, "not_run")
         if case.coverage_kind in {"file", "shared", "unverified"}:
-            # Weak evidence cannot veto a direct case for the same item, but an
-            # item covered only by weak evidence is blocked, not silently absent.
+            # 弱覆盖或未核验用例的失败必须直接穿透为验收项失败，绝不被浅通过用例掩盖；
+            # 其通过或其余状态仍留待直接证据裁定。
+            if result == "failed":
+                for item_id in ids:
+                    if item_id in by_item:
+                        by_item[item_id].append("failed")
+                continue
             for item_id in ids:
                 if item_id in weak:
                     weak[item_id].append(
@@ -114,12 +117,12 @@ def item_outcomes(plan: Plan, run: Run) -> dict[str, CaseResult]:
 
 
 def _project_results(plan: Plan, run: Run) -> list[CaseResult]:
-    """Results of project-level checks (L1 cases without an acceptance item)."""
+    """Results of project-level checks (L1 or unbound cases)."""
     results = case_results(plan, run)
     return [
         results.get(case.case_id, "not_run")
         for case in plan.cases
-        if not case_item_ids(case)
+        if _is_project_check_case(case)
     ]
 
 
@@ -205,7 +208,3 @@ def coverage(plan: Plan, run: Run) -> dict[str, int]:
 def coverage_applicable(plan: Plan, selected: list[str]) -> int:
     """M is the frozen applicable set; it can never be smaller than S."""
     return max(len(selected), plan.applicable_count)
-
-
-def build_report_id() -> str:
-    return new_id("rep")

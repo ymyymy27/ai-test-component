@@ -547,7 +547,15 @@ def test_script_self_error_only_for_generated_signature_errors() -> None:
         b"..\\runs\\run_1\\generated\\test_x.py:7: TypeError: "
         b"__init__() missing 1 required positional argument: 'path'"
     )
+    deep_product_traceback = (
+        b'  File "E:/proj/runs/run_1/generated/test_x.py", line 5, in test_calc\n'
+        b'    service.run()\n'
+        b'  File "E:/proj/src/app/service.py", line 18, in run\n'
+        b'    return self.missing_attr\n'
+        b"AttributeError: 'Service' object has no attribute 'missing_attr'\n"
+    )
     assert _script_self_error(traceback) is True
+    assert _script_self_error(deep_product_traceback) is False
     assert _script_self_error(b"E AssertionError: assert 'value1' == 'value1 # c'") is False
 
 
@@ -643,8 +651,11 @@ def test_script_failure_is_downgraded_only_when_command_covers_item() -> None:
     )
     _downgrade_script_failures(plan, run)
     results = {case.case_id: case.result for case in run.cases}
-    assert results["script_covered"] == "error"
+    assert results["script_covered"] == "failed"
     assert results["script_uncovered"] == "failed"
+    covered_run_case = next(c for c in run.cases if c.case_id == "script_covered")
+    assert covered_run_case.attempts
+    assert "人工核查" in covered_run_case.attempts[-1].message
 
 
 

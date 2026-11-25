@@ -72,18 +72,21 @@ def read_model(path: Path, model_cls: type[T]) -> T:
 def _write_failure(path: Path, exc: OSError) -> AiTestError:
     """Map a write failure to the code that actually describes it."""
 
-    errno = getattr(exc, "errno", None)
+    errno_val = getattr(exc, "errno", None)
+    winerror = getattr(exc, "winerror", None)
     if isinstance(exc, _ReplaceBusy):
         return AiTestError(
             "FILE_BUSY", f"目标文件持续被占用，写入失败：{path}（{exc}）", "关闭占用程序后重试"
         )
-    if errno in {28, 112}:  # ENOSPC / ERROR_DISK_FULL
+    if errno_val == 28 or (os.name == "nt" and winerror == 112):  # ENOSPC / ERROR_DISK_FULL
         return AiTestError("DISK_FULL", f"磁盘不足，写入失败：{path}（{exc}）", "清理磁盘后重试")
-    if errno in {36, 206}:  # ENAMETOOLONG / ERROR_FILENAME_EXCED_RANGE
+    if errno_val == 36 or (
+        os.name == "nt" and winerror == 206
+    ):  # ENAMETOOLONG / ERROR_FILENAME_EXCED_RANGE
         return AiTestError(
             "PATH_TOO_LONG", f"路径过长，写入失败：{path}（{exc}）", "缩短工作空间或文件名后重试"
         )
-    if errno in {13, 5}:  # EACCES / ERROR_ACCESS_DENIED
+    if errno_val == 13 or (os.name == "nt" and winerror == 5):  # EACCES / ERROR_ACCESS_DENIED
         return AiTestError(
             "PERMISSION_DENIED", f"权限不足，写入失败：{path}（{exc}）", "检查目录权限后重试"
         )

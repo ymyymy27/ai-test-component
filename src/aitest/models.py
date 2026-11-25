@@ -11,6 +11,7 @@ RunStatus = Literal["running", "completed", "cancelled", "interrupted", "executi
 Verdict = Literal["passed", "failed", "incomplete", "not_applicable"]
 CaseResult = Literal["passed", "failed", "blocked", "error", "not_run", "manual_pending"]
 MockKind = Literal["real", "mock", "mixed", "unknown"]
+ConfidenceTier = Literal["confirmed", "suspected", "blocked"]
 IssueStatus = Literal["pending", "in_progress", "retest", "closed"]
 IssueDisposition = Literal["fixed", "non_defect", "duplicate", "deferred"]
 Layer = Literal["L1", "L2", "L3"]
@@ -143,6 +144,7 @@ class Case(Model):
     script_content: str | None = None
     coverage_kind: Literal["direct", "file", "shared", "manual", "unverified"] | None = None
     test_nodes: list[str] = Field(default_factory=list)
+    frozen_expectation: dict[str, Any] | None = None
 
 
 class Scope(Model):
@@ -167,6 +169,7 @@ class Plan(Model):
     item_texts: dict[str, str] = Field(default_factory=dict)
     templates: list[dict[str, Any]] = Field(default_factory=list)
     unselected_by_module: list[dict[str, Any]] = Field(default_factory=list)
+    excluded_items: list[dict[str, Any]] | None = None
     warnings: list[str] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
     source_signature: str = ""
@@ -176,6 +179,7 @@ class Plan(Model):
 class Attempt(Model):
     attempt: int = 1
     result: CaseResult = "not_run"
+    stage: Literal["setup", "verify", ""] = ""
     started_at: str = ""
     finished_at: str = ""
     evidence_refs: list[str] = Field(default_factory=list)
@@ -187,6 +191,11 @@ class RunCase(Model):
     result: CaseResult = "not_run"
     attempts: list[Attempt] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
+    confidence_tier: ConfidenceTier | None = None
+    confidence_reason: str = ""
+    judgement: dict[str, Any] | None = None
+    service_log_issues: list[str] = Field(default_factory=list)
+    resumed_from_run_id: str = ""
 
 
 class Analysis(Model):
@@ -245,6 +254,11 @@ class Run(Model):
     dependency_install_ok: bool | None = None
     request_ids: list[str] = Field(default_factory=list)
     latest_report_id: str = ""
+    excluded_items: list[dict[str, Any]] | None = None
+    token_usage: dict[str, int] = Field(default_factory=dict)
+    preflight: dict[str, Any] | None = None
+    probe_results: list[dict[str, Any]] = Field(default_factory=list)
+    resumed_from_run_id: str = ""
 
 
 class Confirmation(Model):
@@ -304,6 +318,8 @@ class Issue(Model):
     last_result: str = ""
     verification_run_id: str = ""
     occurrences: list[IssueOccurrence] = Field(default_factory=list)
+    confidence_tier: ConfidenceTier = "suspected"
+    confidence_reason: str = ""
     fix_version: str | None = None
     revision: int = 1
 
@@ -348,6 +364,10 @@ class Report(Model):
     case_details: list[dict[str, Any]] = Field(default_factory=list)
     evidence_index: list[dict[str, Any]] = Field(default_factory=list)
     l1: dict[str, Any] | None = None
+    preflight: dict[str, Any] | None = None
+    probe_results: list[dict[str, Any]] = Field(default_factory=list)
+    confidence_summary: dict[str, int] = Field(default_factory=dict)
+    token_usage: dict[str, int] = Field(default_factory=dict)
     revision: int = 1
 
 

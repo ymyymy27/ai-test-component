@@ -64,11 +64,20 @@ def pid_alive(pid: int | None, created_at: float | None = None) -> bool:
         return False
     if os.name == "nt":
         import ctypes
+        from ctypes import wintypes
 
-        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)
         if not handle:
             return False
-        ctypes.windll.kernel32.CloseHandle(handle)
+        try:
+            exit_code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            if exit_code.value != 259:  # STILL_ACTIVE
+                return False
+        finally:
+            kernel32.CloseHandle(handle)
     else:
         try:
             os.kill(pid, 0)

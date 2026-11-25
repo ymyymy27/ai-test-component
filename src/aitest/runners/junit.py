@@ -20,9 +20,24 @@ def _time(case: ElementTree.Element) -> float | None:
         return None
 
 
+def _has_forbidden_xml_decl(content: bytes) -> bool:
+    for encoding in ("utf-8", "utf-16", "utf-16-le", "utf-16-be"):
+        try:
+            text = content[:65536].decode(encoding, errors="ignore").upper()
+        except LookupError:
+            continue
+        if "<!DOCTYPE" in text or "<!ENTITY" in text:
+            return True
+    return False
+
+
 def parse_junit(content: bytes) -> list[dict[str, Any]]:
     """Parse ``testcase`` entries from a ``testsuite`` or ``testsuites`` document."""
-    if b"<!DOCTYPE" in content.upper() or b"<!ENTITY" in content.upper():
+    if (
+        b"<!DOCTYPE" in content.upper()
+        or b"<!ENTITY" in content.upper()
+        or _has_forbidden_xml_decl(content)
+    ):
         raise ValueError("invalid JUnit XML: DTD and entity declarations are not allowed")
     if len(content) > 8 * 1024 * 1024:
         raise ValueError("invalid JUnit XML: report exceeds 8 MiB")
@@ -48,12 +63,15 @@ def parse_junit(content: bytes) -> list[dict[str, Any]]:
         else:
             status = "passed"
             detail = None
+        message = None
+        if detail is not None:
+            message = detail.get("message") or (detail.text or "").strip() or None
         results.append(
             {
                 "name": case.get("name", ""),
                 "classname": case.get("classname", ""),
                 "status": status,
-                "message": detail.get("message") if detail is not None else None,
+                "message": message,
                 "time": _time(case),
             }
         )

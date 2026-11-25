@@ -7,9 +7,10 @@ Missing data is stored as an empty list or ``None``; nothing is guessed.
 
 from __future__ import annotations
 
-import hashlib
 import mimetypes
 import platform
+import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,7 +18,8 @@ from aitest.adapters.github import read_commit_files
 from aitest.adapters.model import ModelClient
 from aitest.ai_features import collect_dependencies, judge_mock, summarize_report
 from aitest.config import known_secret_values
-from aitest.core.evidence import evidence_path
+from aitest.core.evidence import evidence_path, sha256_file
+from aitest.core.judge import compute_case_confidence, summarize_confidence
 from aitest.core.scope import uncovered_items as scope_uncovered
 from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError
@@ -34,7 +36,7 @@ from aitest.models import (
     case_item_ids,
     new_id,
 )
-from aitest.security import redact_tree
+from aitest.security import ensure_within, redact_tree
 from aitest.storage.files import check_schema_version, read_json, read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -85,6 +87,8 @@ def _issues_summary(
                     "unstable": issue.unstable,
                     "disposition": issue.disposition,
                     "reason": issue.reason,
+                    "confidence_tier": issue.confidence_tier,
+                    "confidence_reason": issue.confidence_reason,
                 }
             )
     failures = sum(1 for case in run.cases if case.result == "failed")
@@ -96,9 +100,16 @@ def _github_record(
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Read the GitHub record for this run, never substituting a different commit."""
     directory = ws.project_dir(project_id) / "github"
-    if not directory.is_dir() or not source_commit:
+    if (
+        not directory.is_dir()
+        or not source_commit
+        or not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", source_commit)
+    ):
         return None, []
-    path = directory / f"{source_commit}.json"
+    try:
+        path = ensure_within(directory, directory / f"{source_commit}.json")
+    except ValueError:
+        return None, []
     if not path.is_file():
         return None, []
     record = read_json(path)
@@ -235,6 +246,26 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
     details: list[dict[str, Any]] = []
     for case in plan.cases:
         run_case = by_case.get(case.case_id)
+        effective_res = effective.get(case.case_id, "not_run")
+        computed_tier, computed_reason = compute_case_confidence(
+            case,
+            run_case,
+            effective_result=effective_res,
+            probe_results=run.probe_results,
+        )
+        tier = (
+            computed_tier
+            if effective_res != (run_case.result if run_case is not None else "not_run")
+            or run_case is None
+            or run_case.confidence_tier is None
+            else run_case.confidence_tier
+        )
+        tier_reason = (
+            computed_reason
+            if tier != (run_case.confidence_tier if run_case is not None else None)
+            or not (run_case.confidence_reason if run_case is not None else "")
+            else (run_case.confidence_reason if run_case is not None else "")
+        )
         details.append(
             {
                 "case_id": case.case_id,
@@ -247,12 +278,22 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
                 "coverage_kind": case.coverage_kind,
                 "test_nodes": list(case.test_nodes),
                 "warnings": list(case.warnings),
-                "result": effective.get(case.case_id, "not_run"),
+                "result": effective_res,
+                "confidence_tier": tier,
+                "confidence_reason": tier_reason,
+                "judgement": run_case.judgement if run_case is not None else None,
+                "service_log_issues": (
+                    list(run_case.service_log_issues) if run_case is not None else []
+                ),
+                "resumed_from_run_id": (
+                    run_case.resumed_from_run_id if run_case is not None else ""
+                ),
                 "evidence_refs": list(run_case.evidence_refs) if run_case is not None else [],
                 "attempts": [
                     {
                         "attempt": attempt.attempt,
                         "result": attempt.result,
+                        "stage": attempt.stage,
                         "message": attempt.message,
                         "evidence_refs": list(attempt.evidence_refs),
                     }
@@ -270,6 +311,8 @@ def _item_details(plan: Plan, run: Run, task: Task | None) -> list[dict[str, Any
     outcomes = item_outcomes(plan, run)
     by_item: dict[str, list[str]] = {}
     for case in plan.cases:
+        if case.layer == "L1":
+            continue
         for item_id in case_item_ids(case):
             by_item.setdefault(item_id, []).append(case.case_id)
     items = {item.item_id: item for item in task.acceptance_items} if task else {}
@@ -308,7 +351,7 @@ def _l1_details(plan: Plan, run: Run) -> dict[str, Any] | None:
     cases = {
         case["case_id"]: case
         for case in _case_details(plan, run)
-        if not case["acceptance_item_ids"]
+        if case["layer"] == "L1" or not case["acceptance_item_ids"]
     }
     if run.l1 is None and not cases:
         return None
@@ -338,7 +381,7 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
         digest = ""
         if exists and path is not None:
             try:
-                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                digest = sha256_file(path)
             except OSError:
                 digest = ""
         guessed, _encoding = mimetypes.guess_type(ref)
@@ -366,6 +409,8 @@ def _mock_judgement(
     delivery: Delivery | None,
     client: ModelClient | None,
     workspace: Workspace,
+    *,
+    persist: bool = True,
 ) -> list[dict[str, Any]]:
     judgement = list(run.mock_judgement)
     dependencies: list[str] = []
@@ -406,16 +451,29 @@ def _mock_judgement(
         dependencies,
         list(run.evidence_refs),
         client=client,
-        max_files=max_files if isinstance(max_files, int) else 240,
-        max_depth=max_depth if isinstance(max_depth, int) else 3,
+        max_files=(
+            max_files
+            if isinstance(max_files, int) and not isinstance(max_files, bool)
+            else 240
+        ),
+        max_depth=(
+            max_depth
+            if isinstance(max_depth, int) and not isinstance(max_depth, bool)
+            else 3
+        ),
         per_component_files=(
-            per_component_files if isinstance(per_component_files, int) else 120
+            per_component_files
+            if isinstance(per_component_files, int)
+            and not isinstance(per_component_files, bool)
+            else 120
         ),
         workspace=workspace.root,
         project_revision=project.revision,
     )
-    run.mock_judgement = judgement
-    write_model(run_dir / "run.json", run)
+    if persist:
+        latest_run = read_model(run_dir / "run.json", Run)
+        latest_run.mock_judgement = judgement
+        write_model(run_dir / "run.json", latest_run)
     return judgement
 
 
@@ -478,12 +536,56 @@ def _next_report_revision(ws: Workspace, project_id: str, run_id: str) -> int:
     return highest + 1
 
 
+def prepare_report_ai(
+    ws: Workspace,
+    project: Project,
+    run_dir: Path,
+    *,
+    use_model: bool = True,
+) -> tuple[list[dict[str, Any]], tuple[str, Literal["ai", "fallback"]]]:
+    """无锁并发预计算报告 AI 阶段（Mock 判定与事实摘要），释放工作空间写锁。"""
+    run = read_model(run_dir / "run.json", Run)
+    plan = read_model(run_dir / "plan.json", Plan)
+    outcome = verdict(plan, run)
+    counts = coverage(plan, run)
+    task = _load_task(ws, project.project_id, plan.task_id, run_dir)
+    uncovered = scope_uncovered(task, plan.scope, plan.applicable_count)
+    delivery = (
+        _load_delivery(ws, project.project_id, task.task_id, run_dir)
+        if task is not None
+        else None
+    )
+    client = build_client(ws, project.project_id) if use_model else None
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="aitest-rep-ai") as pool:
+        mock_fut = pool.submit(
+            _mock_judgement,
+            project,
+            run,
+            run_dir,
+            delivery,
+            client,
+            ws,
+            persist=False,
+        )
+        sum_fut = pool.submit(
+            _summary,
+            outcome,
+            counts,
+            uncovered,
+            client,
+            kind=run.kind,
+        )
+        return mock_fut.result(), sum_fut.result()
+
+
 def build_report(
     ws: Workspace,
     project: Project,
     run_dir: Path,
     *,
     use_model: bool = True,
+    precomputed_mock: list[dict[str, Any]] | None = None,
+    precomputed_summary: tuple[str, Literal["ai", "fallback"]] | None = None,
 ) -> Report:
     """Build, store and return the report for the run contained in ``run_dir``."""
     run = read_model(run_dir / "run.json", Run)
@@ -501,15 +603,27 @@ def build_report(
     github, github_files = _github_record(ws, project.project_id, source_commit)
     changed_modules, unmapped_files = _module_impact(delivery, project.modules, github_files)
     changed_modules = _dedupe(changed_modules)
-    client = build_client(ws, project.project_id) if use_model else None
-    mock_judgement = _mock_judgement(project, run, run_dir, delivery, client, ws)
+    client = (
+        build_client(ws, project.project_id)
+        if use_model and (precomputed_mock is None or precomputed_summary is None)
+        else None
+    )
+    mock_judgement = (
+        list(precomputed_mock)
+        if precomputed_mock is not None
+        else _mock_judgement(project, run, run_dir, delivery, client, ws)
+    )
     run.mock_judgement = list(mock_judgement)
     real_chain = (
         outcome == "passed"
         and bool(mock_judgement)
         and all(item.get("kind") == "real" for item in mock_judgement)
     )
-    summary, summary_source = _summary(outcome, counts, uncovered, client, kind=run.kind)
+    summary, summary_source = (
+        precomputed_summary
+        if precomputed_summary is not None
+        else _summary(outcome, counts, uncovered, client, kind=run.kind)
+    )
     issues, issue_count, failure_occurrences = _issues_summary(ws, project.project_id, run)
     unverified_items = [
         f"{case.case_id}：{'；'.join(case.warnings)}"
@@ -517,6 +631,7 @@ def build_report(
         if case.warnings
     ]
     plan_warnings = [warning for warning in plan.warnings if warning not in unverified_items]
+    case_details = _case_details(plan, run)
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
@@ -546,14 +661,20 @@ def build_report(
         unverified_items=unverified_items,
         plan_warnings=plan_warnings,
         item_details=_item_details(plan, run, task),
-        case_details=_case_details(plan, run),
+        case_details=case_details,
         evidence_index=_evidence_index(run_dir, run),
         l1=_l1_details(plan, run),
+        preflight=run.preflight,
+        probe_results=list(run.probe_results),
+        confidence_summary=summarize_confidence(case_details),
+        token_usage=dict(run.token_usage),
         revision=_next_report_revision(ws, project.project_id, run.run_id),
     )
     secrets = known_secret_values([load_project_config(ws, project.project_id)])
     safe = Report.model_validate(redact_tree(report.model_dump(mode="json"), secrets))
     write_model(ws.project_dir(project.project_id) / "reports" / f"{safe.report_id}.json", safe)
-    run.latest_report_id = safe.report_id
-    write_model(run_dir / "run.json", run)
+    latest_run = read_model(run_dir / "run.json", Run)
+    latest_run.mock_judgement = list(mock_judgement)
+    latest_run.latest_report_id = safe.report_id
+    write_model(run_dir / "run.json", latest_run)
     return safe

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aitest.commands import _task_signal_context
 from aitest.core.project_context import build_project_context, detect_services
+from aitest.models import Project
+from aitest.runtime.plan_commands import _workspace_source_fingerprint
+from aitest.storage.workspace import Workspace
 
 
 def _write(path: Path, text: str) -> None:
@@ -96,6 +100,169 @@ def test_detect_services_includes_override_services_and_flags(tmp_path: Path) ->
         "services:\n  mailpit:\n    image: axllent/mailpit\n    ports:\n      - '8025:8025'\n",
     )
     services = detect_services(root)
-    assert services["db"]["start"] == "docker compose -f compose.yml -f compose.override.yml up -d db"
+    assert (
+        services["db"]["start"]
+        == "docker compose -f compose.yml -f compose.override.yml up -d db"
+    )
     assert services["mailpit"]["health"] == "http://127.0.0.1:8025/livez"
     assert "up -d mailpit" in str(services["mailpit"]["start"])
+
+
+def test_detect_standalone_python_http_service_and_do_not_override_monorepo(
+    tmp_path: Path,
+) -> None:
+    standalone = tmp_path / "standalone"
+    _write(
+        standalone / "server.py",
+        (
+            "import os\n"
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            'HOST = "0.0.0.0"\n'
+            'PORT = int(os.environ.get("PORT", "8766"))\n'
+            "class AppHandler(BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            '        if self.path == "/api/items":\n'
+            "            self.send_response(200)\n"
+            'if __name__ == "__main__":\n'
+            "    ThreadingHTTPServer((HOST, PORT), AppHandler).serve_forever()\n"
+        ),
+    )
+    detected = detect_services(standalone)
+    assert list(detected) == ["app"]
+    assert detected["app"]["start"] == "python server.py"
+    assert detected["app"]["health"] == "http://127.0.0.1:8766/"
+
+    mono = _monorepo(tmp_path)
+    _write(
+        mono / "compose.yml",
+        "services:\n  db:\n    image: postgres:18\n",
+    )
+    _write(mono / "backend/app/main.py", "from fastapi import FastAPI\n")
+    _write(
+        mono / "server.py",
+        (
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            'if __name__ == "__main__":\n'
+            '    ThreadingHTTPServer(("127.0.0.1", 9000), BaseHTTPRequestHandler).serve_forever()\n'
+        ),
+    )
+    mono_services = detect_services(mono)
+    assert "app" not in mono_services
+    assert "db" in mono_services and "backend" in mono_services
+
+
+def test_http_handler_routes_and_frontend_contracts(tmp_path: Path) -> None:
+    root = tmp_path / "web"
+    _write(
+        root / "server.py",
+        (
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            "class Handler(BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            '        if self.path == "/api/items": pass\n'
+            "    def do_POST(self):\n"
+            '        if self.path == "/api/items": pass\n'
+            "    def do_PUT(self):\n"
+            '        if self.path.startswith("/api/items/"): pass\n'
+            "    def do_DELETE(self):\n"
+            '        if self.path.startswith("/api/items/"): pass\n'
+            'if __name__ == "__main__":\n'
+            '    ThreadingHTTPServer(("127.0.0.1", 8123), Handler).serve_forever()\n'
+        ),
+    )
+    _write(
+        root / "index.html",
+        (
+            "<!doctype html><html><head>"
+            '<link rel="stylesheet" href="missing.css" />'
+            '<link rel="stylesheet" href="https://cdn.example.com/ext.css" />'
+            "</head><body>"
+            '<script src="app.js"></script>'
+            "</body></html>"
+        ),
+    )
+    _write(
+        root / "app.js",
+        (
+            "const API_URL = '/api/items';\n"
+            "async function load() { return request(API_URL); }\n"
+            "async function add(title) {\n"
+            "  return request(API_URL, {\n"
+            "    method: 'POST',\n"
+            "    body: JSON.stringify({ title: title })\n"
+            "  });\n"
+            "}\n"
+            "async function toggle(id, done) {\n"
+            "  return fetch(`/api/items/${id}`, {\n"
+            "    method: 'PUT',\n"
+            "    body: JSON.stringify({ done })\n"
+            "  });\n"
+            "}\n"
+        ),
+    )
+    context = build_project_context(root, {})
+    assert context["has_frontend"] is True
+    assert context["services"]["app"]["health_url"] == "http://127.0.0.1:8123/"
+    routes = {(r["method"], r["path"]) for r in context["api_routes"]}
+    assert {
+        ("GET", "/api/items"),
+        ("POST", "/api/items"),
+        ("PUT", "/api/items/{id}"),
+        ("DELETE", "/api/items/{id}"),
+    } <= routes
+    calls = {
+        (c["method"], c["path"]): c.get("body_keys", [])
+        for c in context["frontend_api_calls"]
+    }
+    assert calls[("GET", "/api/items")] == []
+    assert calls[("POST", "/api/items")] == ["title"]
+    assert calls[("PUT", "/api/items/{param}")] == ["done"]
+    assets = {a["href"]: a["exists_in_repo"] for a in context["frontend_assets"]}
+    assert assets == {"missing.css": False, "app.js": True}
+
+
+def test_task_signal_context_surfaces_sources_without_readme(tmp_path: Path) -> None:
+    empty_root = tmp_path / "empty"
+    empty_root.mkdir()
+    ws_empty = Workspace(tmp_path / "ws_empty")
+    proj_empty = Project(project_id="proj_empty", name="empty", root=str(empty_root))
+    empty_signal = _task_signal_context(ws_empty, proj_empty)
+    assert "项目关键文件" not in empty_signal
+    assert "核心源码摘要" not in empty_signal
+
+    app_root = tmp_path / "app"
+    _write(
+        app_root / "server.py",
+        (
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            "class H(BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            '        if self.path == "/api/orders": pass\n'
+            'if __name__ == "__main__":\n'
+            '    ThreadingHTTPServer(("127.0.0.1", 8877), H).serve_forever()\n'
+        ),
+    )
+    _write(app_root / "index.html", '<link rel="stylesheet" href="app.css" />\n')
+    ws_app = Workspace(tmp_path / "ws_app")
+    proj_app = Project(project_id="proj_app", name="orders", root=str(app_root))
+    app_signal = _task_signal_context(ws_app, proj_app)
+    assert "项目关键文件" in app_signal
+    assert "核心源码摘要" in app_signal
+    assert "识别服务" in app_signal
+    assert "GET /api/orders" in app_signal
+    assert "app.css(exists=False)" in app_signal
+
+
+def test_workspace_fingerprint_ignores_runtime_data_and_tracks_html_css(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "app"
+    _write(root / "index.html", "<h1>v1</h1>")
+    _write(root / "data" / "todos.json", '{"items": [1]}')
+    fp_initial = _workspace_source_fingerprint(root)
+
+    _write(root / "data" / "todos.json", '{"items": [1, 2]}')
+    assert _workspace_source_fingerprint(root) == fp_initial
+
+    _write(root / "style.css", "body { color: red; }")
+    assert _workspace_source_fingerprint(root) != fp_initial

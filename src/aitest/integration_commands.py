@@ -9,11 +9,12 @@ from typing import Any
 
 from aitest.adapters.github import read_github
 from aitest.adapters.link import import_link
-from aitest.commands import MUTATING, REGISTRY, Payload, _project, _require, _text
+from aitest.commands import MUTATING, REGISTRY, Payload, _project, _project_secrets, _require, _text
 from aitest.core.link_location import locate_link
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import load_project_config
 from aitest.runners.assertions import evaluate
+from aitest.security import redact_tree
 from aitest.storage.files import check_schema_version, read_json, write_json
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -28,9 +29,13 @@ def _run_id(payload: Payload) -> str:
 def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
-    repo = _text({"repo": _require(payload, "repo")}, "repo")
-    ref = _text(payload, "ref", "main")
-    result = read_github(repo, ref)
+    raw_snapshot = payload.get("snapshot")
+    if isinstance(raw_snapshot, dict):
+        result: dict[str, Any] = dict(raw_snapshot)
+    else:
+        repo = _text({"repo": _require(payload, "repo")}, "repo")
+        ref = _text(payload, "ref", "main")
+        result = read_github(repo, ref)
     commit = str(result.get("commit") or "")
     if not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", commit):
         raise invalid_request(
@@ -38,10 +43,12 @@ def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
             "检查仓库与 ref 后重试",
         )
     target = ws.project_dir(project.project_id) / "github" / f"{commit}.json"
-    write_json(target, {"schema_version": 1, **result})
+    secrets = _project_secrets(ws, project.project_id)
+    safe_result = redact_tree(result, secrets)
+    write_json(target, {"schema_version": 1, **safe_result})
     return {
-        **result,
-        "change": result,
+        **safe_result,
+        "change": safe_result,
         "path": str(target.relative_to(ws.root)).replace("\\", "/"),
     }
 
@@ -109,8 +116,10 @@ def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         ended_at=str(run_record.get("heartbeat_at") or run_record.get("started_at") or ""),
     )
     target = run_dir / "link.json"
-    write_json(target, {"schema_version": 1, "imported_at": iso_now(), **result})
-    return result
+    secrets = _project_secrets(ws, project.project_id)
+    safe_result = redact_tree(result, secrets)
+    write_json(target, {"schema_version": 1, "imported_at": iso_now(), **safe_result})
+    return dict(safe_result)
 
 
 def cmd_link_assert(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
@@ -147,19 +156,21 @@ def cmd_link_assert(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         if isinstance(raw_assertions, list)
         else []
     )
-    assertions.append(
-        {
-            "node_id": node_id,
-            "expected": str(expected),
-            "actual": str(actual),
-            "result": "passed" if passed else "failed",
-        }
-    )
+    record: dict[str, Any] = {
+        "node_id": node_id,
+        "expected": str(expected),
+        "actual": str(actual),
+        "result": "passed" if passed else "failed",
+    }
+    if str(payload.get("operator") or "").strip() or operator != "equals":
+        record["operator"] = operator
+    assertions.append(record)
     data["assertions"] = assertions
     data["location"] = locate_link(
         [node for node in nodes if isinstance(node, dict)], assertions
     )
-    write_json(link_path, data)
+    secrets = _project_secrets(ws, project.project_id)
+    write_json(link_path, redact_tree(data, secrets))
     return {"result": "passed" if passed else "failed"}
 
 

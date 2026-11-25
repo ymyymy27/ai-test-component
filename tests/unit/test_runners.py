@@ -301,3 +301,36 @@ def test_repair_script_case_rewrites_and_rejects(
         lambda *a, **k: _Client("import shutil\nshutil.rmtree('/')\n"),
     )
     assert not _repair_script_case(ws, "proj_x", case, generated, [], [b"boom"], "failed")
+
+    # AST 断言锁：禁止删除断言、退化为恒真断言或放宽状态码集合。
+    strict_case = case.model_copy(
+        update={
+            "script_content": "def test_api():\n    status = 200\n    assert status == 200\n"
+        }
+    )
+    monkeypatch.setattr(
+        "aitest.model_config.build_client",
+        lambda *a, **k: _Client("def test_api():\n    assert True\n"),
+    )
+    assert not _repair_script_case(
+        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
+    )
+    monkeypatch.setattr(
+        "aitest.model_config.build_client",
+        lambda *a, **k: _Client(
+            "def test_api():\n    status = 500\n    assert status in [200, 500]\n"
+        ),
+    )
+    assert not _repair_script_case(
+        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
+    )
+    monkeypatch.setattr(
+        "aitest.model_config.build_client",
+        lambda *a, **k: _Client(
+            "import os\ndef test_api():\n    status = int(os.environ.get('OK', '200'))\n"
+            "    assert status == 200\n"
+        ),
+    )
+    assert _repair_script_case(
+        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
+    )

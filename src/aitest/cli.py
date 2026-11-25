@@ -2,23 +2,130 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from aitest import __version__
-from aitest import integration_commands as _integration_commands  # noqa: F401
-from aitest import runtime_commands as _runtime_commands  # noqa: F401 - registers commands
-from aitest.commands import MUTATING, REGISTRY, cached_result, store_result
+from aitest.commands import MUTATING, REGISTRY, Payload, cached_result, store_result
 from aitest.errors import AiTestError, ErrorInfo
 from aitest.storage.workspace import Workspace
 
-_SELF_LOCKED = frozenset(
-    {"run.start", "run.quick", "run.manual", "evidence.add", "analysis.run", "run.cancel"}
+_Handler = Callable[[Workspace, Payload, bool], dict[str, Any]]
+
+_LAZY_RUNTIME: dict[str, tuple[str, str]] = {
+    "project.snapshot": ("aitest.runtime.snapshot", "cmd_project_snapshot"),
+    "plan.generate": ("aitest.runtime.plan_commands", "cmd_plan_generate"),
+    "plan.update": ("aitest.runtime.plan_commands", "cmd_plan_update"),
+    "plan.show": ("aitest.runtime.plan_commands", "cmd_plan_show"),
+    "plan.publish": ("aitest.runtime.plan_commands", "cmd_plan_publish"),
+    "run.start": ("aitest.runtime.run_commands", "cmd_run_start"),
+    "run.quick": ("aitest.runtime.run_commands", "cmd_run_quick"),
+    "run.status": ("aitest.runtime.run_commands", "cmd_run_status"),
+    "run.repair": ("aitest.runtime.run_commands", "cmd_run_repair"),
+    "run.list": ("aitest.runtime.run_commands", "cmd_run_list"),
+    "run.cancel": ("aitest.runtime.run_commands", "cmd_run_cancel"),
+    "run.manual": ("aitest.runtime.run_commands", "cmd_run_manual"),
+    "evidence.add": ("aitest.runtime.run_commands", "cmd_evidence_add"),
+    "evidence.list": ("aitest.runtime.run_commands", "cmd_evidence_list"),
+    "issue.add": ("aitest.runtime.issue_commands", "cmd_issue_add"),
+    "issue.list": ("aitest.runtime.issue_commands", "cmd_issue_list"),
+    "issue.show": ("aitest.runtime.issue_commands", "cmd_issue_show"),
+    "issue.update": ("aitest.runtime.issue_commands", "cmd_issue_update"),
+    "issue.close": ("aitest.runtime.issue_commands", "cmd_issue_close"),
+    "report.generate": ("aitest.runtime.report_commands", "cmd_report_generate"),
+    "report.show": ("aitest.runtime.report_commands", "cmd_report_show"),
+    "report.list": ("aitest.runtime.report_commands", "cmd_report_list"),
+    "report.export": ("aitest.runtime.report_commands", "cmd_report_export"),
+    "report.opinion": ("aitest.runtime.report_commands", "cmd_report_opinion"),
+    "backup.create": ("aitest.runtime.backup_cleanup", "cmd_backup_create"),
+    "backup.restore": ("aitest.runtime.backup_cleanup", "cmd_backup_restore"),
+    "data.cleanup": ("aitest.runtime.backup_cleanup", "cmd_data_cleanup"),
+    "analysis.run": ("aitest.runtime.run_commands", "cmd_analysis_run"),
+}
+
+_LAZY_INTEGRATION: dict[str, tuple[str, str]] = {
+    "github.read": ("aitest.integration_commands", "cmd_github_read"),
+    "link.import": ("aitest.integration_commands", "cmd_link_import"),
+    "link.assert": ("aitest.integration_commands", "cmd_link_assert"),
+}
+
+_LAZY_MUTATING: frozenset[str] = frozenset(
+    {
+        "project.map.refresh",
+        "plan.generate",
+        "plan.update",
+        "plan.publish",
+        "run.start",
+        "run.quick",
+        "run.cancel",
+        "run.manual",
+        "run.repair",
+        "evidence.add",
+        "issue.add",
+        "issue.update",
+        "issue.close",
+        "report.generate",
+        "report.export",
+        "report.opinion",
+        "backup.create",
+        "backup.restore",
+        "data.cleanup",
+        "analysis.run",
+        "github.read",
+        "link.import",
+        "link.assert",
+    }
 )
+
+
+def _lazy(module_name: str, func_name: str) -> _Handler:
+    """按需延迟导入重型命令处理模块，降低高频 CLI 只读冷启动耗时。"""
+
+    def _handler(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+        if module_name.startswith("aitest.runtime."):
+            facade = sys.modules.get("aitest.runtime_commands")
+            if facade is not None:
+                override = getattr(facade, func_name, None)
+                if callable(override):
+                    return dict(override(ws, payload, confirm))
+        mod = importlib.import_module(module_name)
+        target = getattr(mod, func_name)
+        return dict(target(ws, payload, confirm))
+
+    return _handler
+
+
+def _register_lazy_commands() -> None:
+    """保证在不急切导入全部模块时，60 个命令契约与写命令集合仍完整就绪。"""
+    for cmd, (mod_name, fn_name) in {**_LAZY_RUNTIME, **_LAZY_INTEGRATION}.items():
+        REGISTRY.setdefault(cmd, _lazy(mod_name, fn_name))
+    MUTATING.update(_LAZY_MUTATING)
+
+
+_register_lazy_commands()
+
+_SELF_LOCKED = frozenset(
+    {
+        "run.start",
+        "run.quick",
+        "run.manual",
+        "run.repair",
+        "evidence.add",
+        "analysis.run",
+        "run.cancel",
+        "backup.create",
+        "backup.restore",
+        "data.cleanup",
+    }
+)
+
+_GLOBAL_MUTATING = frozenset({"project.add", "project.delete"})
 
 _LOCK_TIMEOUTS: dict[str, float] = {
     "task.add": 180.0,
@@ -144,7 +251,20 @@ def main(argv: list[str] | None = None) -> int:
             return response, False
 
         if command in MUTATING and command not in _SELF_LOCKED:
-            with workspace.lock(timeout=_lock_timeout(command)):
+            raw_project_id = inner.get("project_id")
+            if (
+                command not in _GLOBAL_MUTATING
+                and isinstance(raw_project_id, str)
+                and raw_project_id
+                and raw_project_id.replace("-", "").replace("_", "").isalnum()
+                and len(raw_project_id) <= 128
+            ):
+                lock_ctx = workspace.project_lock(
+                    raw_project_id, timeout=_lock_timeout(command)
+                )
+            else:
+                lock_ctx = workspace.lock(timeout=_lock_timeout(command))
+            with lock_ctx:
                 response, from_cache = execute()
         else:
             response, from_cache = execute()

@@ -633,7 +633,7 @@ def test_missing_task_snapshot_does_not_report_zero_uncovered() -> None:
 
 
 def test_generated_script_failure_is_blocked_not_failed() -> None:
-    """A model-written script can be wrong; its failure is not a product failure."""
+    """已取消吞 Bug 降级：已执行的生成脚本失败必须暴露为产品失败，不可掩盖。"""
     plan = _plan(
         [_case("c1", "a", coverage_kind="unverified", method="script:probe.py")],
         ["a"],
@@ -641,10 +641,10 @@ def test_generated_script_failure_is_blocked_not_failed() -> None:
     )
     run = _run([RunCase(case_id="c1", result="failed")])
 
-    assert verdict(plan, run) == "incomplete"
+    assert verdict(plan, run) == "failed"
     counts = coverage(plan, run)
-    assert counts["failed"] == 0
-    assert counts["incomplete"] == 1
+    assert counts["failed"] == 1
+    assert counts["incomplete"] == 0
 
 
 def test_generated_script_pass_still_cannot_pass() -> None:
@@ -660,11 +660,16 @@ def test_generated_script_pass_still_cannot_pass() -> None:
 
 
 def test_weak_only_item_is_blocked_not_uncovered() -> None:
-    """An item covered only by weak evidence is blocked, never silently absent."""
+    """弱证据通过仍保持阻塞，但其失败必须穿透为失败且不被掩盖。"""
     plan = _plan([_case("c1", "a", coverage_kind="file")], ["a"], 1)
-    run = _run([RunCase(case_id="c1", result="failed")])
+    run_failed = _run([RunCase(case_id="c1", result="failed")])
+    assert item_outcomes(plan, run_failed)["a"] == "failed"
+    failed_counts = coverage(plan, run_failed)
+    assert failed_counts["covered"] == 1
+    assert failed_counts["failed"] == 1
 
-    assert item_outcomes(plan, run)["a"] == "blocked"
-    counts = coverage(plan, run)
-    assert counts["covered"] == 1
-    assert counts["incomplete"] == 1
+    run_passed = _run([RunCase(case_id="c1", result="passed")])
+    assert item_outcomes(plan, run_passed)["a"] == "blocked"
+    passed_counts = coverage(plan, run_passed)
+    assert passed_counts["covered"] == 1
+    assert passed_counts["incomplete"] == 1

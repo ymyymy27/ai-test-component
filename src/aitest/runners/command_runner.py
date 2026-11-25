@@ -10,18 +10,28 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import IO
 
 from aitest.runners.base import RunnerResult
 
 _MAX_OUTPUT_BYTES = 20 * 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
 
 
-def _as_bytes(value: bytes | str | None) -> bytes:
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, str):
-        return value.encode("utf-8", errors="replace")
-    return b""
+def _read_capped_stream(stream: IO[bytes], limit: int) -> tuple[bytes, int]:
+    """分块读取临时文件流并严格限制在 limit 字节内，同时返回原始总字节数。"""
+    stream.seek(0, os.SEEK_END)
+    total_size = int(stream.tell())
+    stream.seek(0)
+    remaining = max(0, limit)
+    chunks: list[bytes] = []
+    while remaining > 0:
+        chunk = stream.read(min(_READ_CHUNK_BYTES, remaining))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks), total_size
 
 
 def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
@@ -33,6 +43,7 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True,
             check=False,
+            creationflags=0x08000000,
         )
         if process.poll() is None:
             process.kill()
@@ -58,9 +69,12 @@ def run_command(
     timeout_seconds: float = 600,
     env: dict[str, str] | None = None,
     cancelled: Callable[[], bool] | None = None,
+    max_output_bytes: int = _MAX_OUTPUT_BYTES,
 ) -> RunnerResult:
     """Run ``command`` through the shell in ``cwd`` and map the outcome."""
-    creationflags = 0x00000200 if os.name == "nt" else 0  # CREATE_NEW_PROCESS_GROUP
+    creationflags = (
+        (0x00000200 | 0x08000000) if os.name == "nt" else 0
+    )  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     # Files rather than pipes: a grandchild holding a pipe can otherwise block
     # communicate() forever after a timeout. Reads are capped below.
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
@@ -96,16 +110,16 @@ def run_command(
             _kill_process_tree(process)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 process.communicate(timeout=5)
-        out.seek(0, os.SEEK_END)
-        out_size = out.tell()
-        err.seek(0, os.SEEK_END)
-        err_size = err.tell()
-        out.seek(0)
-        err.seek(0)
-        stdout = out.read(_MAX_OUTPUT_BYTES)
-        stderr = err.read(_MAX_OUTPUT_BYTES)
-        if out_size > _MAX_OUTPUT_BYTES or err_size > _MAX_OUTPUT_BYTES:
-            stderr += b"\n[output exceeded the 4 MiB capture limit and was truncated]"
+        stdout, out_size = _read_capped_stream(out, max_output_bytes)
+        stderr, err_size = _read_capped_stream(err, max_output_bytes)
+        if out_size > max_output_bytes or err_size > max_output_bytes:
+            if max_output_bytes >= 1024 * 1024:
+                limit_label = f"{max_output_bytes // (1024 * 1024)} MiB"
+            else:
+                limit_label = f"{max_output_bytes} bytes"
+            stderr += (
+                f"\n[output exceeded the {limit_label} capture limit and was truncated]"
+            ).encode()
     if was_cancelled:
         return RunnerResult(
             status="blocked",

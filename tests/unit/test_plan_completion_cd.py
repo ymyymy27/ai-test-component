@@ -1568,7 +1568,10 @@ def test_project_map_missing_and_refresh_without_model(
 
     missing = call(tmp_path, "project.map", {"project_id": project_id}, capsys)
     assert missing["ok"] is True
-    assert missing["data"] == {"map": None, "stale": False}
+    assert missing["data"]["map"] is None
+    assert missing["data"]["stale"] is False
+    assert "graph" in missing["data"]
+    assert "local_git" in missing["data"]
 
     refresh = call(tmp_path, "project.map.refresh", {"project_id": project_id}, capsys)
     assert refresh["ok"] is False

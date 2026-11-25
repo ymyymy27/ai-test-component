@@ -53,6 +53,8 @@ def _commit_stat(root: Path, commit: str) -> tuple[str, str]:
             ["git", "-C", str(root), "show", "--stat", "--oneline", revision],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )

@@ -68,9 +68,8 @@ def _store(ws: Workspace, project_id: str, run_dir: Path, analysis: Analysis) ->
     analysis.next_steps = [redact(item, secrets) for item in analysis.next_steps]
     for cause in analysis.candidate_causes:
         cause["cause"] = redact(cause.get("cause", ""), secrets)
-    # Re-read under the workspace lock: the worker, evidence.add and
-    # run.manual may have written the same run while the model call ran.
-    with ws.lock(timeout=120.0):
+    # 仅持该项目锁重新读取写回：运行中工作区其他项目不受阻塞。
+    with ws.project_lock(project_id, timeout=120.0):
         current = read_model(run_dir / "run.json", Run)
         allowed = set(current.evidence_refs)
         analysis.evidence_refs = [
