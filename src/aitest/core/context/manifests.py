@@ -608,7 +608,7 @@ def _test_function_map(
 def _summarize_test_node(
     name: str, node: ast.FunctionDef | ast.AsyncFunctionDef
 ) -> dict[str, Any]:
-    """提取单个测试函数的文档首行与前两条断言摘要，辅助准确测试映射。"""
+    """提取测试函数的文档、断言与实际输入构造，辅助准确测试映射。"""
     raw_doc = ast.get_docstring(node) or ""
     doc = raw_doc.splitlines()[0].strip()[:120] if raw_doc.splitlines() else ""
     asserts: list[str] = []
@@ -625,7 +625,32 @@ def _summarize_test_node(
                 asserts.append(ast.unparse(inner)[:160])
         if len(asserts) >= 2:
             break
-    return {"name": name, "doc": doc, "asserts": asserts}
+    inputs: list[str] = []
+    # 只摘取实际构造请求/参数的语句；让映射助手看到“测试到底发了什么字段”，
+    # 而不是只看到断言，避免把未构造越权字段的测试配给边界验收项。
+    for statement in node.body:
+        if isinstance(statement, ast.Assert):
+            continue
+        with suppress(Exception):
+            text = ast.unparse(statement)[:300]
+            lowered = text.lower()
+            if any(
+                hint in lowered
+                for hint in (
+                    "request(",
+                    ".post(",
+                    ".get(",
+                    ".put(",
+                    ".patch(",
+                    ".delete(",
+                    "httpx.",
+                    "requests.",
+                )
+            ):
+                inputs.append(text)
+        if len(inputs) >= 3:
+            break
+    return {"name": name, "doc": doc, "asserts": asserts, "inputs": inputs}
 
 
 def _test_function_summaries(

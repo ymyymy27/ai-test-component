@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from aitest.commands import _task_signal_context
+from aitest.core.context.manifests import _test_function_summaries
 from aitest.core.project_context import build_project_context, detect_services
 from aitest.models import Project
 from aitest.runtime.plan_commands import _workspace_source_fingerprint
@@ -291,6 +292,28 @@ def test_task_signal_context_keeps_explicit_rules_beyond_1200_chars(
     project = Project(project_id="proj_long", name="long", root=str(root))
     signal = _task_signal_context(ws, project)
     assert "过期令牌访问必须返回 401" in signal
+
+
+def test_test_summaries_expose_request_inputs_for_mapping(tmp_path: Path) -> None:
+    """映射助手必须看到测试实际发送的字段，才能拒绝未构造边界输入的测试。"""
+    root = tmp_path / "repo"
+    _write(
+        root / "tests" / "test_documents.py",
+        (
+            "from conftest import login, request\n"
+            "def test_create_document_uses_token_tenant():\n"
+            "    token = login('alice', 'alice123')\n"
+            "    status, payload = request('POST', '/api/documents', "
+            "{'title': '周报'}, token=token)\n"
+            "    assert payload['document']['tenant'] == 't1'\n"
+        ),
+    )
+    summaries = _test_function_summaries(root, ["tests"])
+    entry = summaries["tests/test_documents.py"][0]
+    inputs = " ".join(entry["inputs"])
+    assert "request('POST'" in inputs
+    assert "title" in inputs
+    assert "tenant" not in inputs
 
 
 def test_workspace_fingerprint_ignores_runtime_data_and_tracks_html_css(

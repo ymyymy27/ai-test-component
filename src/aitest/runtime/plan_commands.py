@@ -665,6 +665,137 @@ def _test_candidates(context: dict[str, Any]) -> list[str]:
 
 
 
+_INPUT_BOUNDARY_HINTS = (
+    "请求体",
+    "查询参数",
+    "参数",
+    "额外字段",
+    "伪造",
+    "忽略",
+    "越权",
+    "过期",
+    "携带",
+    "显式传",
+    "不能修改",
+    "不能删除",
+)
+_BOUNDARY_STOPWORDS = frozenset(
+    {
+        "api",
+        "http",
+        "https",
+        "json",
+        "get",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "status",
+        "response",
+        "request",
+        "user",
+        "users",
+        "admin",
+        "auditor",
+        "alice",
+        "bob",
+        "me",
+        "login",
+        "health",
+        "document",
+        "documents",
+        "id",
+        "url",
+        "code",
+    }
+)
+_PYTEST_NODE_RE = re.compile(r"python\s+-m\s+pytest\s+(?P<node>[^\s]+)")
+
+
+def _boundary_terms(text: str) -> tuple[set[str], set[str]]:
+    """从验收项提取必须在测试输入里出现的字段名。"""
+    required = {
+        match.group(0).lower()
+        for match in re.finditer(r"[A-Za-z_][A-Za-z0-9_]{2,}", text)
+    }
+    required -= _BOUNDARY_STOPWORDS
+    alternatives: set[str] = set()
+    if "过期" in text:
+        alternatives |= {"exp", "expires_in", "expired"}
+    if "租户" in text:
+        required.add("tenant")
+    if "角色" in text:
+        required.add("role")
+    return required, alternatives
+
+
+def _summary_inputs_for_command(
+    command: str, test_summaries: object
+) -> str | None:
+    if not isinstance(test_summaries, dict):
+        return None
+    match = _PYTEST_NODE_RE.search(command)
+    if match is None:
+        return None
+    node = match.group("node")
+    path, _, name = node.partition("::")
+    normalized = {
+        str(key).replace("\\", "/"): value for key, value in test_summaries.items()
+    }
+    entries = normalized.get(path.replace("\\", "/"))
+    if not isinstance(entries, list):
+        return None
+    selected = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict)
+        and (
+            not name
+            or str(entry.get("name") or "") == name
+            or str(entry.get("name") or "").endswith(f"::{name}")
+        )
+    ]
+    if not selected:
+        return None
+    return " ".join(
+        " ".join(str(part) for part in entry.get("inputs") or [])
+        for entry in selected
+    )
+
+
+def _guard_suggested_tests(
+    suggested: dict[str, str],
+    items: list[dict[str, Any]],
+    test_summaries: object,
+) -> dict[str, str]:
+    """边界验收项必须有“实际构造该输入”的既有测试，否则退回生成脚本。"""
+    texts = {
+        str(item.get("item_id") or ""): str(item.get("text") or "")
+        for item in items
+    }
+    guarded: dict[str, str] = {}
+    for item_id, command in suggested.items():
+        text = texts.get(item_id, "")
+        if not any(hint in text for hint in _INPUT_BOUNDARY_HINTS):
+            guarded[item_id] = command
+            continue
+        required, alternatives = _boundary_terms(text)
+        if not required and not alternatives:
+            guarded[item_id] = command
+            continue
+        inputs = _summary_inputs_for_command(command, test_summaries)
+        if inputs is None:
+            continue
+        lowered = inputs.lower()
+        if required and not all(term in lowered for term in required):
+            continue
+        if alternatives and not any(term in lowered for term in alternatives):
+            continue
+        guarded[item_id] = command
+    return guarded
+
+
+
 def _apply_suggested_tests(
     cases: list[Case], suggested: dict[str, str]
 ) -> int:
@@ -810,6 +941,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                         _write_cached_map_tests(map_cache, suggested, secret_values)
                     except AiTestError:
                         suggested = {}
+            suggested = _guard_suggested_tests(
+                suggested, selected_items, test_summaries
+            )
             for item in selected_items:
                 command = suggested.get(item["item_id"])
                 if command:

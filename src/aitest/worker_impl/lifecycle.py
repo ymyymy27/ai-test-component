@@ -47,6 +47,7 @@ from aitest.models import Attempt, Case, Plan, Project, Run, RunCase, case_item_
 from aitest.procutil import process_created_at
 from aitest.security import (
     redact,
+    redact_bytes,
     redact_tree,
 )
 from aitest.storage.files import read_model, write_model
@@ -301,6 +302,46 @@ def _reset_case_isolation(
     return DEFAULT_REGISTRY.prepare_isolators(workdir, run.run_id, run_dir, config)
 
 
+def _run_service_resets(
+    workdir: Path,
+    run_dir: Path,
+    service_configs: list[tuple[str, dict[str, Any]]],
+    run_env: dict[str, str],
+    secrets: list[str],
+) -> None:
+    """在修改/删除类用例后执行声明的 services.reset，重置服务端共享状态。"""
+    for name, cfg in service_configs:
+        command = str(cfg.get("reset") or "").strip()
+        if not command:
+            continue
+        try:
+            timeout = float(cfg.get("timeout_seconds") or 60)
+        except (TypeError, ValueError):
+            timeout = 60.0
+        log_path = run_dir / (
+            f"service-{name}-reset.log" if name else "service-reset.log"
+        )
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=workdir,
+                env=run_env,
+                capture_output=True,
+                timeout=timeout,
+            )
+            output = result.stdout + result.stderr
+            status = result.returncode
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            output = str(exc).encode("utf-8", "replace")
+            status = -1
+        with log_path.open("ab") as handle:
+            handle.write(redact_bytes(output, secrets))
+            handle.write(f"\n[reset exit={status}]\n".encode())
+
+
+
 
 def _downgrade_script_failures(plan: Plan, run: Run) -> None:
     """保持生成脚本失败状态不被覆盖，仅在存在矛盾时补充人工核查提示。
@@ -391,6 +432,13 @@ def _is_build_case(case: Case | None, build_command: str) -> bool:
         and case is not None
         and case.verify_method.strip().removeprefix("command:").strip() == build_command
     )
+
+
+def _case_execution_rank(case: Case | None, build_command: str) -> int:
+    """先构建检查，再只读用例，最后修改/删除类用例，降低共享状态互相污染。"""
+    if case is not None and _risky_retry(case):
+        return 2
+    return 0 if _is_build_case(case, build_command) else 1
 
 
 
@@ -949,15 +997,11 @@ def main(argv: list[str] | None = None) -> int:
                 _mark_cancelled(run)
                 save_checkpoint(run_dir, plan, run, secret_list)
             else:
-                exec_order = (
-                    sorted(
-                        run.cases,
-                        key=lambda rc: 0
-                        if _is_build_case(cases.get(rc.case_id), build_command)
-                        else 1,
-                    )
-                    if plan_has_build
-                    else run.cases
+                exec_order = sorted(
+                    run.cases,
+                    key=lambda rc: _case_execution_rank(
+                        cases.get(rc.case_id), build_command
+                    ),
                 )
                 exec_cfg = config.get("execution")
                 retry_on_failure = (
@@ -966,6 +1010,7 @@ def main(argv: list[str] | None = None) -> int:
                     else True
                 )
                 case_isolation = _snapshot_isolation_enabled(config)
+                previous_risky = False
                 for index, run_case in enumerate(exec_order):
                     if cancelled():
                         for rest in exec_order[index:]:
@@ -975,11 +1020,21 @@ def main(argv: list[str] | None = None) -> int:
                         run.current_case_id = ""
                         save_checkpoint(run_dir, plan, run, secret_list)
                         break
+                    if index > 0 and previous_risky:
+                        _run_service_resets(
+                            workdir,
+                            run_dir,
+                            service_configs,
+                            run_env,
+                            secret_list,
+                        )
+                        previous_risky = False
                     if index > 0 and case_isolation:
                         isolator_states = _reset_case_isolation(
                             workdir, run, run_dir, config, isolator_states
                         )
                     case = cases.get(run_case.case_id)
+                    previous_risky = case is not None and _risky_retry(case)
                     if case is None:
                         run_case.result = "error"
                         run_case.attempts.append(

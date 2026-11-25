@@ -1215,3 +1215,48 @@ def test_test_candidates_and_suggested_replacement(tmp_path: Path) -> None:
     assert replaced == 1
     assert case.verify_method == "command:python -m pytest backend/tests/test_a.py::test_one"
     assert case.script_content is None
+
+
+def test_guard_rejects_boundary_item_without_input_construction() -> None:
+    from aitest.runtime.plan_commands import _guard_suggested_tests
+
+    command = (
+        "python -m pytest tests/test_documents.py::"
+        "test_create_document_uses_token_tenant"
+    )
+    items = [
+        {
+            "item_id": "ai_b8",
+            "text": "创建文档租户只取自令牌，请求体 tenant 被忽略",
+        },
+        {
+            "item_id": "ai_create",
+            "text": "user 角色创建文档返回 201 且写入本租户并可读回",
+        },
+    ]
+    without_tenant = {
+        "tests/test_documents.py": [
+            {
+                "name": "test_create_document_uses_token_tenant",
+                "inputs": ["request('POST', '/api/documents', {'title': 'x'})"],
+            }
+        ]
+    }
+    suggested = {"ai_b8": command, "ai_create": command}
+    assert _guard_suggested_tests(suggested, items, without_tenant) == {
+        "ai_create": command
+    }
+
+    with_tenant = {
+        "tests/test_documents.py": [
+            {
+                "name": "test_create_document_uses_token_tenant",
+                "inputs": [
+                    "request('POST', '/api/documents', {'title': 'x', 'tenant': 't2'})"
+                ],
+            }
+        ]
+    }
+    assert _guard_suggested_tests(
+        {"ai_b8": command}, items, with_tenant
+    ) == {"ai_b8": command}

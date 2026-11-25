@@ -12,7 +12,13 @@ from typing import Any
 
 import pytest
 
-from aitest.adapters.model import _SYSTEM_CASES, _SYSTEM_MAP, ModelClient
+from aitest.adapters.model import (
+    _SYSTEM_CASES,
+    _SYSTEM_FREEZE_EXPECTATIONS,
+    _SYSTEM_MAP,
+    _SYSTEM_MAP_TESTS,
+    ModelClient,
+)
 from aitest.errors import AiTestError
 
 _API_KEY = "sk-test-secret-key"
@@ -375,3 +381,8 @@ def test_prompts_preserve_explicit_rules_and_protect_seed_accounts() -> None:
     assert "不合并" in _SYSTEM_MAP
     assert "种子账号" in _SYSTEM_CASES
     assert "body.status" in _SYSTEM_CASES
+    assert "inputs" in _SYSTEM_MAP_TESTS
+    assert "必须返回 null" in _SYSTEM_MAP_TESTS
+    assert "先以合法身份确认目标资源存在" in _SYSTEM_CASES
+    assert "只能验证当前 acceptance_item_id" in _SYSTEM_CASES
+    assert "先确认目标资源存在" in _SYSTEM_FREEZE_EXPECTATIONS

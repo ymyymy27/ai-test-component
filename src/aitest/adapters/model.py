@@ -124,6 +124,10 @@ _SYSTEM_CASES = (
     "调用后端接口前先看 context.api_routes 的方法、路径和认证要求："
     "auth=public 的接口可直接调用，auth=user/superuser 的接口必须先登录取得令牌；"
     "不要用管理接口创建一次性用户，改用公开注册接口；"
+    "做 404/403 等负向越权或删除拦截断言前，必须先以合法身份确认目标资源存在，"
+    "或自建一条测试资源；不得依赖可能被其他用例删除的种子资源；"
+    "每条用例只能验证当前 acceptance_item_id 对应的行为，不得在同一脚本里附加其他验收项的边界输入"
+    "（例如当前项未要求忽略 tenant，就不要发送 tenant）；"
     "运行项目脚本或命令时使用项目自己的运行器（context.test_commands 里的 "
     "uv run / poetry run / bun），不要直接调用需要已激活虚拟环境的命令（如 alembic、pytest）；"
     "调用 context.script_examples 里的项目脚本前，必须按源码要求构造输入"
@@ -197,6 +201,9 @@ _SYSTEM_FREEZE_EXPECTATIONS = (
     '"verify_readback": false, "contract_basis": "契约依据说明"}]}。'
     "严格以验收项原文、README、OpenAPI 与 frontend_api_calls/frontend_assets 为唯一依据，"
     "写操作（新增/修改/删除）通常应设 verify_readback=true；"
+    "对 404/403 等拒绝断言，必须把“先确认目标资源存在或自建资源”写入 must_assert，"
+    "不能只冻结一个 404 结果；"
+    "request_fields 与 must_assert 只能来自当前验收项，不要混入其他验收项的字段或边界输入；"
     "不要输出 JSON 之外的任何文本。"
 )
 
@@ -215,6 +222,9 @@ _SYSTEM_MAP_TESTS = (
     '{"mapping": [{"item_id": "...", "test": "命令 或 null"}]}。'
     "test 必须逐字来自清单，不能改写、不能拼接多个测试；"
     "一个测试只验证它实际断言的行为，不要为了覆盖把无关测试配给验收项。"
+    "候选测试的 inputs 展示了它实际构造的请求/参数；"
+    "若验收项包含显式边界或攻击输入（额外字段、越权参数、过期令牌、伪造 tenant 等），"
+    "而候选测试的 inputs 没有构造该输入，必须返回 null，不得强行绑定。"
     "不要输出 JSON 之外的任何文本。"
 )
 

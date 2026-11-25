@@ -754,7 +754,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {
   "schema_version": 1,
   "model": {"base_url": "https://api.deepseek.com", "name": "deepseek-chat", "timeout_seconds": 120},
-  "services": {"start": "", "stop": "", "health": "", "timeout_seconds": 120, "keep_on_failure": false},
+  "services": {"start": "", "stop": "", "health": "", "timeout_seconds": 120, "keep_on_failure": false, "reset": ""},
   "link": {"request_id_header": "X-Request-Id", "log_paths": [], "log_format": "jsonl", "log_fields": {}, "db_query": ""},
   "runners": {"pytest": {"command": "pytest"}, "playwright": {"command": "npx playwright test"}},
   "evidence": {"file_cap_mb": 20, "media_budget_mb": 500, "video": false, "mock": {"max_files": 240, "max_depth": 3, "per_component_files": 120}}

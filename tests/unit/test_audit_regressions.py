@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,7 @@ from aitest.storage.files import read_json, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 from aitest.worker import _write_validated_script
 from aitest.worker_impl.execution import _risky_retry
+from aitest.worker_impl.lifecycle import _case_execution_rank, _run_service_resets
 
 
 def _create_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Workspace, str]:
@@ -238,6 +241,60 @@ def test_mutating_http_scripts_are_not_auto_retried() -> None:
     assert _risky_retry(case("call('DELETE', '/api/documents/doc_1')"))
     assert not _risky_retry(case("call('GET', '/api/documents')"))
     assert not _risky_retry(case("requests.post(BASE + '/api/documents', json={})"))
+
+
+def test_execution_rank_puts_build_first_and_destructive_last() -> None:
+    build = Case(
+        case_id="case_build",
+        layer="L2",
+        expected="构建",
+        verify_method="command:python -m compileall -q app",
+    )
+    read = Case(
+        case_id="case_read",
+        layer="L2",
+        expected="读取",
+        verify_method="script:read.py",
+        script_content="request('GET', '/api/documents')",
+    )
+    mutate = Case(
+        case_id="case_mutate",
+        layer="L2",
+        expected="修改",
+        verify_method="script:mutate.py",
+        script_content="request('PATCH', '/api/me', {'role': 'admin'})",
+    )
+    assert _case_execution_rank(build, "python -m compileall -q app") == 0
+    assert _case_execution_rank(read, "python -m compileall -q app") == 1
+    assert _case_execution_rank(mutate, "python -m compileall -q app") == 2
+    ordered = sorted(
+        [mutate, read, build],
+        key=lambda case: _case_execution_rank(case, "python -m compileall -q app"),
+    )
+    assert [case.case_id for case in ordered] == [
+        "case_build",
+        "case_read",
+        "case_mutate",
+    ]
+
+
+def test_service_reset_command_runs_after_destructive_case(tmp_path: Path) -> None:
+    script = tmp_path / "reset.py"
+    script.write_text(
+        "from pathlib import Path\nPath('reset.txt').write_text('1', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    _run_service_resets(
+        tmp_path,
+        run_dir,
+        [("svc", {"reset": f'"{sys.executable}" reset.py', "timeout_seconds": 30})],
+        dict(os.environ),
+        [],
+    )
+    assert (tmp_path / "reset.txt").read_text(encoding="utf-8") == "1"
+    assert (run_dir / "service-svc-reset.log").is_file()
 
 
 def test_excerpt_blocks_path_traversal_and_redacts_in_run_evidence(tmp_path: Path) -> None:
