@@ -66,6 +66,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `MODEL_UNAVAILABLE` | 模型未配置或不可达 | 配置密钥或检查网络 |
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
 | `MODEL_TIMEOUT` | 计划生成超过时间预算 | 重试会复用已完成批次；也可缩小本次范围 |
+| `TOKEN_BUDGET_EXCEEDED` | 单次运行或模型客户端 Token 消耗超过预算上限 | 调高 `model.max_token_budget` 或缩小本次范围后重试 |
 | `GITHUB_UNAVAILABLE` | `gh` 缺失、未登录或读取失败 | 安装/登录后重试 |
 | `LINK_CONFIG_MISSING` | 缺日志或查询配置 | 补项目配置 |
 | `SCRIPT_REJECTED` | 生成脚本含危险操作 | 检查脚本或改用手写 |
@@ -172,7 +173,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `project.config`
 
-入参 `{"project_id": "proj_...", "action": "get|update", "patch": {"services": {...}}}`。`action` 省略时为 `get`，只返回白名单段；`update` 按段合并写回并返回合并结果，`patch` 中某段为 `null` 时删除该段。允许的段为 `model / services / link / runners / evidence / l1 / data`；未知段、非对象段或含密钥字段返回 `INVALID_REQUEST`。读取时也会剔除凭据样式的键，密钥不写入该文件（见第 6 节）。`l1` 段支持 `build`、`entry` 与 `smoke_command`；`smoke_command` 配置后优先用于冒烟计划。
+入参 `{"project_id": "proj_...", "action": "get|update|detect|add_convention|remove_convention", "patch": {"services": {...}}}`。`action` 省略时为 `get`，自动合并仓库根目录无密钥 `.aitest.json`（含多环境档案 `environments` 与共享错题本 `conventions`）与工作空间 `project.config.json` 后返回白名单段；`update` 按段合并写回并返回合并结果，`patch` 中某段为 `null` 时删除该段；`detect` 只读探测项目根目录的框架、测试命令与服务配置，返回 `{"draft": {...}, "detected": {"framework": [...], "test_commands": [...], "services": {...}}}`（不写入磁盘，脱敏且过滤凭据字段）；`add_convention` / `remove_convention` 用于维护项目错题本正常约定/预期豁免规则（`pattern` / `reason` / `match_type` / `scope`）。允许的段为 `model / services / link / runners / evidence / l1 / data / probes / environments / conventions`；未知段、非对象段或含密钥字段返回 `INVALID_REQUEST`。读取时也会剔除凭据样式的键，密钥不写入该文件（见第 6 节）。`l1` 段支持 `build`、`entry` 与 `smoke_command`；`smoke_command` 配置后优先用于冒烟计划；`probes.live_page.enabled` 可按需开启可选真页面巡检。
 
 #### `module.add` / `module.update` / `module.list`
 
@@ -200,9 +201,9 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `project.map` / `project.map.refresh`
 
-`project.map` 入参 `{"project_id": "proj_..."}`，读取当前项目测试地图；没有地图时返回 `{"map": null}`。
+`project.map` 入参 `{"project_id": "proj_..."}`，读取当前项目测试地图；没有地图时返回 `map: null`，同时始终附带实时静态全栈代码图 `graph`（4 层 `nodes`/`edges`/`conflicts`/`module_chunks`/`impact`）与只读 `local_git` 状态。
 
-`project.map.refresh` 入参 `{"project_id": "proj_..."}`，AI 读取项目代码、README、路由、测试入口和配置，生成或刷新测试地图。返回：
+`project.map.refresh` 入参 `{"project_id": "proj_..."}`，AI 读取项目代码、README、路由、测试入口和配置，结合全栈代码图与局部模块切片生成或刷新测试地图，并同步返回最新 `graph` 与 `local_git`。返回：
 
 ```json
 {"map": {"schema_version": 1, "project_id": "proj_...", "project_revision": 3, "source_commit": "abc123", "generated_at": "...", "business_functions": [{"name": "下单", "modules": ["order", "stock"], "entry_points": ["POST /orders"], "test_commands": ["pytest tests/order"], "testable_items": ["下单后订单出现"], "evidence": ["README.md", "routes.py:42"], "confidence": "high"}], "unknowns": [{"area": "支付回调", "reason": "没有入口或测试"}]}}
@@ -428,14 +429,15 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `run.status` / `run.list`
 
-- `status` 入参 `{"project_id", "run_id"}`。顶层字段：
+- `status` 入参 `{"project_id", "run_id", "include_tail": false}`。顶层字段：
   - `run`：完整运行记录，含 `kind`、`current_case_id`、`confirmation_id`、`latest_report_id`、`cases`、`evidence_refs`、`analysis`；
   - `plan`：运行目录里的计划快照；
   - `task`：运行启动时的任务快照；`task_snapshot` 在旧运行没有快照时为 `false`；
   - `outcome`、`counts`（`selected/applicable/covered/passed/failed/incomplete`）；
   - `item_outcomes`：每个所选验收项的最差结果与用例 ID；
   - `pending_items`、`manual_cases`、`l1`（项目级检查）、`uncovered_items`；
-  - `link`：运行目录已有 `link.json` 时为首错节点、上下游、位置与 `assertions`（见 4.10），没有链路数据时为 `null`。
+  - `link`：运行目录已有 `link.json` 时为首错节点、上下游、位置与 `assertions`（见 4.10），没有链路数据时为 `null`；
+  - `log_tail`：仅当入参 `include_tail=true` 时返回运行目录最近日志文件末尾片段数组（`[{"name": "...", "text": "..."}]`，已脱敏）。
 
   报告 ID 不在顶层，读 `run.latest_report_id`；当前用例读 `run.current_case_id`。
 - `list` 入参 `{"project_id", "limit": 20}`，按时间倒序；每条返回 `run_id/kind/status/started_at/heartbeat_at/elapsed_seconds/plan_id/plan_no/plan_revision/task_id/task_title/task_snapshot/outcome/counts/scope/latest_report_id`；`kind` 为 `task|project_check`。无法读取的旧运行不静默丢弃，放在 `skipped` 里并附 `run_id/code/message`。
@@ -461,7 +463,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {"project_id": "proj_...", "run_id": "run_...", "case_id": "case_...", "step": "打开订单列表", "result": "passed", "note": "", "evidence": ["evidence/shot-1.png"]}
 ```
 
-只允许在运行结束后记录；运行中返回 `RUN_ACTIVE`。只允许对 `layer=L3` 且验证方式为空、`manual:` 或不具备自动验证方式的用例记录；对自动用例调用返回 `RUN_STATE_CONFLICT`。返回该用例当前状态；未记录完的步骤保持 `manual_pending`。
+也支持可选非空数组 `steps`（`[{"step": "...", "result": "passed|failed|blocked", "note": "", "evidence": [...]}]`)，用于在单次调用内按序批量记录同一用例的多条人工步骤。只允许在运行结束后记录；运行中返回 `RUN_ACTIVE`。只允许对 `layer=L3` 且验证方式为空、`manual:` 或不具备自动验证方式的用例记录；对自动用例调用返回 `RUN_STATE_CONFLICT`。返回该用例当前状态；未记录完的步骤保持 `manual_pending`。
 
 #### `data.cleanup`
 
@@ -477,7 +479,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `evidence.list`
 
-入参 `{"project_id", "run_id"}`；返回引用、sha256、media type、大小、是否存在、是否截断与备注。
+入参 `{"project_id", "run_id", "preview_ref": "evidence/...", "preview_bytes": 16384}`（`preview_ref`、`preview_bytes` 可选）；返回引用、sha256、media type、大小、是否存在、是否截断与备注。给出 `preview_ref` 时额外返回只读脱敏的 `preview`（`{"ref", "kind": "text|image|binary|missing", "text", "data_url", "truncated"}`）。
 
 ### 4.7 问题
 
@@ -510,11 +512,11 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `report.show`
 
-入参 `{"project_id", "report_id"}`；返回完整 Report（结论、覆盖、验收项/用例明细、证据索引、问题、分析、模拟数据判断、验收意见、环境与 GitHub 快照）。
+入参 `{"project_id", "report_id"}`；返回完整 Report（结论、覆盖、验收项/用例明细、证据索引、问题、分析、模拟数据判断、验收意见、环境与 GitHub 快照，以及 `preflight` 环境安检结果、`probe_results` 免 AI 确定性硬探针、`confidence_summary` 三档可信度汇总与 `token_usage` 模型 Token 统计）。
 
 #### `report.list`
 
-入参 `{"project_id", "run_id"}`；返回该运行的报告版本摘要 `report_id/generated_at/outcome/revision/has_opinion`，按生成时间倒序；旧报告没有 `generated_at` 时用文件时间兜底。无法读取的旧报告不静默丢弃，放在 `skipped` 里并附 `code/message`。
+入参 `{"project_id", "run_id", "include_body": false}`（`include_body` 可选）；返回该运行的报告版本摘要 `report_id/run_id/generated_at/outcome/revision/has_opinion`，按生成时间倒序；`include_body=true` 时每条附带完整报告正文 `report` 供列表批量加载。旧报告没有 `generated_at` 时用文件时间兜底。无法读取的旧报告不静默丢弃，放在 `skipped` 里并附 `code/message`。
 
 #### `report.export`
 

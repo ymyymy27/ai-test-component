@@ -41,21 +41,29 @@ handler 只做三件事：校验入参、调用 core/storage/runners/adapters、
 
 ## 2 扩展
 
-### 2.1 文件
+### 2.1 文件与宿主能力插头
 
 ```text
-integrations/trae/
-  package.json
-  src/
-    extension.ts   # 激活、命令、配置
-    bridge.ts      # 调用 CLI、解析 JSON、超时
-    runtime.ts     # Python 发现、环境准备、版本校验
-    process.ts     # 子进程封装
-  media/panel/     # 共享面板构建产物
+integrations/
+  trae/
+    package.json
+    src/
+      extension.ts         # 激活、命令、OutputChannel、StatusBarItem
+      bridge.ts            # 调用 CLI、解析 JSON、超时
+      host_capabilities.ts # 可选宿主能力插头（Git/LSP/FileWatcher/跳源码/Diagnostics/SecretStorage）
+      runtime.ts           # Python 发现、环境准备、版本校验
+      process.ts           # 子进程封装
+    media/panel/           # 共享面板构建产物
+  agent-bridge/
+    server.py              # 独立于核心的跨智能体 stdio JSON-RPC 薄适配器
+    SKILL.md               # Codex / Google Antigravity / Claude Code 协同技能描述
 panel/
-  src/             # Vue 3 共享面板源码
+  src/                     # Vue 3 共享面板源码
   tests/
 ```
+
+- 在 Trae 中扩展通过 `host_capabilities.ts` 可选复用 `vscode.git`、文档符号、文件保存监听器（即时刷新提示）、`showTextDocument` 跳源码、`DiagnosticCollection` 缺陷红线以及状态栏与输出通道；脱离 IDE（纯 CLI 或通过 `integrations/agent-bridge/` 接入外部智能体）时自动优雅回退内核本地引擎。
+- 外部跨智能体适配层严格位于 `integrations/agent-bridge/`，不放进 `src/aitest/`（内核不做内置 MCP 或常驻服务），并强制校验 `aitest_run_start` 必须带人类显式确认。
 
 ### 2.2 命令
 
