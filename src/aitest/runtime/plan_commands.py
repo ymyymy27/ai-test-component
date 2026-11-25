@@ -773,8 +773,14 @@ def _guard_suggested_tests(
         str(item.get("item_id") or ""): str(item.get("text") or "")
         for item in items
     }
+    counts: dict[str, int] = {}
+    for command in suggested.values():
+        counts[command] = counts.get(command, 0) + 1
     guarded: dict[str, str] = {}
     for item_id, command in suggested.items():
+        if counts.get(command, 0) > 1:
+            # 同一测试节点不能同时证明多个验收项的逐项断言；直接退回生成独立脚本。
+            continue
         text = texts.get(item_id, "")
         if not any(hint in text for hint in _INPUT_BOUNDARY_HINTS):
             guarded[item_id] = command

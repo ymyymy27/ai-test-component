@@ -1156,6 +1156,29 @@ def test_http_body_prefix_is_normalized(tmp_path: Path) -> None:
     assert paths == ["email", "body", "body.status", "body.status", "status"]
 
 
+def test_http_undefined_header_variable_is_removed_with_warning() -> None:
+    from aitest.runtime.plan_validation import _normalize_http_expect
+
+    case = Case(
+        case_id="case_http_header",
+        acceptance_item_id="ai_a",
+        layer="L2",
+        expected="健康检查通过",
+        verify_method=(
+            'http:[{"method":"GET","url":"http://127.0.0.1:1/health",'
+            '"headers":{"Authorization":"Bearer ${vars.token}"},'
+            '"expect":[{"path":"body.status","value":"ok"}]}]'
+        ),
+    )
+    _normalize_http_expect(case)
+    specs = json.loads(case.verify_method[len("http:") :])
+    assert "Authorization" not in specs[0]["headers"]
+    assert any(
+        "未定义变量" in warning and "Authorization" in warning
+        for warning in case.warnings
+    )
+
+
 def test_overshared_bindings_keep_all_plausible_matches(tmp_path: Path) -> None:
     from aitest.runtime_commands import _overshared_bindings
 
@@ -1244,10 +1267,16 @@ def test_guard_rejects_boundary_item_without_input_construction() -> None:
             }
         ]
     }
-    suggested = {"ai_b8": command, "ai_create": command}
-    assert _guard_suggested_tests(suggested, items, without_tenant) == {
-        "ai_create": command
+    suggested = {
+        "ai_b8": command,
+        "ai_create": "python -m pytest tests/test_documents.py::test_admin_can_list_users",
     }
+    assert _guard_suggested_tests(suggested, items, without_tenant) == {
+        "ai_create": "python -m pytest tests/test_documents.py::test_admin_can_list_users"
+    }
+    assert _guard_suggested_tests(
+        {"ai_b8": command, "ai_other": command}, items, without_tenant
+    ) == {}
 
     with_tenant = {
         "tests/test_documents.py": [

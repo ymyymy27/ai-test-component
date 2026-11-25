@@ -746,3 +746,27 @@ def test_multiple_missing_modules_are_all_collected() -> None:
         b"ModuleNotFoundError: No module named 'alpha'\n"
     )
     assert _missing_modules_from_output(output) == ["alpha", "beta"]
+
+
+def test_http_case_rejects_variable_undefined_in_earlier_extract(
+    tmp_path: Path,
+) -> None:
+    case = Case(
+        case_id="case_http_var",
+        acceptance_item_id="item_1",
+        layer="L2",
+        expected="健康检查通过",
+        verify_method=(
+            'http:[{"method":"POST","url":"http://127.0.0.1:1/login",'
+            '"extract":{"role":"role"}},'
+            '{"method":"GET","url":"http://127.0.0.1:1/me/${vars.token}"}]'
+        ),
+    )
+    with pytest.raises(AiTestError) as excinfo:
+        _validate_plan_cases([case], "business", {"root": str(tmp_path)})
+    assert "未定义变量 token" in str(excinfo.value)
+
+    case.verify_method = case.verify_method.replace(
+        '"extract":{"role":"role"}', '"extract":{"token":"token"}'
+    )
+    _validate_plan_cases([case], "business", {"root": str(tmp_path)})

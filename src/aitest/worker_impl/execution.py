@@ -115,18 +115,28 @@ def _adjust_component_command(method: str, workdir: Path) -> str:
 
 
 _DESTRUCTIVE_CALL_RE = re.compile(r"\.(delete|patch|put)\(", re.IGNORECASE)
-_HTTP_MUTATION_RE = re.compile(
+_DESTRUCTIVE_HTTP_RE = re.compile(
     r"(?i)(?:\b(?:PATCH|PUT|DELETE)\b|requests\.(?:patch|put|delete)\s*\()"
+)
+_WRITE_HTTP_RE = re.compile(
+    r"(?i)(?:\b(?:POST|PATCH|PUT|DELETE)\b|requests\.(?:post|patch|put|delete)\s*\()"
 )
 
 
-
-def _risky_retry(case: Case) -> bool:
-    """修改/删除类 HTTP 用例不能原样重跑：首次失败已经改了状态，重跑可能误通过。"""
-    content = "\n".join(
+def _http_case_text(case: Case) -> str:
+    return "\n".join(
         part for part in (case.script_content or "", case.verify_method or "") if part
     )
-    return bool(_HTTP_MUTATION_RE.search(content))
+
+
+def _risky_retry(case: Case) -> bool:
+    """写状态用例不能原样重跑：首次失败已经改了状态，重跑可能误通过。"""
+    return bool(_WRITE_HTTP_RE.search(_http_case_text(case)))
+
+
+def _destructive_case(case: Case) -> bool:
+    """修改/删除既有状态的用例排到最后，避免污染只读与创建类用例。"""
+    return bool(_DESTRUCTIVE_HTTP_RE.search(_http_case_text(case)))
 
 
 

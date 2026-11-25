@@ -81,6 +81,7 @@ from aitest.worker_impl.env import (
 )
 from aitest.worker_impl.execution import (
     _adjust_component_command,
+    _destructive_case,
     _execute,
     _mutates_seed_account,
     _repair_case_as_script,
@@ -435,7 +436,9 @@ def _is_build_case(case: Case | None, build_command: str) -> bool:
 
 
 def _case_execution_rank(case: Case | None, build_command: str) -> int:
-    """先构建检查，再只读用例，最后修改/删除类用例，降低共享状态互相污染。"""
+    """先构建检查，再只读，再创建(POST)，最后修改/删除类用例。"""
+    if case is not None and _destructive_case(case):
+        return 3
     if case is not None and _risky_retry(case):
         return 2
     return 0 if _is_build_case(case, build_command) else 1
@@ -1520,6 +1523,34 @@ def main(argv: list[str] | None = None) -> int:
                                     f"裁判复核认为证据不足/未证实：{reason_txt}"
                                     "（不误判为通过或产品缺陷）"
                                 )
+                    elif result == "failed" and _risky_retry(case) and not cancelled():
+                        # 修改/删除类用例不重跑，但仍要让独立裁判基于单次证据定档，
+                        # 否则所有真实缺陷都会停在“单次失败”的 suspected。
+                        judgement = judge_case_failure(
+                            ws,
+                            run.project_id,
+                            case=case,
+                            outputs=outputs,
+                            message=message,
+                            service_log_issues=list(dict.fromkeys(all_log_issues)),
+                            probe_results=run.probe_results,
+                            secrets=secret_list,
+                        )
+                        run_case.judgement = judgement
+                        if (
+                            str(judgement.get("verdict") or "") == "inconclusive"
+                            and not any(
+                                is_fatal_service_issue(item) for item in all_log_issues
+                            )
+                        ):
+                            result = "blocked"
+                            reason_txt = str(
+                                judgement.get("reason") or "请人工复核"
+                            )
+                            message = (
+                                f"裁判复核认为证据不足/未证实：{reason_txt}"
+                                "（不误判为通过或产品缺陷）"
+                            )
                     message = redact(message, secret_list)
                     if all_log_issues:
                         run_case.service_log_issues = list(dict.fromkeys(all_log_issues))

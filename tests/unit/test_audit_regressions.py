@@ -239,8 +239,8 @@ def test_mutating_http_scripts_are_not_auto_retried() -> None:
     assert _risky_retry(case("call('PATCH', '/api/me', body={'role': 'admin'})"))
     assert _risky_retry(case("requests.delete(BASE + '/api/documents/doc_1')"))
     assert _risky_retry(case("call('DELETE', '/api/documents/doc_1')"))
+    assert _risky_retry(case("requests.post(BASE + '/api/documents', json={})"))
     assert not _risky_retry(case("call('GET', '/api/documents')"))
-    assert not _risky_retry(case("requests.post(BASE + '/api/documents', json={})"))
 
 
 def test_execution_rank_puts_build_first_and_destructive_last() -> None:
@@ -264,16 +264,25 @@ def test_execution_rank_puts_build_first_and_destructive_last() -> None:
         verify_method="script:mutate.py",
         script_content="request('PATCH', '/api/me', {'role': 'admin'})",
     )
+    create = Case(
+        case_id="case_create",
+        layer="L2",
+        expected="创建",
+        verify_method="script:create.py",
+        script_content="request('POST', '/api/documents', {'title': 'x'})",
+    )
     assert _case_execution_rank(build, "python -m compileall -q app") == 0
     assert _case_execution_rank(read, "python -m compileall -q app") == 1
-    assert _case_execution_rank(mutate, "python -m compileall -q app") == 2
+    assert _case_execution_rank(create, "python -m compileall -q app") == 2
+    assert _case_execution_rank(mutate, "python -m compileall -q app") == 3
     ordered = sorted(
-        [mutate, read, build],
+        [mutate, create, read, build],
         key=lambda case: _case_execution_rank(case, "python -m compileall -q app"),
     )
     assert [case.case_id for case in ordered] == [
         "case_build",
         "case_read",
+        "case_create",
         "case_mutate",
     ]
 

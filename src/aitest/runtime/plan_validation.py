@@ -30,6 +30,8 @@ _EXAMPLE_HOSTS = (
     "jsonplaceholder.typicode.com",
 )
 
+_HTTP_VAR_RE = re.compile(r"\$\{vars\.([A-Za-z_][A-Za-z0-9_]*)\}")
+
 
 
 def _invalid_method(case: Case, message: str) -> AiTestError:
@@ -81,6 +83,19 @@ def _validate_verify_method(case: Case) -> None:
                 value = item.get(key)
                 if not isinstance(value, str) or not value.strip():
                     raise _invalid_method(case, f"http: 每项需要非空 {key}")
+        defined_vars: set[str] = set()
+        for index, item in enumerate(requests, start=1):
+            text = json.dumps(item, ensure_ascii=False)
+            for name in _HTTP_VAR_RE.findall(text):
+                if name not in defined_vars:
+                    raise _invalid_method(
+                        case,
+                        f"http: 第 {index} 个请求引用了未定义变量 {name}；"
+                        "必须先在前序请求的 extract 中提取",
+                    )
+            extract = item.get("extract")
+            if isinstance(extract, dict):
+                defined_vars.update(str(key) for key in extract)
         return
     if method.startswith("playwright:"):
         rest = method[len("playwright:") :].strip()
@@ -761,35 +776,56 @@ def _normalize_http_expect(case: Case) -> None:
     if not isinstance(specs, list):
         return
     changed = False
+    defined_vars: set[str] = set()
     for spec in specs:
         if not isinstance(spec, dict):
             continue
-        expects = spec.get("expect")
-        if not isinstance(expects, list):
-            continue
-        for check in expects:
-            if not isinstance(check, dict):
-                continue
-            path = check.get("path")
-            if path == "status":
-                value = check.get("value")
-                # 字符串期望值（如 "ok"）不可能是 HTTP 状态码，按响应体字段处理；
-                # 模型即使漏写 body. 前缀也不会再被误判为 HTTP 200 断言。
-                if (
-                    isinstance(value, str)
-                    and value.strip()
-                    and not value.strip().isdigit()
-                ):
-                    check["path"] = "body.status"
-                    changed = True
+        headers = spec.get("headers")
+        if isinstance(headers, dict):
+            for key, value in list(headers.items()):
+                if not isinstance(value, str):
                     continue
-            if isinstance(path, str) and path.startswith("body.") and len(path) > 5:
-                remainder = path[len("body.") :]
-                # ``status`` 保留给 HTTP 状态码；响应体字段恰好叫 status 时
-                # 必须保留 body. 前缀，否则会被误判成状态码断言。
-                if remainder != "status":
-                    check["path"] = remainder
+                missing = [
+                    name
+                    for name in _HTTP_VAR_RE.findall(value)
+                    if name not in defined_vars
+                ]
+                if missing:
+                    headers.pop(key, None)
                     changed = True
+                    warning = (
+                        f"已移除引用未定义变量的请求头 {key}：{', '.join(missing)}"
+                    )
+                    if warning not in case.warnings:
+                        case.warnings.append(warning)
+        expects = spec.get("expect")
+        if isinstance(expects, list):
+            for check in expects:
+                if not isinstance(check, dict):
+                    continue
+                path = check.get("path")
+                if path == "status":
+                    value = check.get("value")
+                    # 字符串期望值（如 "ok"）不可能是 HTTP 状态码，按响应体字段处理；
+                    # 模型即使漏写 body. 前缀也不会再被误判为 HTTP 200 断言。
+                    if (
+                        isinstance(value, str)
+                        and value.strip()
+                        and not value.strip().isdigit()
+                    ):
+                        check["path"] = "body.status"
+                        changed = True
+                        continue
+                if isinstance(path, str) and path.startswith("body.") and len(path) > 5:
+                    remainder = path[len("body.") :]
+                    # ``status`` 保留给 HTTP 状态码；响应体字段恰好叫 status 时
+                    # 必须保留 body. 前缀，否则会被误判成状态码断言。
+                    if remainder != "status":
+                        check["path"] = remainder
+                        changed = True
+        extract = spec.get("extract")
+        if isinstance(extract, dict):
+            defined_vars.update(str(key) for key in extract)
     if changed:
         case.verify_method = "http:" + json.dumps(specs, ensure_ascii=False)
 
