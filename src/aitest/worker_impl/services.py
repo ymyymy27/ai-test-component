@@ -46,6 +46,11 @@ def _services(config: dict[str, object]) -> list[tuple[str, dict[str, object]]]:
 
 
 
+# 浏览器式 Accept：SPA 开发服务器（Vite/webpack）只在请求接受 HTML 时才回落到
+# index.html，裸 GET 会返回 404，从而把已就绪的前端误判为未启动。
+_HEALTH_ACCEPT = "text/html,application/json;q=0.9,*/*;q=0.8"
+
+
 def _healthy(url: str) -> bool | None:
     """Return True/False, or None when no health check is configured."""
     if not url:
@@ -53,8 +58,11 @@ def _healthy(url: str) -> bool | None:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme.lower() not in {"http", "https"}:
         return False
+    request = urllib.request.Request(
+        url, headers={"Accept": _HEALTH_ACCEPT}, method="GET"
+    )
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:
+        with urllib.request.urlopen(request, timeout=2) as response:
             status = int(response.status)
             return status < 400 or status in {401, 403}
     except urllib.error.HTTPError as exc:

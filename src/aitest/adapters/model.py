@@ -304,8 +304,13 @@ _SYSTEM_JUDGE_FAILURE = (
     '"reason": "基于证据的简明原因", '
     '"evidence_points": ["具体证据点"], '
     '"suggested_fix": "若为 script_error 可选修复提示，否则留空"}。'
-    "严禁偏袒任何一方；遇到未认证/缺少前置环境或无法确认时标 inconclusive 或 script_error，"
-    "只有当被测响应或后台行为明确违背冻结预期时才标 confirmed_defect。"
+    "判定基准是验收项原文、冻结预期与脚本断言的交集；"
+    "frozen_expectation 为空本身不构成 inconclusive，"
+    "此时以验收项原文和失败断言为准。脚本已执行完成、失败原因是断言不成立，"
+    "且没有环境、前置数据或服务日志证据指向脚本假设错误时，应判 confirmed_defect；"
+    "只有能具体指出脚本断言与验收项原文不符，"
+    "或确有前置/环境未就绪证据时，才可判 inconclusive 或 script_error。"
+    "严禁偏袒任何一方；遇到未认证/缺少前置环境或无法确认时标 inconclusive 或 script_error。"
     "不要输出 JSON 之外的任何文本。"
 )
 

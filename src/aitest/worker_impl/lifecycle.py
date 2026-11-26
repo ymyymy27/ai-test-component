@@ -6,6 +6,7 @@ import argparse
 import contextvars
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -563,6 +564,34 @@ def _blocked_stage(result: str, message: str) -> Literal["setup", "verify", ""]:
     return ""
 
 
+def _script_repair_allowed(result: str, message: str) -> bool:
+    """脚本修复只处理脚本自身问题；setup 前置失败必须保持阻塞。
+
+    修脚本会改写 setup 内容，把「种子数据/环境未就绪」这类事实掩盖成通过，
+    因此这类结果不能进入 AI 修复链路。
+    """
+    if result == "error":
+        return True
+    if result != "blocked":
+        return False
+    return (
+        "前置准备阶段（setup）失败" not in message
+        and "stage must be 'setup'" not in message
+    )
+
+
+def _config_base_url(cfg: dict[str, Any]) -> str:
+    """从服务配置的 health/base_url/url 中取出 scheme://netloc。"""
+    for key in ("health", "health_url", "base_url", "url"):
+        raw = str(cfg.get(key) or "").strip()
+        if not raw:
+            continue
+        parsed = urlsplit(raw)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return ""
+
+
 def _resolve_probe_base_url(
     service_configs: list[tuple[str, dict[str, Any]]],
     run_env: dict[str, str],
@@ -572,14 +601,71 @@ def _resolve_probe_base_url(
         if raw.startswith(("http://", "https://")):
             return raw.rstrip("/")
     for _name, cfg in service_configs:
-        for key in ("health", "health_url", "base_url", "url"):
-            raw = str(cfg.get(key) or "").strip()
-            if not raw:
-                continue
-            parsed = urlsplit(raw)
-            if parsed.scheme in {"http", "https"} and parsed.netloc:
-                return f"{parsed.scheme}://{parsed.netloc}"
+        base = _config_base_url(cfg)
+        if base:
+            return base
     return ""
+
+
+_FRONTEND_SERVICE_HINTS = frozenset(
+    {"frontend", "front", "web", "client", "ui", "vite", "spa"}
+)
+_BACKEND_SERVICE_HINTS = frozenset(
+    {"backend", "back", "api", "server", "app", "service"}
+)
+
+
+def _service_role(name: str) -> str:
+    """按服务名的分词判断角色；无法确定时返回空串，沿用默认目标。"""
+    tokens = {token for token in re.split(r"[^a-z0-9]+", name.strip().lower()) if token}
+    if not tokens:
+        return ""
+    if tokens & _BACKEND_SERVICE_HINTS:
+        return "backend"
+    if tokens & _FRONTEND_SERVICE_HINTS:
+        return "frontend"
+    return ""
+
+
+def _probe_targets(
+    service_states: list[dict[str, Any]],
+    *,
+    base_url: str,
+    service_ready: bool,
+) -> dict[str, tuple[str, bool]]:
+    """按探针角色分配目标服务：静态资源打前端，路由边界打后端。
+
+    没有可识别的角色服务时沿用原有单一 base_url，保持单服务项目行为不变。
+    """
+    default = (base_url, service_ready)
+    targets: dict[str, tuple[str, bool]] = {
+        "contract_reconciliation": default,
+    }
+    frontend: tuple[str, bool] | None = None
+    backend: tuple[str, bool] | None = None
+    for state in service_states:
+        name = str(state.get("name") or "")
+        cfg = state.get("config")
+        if not isinstance(cfg, dict):
+            continue
+        url = _config_base_url(cfg)
+        if not url:
+            continue
+        ok = bool(state.get("ok"))
+        role = _service_role(name)
+        if role == "frontend" and frontend is None:
+            frontend = (url, ok)
+        elif role == "backend" and backend is None:
+            backend = (url, ok)
+    if frontend is not None:
+        targets["static_assets"] = frontend
+    else:
+        targets["static_assets"] = default
+    if backend is not None:
+        targets["route_boundary"] = backend
+    else:
+        targets["route_boundary"] = default
+    return targets
 
 
 def _run_preflight_gate(
@@ -647,6 +733,7 @@ def _run_probes_stage(
     workdir: Path,
     config: dict[str, Any],
     service_configs: list[tuple[str, dict[str, Any]]],
+    service_states: list[dict[str, Any]],
     run_env: dict[str, str],
     service_ok: bool,
     allowed_hosts: list[str],
@@ -657,12 +744,19 @@ def _run_probes_stage(
 ) -> None:
     """运行免 AI 确定性硬探针并将有实质发现或检查记录保存至 Run 与证据目录。"""
     base_url = _resolve_probe_base_url(service_configs, run_env)
+    service_ready = bool(service_ok and base_url)
+    probe_targets = _probe_targets(
+        service_states,
+        base_url=base_url,
+        service_ready=service_ready,
+    )
     probes = run_deterministic_probes(
         workdir,
         config,
         base_url=base_url,
         allowed_hosts=allowed_hosts,
-        service_ready=bool(service_ok and base_url),
+        service_ready=service_ready,
+        probe_targets=probe_targets,
         secrets=secret_list,
     )
     run.probe_results = probes
@@ -1060,6 +1154,7 @@ def main(argv: list[str] | None = None) -> int:
                     workdir=workdir,
                     config=config,
                     service_configs=service_configs,
+                    service_states=service_states,
                     run_env=run_env,
                     service_ok=service_ok,
                     allowed_hosts=allowed_hosts,
@@ -1288,7 +1383,7 @@ def main(argv: list[str] | None = None) -> int:
                         all_log_issues.extend([*fatal_log_errors, *log_warnings])
                         if (
                             case.verify_method.startswith("script:")
-                            and result in {"error", "blocked"}
+                            and _script_repair_allowed(result, message)
                             and not cancelled()
                             and _repair_script_case(
                                 ws,

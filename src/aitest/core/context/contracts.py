@@ -8,6 +8,7 @@ import re
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from aitest.core.context.py_routes import extract_python_api_routes, join_route_parts
 from aitest.security import is_ignored_path, load_ignore_patterns
@@ -974,14 +975,72 @@ def _api_routes(root: Path, *, max_routes: int = 2000) -> list[dict[str, Any]]:
     return routes
 
 
-def _resolve_fe_path(expr: str, const_map: dict[str, str], allow_any_root: bool) -> str:
+_LOCAL_FE_HOSTS = frozenset(
+    {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"}
+)
+
+
+def _strip_local_origin(value: str) -> str | None:
+    """把 http(s)://本机主机[:端口]/path 归一为 /path；外部域名返回 None。
+
+    前端与后端分离开发（Flask + Vite）时常把完整本机 URL 写进常量，
+    这类调用与同源相对路径等价；第三方外链不能当作本地后端契约输入。
+    """
+    if not value.startswith(("http://", "https://")):
+        return value
+    parsed = urlsplit(value)
+    host = (parsed.hostname or "").lower()
+    if host not in _LOCAL_FE_HOSTS:
+        return None
+    path = parsed.path or "/"
+    if not path.startswith("/"):
+        path = "/" + path
+    return path
+
+
+def _normalize_fe_const(value: str) -> str:
+    """归一化 JS 常量值：本机绝对 URL 转路径，模板占位转 {param}。"""
+    stripped = _strip_local_origin(value)
+    if stripped is None:
+        return ""
+    return re.sub(r"\$\{[^}]+\}", "{param}", stripped)
+
+
+def _const_value(
+    name: str,
+    const_map: dict[str, str],
+    const_history: dict[str, list[tuple[int, str]]] | None,
+    pos: int,
+) -> str:
+    """优先取调用点之前最近一次赋值，避免同名常量在方法之间复用时错配。"""
+    if const_history is not None and pos >= 0:
+        value = ""
+        for at, candidate in const_history.get(name) or []:
+            if at > pos:
+                break
+            value = candidate
+        if value:
+            return value
+    return const_map.get(name, "")
+
+
+def _resolve_fe_path(
+    expr: str,
+    const_map: dict[str, str],
+    allow_any_root: bool,
+    *,
+    const_history: dict[str, list[tuple[int, str]]] | None = None,
+    pos: int = -1,
+) -> str:
     """将 JS/TS 中的 URL 字符串字面量、模板字符串或常量拼接归一为路径。"""
     raw = expr.strip()
     if not raw:
         return ""
     if raw.startswith("`") and raw.endswith("`") and len(raw) >= 2:
         inner = re.sub(r"\$\{[^}]+\}", "{param}", raw[1:-1])
-        path = inner.split("?", 1)[0]
+        path = _strip_local_origin(inner.split("?", 1)[0])
+        if path is None:
+            return ""
         if (
             path.startswith("/")
             and not path.startswith("//")
@@ -997,12 +1056,16 @@ def _resolve_fe_path(expr: str, const_map: dict[str, str], allow_any_root: bool)
             seg_s = seg.strip()
             if (seg_s.startswith(("'", '"')) and seg_s.endswith(("'", '"'))) and len(seg_s) >= 2:
                 resolved.append(seg_s[1:-1])
-            elif seg_s in const_map:
-                resolved.append(const_map[seg_s])
+            elif seg_s in const_map and (
+                const_value := _const_value(seg_s, const_map, const_history, pos)
+            ):
+                resolved.append(const_value)
                 used_const = True
             else:
                 resolved.append("{param}")
-        path = "".join(resolved).split("?", 1)[0]
+        path = _strip_local_origin("".join(resolved).split("?", 1)[0])
+        if path is None:
+            return ""
         if (
             path.startswith("/")
             and not path.startswith("//")
@@ -1011,7 +1074,9 @@ def _resolve_fe_path(expr: str, const_map: dict[str, str], allow_any_root: bool)
             return path[:120]
         return ""
     if (raw.startswith(("'", '"')) and raw.endswith(("'", '"'))) and len(raw) >= 2:
-        path = raw[1:-1].split("?", 1)[0]
+        path = _strip_local_origin(raw[1:-1].split("?", 1)[0])
+        if path is None:
+            return ""
         if (
             path.startswith("/")
             and not path.startswith("//")
@@ -1020,8 +1085,9 @@ def _resolve_fe_path(expr: str, const_map: dict[str, str], allow_any_root: bool)
             return path[:120]
         return ""
     if raw in const_map:
-        path = const_map[raw].split("?", 1)[0]
-        if path.startswith("/") and not path.startswith("//"):
+        const_value = _const_value(raw, const_map, const_history, pos)
+        path = _strip_local_origin(const_value.split("?", 1)[0])
+        if path is not None and path.startswith("/") and not path.startswith("//"):
             return path[:120]
     return ""
 
@@ -1062,10 +1128,12 @@ def _frontend_api_calls(
 ) -> list[dict[str, Any]]:
     """静态提取前端 JS/TS/HTML 中发起的后端 API 调用路径、方法与请求体字段。"""
     const_re = re.compile(
-        r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[\"'`](/[^\"'`\s]*)[\"'`]"
+        r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[\"'`]"
+        r"((?:https?://|/)[^\"'`\s]*)[\"'`]"
     )
     client_base_re = re.compile(
-        r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*axios\.create\(\s*\{[^}]*?\bbaseURL\s*:\s*[\"'](/[^\"']*)[\"']",
+        r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*axios\.create\(\s*\{[^}]*?"
+        r"\bbaseURL\s*:\s*[\"']((?:https?://|/)[^\"']*)[\"']",
         re.DOTALL,
     )
     call_re = re.compile(r"\b([A-Za-z_$][\w$.]*)\s*(?:<[^()\n;{}]{1,120}>\s*)?\(")
@@ -1127,11 +1195,22 @@ def _frontend_api_calls(
             if scanned > max_files:
                 break
             rel_posix = path.relative_to(root).as_posix()
-            const_map = {m.group(1): m.group(2) for m in const_re.finditer(text)}
-            client_base_map = {
-                m.group(1).lower(): m.group(2).rstrip("/")
-                for m in client_base_re.finditer(text)
-            }
+            const_map: dict[str, str] = {}
+            const_history: dict[str, list[tuple[int, str]]] = {}
+            for match in const_re.finditer(text):
+                normalized = _normalize_fe_const(match.group(2))
+                if not normalized:
+                    continue
+                const_map[match.group(1)] = normalized
+                const_history.setdefault(match.group(1), []).append(
+                    (match.start(), normalized)
+                )
+
+            client_base_map: dict[str, str] = {}
+            for match in client_base_re.finditer(text):
+                normalized = _normalize_fe_const(match.group(2))
+                if normalized:
+                    client_base_map[match.group(1).lower()] = normalized.rstrip("/")
             for match in call_re.finditer(text):
                 prefix = text[max(0, match.start() - 16) : match.start()]
                 if prefix.rstrip().endswith("function"):
@@ -1166,7 +1245,13 @@ def _frontend_api_calls(
                 args = _split_top_level(raw_args, ",")
                 if not args:
                     continue
-                norm_path = _resolve_fe_path(args[0], const_map, allow_any_root=is_direct_http)
+                norm_path = _resolve_fe_path(
+                    args[0],
+                    const_map,
+                    allow_any_root=is_direct_http,
+                    const_history=const_history,
+                    pos=match.start(),
+                )
                 if not norm_path and args[0].lstrip().startswith("{"):
                     url_m = obj_url_re.search(args[0])
                     if url_m:
@@ -1174,6 +1259,8 @@ def _frontend_api_calls(
                             url_m.group(1),
                             const_map,
                             allow_any_root=is_direct_http,
+                            const_history=const_history,
+                            pos=match.start(),
                         )
                 if not norm_path:
                     continue

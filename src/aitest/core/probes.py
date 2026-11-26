@@ -275,7 +275,11 @@ def _http_get_probe(
     ok, reason = validate_target_url(url, allowed_hosts=allowed_hosts)
     if not ok:
         return None, "", b"", reason
-    req = urllib.request.Request(url, method="GET")
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "text/html,application/json;q=0.9,*/*;q=0.8"},
+        method="GET",
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
             status = int(resp.status)
@@ -307,12 +311,17 @@ class StaticAssetsProbe:
         frontend_assets = list(kwargs.get("frontend_assets") or [])
         allowed_hosts = kwargs.get("allowed_hosts")
         if not service_ready or not base_url:
+            reason = (
+                "缺少服务基础 URL"
+                if not base_url
+                else "服务未通过健康检查"
+            )
             return {
                 "probe_id": self.probe_id,
                 "name": self.name,
                 "status": "skipped",
                 "checked": 0,
-                "summary": "服务未就绪或缺少基础 URL，跳过在线静态资源探针",
+                "summary": f"{reason}，跳过在线静态资源探针",
                 "findings": [],
             }
         ok, reason = validate_target_url(base_url, allowed_hosts=allowed_hosts)
@@ -441,12 +450,17 @@ class RouteBoundaryProbe:
         api_routes = list(kwargs.get("api_routes") or [])
         allowed_hosts = kwargs.get("allowed_hosts")
         if not service_ready or not base_url:
+            reason = (
+                "缺少服务基础 URL"
+                if not base_url
+                else "服务未通过健康检查"
+            )
             return {
                 "probe_id": self.probe_id,
                 "name": self.name,
                 "status": "skipped",
                 "checked": 0,
-                "summary": "服务未就绪或缺少基础 URL，跳过在线路由边界探针",
+                "summary": f"{reason}，跳过在线路由边界探针",
                 "findings": [],
             }
         ok, reason = validate_target_url(base_url, allowed_hosts=allowed_hosts)
@@ -548,9 +562,14 @@ def run_deterministic_probes(
     base_url: str = "",
     allowed_hosts: list[str] | None = None,
     service_ready: bool = False,
+    probe_targets: dict[str, tuple[str, bool]] | None = None,
     secrets: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """依次运行内置确定性硬探针，对照项目错题本过滤已豁免约定并执行脱敏。"""
+    """依次运行内置确定性硬探针，对照项目错题本过滤已豁免约定并执行脱敏。
+
+    ``probe_targets`` 允许按探针指定目标服务（如静态资源探针打前端、路由边界
+    探针打后端）；未列出的探针沿用 ``base_url`` / ``service_ready``。
+    """
     conventions = extract_conventions(config)
     routes_meta: dict[str, Any] = {}
     if isinstance(context, dict) and "api_routes" in context:
@@ -581,10 +600,13 @@ def run_deterministic_probes(
 
     results: list[dict[str, Any]] = []
     for probe in probes_to_run:
+        target_url, target_ready = (probe_targets or {}).get(
+            probe.probe_id, (base_url, service_ready)
+        )
         result = probe.run(
             root=root,
-            base_url=base_url,
-            service_ready=service_ready,
+            base_url=target_url,
+            service_ready=target_ready,
             allowed_hosts=allowed_hosts,
             api_routes=api_routes,
             frontend_api_calls=frontend_api_calls,
