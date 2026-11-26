@@ -90,6 +90,14 @@ def _generation_feedback(
         "不能遗漏，也不能合并成未列出的 ID：",
     ]
     lines.extend(f"- {item.get('item_id')}：{item.get('text')}" for item in items)
+    if "http:" in reason:
+        lines.append(
+            "http: 必须给出非空 JSON 请求数组（每项含 method/url）；"
+            "登录、token 提取等无法用 http 数组表达的流程，改用 script: 并提供 "
+            "script_name 与完整 script_content。"
+        )
+    if "L1" in reason or "layer" in reason:
+        lines.append("业务验收项一律使用 L2；L1 只用于项目级检查。")
     commands = _string_list(context.get("test_commands"))
     specific = [
         command
@@ -117,7 +125,7 @@ def _generation_feedback(
 
 
 
-_PLAN_CACHE_VERSION = 21
+_PLAN_CACHE_VERSION = 24
 
 
 def _workspace_source_fingerprint(root: Path) -> str:

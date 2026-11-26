@@ -1006,6 +1006,58 @@ def _normalize_fe_const(value: str) -> str:
     return re.sub(r"\$\{[^}]+\}", "{param}", stripped)
 
 
+def _normalize_fe_base_url(value: str) -> str:
+    """归一化 axios.create baseURL，支持 `${VAR}/api` 这类模板前缀。
+
+    仅保留可确定的前缀：去掉开头的模板变量后必须以 `/` 开头；中间还有
+    无法解析的模板变量时放弃（返回空），避免把猜测出来的前缀拼进调用路径。
+    """
+    text = value.strip()
+    while text.startswith("${") and "}" in text:
+        text = text[text.index("}") + 1 :]
+    stripped = _strip_local_origin(text)
+    if stripped is None or not stripped.startswith("/"):
+        return ""
+    if "${" in stripped:
+        return ""
+    if stripped == "/":
+        return "/"
+    return stripped.rstrip("/")
+
+
+def _resolve_base_url_expr(
+    expr: str,
+    const_map: dict[str, str],
+    const_history: dict[str, list[tuple[int, str]]] | None,
+    pos: int,
+) -> str:
+    """解析 axios.create 的 baseURL 表达式：字面量、模板、常量、拼接与 || 兜底。"""
+    text = expr.strip()
+    if not text:
+        return ""
+    for separator in ("||", "??"):
+        if separator in text:
+            return _resolve_base_url_expr(
+                text.rsplit(separator, 1)[-1], const_map, const_history, pos
+            )
+    if "+" in text:
+        resolved = _resolve_fe_path(
+            text, const_map, True, const_history=const_history, pos=pos
+        )
+        if resolved:
+            return _normalize_fe_base_url(resolved)
+    quoted = re.search(r"[\"'`]([^\"'`]*)[\"'`]", text)
+    if quoted:
+        return _normalize_fe_base_url(quoted.group(1))
+    const_value = _const_value(text, const_map, const_history, pos)
+    if const_value:
+        return _normalize_fe_base_url(const_value)
+    resolved = _resolve_fe_path(
+        text, const_map, True, const_history=const_history, pos=pos
+    )
+    return _normalize_fe_base_url(resolved) if resolved else ""
+
+
 def _const_value(
     name: str,
     const_map: dict[str, str],
@@ -1133,7 +1185,7 @@ def _frontend_api_calls(
     )
     client_base_re = re.compile(
         r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*axios\.create\(\s*\{[^}]*?"
-        r"\bbaseURL\s*:\s*[\"']((?:https?://|/)[^\"']*)[\"']",
+        r"\bbaseURL\s*:\s*((?:\$\{[^}\n]*\}|[^,}\n])+)",
         re.DOTALL,
     )
     call_re = re.compile(r"\b([A-Za-z_$][\w$.]*)\s*(?:<[^()\n;{}]{1,120}>\s*)?\(")
@@ -1208,9 +1260,11 @@ def _frontend_api_calls(
 
             client_base_map: dict[str, str] = {}
             for match in client_base_re.finditer(text):
-                normalized = _normalize_fe_const(match.group(2))
+                normalized = _resolve_base_url_expr(
+                    match.group(2), const_map, const_history, match.start()
+                )
                 if normalized:
-                    client_base_map[match.group(1).lower()] = normalized.rstrip("/")
+                    client_base_map[match.group(1).lower()] = normalized
             for match in call_re.finditer(text):
                 prefix = text[max(0, match.start() - 16) : match.start()]
                 if prefix.rstrip().endswith("function"):

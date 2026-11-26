@@ -564,6 +564,18 @@ def _blocked_stage(result: str, message: str) -> Literal["setup", "verify", ""]:
     return ""
 
 
+_EXPECTED_AUTH_FAILURE_RE = re.compile(
+    r"\b40[13]\b|未带\s*authorization|未授权|无权限|没有权限|非法\s*(?:bearer\s*)?token|invalid\s+token",
+    re.IGNORECASE,
+)
+
+
+def _case_expects_auth_failure(case: Case) -> bool:
+    """判断验收项是否在主动验收 401/403（负向鉴权），此时不能补认证改写。"""
+    text = f"{case.title} {case.expected} {case.expectation_source}"
+    return bool(_EXPECTED_AUTH_FAILURE_RE.search(text))
+
+
 def _script_repair_allowed(result: str, message: str) -> bool:
     """脚本修复只处理脚本自身问题；setup 前置失败必须保持阻塞。
 
@@ -613,6 +625,7 @@ _FRONTEND_SERVICE_HINTS = frozenset(
 _BACKEND_SERVICE_HINTS = frozenset(
     {"backend", "back", "api", "server", "app", "service"}
 )
+_URL_IN_TEXT_RE = re.compile(r"https?://[^\s\"'`)<>,{}$]+")
 
 
 def _service_role(name: str) -> str:
@@ -779,6 +792,20 @@ def _run_probes_stage(
                 run.evidence_refs.append(ref)
 
 
+def _case_target_hosts(case: Case) -> set[str]:
+    """提取用例脚本/HTTP 声明中的目标 host:port，用于按目标服务关联后台日志。"""
+    hosts: set[str] = set()
+    for text in (case.verify_method or "", case.script_content or ""):
+        for raw in _URL_IN_TEXT_RE.findall(text):
+            try:
+                parsed = urlsplit(raw)
+            except ValueError:
+                continue
+            if parsed.netloc:
+                hosts.add(parsed.netloc.lower())
+    return hosts
+
+
 def _execute_with_service_logs(
     *,
     case: Case,
@@ -821,6 +848,7 @@ def _execute_with_service_logs(
         expects_server_error=case_expects_server_error(
             case.title, case.expected, case.expectation_source
         ),
+        case_targets=_case_target_hosts(case),
         secrets=secret_list,
     )
     window_bytes = cast(bytes, window.get("window_log") or b"")
@@ -1445,6 +1473,9 @@ def main(argv: list[str] | None = None) -> int:
                             case.verify_method.startswith("http:")
                             and result == "blocked"
                             and "HTTP 401/403" in message
+                            # 负向鉴权用例本来就应返回 401/403；补认证会把它改成
+                            # “带凭证访问成功”，改变验收语义。
+                            and not _case_expects_auth_failure(case)
                             and not cancelled()
                             and _repair_case_as_script(
                                 ws,

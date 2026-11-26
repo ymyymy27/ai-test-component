@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from aitest.core.http_spec import normalize_extract
 from aitest.core.manual import is_manual_case
 from aitest.core.script_linter import blocking_lint_errors
 from aitest.errors import AiTestError, invalid_request
@@ -31,12 +34,63 @@ _EXAMPLE_HOSTS = (
 )
 
 _HTTP_VAR_RE = re.compile(r"\$\{vars\.([A-Za-z_][A-Za-z0-9_]*)\}")
+_STATUS_CODE_RE = re.compile(r"(?<!\d)([1-5]\d{2})(?!\d)")
+
+
+def _expected_status_code(case: Case) -> int | None:
+    """从验收项/预期中取应断言的状态码；优先 4xx/5xx，避免负向用例漏断言。"""
+    text = f"{case.title} {case.expected} {case.expectation_source}"
+    codes = [int(match.group(1)) for match in _STATUS_CODE_RE.finditer(text)]
+    if not codes:
+        return None
+    for code in codes:
+        if 400 <= code <= 599:
+            return code
+    return codes[0]
 
 
 
 def _invalid_method(case: Case, message: str) -> AiTestError:
     return invalid_request(f"用例 {case.case_id} 验证方式不合法：{message}")
 
+
+
+def _parse_http_payload(text: str) -> Any:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[A-Za-z0-9_-]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    variants = [cleaned, re.sub(r",\s*([}\]])", r"\1", cleaned)]
+    for variant in variants:
+        try:
+            return json.loads(variant)
+        except json.JSONDecodeError:
+            pass
+        pythonish = re.sub(r"\btrue\b", "True", variant)
+        pythonish = re.sub(r"\bfalse\b", "False", pythonish)
+        pythonish = re.sub(r"\bnull\b", "None", pythonish)
+        with suppress(Exception):
+            return ast.literal_eval(pythonish)
+    return None
+
+
+def _coerce_http_requests(raw: str) -> list[dict[str, Any]] | None:
+    """接受模型常见的非规范 http 载荷：单对象、Python 字面量、双重编码字符串。"""
+    candidates = [raw.strip()]
+    text = raw.strip()
+    if len(text) >= 2 and text[0] == text[-1] == "`":
+        candidates.append(text[1:-1])
+    for candidate in candidates:
+        data = _parse_http_payload(candidate)
+        if isinstance(data, str):
+            data = _parse_http_payload(data)
+        if isinstance(data, tuple):
+            data = list(data)
+        if isinstance(data, dict):
+            data = [data]
+        if isinstance(data, list) and data and all(isinstance(item, dict) for item in data):
+            return data
+    return None
 
 
 def _validate_verify_method(case: Case) -> None:
@@ -70,12 +124,23 @@ def _validate_verify_method(case: Case) -> None:
         return
     if method.startswith("http:"):
         raw = method[len("http:") :].strip()
+        requests: Any = None
         try:
             requests = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise _invalid_method(case, "http: 后必须是 JSON 数组") from exc
+        except json.JSONDecodeError:
+            requests = None
         if not isinstance(requests, list) or not requests:
-            raise _invalid_method(case, "http: 后必须是非空 JSON 数组")
+            coerced = _coerce_http_requests(raw)
+            if coerced is None:
+                raise _invalid_method(
+                    case,
+                    "http: 后必须是非空 JSON 请求数组；"
+                    "无法给出请求数组时改用 script: 并提供 script_name 与 script_content",
+                )
+            requests = coerced
+            case.verify_method = "http:" + json.dumps(
+                requests, ensure_ascii=False, separators=(",", ":")
+            )
         for item in requests:
             if not isinstance(item, dict):
                 raise _invalid_method(case, "http: 每项必须是对象")
@@ -83,6 +148,48 @@ def _validate_verify_method(case: Case) -> None:
                 value = item.get(key)
                 if not isinstance(value, str) or not value.strip():
                     raise _invalid_method(case, f"http: 每项需要非空 {key}")
+            raw_extract = item.get("extract")
+            if raw_extract is not None:
+                if not isinstance(raw_extract, dict):
+                    raise _invalid_method(
+                        case, "http: extract 必须是 {变量名: 响应体路径} 对象"
+                    )
+                normalized_extract = normalize_extract(raw_extract)
+                if raw_extract and not normalized_extract:
+                    raise _invalid_method(
+                        case, "http: extract 必须是 {变量名: 响应体路径} 对象"
+                    )
+                if normalized_extract != raw_extract:
+                    item["extract"] = normalized_extract
+                    case.verify_method = "http:" + json.dumps(
+                        requests, ensure_ascii=False, separators=(",", ":")
+                    )
+        expected_code = _expected_status_code(case)
+        if expected_code is not None:
+            assert_items = [
+                item
+                for item in requests
+                if str(item.get("stage") or "assert") != "setup"
+            ]
+            has_status_check = any(
+                isinstance(entry, dict) and entry.get("path") == "status"
+                for item in assert_items
+                for entry in (
+                    item.get("expect") if isinstance(item.get("expect"), list) else []
+                )
+            )
+            if assert_items and not has_status_check:
+                target_item = assert_items[-1]
+                expectations = target_item.get("expect")
+                if not isinstance(expectations, list):
+                    expectations = []
+                    target_item["expect"] = expectations
+                expectations.append(
+                    {"path": "status", "operator": "equals", "value": expected_code}
+                )
+                case.verify_method = "http:" + json.dumps(
+                    requests, ensure_ascii=False, separators=(",", ":")
+                )
         defined_vars: set[str] = set()
         for index, item in enumerate(requests, start=1):
             text = json.dumps(item, ensure_ascii=False)

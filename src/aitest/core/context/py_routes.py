@@ -424,18 +424,132 @@ def _extract_fn_body_fields(
     return sorted(fields), True
 
 
+def _effective_bases(
+    symbol: str,
+    class_bases: dict[str, set[str]],
+    seen: set[str] | None = None,
+) -> set[str]:
+    """递归展开 ViewSet 的基类，兼容自定义 BaseViewSet 继承 ModelViewSet。"""
+    visited = seen if seen is not None else set()
+    result: set[str] = set()
+    for base in class_bases.get(symbol, set()):
+        if base in visited:
+            continue
+        visited.add(base)
+        result.add(base)
+        result.update(_effective_bases(base, class_bases, visited))
+    return result
+
+
+def _drf_viewset_methods(
+    symbol: str,
+    class_bases: dict[str, set[str]],
+    class_methods: dict[str, set[str]],
+) -> tuple[set[str], set[str]]:
+    """推断 DRF ViewSet 的集合/详情路由方法；未知类型保守按完整 CRUD。"""
+    bases = _effective_bases(symbol, class_bases)
+    defined = class_methods.get(symbol, set())
+    list_methods: set[str] = set()
+    detail_methods: set[str] = set()
+    if "ModelViewSet" in bases:
+        list_methods.update({"GET", "POST"})
+        detail_methods.update({"GET", "PUT", "PATCH", "DELETE"})
+    elif "ReadOnlyModelViewSet" in bases:
+        list_methods.add("GET")
+        detail_methods.add("GET")
+    else:
+        if "ListModelMixin" in bases:
+            list_methods.add("GET")
+        if "CreateModelMixin" in bases:
+            list_methods.add("POST")
+        if "RetrieveModelMixin" in bases:
+            detail_methods.add("GET")
+        if "UpdateModelMixin" in bases:
+            detail_methods.update({"PUT", "PATCH"})
+        if "DestroyModelMixin" in bases:
+            detail_methods.add("DELETE")
+    if "list" in defined:
+        list_methods.add("GET")
+    if "create" in defined:
+        list_methods.add("POST")
+    if "retrieve" in defined:
+        detail_methods.add("GET")
+    if "update" in defined:
+        detail_methods.add("PUT")
+    if "partial_update" in defined:
+        detail_methods.add("PATCH")
+    if "destroy" in defined:
+        detail_methods.add("DELETE")
+    if not list_methods and not detail_methods:
+        list_methods.update({"GET", "POST"})
+        detail_methods.update({"GET", "PUT", "PATCH", "DELETE"})
+    return list_methods, detail_methods
+
+
 def _extract_django_routes(
     root: Path,
     trees: dict[Path, ast.Module],
     imports_by_file: dict[Path, dict[str, tuple[Path, str]]],
 ) -> list[dict[str, Any]]:
-    """递归解析 Django urlpatterns 中的 path/re_path/include 路由声明。"""
-    url_patterns_by_file: dict[Path, list[tuple[str, str, int, Path | None]]] = {}
+    """递归解析 Django urlpatterns，并展开 DRF router.register 生成的路由。"""
+    class_bases: dict[str, set[str]] = {}
+    class_methods: dict[str, set[str]] = {}
+    router_vars: dict[Path, set[str]] = {}
+    registrations: dict[tuple[Path, str], list[tuple[str, str, int]]] = {}
+    for path, tree in trees.items():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                bases = {
+                    name.rsplit(".", 1)[-1]
+                    for item in node.bases
+                    if (name := _attr_dotted_name(item))
+                }
+                class_bases.setdefault(node.name, set()).update(bases)
+                class_methods.setdefault(node.name, set()).update(
+                    item.name
+                    for item in node.body
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                )
+            elif isinstance(node, ast.Assign):
+                if (
+                    len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and isinstance(node.value, ast.Call)
+                    and _call_short_name(node.value.func) in {"DefaultRouter", "SimpleRouter"}
+                ):
+                    router_vars.setdefault(path, set()).add(node.targets[0].id)
+            elif isinstance(node, ast.Call):
+                func = node.func
+                if not (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "register"
+                    and isinstance(func.value, ast.Name)
+                    and len(node.args) >= 2
+                ):
+                    continue
+                prefix_arg = node.args[0]
+                if not (
+                    isinstance(prefix_arg, ast.Constant)
+                    and isinstance(prefix_arg.value, str)
+                ):
+                    continue
+                viewset_name = _attr_dotted_name(node.args[1]) or ""
+                symbol = viewset_name.rsplit(".", 1)[-1]
+                if not symbol:
+                    continue
+                registrations.setdefault((path, func.value.id), []).append(
+                    (prefix_arg.value.strip("/"), symbol, node.lineno)
+                )
+
+    url_patterns_by_file: dict[
+        Path, list[tuple[str, str, int, Path | None, tuple[Path, str] | None]]
+    ] = {}
     for path, tree in trees.items():
         if "url" not in path.stem.lower():
             continue
-        entries: list[tuple[str, str, int, Path | None]] = []
+        entries: list[tuple[str, str, int, Path | None, tuple[Path, str] | None]] = []
         imports = imports_by_file.get(path, {})
+        routers = router_vars.get(path, set())
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign):
                 continue
@@ -454,6 +568,7 @@ def _extract_django_routes(
                     continue
                 sub = _normalize_django_subpath(first.value)
                 inc_target: Path | None = None
+                inc_router: tuple[Path, str] | None = None
                 if len(elt.args) >= 2 and isinstance(elt.args[1], ast.Call):
                     inc_call = elt.args[1]
                     if _call_short_name(inc_call.func) == "include" and inc_call.args:
@@ -468,7 +583,18 @@ def _extract_django_routes(
                                     break
                         elif isinstance(inc_arg, ast.Name) and inc_arg.id in imports:
                             inc_target = imports[inc_arg.id][0]
-                entries.append((sub, path.relative_to(root).as_posix(), elt.lineno, inc_target))
+                        elif isinstance(inc_arg, ast.Attribute) and inc_arg.attr == "urls":
+                            owner = inc_arg.value
+                            if isinstance(owner, ast.Name):
+                                if owner.id in routers:
+                                    inc_router = (path, owner.id)
+                                elif owner.id in imports:
+                                    dep_file, dep_symbol = imports[owner.id]
+                                    if dep_symbol in router_vars.get(dep_file, set()):
+                                        inc_router = (dep_file, dep_symbol)
+                entries.append(
+                    (sub, path.relative_to(root).as_posix(), elt.lineno, inc_target, inc_router)
+                )
         if entries:
             url_patterns_by_file[path] = entries
 
@@ -478,36 +604,56 @@ def _extract_django_routes(
     referenced = {
         inc_tgt
         for entries in url_patterns_by_file.values()
-        for _, _, _, inc_tgt in entries
+        for _, _, _, inc_tgt, _ in entries
         if inc_tgt is not None
     }
     roots = [p for p in url_patterns_by_file if p not in referenced] or list(url_patterns_by_file)
     routes: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
 
+    def add_route(method: str, route_path: str, rel_posix: str, lineno: int) -> None:
+        key = (method, route_path)
+        if key in seen:
+            return
+        seen.add(key)
+        routes.append(
+            {
+                "method": method,
+                "path": route_path,
+                "auth": "public",
+                "file": rel_posix,
+                "line": str(lineno),
+                "fields_complete": False,
+                "source_kind": "django",
+            }
+        )
+
     def walk(url_file: Path, prefix: str, visited: frozenset[Path]) -> None:
         if url_file in visited or url_file not in url_patterns_by_file:
             return
         nxt = visited | {url_file}
-        for sub, rel_posix, lineno, inc_tgt in url_patterns_by_file[url_file]:
+        for sub, rel_posix, lineno, inc_tgt, inc_router in url_patterns_by_file[url_file]:
             full = join_route_parts(prefix, sub) if (prefix or sub) else "/"
             if inc_tgt is not None:
                 walk(inc_tgt, "" if full == "/" else full, nxt)
-            else:
-                key = ("ANY", full)
-                if key not in seen:
-                    seen.add(key)
-                    routes.append(
-                        {
-                            "method": "ANY",
-                            "path": full,
-                            "auth": "public",
-                            "file": rel_posix,
-                            "line": str(lineno),
-                            "fields_complete": False,
-                            "source_kind": "django",
-                        }
+                continue
+            if inc_router is not None:
+                # DRF 路由根（/api/v1/）保留 ANY，同时展开 register 的完整方法路由。
+                add_route("ANY", full, rel_posix, lineno)
+                for reg_prefix, symbol, reg_line in registrations.get(
+                    inc_router, []
+                ):
+                    list_methods, detail_methods = _drf_viewset_methods(
+                        symbol, class_bases, class_methods
                     )
+                    list_path = join_route_parts(full, reg_prefix)
+                    detail_path = join_route_parts(list_path, "{param}")
+                    for method in sorted(list_methods):
+                        add_route(method, list_path, rel_posix, reg_line)
+                    for method in sorted(detail_methods):
+                        add_route(method, detail_path, rel_posix, reg_line)
+                continue
+            add_route("ANY", full, rel_posix, lineno)
 
     for rfile in sorted(roots, key=str):
         walk(rfile, "", frozenset())

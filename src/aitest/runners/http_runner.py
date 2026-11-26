@@ -12,6 +12,7 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from aitest.core.http_spec import normalize_extract
 from aitest.runners.assertions import MISSING, evaluate, resolve_path
 from aitest.runners.base import RunnerResult, RunnerStatus
 from aitest.security import is_secret_field, redact, redact_bytes, redact_tree, validate_target_url
@@ -269,16 +270,13 @@ def run_http_sequence(
             return _finish(
                 "error", error=f"{label} extract must be an object", secrets=secret_values
             )
-        extract_map: dict[str, str] = {}
-        if isinstance(raw_extract, Mapping):
-            for var_key, path_expr in raw_extract.items():
-                if not isinstance(var_key, str) or not isinstance(path_expr, str):
-                    return _finish(
-                        "error",
-                        error=f"{label} extract keys and paths must be strings",
-                        secrets=secret_values,
-                    )
-                extract_map[var_key] = path_expr
+        extract_map = normalize_extract(raw_extract)
+        if raw_extract and not extract_map:
+            return _finish(
+                "error",
+                error=f"{label} extract must map variable names to response paths",
+                secrets=secret_values,
+            )
 
         try:
             request = urllib.request.Request(url, data=body, headers=headers, method=method)
