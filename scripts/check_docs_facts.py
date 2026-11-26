@@ -165,6 +165,7 @@ def node_count() -> int | None:
             "--import-mode=importlib",
             "--collect-only",
             "-q",
+            "--disable-warnings",
             "tests",
         ],
         cwd=ROOT,
@@ -180,7 +181,10 @@ def node_count() -> int | None:
         matches = re.findall(pattern, result.stdout)
         if matches:
             return int(matches[-1])
-    per_file = [int(value) for value in re.findall(r":\s*(\d+)\s*$", result.stdout, re.M)]
+    per_file = [
+        int(value)
+        for value in re.findall(r"^tests/[^:\n]+:\s*(\d+)\s*$", result.stdout, re.M)
+    ]
     return sum(per_file) if per_file else None
 
 
