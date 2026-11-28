@@ -442,3 +442,161 @@ def test_related_files_by_dependency_single_pass_skips_code_graph(
         max_direct_hits=5,
     )
     assert len(hot_only) == 12
+
+
+def test_backup_create_rejects_path_inside_workspace(tmp_path: Path) -> None:
+    """backup.create 输出路径落在工作空间目录内时必须拒绝，防止 stage 目录自递归打包。"""
+    from aitest.runtime.backup_cleanup import cmd_backup_create, cmd_backup_restore
+
+    ws = Workspace(tmp_path / "ws")
+    ws.init()
+    repo = tmp_path / "repo"
+    _write(repo, "app.py", "print('ok')\n")
+    proj = Project(project_id="proj_bk", name="bk", root=str(repo))
+    ws.save_project(proj)
+
+    inside_zip = ws.root / "inside.zip"
+    try:
+        cmd_backup_create(ws, {"project_id": "proj_bk", "path": str(inside_zip)}, False)
+    except AiTestError as exc:
+        assert exc.info.code == "INVALID_PATH"
+    else:
+        raise AssertionError("预期拒绝工作空间内部的备份输出路径")
+
+    outside_zip = tmp_path / "outside.zip"
+    created = cmd_backup_create(ws, {"project_id": "proj_bk", "path": str(outside_zip)}, False)
+    assert outside_zip.is_file()
+    assert created["file_count"] >= 1
+
+    restored_dir = tmp_path / "restored"
+    cmd_backup_restore(ws, {"path": str(outside_zip), "target": str(restored_dir)}, False)
+    restored_ws = Workspace(restored_dir)
+    assert any(p.project_id == "proj_bk" for p in restored_ws.list_projects())
+
+
+def test_external_service_log_path_catches_fake_pass_traceback(tmp_path: Path) -> None:
+    """外部已运行服务仅配置 services.log_path 时，HTTP 200 但后台日志出现 Traceback 必须判失败。"""
+    import http.server
+    import socketserver
+    import threading
+
+    from aitest.models import Case, Plan, Run, RunCase, Scope
+    from aitest.storage.files import read_model, write_json, write_model
+    from aitest.worker import main as worker_main
+
+    ext_log = tmp_path / "external_service.log"
+    ext_log.write_text("", encoding="utf-8")
+
+    class _FakePassHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:
+            del format, args
+
+        def do_GET(self) -> None:
+            if self.path == "/health":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+                return
+            with ext_log.open("a", encoding="utf-8") as fh:
+                fh.write(
+                    "ERROR django.request: Internal Server Error: /api/items\n"
+                    "Traceback (most recent call last):\n"
+                    '  File "app/views.py", line 18, in items\n'
+                    "    return 1 / 0\n"
+                    "ZeroDivisionError: division by zero\n"
+                )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"items":[{"id":1}]}')
+
+    httpd = socketserver.TCPServer(("127.0.0.1", 0), _FakePassHandler)
+    port = httpd.server_address[1]
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        ws = Workspace(tmp_path / "ws")
+        ws.init()
+        repo = tmp_path / "repo"
+        _write(repo, "app.py", "print('ok')\n")
+        proj = Project(project_id="proj_ext", name="ext", root=str(repo))
+        ws.save_project(proj)
+        write_json(
+            ws.project_dir("proj_ext") / "project.config.json",
+            {
+                "schema_version": 1,
+                "services": {
+                    "base_url": f"http://127.0.0.1:{port}",
+                    "health_url": f"http://127.0.0.1:{port}/health",
+                    "log_path": str(ext_log),
+                },
+            },
+        )
+        run_dir = ws.project_dir("proj_ext") / "runs" / "run_ext1"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        plan = Plan(
+            plan_id="plan_ext1",
+            task_id="task_ext1",
+            scope=Scope(preset="selected", acceptance_item_ids=["ai_1"]),
+            applicable_count=1,
+            status="published",
+            cases=[
+                Case(
+                    case_id="case_api",
+                    acceptance_item_id="ai_1",
+                    layer="L2",
+                    title="外部服务 200 假通过检测",
+                    expected="返回 200 且无后台异常",
+                    expectation_source="返回 200 且无后台异常",
+                    expectation_verified=True,
+                    verify_method="http:"
+                    + json.dumps(
+                        [
+                            {
+                                "name": "items",
+                                "method": "GET",
+                                "url": f"http://127.0.0.1:{port}/api/items",
+                                "expect": [{"path": "status", "operator": "equals", "value": 200}],
+                            }
+                        ]
+                    ),
+                )
+            ],
+        )
+        run = Run(
+            run_id="run_ext1",
+            plan_id="plan_ext1",
+            project_id="proj_ext",
+            scope=plan.scope,
+            status="running",
+            cases=[RunCase(case_id="case_api")],
+        )
+        write_model(run_dir / "plan.json", plan)
+        write_model(run_dir / "run.json", run)
+
+        rc = worker_main(
+            [
+                "--workspace",
+                str(ws.root),
+                "--project",
+                "proj_ext",
+                "--run",
+                "run_ext1",
+            ]
+        )
+        assert rc == 0
+        final_run = read_model(run_dir / "run.json", Run)
+        assert final_run.status == "completed"
+        api_case = next(c for c in final_run.cases if c.case_id == "case_api")
+        # 遵守阶段 2 防误报红线（不翻盘已通过断言），同时必须将外部日志 Traceback 捕获进诊断告警
+        assert api_case.result == "passed"
+        assert api_case.service_log_issues
+        assert any(
+            "ZeroDivisionError" in msg or "Traceback" in msg
+            for msg in api_case.service_log_issues
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=3)

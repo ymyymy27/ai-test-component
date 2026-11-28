@@ -1123,6 +1123,40 @@ def main(argv: list[str] | None = None) -> int:
             service_ok = (not preflight_blocking) and all(
                 state["ok"] for state in service_states
             )
+            # 外部已运行服务显式配置 log_path 时，同样纳入单用例日志时间窗防假通过
+            seen_log_paths: set[str] = {
+                str(state["log"].resolve())
+                for state in service_states
+                if isinstance(state.get("log"), Path)
+            }
+            raw_external_logs: list[tuple[str, Any]] = []
+            for svc_name, svc_cfg in service_configs:
+                raw_external_logs.append((svc_name or "default", svc_cfg.get("log_path")))
+            services_section = config.get("services")
+            if isinstance(services_section, dict):
+                raw_external_logs.append(("services", services_section.get("log_path")))
+            link_section = config.get("link")
+            if isinstance(link_section, dict):
+                raw_external_logs.append(("link", link_section.get("log_path")))
+            for ext_label, raw_lp in raw_external_logs:
+                if not isinstance(raw_lp, str) or not raw_lp.strip():
+                    continue
+                cand = Path(raw_lp.strip()).expanduser()
+                cand = (workdir / cand).resolve() if not cand.is_absolute() else cand.resolve()
+                cand_key = str(cand)
+                if cand_key in seen_log_paths or not cand.is_file():
+                    continue
+                seen_log_paths.add(cand_key)
+                service_states.append(
+                    {
+                        "name": f"{ext_label}:external_log",
+                        "config": {},
+                        "started": False,
+                        "ok": True,
+                        "log": cand,
+                        "process": None,
+                    }
+                )
             run.service_started = any(state["started"] for state in service_states)
             run.service_name = "、".join(
                 state["name"] or "default" for state in service_states

@@ -157,8 +157,8 @@ echo '{"command":"report.export","request_id":"req-2","payload":{"project_id":"p
 | 指标 | 当前值 |
 | --- | --- |
 | 产品版本 | **0.5.0**（`pyproject.toml`、`panel/package.json`、`integrations/trae/package.json` 同步） |
-| 后端规模 | **77** 个 Python 模块，约 **33,687** 行；注册 **54** 条 CLI 命令 |
-| 自动化测试 | **554** 个 pytest 节点（含 12 题跨类型埋雷基准考题库）；面板 vitest **158** 项 + Playwright E2E **51** 项；扩展 node test **101** 项 |
+| 后端规模 | **77** 个 Python 模块，约 **33,731** 行；注册 **54** 条 CLI 命令 |
+| 自动化测试 | **556** 个 pytest 节点（含 12 题跨类型埋雷基准考题库）；面板 vitest **158** 项 + Playwright E2E **51** 项；扩展 node test **101** 项 |
 | 交付范围 | 一期 **17 FR / 31 AC**（验收登记见 [tests/acceptance/p1/status.json](tests/acceptance/p1/status.json)） |
 | 版本记录 | [CHANGELOG.md](CHANGELOG.md) |
 

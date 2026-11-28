@@ -260,16 +260,23 @@ _LOCK_FILENAMES = frozenset({".workspace.lock", ".project.lock", ".repair.lock"}
 def cmd_backup_create(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     target = Path(_text({"path": _require(payload, "path")}, "path")).expanduser().resolve()
+    ws_root = ws.root.resolve()
+    try:
+        if target.is_relative_to(ws_root):
+            raise invalid_path(
+                f"备份输出路径不能位于工作空间目录内：{target}",
+                "请选择工作空间目录之外的备份文件路径",
+            )
+    except ValueError:
+        pass
     if target.exists():
         raise invalid_request(f"备份文件已存在：{target}", "换一个文件名，不覆盖已有备份")
     include_evidence = _as_bool(payload.get("include_evidence"), False)
     target.parent.mkdir(parents=True, exist_ok=True)
     files: list[Path] = []
     temp_target = target.parent / f".{target.name}.{secrets.token_hex(4)}.tmp"
-    with tempfile.TemporaryDirectory(
-        dir=target.parent, prefix=f".{target.name}.stage-"
-    ) as stage_dir:
-        stage_root = Path(stage_dir)
+    with tempfile.TemporaryDirectory(prefix=f".{target.name}.stage-") as stage_dir:
+        stage_root = Path(stage_dir).resolve()
         # 仅在扫描清单和复制快照瞬间持有工作空间独占锁，压缩与脱敏全部移出锁外执行。
         with ws.lock(timeout=60.0):
             configs = [
@@ -277,7 +284,10 @@ def cmd_backup_create(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             ]
             secret_list = known_secret_values(configs)
             for path in ws.root.rglob("*"):
-                if not path.is_file() or path == target or path.is_symlink():
+                if not path.is_file() or path in (target, temp_target) or path.is_symlink():
+                    continue
+                resolved_path = path.resolve()
+                if resolved_path.is_relative_to(stage_root):
                     continue
                 relative = path.relative_to(ws.root)
                 if (
