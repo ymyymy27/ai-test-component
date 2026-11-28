@@ -608,14 +608,15 @@ function labelPillWidth(label: string): number {
         >
           导出 SVG
         </button>
-        <button class="btn btn-sm btn-ghost" type="button" @click="emit('refresh')">
+        <button class="btn btn-sm" type="button" @click="emit('refresh')">
           重新索引
         </button>
       </div>
     </div>
 
-    <div v-if="!graph || allNodes.length === 0" class="code-graph-empty">
-      <p class="doc-note">暂无可展示的代码链路节点，请点击上方“重新索引”扫描本地项目源码。</p>
+    <div v-if="!graph || allNodes.length === 0" class="empty-state code-graph-empty">
+      <p class="empty-title">暂无代码链路节点</p>
+      <p class="empty-text">点击右上角“重新索引”扫描本地项目源码，即可生成四层依赖与调用链视图。</p>
     </div>
 
     <template v-else>

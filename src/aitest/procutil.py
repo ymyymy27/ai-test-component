@@ -69,7 +69,8 @@ def pid_alive(pid: int | None, created_at: float | None = None) -> bool:
         kernel32 = ctypes.windll.kernel32
         handle = kernel32.OpenProcess(0x1000, False, pid)
         if not handle:
-            return False
+            # Windows 下无权限访问高权限/跨用户进程 (ERROR_ACCESS_DENIED = 5) 时说明 PID 仍存活
+            return int(kernel32.GetLastError()) == 5
         try:
             exit_code = wintypes.DWORD()
             if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):

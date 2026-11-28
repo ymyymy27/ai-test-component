@@ -5,9 +5,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import ErrorState from "@/components/ErrorState.vue";
 import Icon from "@/components/Icon.vue";
 import PageHeader from "@/components/PageHeader.vue";
-import { BUILTIN_TEMPLATES } from "@/domain/analysis";
 import { currentPlan } from "@/domain/derive";
-import { LAYER_LABEL, TEMPLATE_DISPOSITION_LABEL } from "@/domain/labels";
 import { parseLineList } from "@/domain/validation";
 import type { AcceptanceItem, Delivery, Task } from "@/domain/types";
 import type { DeliveryInput, TaskPatch } from "@/repositories/ProjectRepository";
@@ -60,7 +58,6 @@ const savingBasic = ref(false);
 const savingItems = ref(false);
 const busyDelivery = computed(() => workspace.busyKey(`delivery:${taskId.value}`));
 const draftingDelivery = computed(() => workspace.busyKey(`delivery-draft:${taskId.value}`));
-const busyTemplate = computed(() => workspace.busyKey(`template:${taskId.value}`));
 const planStale = computed(() => Boolean(plan.value?.stale));
 const backTarget = computed(() => {
   const stage = task.value?.stage;
@@ -347,30 +344,6 @@ async function saveDelivery(): Promise<void> {
   }
 }
 
-async function applyTemplate(templateId: string): Promise<void> {
-  if (!task.value || running.value) {
-    return;
-  }
-  try {
-    await workspace.applyTemplate(projectId.value, taskId.value, templateId);
-    if (task.value) {
-      fillItems(task.value);
-    }
-    ui.showToast("检查模板已应用；不进入必测分母。", "success");
-  } catch {
-    // store 已提示。
-  }
-}
-
-watch(
-  () => task.value?.updatedAt,
-  () => {
-    if (dirtyCount.value === 0) {
-      reset();
-    }
-  },
-);
-
 async function reviseScope(): Promise<void> {
   try {
     await workspace.reviseScope(projectId.value, taskId.value);
@@ -490,7 +463,7 @@ function deliveryComplete(): boolean {
   <div v-else class="page">
     <PageHeader
       :title="task.title || '未命名任务'"
-      :subtitle="`${project?.name ?? ''} · 第 ${task.revision} 版 · 任务资料、交付说明与检查模板`"
+      :subtitle="`${project?.name ?? ''} · 第 ${task.revision} 版 · 任务资料与交付说明`"
     >
       <template #actions>
         <button class="btn btn-sm" type="button" @click="router.push(backTarget)">返回上一级</button>
@@ -792,45 +765,6 @@ function deliveryComplete(): boolean {
           </button>
         </div>
       </form>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title-lg">检查模板</h2>
-        <span class="section-note">不进入必测分母，不改写验收项</span>
-      </div>
-      <div class="template-grid">
-        <div v-for="template in BUILTIN_TEMPLATES" :key="template.id" class="template-card">
-          <div>
-            <strong>{{ template.name }}</strong>
-            <span class="muted"> v{{ template.version }} · {{ template.items.length }} 条</span>
-          </div>
-          <button
-            class="btn btn-sm"
-            type="button"
-            :disabled="running || busyTemplate"
-            @click="applyTemplate(template.id)"
-          >
-            应用
-          </button>
-        </div>
-      </div>
-      <div v-if="task.templates.length" class="stack template-results">
-        <div v-for="template in task.templates" :key="template.templateId">
-          <p class="doc-p">
-            <strong>{{ template.name }} v{{ template.version }}</strong> · 适用
-            {{ template.summary.applicable }} · 不适用 {{ template.summary.not_applicable }} ·
-            不支持 {{ template.summary.unsupported }} · 无法判断 {{ template.summary.unknown }}
-          </p>
-          <ul class="list-plain">
-            <li v-for="item in template.items" :key="item.id">
-              {{ LAYER_LABEL[item.layer] }} · {{ item.objective }} ·
-              {{ TEMPLATE_DISPOSITION_LABEL[item.disposition] }} · {{ item.reason }}
-            </li>
-          </ul>
-        </div>
-      </div>
-      <p v-else class="doc-note">还没有应用检查模板。</p>
     </section>
 
     <div v-if="dirtyCount" class="actionbar task-savebar">

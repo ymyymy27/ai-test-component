@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
-import { applyTemplate as applyTemplateResult, type ProjectAnalysis } from "@/domain/analysis";
+import { type ProjectAnalysis } from "@/domain/analysis";
 import {
   confirmationFingerprint,
   itemOutcome,
@@ -19,7 +19,6 @@ import {
   createIssueFromCase,
   createManualIssue,
   createProjectRecord,
-  createRuleVersion,
   draftDelivery as buildDeliveryDraft,
 } from "@/domain/factory";
 import { isoNow, newId } from "@/domain/ids";
@@ -48,7 +47,6 @@ import type {
   ProjectConvention,
   QuickCheck,
   Report,
-  RuleVersion,
   Run,
   Task,
   WorkspaceEnvelope,
@@ -71,7 +69,6 @@ import type {
   ManualResultInput,
   ModuleInput,
   ProjectRepository,
-  RuleInput,
   RunCaseUpdate,
   TaskPatch,
 } from "./ProjectRepository";
@@ -122,7 +119,6 @@ function assertEnvelope(value: unknown): WorkspaceEnvelope {
       !Array.isArray(project.catalog) ||
       !Array.isArray(project.candidates) ||
       !Array.isArray(project.modules) ||
-      !Array.isArray(project.rules) ||
       !Array.isArray(project.quickChecks) ||
       !isRecord(project.config)
     ) {
@@ -741,7 +737,7 @@ export class LocalStorageRepository implements ProjectRepository {
         throw new RepositoryError("STAGE", "当前阶段不能准备重跑。", "先回到选范围阶段。");
       }
       task.selectedItemIds = [...selected];
-      const plan = buildPlan(project, task, selected, project.rulesVersionId);
+      const plan = buildPlan(project, task, selected);
       task.plans.push(plan);
       task.currentPlanId = plan.id;
       assertTransition(task.stage, "generatePlan", "planned");
@@ -781,7 +777,7 @@ export class LocalStorageRepository implements ProjectRepository {
           "回到范围页勾选验收项。",
         );
       }
-      const plan = buildPlan(project, task, task.selectedItemIds, project.rulesVersionId);
+      const plan = buildPlan(project, task, task.selectedItemIds);
       task.plans.push(plan);
       task.currentPlanId = plan.id;
       assertTransition(task.stage, "generatePlan", "planned");
@@ -1330,44 +1326,6 @@ export class LocalStorageRepository implements ProjectRepository {
     const project = this.cloneProject(envelope, projectId);
     const task = findTask(project, taskId);
     return buildDeliveryDraft(project, task);
-  }
-
-  async applyTemplate(projectId: string, taskId: string, templateId: string): Promise<Task> {
-    return this.mutate(projectId, (project) => {
-      const task = findTask(project, taskId);
-      if (task.stage === "running") {
-        throw new RepositoryError("CONFLICT", "运行中不能应用检查模板。");
-      }
-      const result = applyTemplateResult(project, templateId);
-      task.templates = [
-        ...task.templates.filter((entry) => entry.templateId !== templateId),
-        result,
-      ];
-      task.updatedAt = isoNow();
-      return task;
-    });
-  }
-
-  async saveRule(projectId: string, input: RuleInput): Promise<RuleVersion> {
-    return this.mutate(projectId, (project) => {
-      if (!input.name.trim() || !input.version.trim()) {
-        throw new RepositoryError("VALIDATION", "规则名称和版本不能为空。");
-      }
-      const rule = createRuleVersion(projectId, input);
-      project.rules.push(rule);
-      return rule;
-    });
-  }
-
-  async bindRule(projectId: string, ruleId: string): Promise<Project> {
-    return this.mutate(projectId, (project) => {
-      const rule = project.rules.find((entry) => entry.id === ruleId);
-      if (!rule) {
-        throw new RepositoryError("NOT_FOUND", "规则版本不存在。");
-      }
-      project.rulesVersionId = rule.id;
-      return project;
-    });
   }
 
   async saveConfig(projectId: string, config: ProjectConfig): Promise<Project> {

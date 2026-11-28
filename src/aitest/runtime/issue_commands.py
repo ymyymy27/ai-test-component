@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -236,6 +236,16 @@ def cmd_issue_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
 
 
 
+def _parse_utc(text: str) -> datetime:
+    cleaned = text.strip()
+    if cleaned.endswith("Z"):
+        cleaned = f"{cleaned[:-1]}+00:00"
+    dt = datetime.fromisoformat(cleaned)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+    return dt.astimezone(UTC)
+
+
 def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
@@ -273,7 +283,7 @@ def cmd_issue_close(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     last_at = max((item.at for item in issue.occurrences if item.at), default="")
     if last_at and run.started_at:
         try:
-            if datetime.fromisoformat(run.started_at) <= datetime.fromisoformat(last_at):
+            if _parse_utc(run.started_at) <= _parse_utc(last_at):
                 raise AiTestError(
                     "RUN_STATE_CONFLICT",
                     "关闭问题需要晚于最后一次发生的回归运行",

@@ -260,6 +260,36 @@ def cached_result(
         return None
 
 
+def _prune_request_cache(
+    requests_dir: Path,
+    *,
+    ttl_seconds: float = 7 * 86400,
+    max_entries: int = 500,
+) -> None:
+    """按 TTL 与最大条目数轻量清理历史请求幂等缓存，避免 requests/ 目录无限膨胀。"""
+    if not requests_dir.is_dir():
+        return
+    import time as _time
+
+    now = _time.time()
+    entries: list[tuple[float, Path]] = []
+    for item in requests_dir.glob("*.json"):
+        try:
+            mtime = item.stat().st_mtime
+        except OSError:
+            continue
+        if now - mtime > ttl_seconds:
+            item.unlink(missing_ok=True)
+            item.with_suffix(".lock").unlink(missing_ok=True)
+            continue
+        entries.append((mtime, item))
+    if len(entries) > max_entries:
+        entries.sort(key=lambda pair: pair[0])
+        for _mtime, old_path in entries[: len(entries) - max_entries]:
+            old_path.unlink(missing_ok=True)
+            old_path.with_suffix(".lock").unlink(missing_ok=True)
+
+
 def store_result(
     ws: Workspace,
     request_id: str,
@@ -267,4 +297,6 @@ def store_result(
     command: str = "",
     payload: object = None,
 ) -> None:
-    write_json(request_cache_path(ws, request_id, command, payload), result)
+    cache_path = request_cache_path(ws, request_id, command, payload)
+    write_json(cache_path, result)
+    _prune_request_cache(cache_path.parent)

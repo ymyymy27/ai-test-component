@@ -59,7 +59,6 @@ class Project(Model):
     root: str
     goal: str = ""
     modules: list[Module] = Field(default_factory=list)
-    rules_version_id: str | None = None
     revision: int = 1
     updated_at: str = ""
     archived: bool = False
@@ -111,18 +110,6 @@ class Delivery(Model):
     revision: int = 1
 
 
-class RuleVersion(Model):
-    schema_version: int = 1
-    rules_version_id: str
-    project_id: str
-    name: str
-    version: str
-    steps_md: str = ""
-    ai_rules: list[str] = Field(default_factory=list)
-    evidence_requirements: list[str] = Field(default_factory=list)
-    revision: int = 1
-
-
 class Case(Model):
     case_id: str = Field(default_factory=lambda: new_id("case"))
     acceptance_item_id: str | None = None
@@ -146,6 +133,8 @@ class Case(Model):
     coverage_kind: Literal["direct", "file", "shared", "manual", "unverified"] | None = None
     test_nodes: list[str] = Field(default_factory=list)
     frozen_expectation: dict[str, Any] | None = None
+    generation: dict[str, Any] | None = None
+    assertion_strength: Literal["strong", "weak", "unverified"] | None = None
 
 
 class Scope(Model):
@@ -165,10 +154,12 @@ class Plan(Model):
     created_at: str = ""
     scope: Scope
     applicable_count: int = 0
-    rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
     item_texts: dict[str, str] = Field(default_factory=dict)
-    templates: list[dict[str, Any]] = Field(default_factory=list)
+    capabilities: dict[str, Any] | None = None
+    recipes: list[dict[str, Any]] = Field(default_factory=list)
+    coverage_ledger: list[dict[str, Any]] = Field(default_factory=list)
+    ai_reviews: list[dict[str, Any]] = Field(default_factory=list)
     unselected_by_module: list[dict[str, Any]] = Field(default_factory=list)
     excluded_items: list[dict[str, Any]] | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -197,6 +188,7 @@ class RunCase(Model):
     judgement: dict[str, Any] | None = None
     service_log_issues: list[str] = Field(default_factory=list)
     resumed_from_run_id: str = ""
+    script_repair: dict[str, Any] | None = None
 
 
 class Analysis(Model):
@@ -260,6 +252,7 @@ class Run(Model):
     preflight: dict[str, Any] | None = None
     probe_results: list[dict[str, Any]] = Field(default_factory=list)
     resumed_from_run_id: str = ""
+    ai_hypotheses: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Confirmation(Model):
@@ -355,9 +348,7 @@ class Report(Model):
     failure_occurrences: int = 0
     analysis: list[dict[str, Any]] = Field(default_factory=list)
     layers: dict[str, int] = Field(default_factory=dict)
-    rules_version_id: str | None = None
     source_commit: str | None = None
-    templates: list[dict[str, Any]] = Field(default_factory=list)
     environment: dict[str, Any] = Field(default_factory=dict)
     github: dict[str, Any] | None = None
     uncovered_items: list[str] = Field(default_factory=list)
@@ -371,6 +362,10 @@ class Report(Model):
     probe_results: list[dict[str, Any]] = Field(default_factory=list)
     confidence_summary: dict[str, int] = Field(default_factory=dict)
     token_usage: dict[str, int] = Field(default_factory=dict)
+    capabilities: dict[str, Any] | None = None
+    coverage_ledger: list[dict[str, Any]] = Field(default_factory=list)
+    source_summary: dict[str, int] = Field(default_factory=dict)
+    assertion_strength: dict[str, int] = Field(default_factory=dict)
     revision: int = 1
 
 

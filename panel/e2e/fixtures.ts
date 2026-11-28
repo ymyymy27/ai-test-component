@@ -27,7 +27,7 @@ export async function createProject(
   await page.fill("#setup-name", name);
   await page.getByRole("button", { name: "登记并分析项目" }).click();
   await page.waitForURL(/\/overview/, { timeout: 10_000 });
-  await expect(page.locator(".candidate-brief")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "新建测试任务" })).toBeVisible({ timeout: 10_000 });
   const match = page.url().match(/projects\/([^/]+)/);
   if (!match?.[1]) {
     throw new Error("project id not found in url");
@@ -36,12 +36,16 @@ export async function createProject(
 }
 
 export async function createTaskFromCandidate(page: Page, candidateIndex = 0): Promise<void> {
-  await page.getByRole("button", { name: "查看候选" }).click();
-  await page.waitForURL(/tasks\/new/);
-  await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
-  await expect(page.locator(".candidate").nth(candidateIndex)).toBeVisible();
-  await page.locator(".candidate").nth(candidateIndex).click();
-  await page.getByRole("button", { name: "创建任务并生成计划" }).click();
+  await page.getByRole("button", { name: "新建测试任务" }).click();
+  const drawer = page.getByRole("dialog", { name: "新建测试" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("radio", { name: "粘贴需求 / 自选功能" }).click();
+  const details = drawer.locator("details.details-tech");
+  await details.locator("summary").click();
+  const target = details.locator("button").nth(candidateIndex);
+  await expect(target).toBeVisible();
+  await target.click();
+  await drawer.getByRole("button", { name: "生成测试计划" }).click();
   await page.waitForURL(/\/plan/, { timeout: 15_000 });
 }
 
@@ -59,7 +63,7 @@ export async function startRun(page: Page): Promise<void> {
     await page.waitForURL(/\/plan/);
   }
   await confirmPlan(page);
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "确认并开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 15_000 });
 }
 

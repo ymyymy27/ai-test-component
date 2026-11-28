@@ -1,4 +1,4 @@
-"""Behaviour tests for the lightweight CLI: project/module/task/delivery/rules."""
+"""Behaviour tests for the lightweight CLI: project/module/task/delivery."""
 
 from __future__ import annotations
 
@@ -104,25 +104,6 @@ def test_delivery_incomplete_without_run_command_and_commit(tmp_path: Path, caps
         capsys,
     )
     assert saved["data"]["complete"] is False
-
-
-def test_rules_bind_records_project_version(tmp_path: Path, capsys: Capsys) -> None:
-    root = tmp_path / "repo"
-    root.mkdir()
-    project = call(tmp_path, "project.add", {"root": str(root)}, capsys)["data"]
-    rule = call(
-        tmp_path,
-        "rules.save",
-        {"project_id": project["project_id"], "name": "接口检查", "version": "1"},
-        capsys,
-    )["data"]
-    bound = call(
-        tmp_path,
-        "rules.bind",
-        {"project_id": project["project_id"], "rules_version_id": rule["rules_version_id"]},
-        capsys,
-    )
-    assert bound["data"]["rules_version_id"] == rule["rules_version_id"]
 
 
 def test_project_config_get_returns_whitelist_without_credentials(

@@ -499,7 +499,6 @@ test("panel writes and reads stay inside the allowlist", async () => {
     "report.opinion",
     "report.show",
     "report.list",
-    "rules.list",
     "github.read",
     "link.import",
     "evidence.add",

@@ -18,7 +18,7 @@ test("审计：建立项目、侧栏导航、项目理解与模块", async ({ pa
   await expect(page.locator("#env-popover")).toBeVisible();
   await page.locator(".page-title").click();
   await expect(page.locator("#env-popover")).toBeHidden();
-  await page.locator('a[aria-label="打开设置"]').click();
+  await page.getByRole("button", { name: "项目设置" }).click();
   await page.waitForURL(/\/settings$/);
   await page.goto(`/projects/${projectId}/overview`);
 
@@ -30,10 +30,11 @@ test("审计：建立项目、侧栏导航、项目理解与模块", async ({ pa
   await page.waitForURL(/\/issues$/);
   await page.locator(".side-nav").getByRole("button", { name: /^运行记录/ }).click();
   await page.waitForURL(/\/history$/);
-  await page.locator(".side-nav").getByRole("button", { name: "设置" }).click();
+  await page.getByRole("button", { name: "项目设置" }).click();
   await page.waitForURL(/\/settings$/);
   await page.goto(`/projects/${projectId}/overview`);
 
+  await page.locator("summary").filter({ hasText: "功能模块" }).click();
   const modules = page.locator(".project-map-details").filter({ hasText: "模块" });
   await modules.locator("summary").click();
   await page.getByRole("button", { name: "新增模块" }).click();
@@ -50,17 +51,16 @@ test("审计：建立项目、侧栏导航、项目理解与模块", async ({ pa
 
   await createTaskFromCandidate(page, 0);
   await page.goto(`/projects/${projectId}/overview`);
-  await expect(page.locator(".current-task-strip")).toBeVisible();
-  await page.locator(".current-task-strip button").first().click();
+  await expect(page.getByRole("region", { name: "近期测试任务" })).toBeVisible();
+  await page.locator(".overview-task-row").first().click();
   await page.waitForURL(/\/plan/);
 });
 
 test("审计：范围模式、计划确认、运行控制与结果筛选", async ({ page }) => {
   const projectId = await createProject(page, "交互审计流程", "D:/work/audit-flow");
-  await page.getByRole("button", { name: "开始测试" }).click();
-  await page.waitForURL(/tasks\/new/);
-  await page.locator(".test-mode").filter({ hasText: "按范围测试" }).click();
-  await page.getByRole("button", { name: "选择范围" }).click();
+  await page.getByRole("button", { name: "新建测试任务" }).click();
+  const drawer = page.getByRole("dialog", { name: "新建测试" });
+  await drawer.getByRole("button", { name: "手动选择范围 →" }).click();
   await page.waitForURL(/\/scope/);
   await expect(page.locator(".scope-summary")).toContainText("/");
 
@@ -80,14 +80,14 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
 
   await page.getByRole("button", { name: "生成计划" }).click();
   await page.waitForURL(/\/plan/);
-  await expect(page.locator(".plan-summary")).toContainText("待执行");
-  await page.getByRole("button", { name: "调整范围" }).click();
+  await expect(page.locator(".page-head")).toContainText("待确认");
+  await page.getByRole("button", { name: "调整本次纳入范围" }).click();
   await page.waitForURL(/\/scope/);
   await page.getByRole("button", { name: "取消调整" }).click();
   await page.waitForURL(/\/plan/);
 
   await confirmPlan(page);
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "确认并开始测试" }).click();
   await page.waitForURL(/\/result/, { timeout: 20_000 });
   await expect(page.locator(".result-verdict")).toBeVisible();
 
@@ -96,15 +96,15 @@ test("审计：范围模式、计划确认、运行控制与结果筛选", async
   }
   await expect(page.getByRole("button", { name: /^全部/ })).toHaveAttribute("aria-pressed", "true");
 
-  await page.getByRole("button", { name: /重新生成计划|按未通过项|按未完成项/ }).click();
+  await page.locator(".actionbar-actions button").last().click();
   await page.waitForURL(/\/plan/);
-  await expect(page.locator(".plan-summary")).toBeVisible();
+  await expect(page.getByRole("region", { name: "覆盖率与任务摘要" })).toBeVisible();
   await expect(page.url()).toContain(projectId);
 });
 
 test("审计：报告操作与历史筛选", async ({ page }) => {
   const projectId = await createAndRun(page, "交互审计报告", "D:/work/audit-report");
-  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.getByRole("button", { name: "独立打开报告" }).click();
   await page.waitForURL(/\/reports\//);
   const firstReportUrl = page.url();
 
@@ -189,48 +189,18 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
   await page.fill("#delivery-commit", "abc123");
   await page.getByRole("button", { name: "保存交付说明" }).click();
   await expect(page.locator(".toast")).toContainText("交付说明已保存");
-  await page.getByRole("button", { name: "应用" }).first().click();
-  await expect(page.locator(".template-results")).toBeVisible();
 
   await page.goto(`/projects/${projectId}/settings`);
-
-  await page.locator(".settings-index").getByRole("tab", { name: "项目规则" }).click();
-  await page.fill("#rule-name", "审计规则");
-  await page.fill("#rule-version", "3");
-  await page.fill("#rule-steps", "按审计步骤执行。");
-  await page.fill("#rule-ai", "引用验收项原文");
-  await page.fill("#rule-evidence", "审计日志");
-  await page.getByRole("button", { name: "保存规则版本" }).click();
-  const ruleRow = page.locator(".rule-row").filter({ hasText: "审计规则" });
-  await expect(ruleRow).toBeVisible();
-  const downloadPromise = page.waitForEvent("download");
-  await ruleRow.getByRole("button", { name: "导出" }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toContain("审计规则");
-  await expect(page.locator(".toast")).toContainText("规则已导出");
-  await ruleRow.getByRole("button", { name: "绑定" }).click();
-  await expect(page.locator("#settings-rules")).toContainText("当前绑定：审计规则 v3");
-
-  await page
-    .locator('input[type="file"][accept=".md,.txt"]')
-    .setInputFiles({
-      name: "导入规则.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("导入规则步骤"),
-    });
-  await expect(page.locator("#rule-name")).toHaveValue("导入规则");
-  await page.getByRole("button", { name: "保存规则版本" }).click();
-  await expect(page.locator(".rule-row").filter({ hasText: "导入规则" })).toBeVisible();
 
   await page.locator(".settings-index").getByRole("tab", { name: "环境" }).click();
   await page.getByRole("button", { name: "重新检查" }).click();
   await expect(page.locator(".env-list .env-row").first()).toBeVisible();
 
   await page.locator(".settings-index").getByRole("tab", { name: "外观" }).click();
-  await page.getByRole("button", { name: "深色" }).click();
+  await page.locator(".theme-group").getByRole("button", { name: "深色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "浅色" }).click();
-  await page.getByRole("button", { name: "跟随系统" }).click();
+  await page.locator(".theme-group").getByRole("button", { name: "浅色" }).click();
+  await page.locator(".theme-group").getByRole("button", { name: "跟随系统" }).click();
 
   await page.locator(".settings-index").getByRole("tab", { name: "备份" }).click();
   await page.getByRole("button", { name: "清空本地数据" }).click();
@@ -246,14 +216,13 @@ test("审计：任务资料、规则、主题与数据清空", async ({ page }) 
 
 test("审计：运行停止与快速检查重跑", async ({ page }) => {
   const projectId = await createProject(page, "交互审计运行", "D:/work/audit-run");
-  await page.getByRole("button", { name: "开始测试" }).click();
-  await page.locator(".test-mode").filter({ hasText: "按范围测试" }).click();
-  await page.getByRole("button", { name: "选择范围" }).click();
+  await page.getByRole("button", { name: "新建测试任务" }).click();
+  await page.getByRole("dialog", { name: "新建测试" }).getByRole("button", { name: "手动选择范围 →" }).click();
   await page.waitForURL(/\/scope/);
   await page.getByRole("button", { name: "生成计划" }).click();
   await page.waitForURL(/\/plan/);
   await confirmPlan(page);
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "确认并开始测试" }).click();
   await page.waitForURL(/\/run/);
   await page.getByRole("button", { name: "停止测试" }).click();
   await page.locator(".dialog-confirm").click();
@@ -271,7 +240,7 @@ test("审计：运行停止与快速检查重跑", async ({ page }) => {
 
 test("审计：报告导出", async ({ page }) => {
   await createAndRun(page, "交互审计链路", "D:/work/audit-link");
-  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.getByRole("button", { name: "独立打开报告" }).click();
   await page.waitForURL(/\/reports\//);
 
   const downloadPromise = page.waitForEvent("download");

@@ -11,6 +11,11 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from aitest.core.repo_index import (
+    DEFAULT_SKIP_DIRS,
+    detect_package_runner,
+    discover_monorepo_packages,
+)
 from aitest.security import is_ignored_path, load_ignore_patterns
 
 _FRAMEWORK_ORDER = ("pytest", "vitest", "jest", "playwright", "fastapi", "flask", "django")
@@ -64,28 +69,7 @@ _PACKAGE_SCRIPT_NAMES = ("test", "dev", "start", "build")
 _TEST_DEPENDENCY_GROUPS = frozenset({"test", "tests", "testing", "dev", "development"})
 _NODE_ONLY_DEPENDENCIES = frozenset({"bun", "npm", "node", "yarn", "pnpm"})
 _TEST_DIR_NAMES = frozenset({"tests", "test", "testing"})
-_SKIP_WALK_DIRS = frozenset(
-    {
-        "node_modules",
-        ".git",
-        ".hg",
-        ".svn",
-        ".venv",
-        "venv",
-        "env",
-        "build",
-        "dist",
-        "site-packages",
-        "__pycache__",
-        ".tox",
-        ".nox",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".yarn",
-        ".cache",
-    }
-)
+_SKIP_WALK_DIRS = DEFAULT_SKIP_DIRS
 _MAX_TEST_DIRS = 60
 _MAX_TEST_DIR_DEPTH = 5
 
@@ -255,34 +239,14 @@ def _has_test_module(path: Path) -> bool:
 
 
 def _component_manifests(root: Path) -> list[tuple[Path, dict[str, Any], dict[str, Any]]]:
-    """Root plus immediate subprojects that declare their own dependencies."""
-    components: list[tuple[Path, dict[str, Any], dict[str, Any]]] = [
-        (root, _read_toml(root / "pyproject.toml"), _read_json(root / "package.json"))
+    """Root plus workspace / subproject packages discovered via repo_index."""
+    pkg_dirs = discover_monorepo_packages(root)
+    if not pkg_dirs:
+        return [(root, _read_toml(root / "pyproject.toml"), _read_json(root / "package.json"))]
+    return [
+        (pkg_dir, _read_toml(pkg_dir / "pyproject.toml"), _read_json(pkg_dir / "package.json"))
+        for pkg_dir in pkg_dirs
     ]
-    try:
-        children = sorted(root.iterdir())
-    except OSError:
-        return components
-    for child in children:
-        if (
-            not child.is_dir()
-            or child.name.startswith(".")
-            or child.name.lower() in _SKIP_WALK_DIRS
-        ):
-            continue
-        pyproject_path = child / "pyproject.toml"
-        package_path = child / "package.json"
-        requirements = any(child.glob("requirements*.txt"))
-        if not (pyproject_path.is_file() or package_path.is_file() or requirements):
-            continue
-        components.append(
-            (
-                child,
-                _read_toml(pyproject_path),
-                _read_json(package_path),
-            )
-        )
-    return components
 
 
 def _test_dirs(root: Path) -> list[str]:
@@ -497,22 +461,14 @@ def _component_commands(
         return []
     relative = component.relative_to(project_root).as_posix()
     prefix = f"cd {relative} && " if relative != "." else ""
-    if any(
-        (base / name).is_file()
-        for base in (component, project_root)
-        for name in ("bun.lock", "bun.lockb")
-    ):
-        runner = "bun run"
-    elif (component / "pnpm-lock.yaml").is_file() or (
-        project_root / "pnpm-lock.yaml"
-    ).is_file():
-        runner = "pnpm"
-    elif (component / "yarn.lock").is_file() or (
-        project_root / "yarn.lock"
-    ).is_file():
-        runner = "yarn"
-    else:
-        runner = "npm run"
+    pkg_runner = detect_package_runner(component, project_root)
+    runner_map = {
+        "bun": "bun run",
+        "pnpm": "pnpm",
+        "yarn": "yarn",
+        "npm": "npm run",
+    }
+    runner = runner_map.get(pkg_runner, "npm run")
     commands: list[str] = []
     if isinstance(scripts.get("build"), str) and scripts["build"].strip():
         commands.append(f"{prefix}{runner} build")

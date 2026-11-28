@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { createAndRun, test } from "./fixtures";
+import { createAndRun, createTaskFromCandidate, test } from "./fixtures";
 
 test("运行记录显示任务数与 S/M，且状态文字不依赖图标", async ({ page }) => {
   await createAndRun(page, "记录修复", "D:/work/panel-fixes-history");
@@ -67,12 +67,7 @@ test("任务资料在 taskId 变化时重填，不把任务 A 的草稿带到任
   }
 
   await page.goto(`/projects/${projectId}/overview`);
-  await page.getByRole("button", { name: "开始测试", exact: true }).click();
-  await page.waitForURL(/tasks\/new/);
-  await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
-  await page.locator(".candidate").nth(1).click();
-  await page.getByRole("button", { name: "创建任务并生成计划" }).click();
-  await page.waitForURL(/\/plan/, { timeout: 15_000 });
+  await createTaskFromCandidate(page, 1);
   const task2Id = page.url().match(/tasks\/([^/]+)/)?.[1];
   if (!task2Id || task2Id === task1Id) {
     throw new Error("second task missing");

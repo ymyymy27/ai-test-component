@@ -3,7 +3,6 @@ import type {
   Confirmation,
   GithubSnapshot,
   QuickCheck,
-  TemplateResult,
 } from "@/domain/types";
 
 export interface AnalysisSidecar {
@@ -28,7 +27,6 @@ export interface HostSidecarState {
   analysis: Record<string, AnalysisSidecar>;
   ignored: Record<string, string[]>;
   github: Record<string, GithubSnapshot>;
-  templates: Record<string, TemplateResult[]>;
   quickChecks: Record<string, QuickCheck[]>;
   projectTasks: Record<string, string[]>;
   projectPlans: Record<string, string[]>;
@@ -49,7 +47,6 @@ function emptyState(): HostSidecarState {
     analysis: {},
     ignored: {},
     github: {},
-    templates: {},
     quickChecks: {},
     projectTasks: {},
     projectPlans: {},
@@ -108,9 +105,6 @@ export class HostSidecar {
           : {},
         ignored: isRecord(parsed.ignored) ? (parsed.ignored as Record<string, string[]>) : {},
         github: isRecord(parsed.github) ? (parsed.github as Record<string, GithubSnapshot>) : {},
-        templates: isRecord(parsed.templates)
-          ? (parsed.templates as Record<string, TemplateResult[]>)
-          : {},
         quickChecks: isRecord(parsed.quickChecks)
           ? (parsed.quickChecks as Record<string, QuickCheck[]>)
           : {},
@@ -164,10 +158,6 @@ export class HostSidecar {
 
   get github(): Record<string, GithubSnapshot> {
     return this.state.github;
-  }
-
-  get templates(): Record<string, TemplateResult[]> {
-    return this.state.templates;
   }
 
   get quickChecks(): Record<string, QuickCheck[]> {
@@ -238,11 +228,6 @@ export class HostSidecar {
     this.save();
   }
 
-  setTemplates(taskId: string, value: TemplateResult[]): void {
-    this.state.templates[taskId] = [...value];
-    this.save();
-  }
-
   addQuickCheck(projectId: string, value: QuickCheck): void {
     const list = this.state.quickChecks[projectId] ?? [];
     this.state.quickChecks[projectId] = [value, ...list].slice(0, 20);
@@ -269,7 +254,6 @@ export class HostSidecar {
         delete this.state.scopes[staleTaskId];
         delete this.state.recommended[staleTaskId];
         delete this.state.stage[staleTaskId];
-        delete this.state.templates[staleTaskId];
       }
     }
     const previousPlans = this.state.projectPlans[projectId] ?? [];
@@ -303,7 +287,6 @@ export class HostSidecar {
           delete this.state.scopes[taskId];
           delete this.state.recommended[taskId];
           delete this.state.stage[taskId];
-          delete this.state.templates[taskId];
         }
       }
       delete this.state.projectTasks[pid];

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -93,12 +94,13 @@ def _normalize_stack_key(stack_key: str) -> str:
 def _signature(
     case_id: str, error_type: str, stack_key: str, target_key: str = ""
 ) -> str:
+    # 签名始终绑定稳定用例身份（case_id），不让验收项 target_key 覆盖合并不同用例的问题。
+    del target_key
     normalized = _normalize_stack_key(stack_key)
-    prefix = target_key or case_id
     if not normalized:
-        return f"{prefix}:{error_type}"
+        return f"{case_id}:{error_type}"
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
-    return f"{prefix}:{error_type}:{digest}"
+    return f"{case_id}:{error_type}:{digest}"
 
 
 def _is_summary_line(line: str) -> bool:
@@ -391,11 +393,11 @@ def _mark_unstable(
     case_id: str,
     target_key: str = "",
     issue_index: dict[str, tuple[Path, Issue]] | None = None,
+    *,
+    current_run_id: str = "",
 ) -> None:
-    """后续运行通过先前失败的用例/验收项时，标记疑似不稳定而不是静默消除。"""
-    prefixes = [f"{case_id}:"]
-    if target_key:
-        prefixes.append(f"{target_key}:")
+    """后续运行通过先前失败的同一用例时标记疑似不稳定；严格隔离跨用例与同次运行。"""
+    del target_key
     items: list[tuple[Path, Issue]]
     if issue_index is not None:
         items = list(issue_index.values())
@@ -410,9 +412,14 @@ def _mark_unstable(
             except AiTestError:
                 continue
     for path, issue in items:
-        if issue.status == "closed" or not any(
-            issue.signature.startswith(prefix) for prefix in prefixes
-        ):
+        if issue.status == "closed":
+            continue
+        if current_run_id and any(occ.run_id == current_run_id for occ in issue.occurrences):
+            continue
+        same_case = issue.signature.startswith(f"{case_id}:") or any(
+            occ.case_id == case_id for occ in issue.occurrences
+        )
+        if not same_case:
             continue
         if issue.last_result != "passed":
             issue.last_result = "passed"
@@ -466,8 +473,9 @@ def _draft_issue(
             draft = resolved_client.draft_issue(context)
             if draft.get("title"):
                 return draft
-        except AiTestError:
-            pass
+        except AiTestError as exc:
+            if exc.info.code == "TOKEN_BUDGET_EXCEEDED":
+                raise
     title = (
         (case.title if case is not None and case.title else "")
         or (f"用例失败：{case.expected}" if case is not None else f"用例失败：{run_case.case_id}")
@@ -521,7 +529,16 @@ def prepare_issue_drafts(
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="aitest-issue") as pool:
         future_map = {
             pool.submit(
-                _draft_issue, ws, project_id, run_dir, run, plan, rc, secrets, client
+                contextvars.copy_context().run,
+                _draft_issue,
+                ws,
+                project_id,
+                run_dir,
+                run,
+                plan,
+                rc,
+                secrets,
+                client,
             ): rc.case_id
             for rc in failed
         }
@@ -592,6 +609,7 @@ def draft_failed_issues(
                 run_case.case_id,
                 target_key=item_id,
                 issue_index=issue_index,
+                current_run_id=run.run_id,
             )
             continue
         if run_case.result != "failed":

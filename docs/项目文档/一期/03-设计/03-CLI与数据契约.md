@@ -1,7 +1,7 @@
 # CLI 与数据契约（一期）
 
 > 状态：2026-11-21 设计基线（D2）。实现依据：[轻量 Trae 插件修改计划](../../../修改日志/ymy/2026-11-16-轻量Trae插件重构计划.md)；需求见[需求规格](../02-需求/02-需求规格.md)。
-> 本册定义命令、字段、状态与错误码；扩展与 Python 都按本册实现，不另造第二套。当前注册 60 条命令（第 4 节）。
+> 本册定义命令、字段、状态与错误码；扩展与 Python 都按本册实现，不另造第二套。当前注册 54 条命令（第 4 节；已移除 FR04 `rules.*`/`template.*` 8 条命令）。
 
 ## 1 通用约定
 
@@ -64,6 +64,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `DEPENDENCY_INSTALL_FAILED` | `run.repair` 安装依赖失败 | 查看 repair-deps.log；无 pip 时需 uv 或 ensurepip，修正环境后重试 |
 | `DEPENDENCY_ALREADY_INSTALLED` | `run.repair` 重复安装已记录的依赖 | 直接重跑未完成项，不要重复安装 |
 | `MODEL_UNAVAILABLE` | 模型未配置或不可达 | 配置密钥或检查网络 |
+| `MODEL_DISABLED` | 内部配置 `model.ai.mode=off` 显式关闭模型调用 | 如需启用 AI 辅助，改回 `model.ai.mode=assist` 后重试 |
 | `MODEL_OUTPUT_INVALID` | 模型输出不合格 | 重试或改用人工 |
 | `MODEL_TIMEOUT` | 计划生成超过时间预算 | 重试会复用已完成批次；也可缩小本次范围 |
 | `TOKEN_BUDGET_EXCEEDED` | 单次运行或模型客户端 Token 消耗超过预算上限 | 调高 `model.max_token_budget` 或缩小本次范围后重试 |
@@ -148,7 +149,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 ## 4 命令
 
-除 `doctor`、`project.add`、`project.list`、`template.list`、`backup.create`、`backup.restore` 外，命令都必须带 `project_id` 定位项目；下文示例偶有省略时以本条为准。
+除 `doctor`、`project.add`、`project.list`、`backup.create`、`backup.restore` 外，命令都必须带 `project_id` 定位项目；下文示例偶有省略时以本条为准。
 
 ### 4.1 项目与模块
 
@@ -301,26 +302,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 九个字段都是字符串数组；模型没给或格式不合法时为空数组，不编造运行命令。模型不可用时返回 `ok: true`、`draft: null`、`status: "not_generated"`、`reason: "model_missing"`。草稿由用户修改后再调用 `delivery.save`，CLI 不自动保存。`mocks` 只是开发自述，不参与运行后的 Mock 真实性判定，也不提供结果修改入口。
 
-### 4.4 规则
-
-#### `rules.save`
-
-```json
-{"project_id": "proj_...", "name": "接口检查", "version": "2", "steps_md": "...", "ai_rules": ["..."], "evidence_requirements": ["日志", "响应"]}
-```
-
-返回 `{"rules_version_id": "rule_...", "version": "2"}`；新版本不覆盖历史。
-
-#### `rules.list` / `rules.show` / `rules.bind`
-
-- `bind` 入参 `{"project_id", "rules_version_id"}`；
-- `show` 返回规则正文与绑定项目。
-
-#### `rules.import` / `rules.export`
-
-导入入参 `{"project_id", "path": "/abs/file.md", "name": "规则名", "version": "2"}`，产生新版本；导出入参 `{"project_id", "rules_version_id", "path": "/abs/file.md"}`，写 Markdown。
-
-### 4.5 计划
+### 4.4 计划（FR04 规则已移除，保留小节编号不重排或顺延）
 
 #### `plan.generate`
 
@@ -328,8 +310,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 {
   "project_id": "proj_...",
   "task_id": "task_...",
-  "scope": {"preset": "all_applicable", "module_ids": [], "acceptance_item_ids": []},
-  "rules_version_id": "rule_..."
+  "scope": {"preset": "all_applicable", "module_ids": [], "acceptance_item_ids": []}
 }
 ```
 
@@ -373,7 +354,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `task.intent=business` 时保留分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
 
-`source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、任务契约摘要、`rules_version_id`、`services`/`l1`/`runners` 配置摘要与项目根目录计算。任务契约只包含验证意图与验收项的 ID/文本/状态/可观察性/模块；只改标题、目标描述、执行人或评审人不会使计划失效。
+`source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、任务契约摘要、`services`/`l1`/`runners` 配置摘要与项目根目录计算。任务契约只包含验证意图与验收项的 ID/文本/状态/可观察性/模块；只改标题、目标描述、执行人或评审人不会使计划失效。
 
 #### `plan.update`
 
@@ -381,7 +362,19 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 #### `plan.show` / `plan.publish`
 
-`show` 返回 `{"plan": {...}, "coverage": {"selected": N, "applicable": M}, "stale": false, "stale_reason": "", "task_updated": false}`；`stale` 只按任务契约判断（验收项、可观察性、模块或验证意图变化），`task_updated` 表示任务修订变了但契约未变。旧计划没有 `task_contract` 时 `stale: true`，提示重新生成，不做迁移。来源签名（项目、交付、规则、服务/运行器、项目根目录）的变化不在 `show` 里判，由 `run.start` 返回 `PLAN_STALE`。`publish` 用于把 `draft` 发布，已发布计划返回 `RUN_STATE_CONFLICT`。
+`show` 返回 `{"plan": {...}, "coverage": {"selected": N, "applicable": M}, "stale": false, "stale_reason": "", "task_updated": false}`；`stale` 只按任务契约判断（验收项、可观察性、模块或验证意图变化），`task_updated` 表示任务修订变了但契约未变。旧计划没有 `task_contract` 时 `stale: true`，提示重新生成，不做迁移。来源签名（项目、交付、服务/运行器、项目根目录）的变化不在 `show` 里判，由 `run.start` 返回 `PLAN_STALE`。`publish` 用于把 `draft` 发布，已发布计划返回 `RUN_STATE_CONFLICT`。
+
+#### `plan.review`（只读无锁）
+
+入参 `{"project_id", "plan_id", "use_cache": true, "refresh": false}`。**仅注册为只读命令（不入 `MUTATING`、不抢工作空间排他写锁）**，与 `plan.generate` 解耦且不阻塞 `run.start`。对当前计划执行双盲「需求/契约 vs 实现源码」冲突比对、权限矩阵补漏与弱断言体检，并按 `item_id + scenario_type + assertion_target + data_shape` 去重签名（`exact duplicate = 0`）；结果按 `input_hash` 写入独立只读缓存并直接返回 `{"plan_id", "plan_revision", "input_hash", "ai_used", "cached", "high_severity_count", "reviews": [...]}`。不直接修改 `plan.json`；用户勾选采纳时走 `plan.update` 持写锁生成新 `revision`。
+
+#### `plan.repair_case`
+
+入参 `{"project_id", "plan_id", "case_id", "run_id": "", "mode": "preview" | "apply", "repaired_script": "", "error_hint": ""}`。注册为写命令（`MUTATING`）：
+- `mode="preview"`：只读预览，不要求 `--confirm`，不修改任何文件，返回经 `assertions_preserved` + `blocking_lint_errors` + `_mutates_seed_account` 守卫校验后的 `unified_diff`、`guard_blocked` 与 `repaired_script`；
+- `mode="apply"`：必须带 `--confirm`，任一安全守卫拦截即返回 `INVALID_REQUEST` 拒绝落盘；校验通过后归档旧版本、更新 `Plan` 生成新 `revision` 持久化脚本，严禁原地覆写历史 `run` 记录。
+
+> **模型增量可选字段（schema_version 维持 1，向后兼容旧记录）**：`Plan` 新增 `capabilities` / `recipes` / `coverage_ledger` / `ai_reviews`；`Case` 新增 `generation` / `assertion_strength`；`Run` 新增 `ai_hypotheses`；`RunCase` 新增 `script_repair`；`Report` 新增 `capabilities` / `coverage_ledger` / `source_summary` / `assertion_strength`。
 
 ### 4.6 执行
 
@@ -597,32 +590,6 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 `model.ok` 由真实连通性探测决定，不是“有密钥就算通过”；`github.ok` 要求 `gh auth status` 成功，配置 `repo` 时还要求可读该仓库；`proxy` 报告已配置项并校验 URL。`repairs` 按 `risk`（low/medium/high）与 `command` 给出建议，低风险项可带 `auto: true`；`repair=true` 只自动执行低风险项，并写入 `actions/doctor.jsonl`。
 
-### 4.12 模板
-
-#### `template.list`
-
-入参 `{}`；返回内置模板清单：
-
-```json
-{"templates": [{"template_id": "python-service", "name": "Python 服务", "version": "1.0.0", "item_count": 5}]}
-```
-
-模板来自 `src/aitest/resources/templates/*.json`；只读清单，不写入项目。
-
-#### `template.apply`
-
-入参 `{"project_id": "proj_...", "task_id": "task_...", "template_name": "python-service", "plan_id": "plan_..."}`；`plan_id` 可省略。调用模型逐项处置，`disposition` 为 `applicable / not_applicable / unsupported / unknown`，每项带 `reason`；不适用或不支持缺理由时降级为 `unknown`。
-
-结果同时写入任务旁 `tasks/<task_id>/templates/<template_id>.json`；给出 `plan_id` 时再合并进 `plan.templates` 并递增计划修订号。模板不进入必测分母，也不修改验收项。
-
-返回：
-
-```json
-{"template": {"template_id": "python-service", "name": "Python 服务", "version": "1.0.0", "applied_at": "...", "items": [{"item_id": "build", "layer": "L1", "objective": "...", "disposition": "applicable", "reason": "..."}], "summary": {"applicable": 4, "not_applicable": 1, "unsupported": 0, "unknown": 0}}, "path": "projects/<id>/tasks/<task_id>/templates/python-service.json", "plan_id": "plan_...", "plan_revision": 2}
-```
-
-模型不可用返回 `MODEL_UNAVAILABLE`；模板不存在或 `plan_id` 不属于该任务返回 `INVALID_REQUEST`。
-
 ## 5 数据文件
 
 ### 5.1 共同规则
@@ -643,7 +610,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `project.json`：
 
 ```json
-{"schema_version": 1, "project_id": "proj_...", "name": "", "root": "/abs", "goal": "", "modules": [], "rules_version_id": null, "revision": 1, "updated_at": "..."}
+{"schema_version": 1, "project_id": "proj_...", "name": "", "root": "/abs", "goal": "", "modules": [], "revision": 1, "updated_at": "..."}
 ```
 
 `task.json`：
@@ -663,7 +630,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `plan.json`：
 
 ```json
-{"schema_version": 1, "plan_id": "plan_...", "task_id": "task_...", "plan_no": 2, "task_revision": 3, "task_contract": "sha256", "created_at": "...", "scope": {"preset": "selected", "module_ids": [], "acceptance_item_ids": []}, "applicable_count": 8, "rules_version_id": "rule_...", "cases": [{"case_id": "case_...", "acceptance_item_id": "ai_...", "layer": "L2", "preconditions": [], "steps": [], "expected": "", "expectation_source": "", "verify_method": "", "mock_allowed": true, "importance": "high", "depends_on": "service"}], "templates": [{"template_id": "python-service", "name": "Python 服务", "items": [], "summary": {"applicable": 0, "not_applicable": 0, "unsupported": 0, "unknown": 0}}], "warnings": [], "unselected_by_module": [{"module_id": "mod_...", "module_name": "库存", "count": 2}], "source_signature": "sha256", "status": "published", "revision": 1}
+{"schema_version": 1, "plan_id": "plan_...", "task_id": "task_...", "plan_no": 2, "task_revision": 3, "task_contract": "sha256", "created_at": "...", "scope": {"preset": "selected", "module_ids": [], "acceptance_item_ids": []}, "applicable_count": 8, "cases": [{"case_id": "case_...", "acceptance_item_id": "ai_...", "layer": "L2", "preconditions": [], "steps": [], "expected": "", "expectation_source": "", "verify_method": "", "mock_allowed": true, "importance": "high", "depends_on": "service"}], "warnings": [], "unselected_by_module": [{"module_id": "mod_...", "module_name": "库存", "count": 2}], "source_signature": "sha256", "status": "published", "revision": 1}
 ```
 
 `run.json`：
@@ -688,12 +655,6 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 
 ```json
 {"schema_version": 1, "delivery_id": "dlv_...", "task_id": "task_...", "done": [], "not_done": [], "changed_modules": [], "interface_changes": [], "run_commands": [], "test_data": "", "dependencies": [], "mocks": [], "self_test_evidence": [], "commit": "", "complete": false, "revision": 1}
-```
-
-`rules/<rules_version_id>.json`：
-
-```json
-{"schema_version": 1, "rules_version_id": "rule_...", "project_id": "proj_...", "name": "", "version": "1.0.0", "steps_md": "", "ai_rules": [], "evidence_requirements": [], "revision": 1}
 ```
 
 `runs/<run_id>/link.json`：
@@ -726,7 +687,6 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
    ├─ tasks/<task_id>.json
    ├─ tasks/revisions/<task_id>/<revision>.json     任务旧修订
    ├─ deliveries/<task_id>.json
-   ├─ rules/<rules_version_id>.json
    ├─ plans/<plan_id>.json
    ├─ plans/revisions/<plan_id>/<revision>.json     计划旧修订
    ├─ confirmations/<confirmation_id>.json          执行前确认记录
@@ -784,8 +744,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 9. 报告结论与计数不因 AI 摘要改变；
 10. 旧格式备份恢复失败时给出 `SCHEMA_UNSUPPORTED`；
 11. `plan.show` 只按任务契约判过期，`run.start` 按完整来源签名判 `PLAN_STALE`，旧计划无 `task_contract` 判过期。
-12. `rules.save` 必填 `name/version`，规则版本绑定后新计划引用新版本，旧运行保留旧 `rules_version_id`；
-13. `run.status` 返回计划快照、任务快照与 `task_snapshot`；旧运行没有快照时明确为 `false`，不混用当前任务；
+12. `run.status` 返回计划快照、任务快照与 `task_snapshot`；旧运行没有快照时明确为 `false`，不混用当前任务；
 14. 报告生成写回 `latest_report_id`；`report.list` 按 `generated_at` 倒序；重新生成不覆盖旧报告；
 15. `link.import` 缺配置返回 `LINK_CONFIG_MISSING`；`link.assert` 的节点不存在返回 `INVALID_REQUEST`，断言结果写回 `link.json`；
 16. `data.cleanup` 的清理命令必须含 `{run_id}` 或 `{data_prefix}`，非法 `run_id` 拒绝；`dry_run=false` 需要确认；

@@ -206,12 +206,25 @@ def _mtime(path: Path) -> float:
 
 
 _MAX_LOG_READ_BYTES = 32 * 1024 * 1024
+_DB_FORBIDDEN_SQL_RE = re.compile(
+    r"\b(?:DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|CREATE|REPLACE|REVOKE)\b",
+    re.IGNORECASE,
+)
+_DB_SHELL_META_RE = re.compile(r"[;&|`$\r\n]")
 
 
 def _read_text(path: Path) -> str | None:
     try:
+        size = path.stat().st_size
         with path.open("rb") as handle:
-            data = handle.read(_MAX_LOG_READ_BYTES)
+            if size > _MAX_LOG_READ_BYTES:
+                # 仅对超大日志从尾部读取最近 32 MiB 并丢弃首行截断片段，保证关联最新日志。
+                handle.seek(size - _MAX_LOG_READ_BYTES)
+                raw = handle.read(_MAX_LOG_READ_BYTES)
+                nl = raw.find(b"\n")
+                data = raw[nl + 1 :] if nl >= 0 else raw
+            else:
+                data = handle.read(_MAX_LOG_READ_BYTES)
     except OSError:
         return None
     try:
@@ -380,6 +393,8 @@ def _collect_db(
         return [], [_gap("db", "未配置数据库查询")]
     if _SAFE_REQUEST_ID.fullmatch(request_id) is None:
         return [], [_gap("db", "请求 ID 含不安全字符，未执行数据库查询")]
+    if _DB_FORBIDDEN_SQL_RE.search(query) or _DB_SHELL_META_RE.search(query):
+        return [], [_gap("db", "数据库查询包含写操作或危险 shell 元字符，已按只读安全策略拦截")]
 
     command = query.replace("{request_id}", request_id)
     try:

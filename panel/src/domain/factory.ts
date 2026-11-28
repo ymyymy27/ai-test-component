@@ -26,12 +26,10 @@ import type {
   ProjectConfig,
   QuickCheck,
   Report,
-  RuleVersion,
   Run,
   RunCase,
   Scope,
   Task,
-  TemplateResult,
 } from "./types";
 
 export function defaultConfig(): ProjectConfig {
@@ -46,20 +44,6 @@ export function defaultConfig(): ProjectConfig {
   };
 }
 
-export function defaultRule(projectId: string): RuleVersion {
-  return {
-    id: newId("rule"),
-    projectId,
-    name: "默认检查",
-    version: "1",
-    stepsMd: "按项目 README、启动脚本与已有测试执行主流程检查。",
-    aiRules: ["预期必须来自验收项原文；无法引用时标未核实。"],
-    evidenceRequirements: ["运行日志", "关键页面截图或接口响应"],
-    revision: 1,
-    createdAt: isoNow(),
-  };
-}
-
 export function createProjectRecord(input: {
   id?: string;
   name: string;
@@ -67,7 +51,6 @@ export function createProjectRecord(input: {
   goal?: string;
 }): Project {
   const projectId = input.id ?? newId("proj");
-  const rule = defaultRule(projectId);
   const now = isoNow();
   return {
     id: projectId,
@@ -85,8 +68,6 @@ export function createProjectRecord(input: {
     catalog: [],
     tasks: [],
     activeTaskId: null,
-    rules: [rule],
-    rulesVersionId: rule.id,
     config: defaultConfig(),
     github: null,
     quickChecks: [],
@@ -125,7 +106,6 @@ export function createDraftTask(project: Project): Task {
     runs: [],
     currentRunId: null,
     delivery: null,
-    templates: [],
   };
 }
 
@@ -263,7 +243,6 @@ export function buildPlan(
   project: Project,
   task: Task,
   selectedIds: string[],
-  rulesVersionId: string | null,
 ): Plan {
   const selectedSet = new Set(selectedIds);
   const items = applicableItems(task).filter((item) => selectedSet.has(item.id));
@@ -287,9 +266,7 @@ export function buildPlan(
     createdAt: isoNow(),
     scope,
     applicableCount: applicable,
-    rulesVersionId,
     cases,
-    templates: [...task.templates],
     unselectedByModule: unselectedByModule(task, selectedIds),
     warnings:
       selectedIds.length < applicable
@@ -551,7 +528,6 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     const testCase = run.cases.find((entry) => entry.id === caseId);
     return testCase?.title ?? caseId;
   });
-  const rule = project.rules.find((entry) => entry.id === project.rulesVersionId) ?? null;
   const modules = Object.entries(
     run.items.reduce<Record<string, number>>((accumulator, item) => {
       const key = item.module || "未归类";
@@ -559,7 +535,6 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
       return accumulator;
     }, {}),
   ).map(([name, count]) => ({ name, count }));
-  const templateResults: TemplateResult[] = [...task.templates];
   const layers = layersForRun(run);
   if (run.l1.length > 0) {
     // 项目级检查不一定是 run.cases，分层计数必须合并 run.l1。
@@ -625,7 +600,6 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     mock: buildMockSummary(run),
     analysis: buildFailureAnalysis(run),
     link: run.link,
-    templates: templateResults,
     modules,
     unmapped: [],
     uncoveredItems: uncovered,
@@ -635,7 +609,6 @@ export function buildReport(project: Project, task: Task, run: Run, version: num
     source: {
       runTime: run.startedAt,
       planLabel: plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划快照缺失",
-      rulesLabel: rule ? `${rule.name} v${rule.version}` : "未绑定规则",
       commit: task.delivery?.commit || "未记录",
       model: "未接入",
       github: project.github
@@ -743,29 +716,6 @@ export function createManualIssue(
     unstable: false,
     createdAt: now,
     updatedAt: now,
-  };
-}
-
-export function createRuleVersion(
-  projectId: string,
-  input: {
-    name: string;
-    version: string;
-    stepsMd: string;
-    aiRules: string[];
-    evidenceRequirements: string[];
-  },
-): RuleVersion {
-  return {
-    id: newId("rule"),
-    projectId,
-    name: input.name.trim(),
-    version: input.version.trim(),
-    stepsMd: input.stepsMd.trim(),
-    aiRules: input.aiRules,
-    evidenceRequirements: input.evidenceRequirements,
-    revision: 1,
-    createdAt: isoNow(),
   };
 }
 

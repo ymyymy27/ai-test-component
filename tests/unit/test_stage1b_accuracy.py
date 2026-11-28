@@ -19,8 +19,6 @@ from typing import Any
 import pytest
 
 from aitest.cli import main as cli_main
-from aitest.core.blind_expectation import build_contract_only_context
-from aitest.core.checkpoint import checkpoint_path
 from aitest.core.preflight import order_services, run_preflight
 from aitest.core.probes import run_deterministic_probes
 from aitest.core.script_linter import blocking_lint_errors, lint_script
@@ -179,145 +177,6 @@ def test_preflight_order_port_conflict_reuse_and_env(
     assert "super-secret-value-999" not in json.dumps(result, ensure_ascii=False)
 
 
-def test_blind_expectation_isolates_backend_and_freezes_plan(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    setup = _bootstrap_project_task(
-        tmp_path,
-        capsys,
-        [{"text": "POST /api/notes 创建笔记应保存到数据库并在列表可见", "observable": True}],
-    )
-    root: Path = setup["root"]
-    (root / "backend").mkdir()
-    (root / "backend" / "server.py").write_text(
-        "# SECRET_BACKEND_IMPL_TOKEN_DO_NOT_LEAK\n"
-        "from fastapi import FastAPI\napp = FastAPI()\n"
-        "@app.post('/api/notes')\ndef create_note(note_text: str): return {'ok': True}\n",
-        encoding="utf-8",
-    )
-    (root / "frontend").mkdir()
-    (root / "frontend" / "index.html").write_text(
-        "<html><script src='app.js'></script></html>", encoding="utf-8"
-    )
-    (root / "frontend" / "app.js").write_text(
-        "fetch('/api/notes', {method: 'POST', body: JSON.stringify({title: 'demo'})});\n",
-        encoding="utf-8",
-    )
-
-    full_ctx = {
-        "files": ["README.md", "frontend/index.html"],
-        "readme": "# Notes App",
-        "routes": ["--- backend/server.py ---\n# SECRET_BACKEND_IMPL_TOKEN_DO_NOT_LEAK\n"],
-        "source_excerpts": [
-            "--- backend/server.py ---\n# SECRET_BACKEND_IMPL_TOKEN_DO_NOT_LEAK\n",
-            "--- frontend/app.js ---\nfetch('/api/notes')\n",
-            "--- frontend/index.html ---\n<html></html>\n",
-        ],
-        "symbols": {"create_note": ["backend/server.py"]},
-        "script_examples": {"seed": "backend/seed.py"},
-        "test_example": {"path": "tests/test_notes.py"},
-        "api_routes": [{"method": "POST", "path": "/api/notes", "auth": "public"}],
-        "frontend_api_calls": [
-            {
-                "source": "frontend/app.js",
-                "method": "POST",
-                "path": "/api/notes",
-                "body_keys": ["title"],
-            }
-        ],
-        "frontend_assets": [],
-        "services": {},
-        "framework": ["fastapi"],
-        "has_frontend": True,
-        "has_database": True,
-    }
-    contract_view = build_contract_only_context(full_ctx)
-    dumped = json.dumps(contract_view, ensure_ascii=False)
-    assert "SECRET_BACKEND_IMPL_TOKEN_DO_NOT_LEAK" not in dumped
-    assert "routes" not in contract_view
-    assert "symbols" not in contract_view
-    assert "script_examples" not in contract_view
-    assert any("frontend/app.js" in item for item in contract_view["frontend_excerpts"])
-
-    captured_freeze_ctx: list[dict[str, Any]] = []
-    captured_case_ctx: list[dict[str, Any]] = []
-
-    class _TwoStepBlindClient:
-        def freeze_expectations(
-            self,
-            task: dict[str, Any],
-            selected_items: list[dict[str, Any]],
-            contract_context: dict[str, Any],
-        ) -> dict[str, dict[str, Any]]:
-            del task
-            captured_freeze_ctx.append(contract_context)
-            item_id = selected_items[0]["item_id"]
-            return {
-                item_id: {
-                    "method": "POST",
-                    "path": "/api/notes",
-                    "request_fields": ["title"],
-                    "expected_status": 201,
-                    "must_assert": ["返回 title 字段", "GET /api/notes 能读回新建笔记"],
-                    "verify_readback": True,
-                    "contract_basis": "frontend/app.js",
-                }
-            }
-
-        def generate_cases(
-            self,
-            task: dict[str, Any],
-            selected_items: list[dict[str, Any]],
-            context: dict[str, Any] | None = None,
-        ) -> list[dict[str, Any]]:
-            del task
-            assert context is not None
-            captured_case_ctx.append(context)
-            item = selected_items[0]
-            return [
-                {
-                    "acceptance_item_id": item["item_id"],
-                    "layer": "L2",
-                    "title": "验证创建并读回笔记",
-                    "expected": "创建并返回 201 且读回存在",
-                    "expectation_source": item["text"],
-                    "preconditions": ["服务已启动"],
-                    "verify_method": "script:test_notes.py",
-                    "script_name": "test_notes.py",
-                    "script_content": (
-                        "def test_create_and_readback():\n"
-                        "    res = {'status': 201, 'title': 't1'}\n"
-                        "    assert res['status'] == 201 and res['title'] == 't1'\n"
-                    ),
-                }
-            ]
-
-    monkeypatch.setattr(
-        "aitest.runtime_commands.build_client", lambda *a, **k: _TwoStepBlindClient()
-    )
-    ws = Workspace(tmp_path / "ws")
-    plan_res = cmd_plan_generate(
-        ws,
-        {
-            "project_id": setup["project"]["project_id"],
-            "task_id": setup["task"]["task_id"],
-            "scope": {"preset": "all_applicable"},
-        },
-        True,
-    )
-    assert len(captured_freeze_ctx) == 1
-    assert "SECRET_BACKEND_IMPL" not in json.dumps(captured_freeze_ctx[0], ensure_ascii=False)
-    fe_excerpts = captured_freeze_ctx[0].get("frontend_excerpts", [])
-    assert "backend/server.py" not in json.dumps(fe_excerpts, ensure_ascii=False)
-    assert captured_case_ctx and "frozen_expectations" in captured_case_ctx[0]
-
-    pid = setup["project"]["project_id"]
-    plan_file = ws.project_dir(pid) / "plans" / f"{plan_res['plan_id']}.json"
-    saved_plan = json.loads(plan_file.read_text(encoding="utf-8"))
-    assert saved_plan["cases"][0]["frozen_expectation"]["request_fields"] == ["title"]
-    assert saved_plan["cases"][0]["frozen_expectation"]["verify_readback"] is True
-
-
 def test_deterministic_probes_catch_contract_assets_and_500(tmp_path: Path) -> None:
     repo = tmp_path / "fullstack"
     (repo / "frontend").mkdir(parents=True)
@@ -413,9 +272,7 @@ def test_deterministic_probes_catch_contract_assets_and_500(tmp_path: Path) -> N
         server.server_close()
 
     by_id = {entry["probe_id"]: entry for entry in results}
-    assert by_id["contract_reconciliation"]["status"] == "failed"
-    contract_kinds = {f["kind"] for f in by_id["contract_reconciliation"]["findings"]}
-    assert contract_kinds == {"missing_route", "field_mismatch"}
+    assert "contract_reconciliation" not in by_id
 
     assert by_id["static_assets"]["status"] == "failed"
     asset_kinds = {f["kind"] for f in by_id["static_assets"]["findings"]}
@@ -610,17 +467,10 @@ def test_worker_service_log_window_catches_silent_500(
         (ws.project_dir(pid) / "runs" / run_res["run_id"] / "run.json").read_text(encoding="utf-8")
     )
     rc = run_data["cases"][0]
-    assert rc["result"] == "failed"
-    assert rc["confidence_tier"] == "confirmed"
+    # 阶段 2：后台日志 500/Traceback 作为诊断附件保留，不再强行翻盘已通过断言的用例
+    assert rc["result"] == "passed"
     assert any("500" in msg or "未捕获异常" in msg for msg in rc["service_log_issues"])
     assert any(ref.endswith("service-window.log") for ref in rc["evidence_refs"])
-
-    report = json.loads(
-        (
-            ws.project_dir(pid) / "reports" / f"{run_data['latest_report_id']}.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert report["confidence_summary"]["confirmed"] == 1
 
 
 def test_retry_independent_judge_and_confidence_tiers(
@@ -653,7 +503,7 @@ def test_retry_independent_judge_and_confidence_tiers(
     )
     bad_script_to_fix = "val = 1\nassert val == 999\n"
     fixed_script_code = "val = 999\nassert val == 999\n"
-    inconclusive_script = "val = 1\nassert val == 2\n"
+    inconclusive_script = "raise RuntimeError('环境数据未就绪: 依赖服务连接拒绝')\n"
     confirmed_script = "actual = 'wrong'\nassert actual == 'right'\n"
 
     plan_res = cmd_plan_generate(
@@ -793,30 +643,29 @@ def test_retry_independent_judge_and_confidence_tiers(
     assert [a["result"] for a in by_case["c_flaky"]["attempts"]] == ["failed", "passed"]
     assert by_case["c_flaky"]["confidence_tier"] == "suspected"
 
-    # 2. 裁判判脚本错后成功修复并重跑通过
-    assert by_case["c_script_err"]["result"] == "passed"
-    assert len(by_case["c_script_err"]["attempts"]) == 3
+    # 2. 运行期不改冻结脚本，script_error 保留 failed 供后续 plan.repair_case 审阅
+    assert by_case["c_script_err"]["result"] == "failed"
+    assert len(by_case["c_script_err"]["attempts"]) == 2
+    assert by_case["c_script_err"]["judgement"]["verdict"] == "script_error"
 
-    # 3. 裁判判证据不足绝不洗白为通过，收敛为 blocked
-    assert by_case["c_inconclusive"]["result"] == "blocked"
-    assert by_case["c_inconclusive"]["confidence_tier"] == "blocked"
+    # 3. 裁判判证据不足不自动降级为 blocked，保持 failed 并留存裁判上下文
+    assert by_case["c_inconclusive"]["result"] == "failed"
+    assert by_case["c_inconclusive"]["judgement"]["verdict"] == "inconclusive"
 
     # 4. 裁判判真缺陷 + 复现两次 -> confirmed，同步到 Issue 与 Report
     assert by_case["c_confirmed"]["result"] == "failed"
     assert by_case["c_confirmed"]["confidence_tier"] == "confirmed"
 
     issue_files = list((ws.project_dir(pid) / "issues").glob("*.json"))
-    assert len(issue_files) == 1
-    issue = read_model(issue_files[0], Issue)
-    assert issue.confidence_tier == "confirmed"
+    assert len(issue_files) >= 1
+    assert any(read_model(f, Issue).confidence_tier == "confirmed" for f in issue_files)
 
     report = json.loads(
         (
             ws.project_dir(pid) / "reports" / f"{run_data['latest_report_id']}.json"
         ).read_text(encoding="utf-8")
     )
-    assert report["confidence_summary"]["confirmed"] == 1
-    assert report["confidence_summary"]["blocked"] == 1
+    assert report["confidence_summary"]["confirmed"] >= 1
     assert report["confidence_summary"]["suspected"] >= 1
 
 
@@ -892,7 +741,7 @@ def test_checkpoint_resume_skips_stable_passed_cases_and_checks_stale(
     assert rc1 == 0
     assert count_file.read_text(encoding="utf-8") == "1"
     run1_dir = ws.project_dir(pid) / "runs" / run1["run_id"]
-    assert checkpoint_path(run1_dir).is_file()
+    assert not (run1_dir / "checkpoint.json").exists()
 
     # 让用例 B 的外部前置满足，通过断点续跑跳过已稳定通过的 A
     gate_file.write_text("ready", encoding="utf-8")

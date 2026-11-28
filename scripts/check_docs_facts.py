@@ -68,7 +68,7 @@ RULES = (
     ),
     Rule(
         "一期 AC 数",
-        re.compile(r"18 FR\s*/\s*(\d+)\s*AC"),
+        re.compile(r"17 FR\s*/\s*(\d+)\s*AC"),
         "acs",
     ),
     Rule(

@@ -11,10 +11,12 @@ records why.
 from __future__ import annotations
 
 import codecs
+import contextlib
 import errno
 import hashlib
 import mimetypes
 import os
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -359,3 +361,71 @@ def save_evidence(
             f"原始大小 {actual_size} 字节，已截断\n", encoding="utf-8"
         )
     return str(path.relative_to(run_dir)).replace("\\", "/")
+
+
+class LocalFileSnapshotIsolator:
+    """在测试运行前后对配置声明的本地数据文件进行物理备份与还原。"""
+
+    isolator_id = "local_file_snapshot"
+
+    def prepare(
+        self, workdir: Path, run_id: str, run_dir: Path, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        del run_id
+        data_cfg = config.get("data")
+        if not isinstance(data_cfg, dict):
+            return {"restored": [], "snapshots": []}
+        raw_files = data_cfg.get("snapshot_files")
+        if not isinstance(raw_files, list) or not raw_files:
+            return {"restored": [], "snapshots": []}
+
+        backup_root = run_dir / "_snapshots"
+        snapshots: list[dict[str, str]] = []
+        missing_before: list[str] = []
+        root_resolved = workdir.resolve()
+        for idx, item in enumerate(raw_files[:30]):
+            if not isinstance(item, str) or not item.strip():
+                continue
+            rel = item.strip().replace("\\", "/")
+            candidate = Path(rel)
+            if candidate.is_absolute() or ".." in candidate.parts:
+                continue
+            try:
+                target = ensure_within(root_resolved, root_resolved / rel)
+            except ValueError:
+                continue
+            if target.is_file():
+                backup_root.mkdir(parents=True, exist_ok=True)
+                snap = backup_root / f"{idx}_{target.name}"
+                with contextlib.suppress(OSError):
+                    shutil.copy2(target, snap)
+                    snapshots.append({"target": str(target), "snapshot": str(snap)})
+            elif not target.exists():
+                missing_before.append(str(target))
+        return {
+            "snapshots": snapshots,
+            "missing_before": missing_before,
+            "backup_root": str(backup_root),
+        }
+
+    def cleanup(self, state: dict[str, Any]) -> None:
+        for entry in state.get("snapshots") or []:
+            if not isinstance(entry, dict):
+                continue
+            snap = Path(str(entry.get("snapshot") or ""))
+            target = Path(str(entry.get("target") or ""))
+            if snap.is_file() and str(target):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with contextlib.suppress(OSError):
+                    shutil.copy2(snap, target)
+        for missing_path in state.get("missing_before") or []:
+            target = Path(str(missing_path))
+            if target.is_file():
+                with contextlib.suppress(OSError):
+                    target.unlink()
+        backup_raw = str(state.get("backup_root") or "")
+        if backup_raw:
+            backup_root = Path(backup_raw)
+            if backup_root.is_dir():
+                with contextlib.suppress(OSError):
+                    shutil.rmtree(backup_root, ignore_errors=True)

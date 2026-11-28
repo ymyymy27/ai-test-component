@@ -1,6 +1,10 @@
 import type {
   AcceptanceItem,
+  AiHypothesis,
+  AssertionStrength,
   Candidate,
+  CapabilitiesSnapshot,
+  CaseGeneration,
   CaseJudgement,
   CaseResult,
   CodeGraph,
@@ -13,6 +17,7 @@ import type {
   ConfidenceTier,
   Confirmation,
   Counts,
+  CoverageLedgerItem,
   Delivery,
   EvidenceRef,
   ExcludedItemSnapshot,
@@ -27,6 +32,8 @@ import type {
   Module,
   Plan,
   PlanCase,
+  PlanRecipe,
+  PlanReviewItem,
   PreflightReport,
   ProbeFinding,
   ProbeResult,
@@ -34,17 +41,17 @@ import type {
   ProjectCheck,
   ProjectConfig,
   ProjectConvention,
+  ProjectHealthSummary,
   ProjectMap,
   QuickCheck,
   Report,
   ReportCaseDetail,
   ReportItemDetail,
-  RuleVersion,
   Run,
   RunCase,
   RunItem,
+  ScriptRepairInfo,
   Task,
-  TemplateResult,
   TokenUsage,
   UnknownArea,
 } from "@/domain/types";
@@ -68,11 +75,9 @@ import type {
   Project as ProjectDto,
   ProjectConfig as ProjectConfigDto,
   Report as ReportDto,
-  Rule as RuleDto,
   RunCase as RunCaseDto,
   RunDetail,
   Task as TaskDto,
-  TemplateResult as TemplateResultDto,
 } from "./dto";
 import type { HostSidecar } from "./sidecar";
 
@@ -540,20 +545,6 @@ export function toHostConfig(config: ProjectConfig): ProjectConfigDto {
   };
 }
 
-export function mapRule(dto: RuleDto): RuleVersion {
-  return {
-    id: dto.rules_version_id,
-    projectId: dto.project_id,
-    name: dto.name,
-    version: dto.version,
-    stepsMd: dto.steps_md,
-    aiRules: [...dto.ai_rules],
-    evidenceRequirements: [...dto.evidence_requirements],
-    revision: dto.revision,
-    createdAt: isoNow(),
-  };
-}
-
 export function mapDelivery(dto: DeliveryDto): Delivery {
   return {
     id: dto.delivery_id,
@@ -715,7 +706,147 @@ function mapAcceptanceItem(
 }
 
 
+export function mapCapabilities(raw: unknown): CapabilitiesSnapshot | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const mapDeps = (val: unknown) =>
+    records(val).map((d) => ({
+      type: str(d.type),
+      level: str(d.level, "D3"),
+      source: str(d.source),
+      status: str(d.status, "detected"),
+    }));
+  return {
+    backend: strList(raw.backend),
+    router: strList(raw.router),
+    auth: strList(raw.auth),
+    frontendCalls: strList(raw.frontend_calls),
+    services: strList(raw.services),
+    startAdapters: strList(raw.start_adapters),
+    dependencies: mapDeps(raw.dependencies),
+    externalSystems: mapDeps(raw.external_systems),
+    hosts: strList(raw.hosts),
+    level: str(raw.level, "T3"),
+    unknowns: strList(raw.unknowns),
+    unsupported: strList(raw.unsupported),
+    source: str(raw.source, "static"),
+    degraded: Boolean(raw.degraded),
+    evidence: strList(raw.evidence),
+    fingerprint: str(raw.fingerprint),
+  };
+}
+
+export function mapProjectHealthSummary(raw: unknown): ProjectHealthSummary | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  return {
+    level: str(raw.level, "T3"),
+    source: str(raw.source, "static"),
+    degraded: Boolean(raw.degraded),
+    serviceCount: num(raw.service_count, 0),
+    dependencies: records(raw.dependencies).map((d) => ({
+      type: str(d.type),
+      level: str(d.level, "D3"),
+      source: str(d.source),
+      status: str(d.status, "detected"),
+    })),
+    routeCount: num(raw.route_count, 0),
+    uncoveredRouteCount: num(raw.uncovered_route_count, 0),
+    uncoveredRoutesPreview: strList(raw.uncovered_routes_preview),
+    unknownsCount: num(raw.unknowns_count, 0),
+    unsupportedCount: num(raw.unsupported_count, 0),
+    unknowns: strList(raw.unknowns),
+    unsupported: strList(raw.unsupported),
+    conflictsCount: num(raw.conflicts_count, 0),
+    fingerprint: str(raw.fingerprint),
+  };
+}
+
+function mapCaseGeneration(raw: unknown): CaseGeneration | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const source = str(raw.source);
+  if (!source) {
+    return null;
+  }
+  return {
+    source,
+    ...(str(raw.generator_id) ? { generatorId: str(raw.generator_id) } : {}),
+    ...(str(raw.generator_version) ? { generatorVersion: str(raw.generator_version) } : {}),
+  };
+}
+
+function asAssertionStrength(raw: unknown): AssertionStrength | null {
+  return raw === "strong" || raw === "weak" || raw === "unverified" ? raw : null;
+}
+
+function mapCoverageLedger(raw: unknown): CoverageLedgerItem[] {
+  return records(raw).map((entry) => ({
+    dimension: str(entry.dimension),
+    status: str(entry.status, "not_required"),
+    requiredItems: strList(entry.required_items),
+    coveredCaseIds: strList(entry.covered_case_ids),
+    note: str(entry.note),
+  }));
+}
+
+function mapPlanRecipes(raw: unknown): PlanRecipe[] {
+  return records(raw).map((entry) => ({
+    generatorId: str(entry.generator_id),
+    generatorVersion: str(entry.generator_version),
+    appliesTo: strList(entry.applies_to),
+    invariants: strList(entry.invariants),
+    status: str(entry.status, "skipped"),
+    skipReason: str(entry.skip_reason),
+  }));
+}
+
+export function mapPlanReviews(raw: unknown): PlanReviewItem[] {
+  return records(raw).map((entry, idx) => {
+    const sev = str(entry.severity, "medium").toLowerCase();
+    const severity: "high" | "medium" | "low" =
+      sev === "high" || sev === "low" ? sev : "medium";
+    return {
+      reviewId: str(entry.review_id, `rev_${idx}`),
+      kind: str(entry.kind, "blind_conflict"),
+      severity,
+      statement: str(entry.statement),
+      evidence: strList(entry.evidence),
+      patchCases: records(entry.patch_cases),
+    };
+  });
+}
+
+function mapScriptRepair(raw: unknown): ScriptRepairInfo | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  return {
+    status: str(raw.status),
+    reason: str(raw.reason),
+    unifiedDiff: str(raw.unified_diff),
+    guardBlocked: strList(raw.guard_blocked),
+    scriptName: str(raw.script_name),
+    at: str(raw.at),
+  };
+}
+
+function mapAiHypotheses(raw: unknown): AiHypothesis[] {
+  return records(raw).map((entry) => ({
+    caseId: str(entry.case_id),
+    hypothesis: str(entry.hypothesis),
+    evidence: strList(entry.evidence),
+    confidence: str(entry.confidence, "low"),
+    nextCheck: str(entry.next_check),
+  }));
+}
+
 export function mapPlanCase(dto: PlanCaseDto): PlanCase {
+  const generation = mapCaseGeneration(dto.generation);
+  const assertionStrength = asAssertionStrength(dto.assertion_strength);
   return {
     id: dto.case_id,
     itemId: dto.acceptance_item_id ?? dto.acceptance_item_ids?.[0] ?? "",
@@ -734,6 +865,8 @@ export function mapPlanCase(dto: PlanCaseDto): PlanCase {
     dependsOn: dto.depends_on ?? null,
     scriptName: dto.script_name ?? null,
     scriptContent: dto.script_content ?? null,
+    ...(generation ? { generation } : {}),
+    ...(assertionStrength ? { assertionStrength } : {}),
     manual: (() => {
       if (dto.layer !== "L3") {
         return false;
@@ -741,23 +874,6 @@ export function mapPlanCase(dto: PlanCaseDto): PlanCase {
       const method = (dto.verify_method ?? "").trim().toLowerCase();
       return method === "" || method === "manual" || method.startsWith("manual:");
     })(),
-  };
-}
-
-export function mapTemplateResult(dto: TemplateResultDto): TemplateResult {
-  return {
-    templateId: dto.template_id,
-    name: dto.name,
-    version: dto.version,
-    appliedAt: dto.applied_at,
-    items: dto.items.map((item) => ({
-      id: item.item_id,
-      layer: asLayer(item.layer),
-      objective: item.objective,
-      disposition: item.disposition,
-      reason: item.reason,
-    })),
-    summary: dto.summary,
   };
 }
 
@@ -802,10 +918,12 @@ export function mapPlan(
       coverage: { selected: selected.length, applicable },
     },
     applicableCount: applicable,
-    rulesVersionId: dto.rules_version_id ?? null,
     cases: dto.cases.map(mapPlanCase),
     itemTexts: dto.item_texts,
-    templates: (dto.templates ?? []).map(mapTemplateResult),
+    ...(dto.capabilities ? { capabilities: mapCapabilities(dto.capabilities) } : {}),
+    ...(dto.recipes?.length ? { recipes: mapPlanRecipes(dto.recipes) } : {}),
+    ...(dto.coverage_ledger?.length ? { coverageLedger: mapCoverageLedger(dto.coverage_ledger) } : {}),
+    ...(dto.ai_reviews?.length ? { aiReviews: mapPlanReviews(dto.ai_reviews) } : {}),
     unselectedByModule: (dto.unselected_by_module ?? []).map((entry) => ({
       moduleId: entry.module_id ?? "",
       moduleName: entry.module_name,
@@ -1024,6 +1142,7 @@ function mapRunCase(
     ...(serviceLogIssues.length ? { serviceLogIssues } : {}),
     ...(phaseFailed ? { phaseFailed } : {}),
     ...(loc ? { file: loc.file, line: loc.line } : {}),
+    ...(dto.script_repair ? { scriptRepair: mapScriptRepair(dto.script_repair) } : {}),
   };
 }
 
@@ -1152,6 +1271,7 @@ export function mapRun(
     ...(dto.preflight ? { preflight: mapPreflight(dto.preflight) } : {}),
     ...(dto.probe_results?.length ? { probeResults: mapProbes(dto.probe_results) } : {}),
     ...(dto.resumed_from_run_id ? { resumedFromRunId: dto.resumed_from_run_id } : {}),
+    ...(dto.ai_hypotheses?.length ? { aiHypotheses: mapAiHypotheses(dto.ai_hypotheses) } : {}),
   };
 }
 
@@ -1215,7 +1335,6 @@ export function mapReport(
   plan: Plan | null,
   run: Run | null,
   evidence: EvidenceRef[],
-  rulesLabel: string,
 ): Report {
   const itemDetails: ReportItemDetail[] = records(dto.item_details).map((item) => {
     const itemId = str(item.item_id);
@@ -1367,9 +1486,6 @@ export function mapReport(
     mock,
     analysis: mapAnalysis(records(dto.analysis)),
     link: run?.link ?? null,
-    templates: records(dto.templates).map((template) =>
-      mapTemplateResult(template as unknown as TemplateResultDto),
-    ),
     modules: strList(dto.changed_modules).map((name) => ({ name, count: 0 })),
     unmapped: strList(dto.unmapped_files),
     uncoveredItems: strList(dto.uncovered_items),
@@ -1379,7 +1495,6 @@ export function mapReport(
     source: {
       runTime: run?.startedAt ?? "",
       planLabel: plan ? `计划 ${plan.no} · 第 ${plan.revision} 版` : "计划快照缺失",
-      rulesLabel,
       commit: dto.source_commit ?? "未记录",
       model: str((dto.environment.model as unknown) ?? "未记录"),
       github: dto.github ? "已读取 GitHub 快照" : "未连接",
@@ -1401,6 +1516,22 @@ export function mapReport(
       : {}),
     ...(mapTokenUsage(dto.token_usage) ?? run?.tokenUsage
       ? { tokenUsage: mapTokenUsage(dto.token_usage) ?? run?.tokenUsage ?? null }
+      : {}),
+    ...(dto.capabilities ? { capabilities: mapCapabilities(dto.capabilities) } : {}),
+    ...(dto.coverage_ledger?.length ? { coverageLedger: mapCoverageLedger(dto.coverage_ledger) } : {}),
+    ...(dto.source_summary && isRecord(dto.source_summary)
+      ? {
+          sourceSummary: Object.fromEntries(
+            Object.entries(dto.source_summary).map(([k, v]) => [k, num(v, 0)]),
+          ),
+        }
+      : {}),
+    ...(dto.assertion_strength && isRecord(dto.assertion_strength)
+      ? {
+          assertionStrength: Object.fromEntries(
+            Object.entries(dto.assertion_strength).map(([k, v]) => [k, num(v, 0)]),
+          ),
+        }
       : {}),
   };
 }
@@ -1541,7 +1672,6 @@ export function mapTask(
         ? task.current_run_id
         : (latestRun?.id ?? null),
     delivery,
-    templates: sidecar.templates[task.task_id] ?? latestPlan?.templates ?? [],
   };
 }
 
@@ -1560,8 +1690,9 @@ export function mapProject(input: {
   mapStaleReason: string;
   localGit?: LocalGitDto | null;
   codeGraph?: CodeGraphDto | null;
+  capabilities?: unknown;
+  healthSummary?: unknown;
   config: ProjectConfigDto;
-  rules: RuleDto[];
   tasks: RawTaskBundle[];
   reports: ReportDto[];
   issues: IssueDto[];
@@ -1617,7 +1748,6 @@ export function mapProject(input: {
     const run = runById.get(dto.run_id) ?? null;
     const plan = run ? (planByRun.get(run.planId) ?? null) : null;
     const taskId = run?.taskId ?? "";
-    const rule = input.rules.find((entry) => entry.rules_version_id === dto.rules_version_id);
     return mapReport(
       dto,
       project.project_id,
@@ -1625,7 +1755,6 @@ export function mapProject(input: {
       plan,
       run,
       input.evidence.get(dto.run_id) ?? [],
-      rule ? `${rule.name} v${rule.version}` : "未绑定规则",
     );
   });
   tasks.forEach((task) =>
@@ -1661,11 +1790,11 @@ export function mapProject(input: {
     map: projectMap,
     ...(input.localGit ? { localGit: mapLocalGit(input.localGit) } : {}),
     ...(input.codeGraph ? { codeGraph: mapCodeGraph(input.codeGraph) } : {}),
+    ...(input.capabilities ? { capabilities: mapCapabilities(input.capabilities) } : {}),
+    ...(input.healthSummary ? { healthSummary: mapProjectHealthSummary(input.healthSummary) } : {}),
     catalog,
     tasks,
     activeTaskId,
-    rules: input.rules.map(mapRule),
-    rulesVersionId: project.rules_version_id ?? null,
     config: mapConfig(input.config),
     github: sidecar.github[project.project_id] ?? (input.github ? mapGithub(input.github) : null),
     quickChecks: sidecar.quickChecks[project.project_id] ?? [],
@@ -1701,8 +1830,6 @@ export function mapProjectSummary(
     catalog: [],
     tasks: [],
     activeTaskId: null,
-    rules: [],
-    rulesVersionId: null,
     config: {},
     github: sidecar.github[dto.project_id] ?? null,
     quickChecks: sidecar.quickChecks[dto.project_id] ?? [],

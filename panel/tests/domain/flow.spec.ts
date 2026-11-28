@@ -32,7 +32,6 @@ function task(overrides: Partial<Task>): Task {
     runs: [],
     currentRunId: null,
     delivery: null,
-    templates: [],
     ...overrides,
   };
 }

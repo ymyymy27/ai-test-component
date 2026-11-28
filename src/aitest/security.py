@@ -94,13 +94,39 @@ def _name_segments(name: str) -> list[str]:
     return [segment.lower() for segment in segments]
 
 
+_META_FIELD_SUFFIXES: tuple[str, ...] = (
+    "_header",
+    "_headers",
+    "_selector",
+    "_path",
+    "_url",
+    "_endpoint",
+    "_field",
+    "_fields",
+    "_domain",
+    "_type",
+    "_env",
+    "_env_var",
+    "_header_name",
+    "_key_name",
+    "_name",
+)
+
+
 def is_secret_field(name: str) -> bool:
     """Return True for field names that may carry a credential body.
 
     A bare ``key`` segment is only a credential when it stands alone or follows
     a known modifier (``api_key``, ``signing.key``); mapping keys such as
-    ``fields.key`` must stay usable.
+    ``fields.key`` and metadata field names (``*_env``, ``*_header``, ``*_url``)
+    must stay usable.
     """
+    lowered = name.strip().lower()
+    if any(
+        lowered.endswith(suffix) and len(lowered) > len(suffix)
+        for suffix in _META_FIELD_SUFFIXES
+    ):
+        return False
     segments = _name_segments(name)
     if "".join(segments) in _JOINED_SECRET_NAMES:
         return True
@@ -293,15 +319,123 @@ def validate_target_url(url: str, allowed_hosts: list[str] | None = None) -> tup
     )
 
 
-def redact(text: str, secrets: list[str]) -> str:
+_STRONG_SECRET_PREFIXES: tuple[str, ...] = (
+    "sk-",
+    "ghp_",
+    "gho_",
+    "ghu_",
+    "ghs_",
+    "ghr_",
+    "glpat-",
+    "xox",
+    "AKIA",
+    "AIza",
+    "npm_",
+    "sk_live_",
+    "eyJ",
+)
+
+_STRUCTURAL_META_KEYS: frozenset[str] = frozenset(
+    {
+        "case_id",
+        "evidence_refs",
+        "source_commit",
+        "item_id",
+        "acceptance_item_id",
+        "acceptance_item_ids",
+        "run_id",
+        "plan_id",
+        "task_id",
+        "project_id",
+        "issue_id",
+        "report_id",
+        "signature",
+        "file",
+        "path",
+        "ref",
+    }
+)
+
+_CODE_META_KEYS: frozenset[str] = frozenset(
+    {"verify_method", "script_content", "script_name"}
+)
+
+_AUTH_HEADER_LINE_RE = re.compile(
+    r"(?im)((?:^|[\r\n])\s*(?:Authorization|Cookie|Set-Cookie|X-API-Key|X-Auth-Token|Proxy-Authorization|X-Token|Token)\s*:\s*[^\r\n]+)"
+)
+_URL_USERINFO_RE = re.compile(
+    r"(?i)([A-Za-z][A-Za-z0-9+.-]*://[^\s:@/]+:)([^\s@/]+)(@)"
+)
+_KV_SECRET_PREFIX_RE = (
+    r"""(["']?[A-Za-z0-9_.-]*(?:password|passwd|pwd|passphrase|secret|token|"""
+    r"""api_key|apikey|access_key|auth|credential)[A-Za-z0-9_.-]*["']?\s*[:=]\s*["']?)"""
+)
+
+
+def _is_strong_secret(secret: str) -> bool:
+    """高熵或长凭据全局脱敏；低熵短密码（如 test/1234）仅在认证上下文打码。"""
+    if not secret:
+        return False
+    if secret.startswith(_STRONG_SECRET_PREFIXES):
+        return True
+    if len(secret) >= 12:
+        return True
+    if len(secret) >= 8:
+        has_alpha = any(ch.isalpha() for ch in secret)
+        has_digit = any(ch.isdigit() for ch in secret)
+        has_symbol = any(not ch.isalnum() for ch in secret)
+        return (has_alpha and has_digit) or (has_symbol and (has_alpha or has_digit))
+    return False
+
+
+def _redact_short_in_auth_context(text: str, short_secrets: list[str]) -> str:
+    """仅在 URL 认证段、认证 Header 或敏感 KV 字段中替掉低熵短密码，避免误伤常规文本/ID。"""
+    if not short_secrets:
+        return text
+    result = text
+
+    def _mask_header(match: re.Match[str]) -> str:
+        line = match.group(1)
+        for sec in short_secrets:
+            pattern = re.compile(
+                rf"(?<![A-Za-z0-9_]){re.escape(sec)}(?![A-Za-z0-9_])"
+            )
+            line = pattern.sub("***", line)
+        return line
+
+    def _mask_userinfo(match: re.Match[str]) -> str:
+        pwd = match.group(2)
+        for sec in short_secrets:
+            if pwd == sec or sec in pwd:
+                pwd = pwd.replace(sec, "***")
+        return f"{match.group(1)}{pwd}{match.group(3)}"
+
+    result = _AUTH_HEADER_LINE_RE.sub(_mask_header, result)
+    result = _URL_USERINFO_RE.sub(_mask_userinfo, result)
+    for sec in short_secrets:
+        kv_re = re.compile(
+            rf"(?i){_KV_SECRET_PREFIX_RE}{re.escape(sec)}(?=$|[\s\"',;&\r\n}}\]])"
+        )
+        result = kv_re.sub(r"\1***", result)
+    return result
+
+
+def _redact_with_mode(text: str, secrets: list[str], *, strong_only: bool = False) -> str:
     result = text
     ordered = sorted({secret for secret in secrets if secret}, key=len, reverse=True)
-    for secret in ordered:
-        if len(secret) >= 4:
-            result = result.replace(secret, "***")
+    strong = [s for s in ordered if _is_strong_secret(s)]
+    short = [] if strong_only else [s for s in ordered if len(s) >= 4 and not _is_strong_secret(s)]
+    for secret in strong:
+        result = result.replace(secret, "***")
+    if short:
+        result = _redact_short_in_auth_context(result, short)
     for pattern in _SECRET_VALUE_PATTERNS:
         result = pattern.sub("***", result)
     return result
+
+
+def redact(text: str, secrets: list[str]) -> str:
+    return _redact_with_mode(text, secrets, strong_only=False)
 
 
 _BINARY_PREFIXES = (
@@ -326,8 +460,10 @@ def redact_bytes(data: bytes, secrets: list[str]) -> bytes:
         except UnicodeDecodeError:
             continue
         if "\x00" in text:
-            continue
-        redacted = redact(text, secrets)
+            # 按 NUL 分段分别脱敏，封堵在日志流中插入 \x00 绕过文本脱敏的漏洞。
+            redacted = "\x00".join(redact(part, secrets) for part in text.split("\x00"))
+        else:
+            redacted = redact(text, secrets)
         if redacted == text:
             return data
         try:
@@ -337,13 +473,32 @@ def redact_bytes(data: bytes, secrets: list[str]) -> bytes:
     return data
 
 
-def redact_tree(value: Any, secrets: list[str]) -> Any:
+def redact_tree(
+    value: Any,
+    secrets: list[str],
+    *,
+    _parent_key: str = "",
+) -> Any:
     """Recursively redact string leaves before a JSON record is written."""
     if isinstance(value, dict):
-        return {key: redact_tree(item, secrets) for key, item in value.items()}
+        return {
+            key: redact_tree(item, secrets, _parent_key=str(key))
+            for key, item in value.items()
+        }
     if isinstance(value, list):
-        return [redact_tree(item, secrets) for item in value]
+        return [redact_tree(item, secrets, _parent_key=_parent_key) for item in value]
     if isinstance(value, str):
+        key_lower = _parent_key.strip().lower()
+        if key_lower in _STRUCTURAL_META_KEYS:
+            return _redact_with_mode(value, secrets, strong_only=True)
+        if _parent_key and is_secret_field(_parent_key):
+            # 在已知秘密字段名上下文中，短密码同样直接掩码。
+            result = _redact_with_mode(value, secrets, strong_only=False)
+            for secret in sorted({s for s in secrets if s and len(s) >= 4}, key=len, reverse=True):
+                result = result.replace(secret, "***")
+            return result
+        if key_lower in _CODE_META_KEYS and key_lower == "script_name":
+            return _redact_with_mode(value, secrets, strong_only=True)
         return redact(value, secrets)
     return value
 
@@ -421,7 +576,9 @@ def _assertion_profile(tree: ast.AST) -> tuple[int, int, int, set[int], bool]:
                     assert_count += 1
                 elif func.attr.startswith("assert"):
                     assert_count += 1
-            elif isinstance(func, ast.Name) and func.id.startswith("assert_"):
+            elif isinstance(func, ast.Name) and (
+                func.id.startswith("assert_") or func.id == "expect"
+            ):
                 assert_count += 1
     return assert_count, raises_count, eq_count, error_in_codes, has_trivial
 

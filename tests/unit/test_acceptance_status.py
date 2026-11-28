@@ -15,8 +15,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "02-需求" / "02-需求规格.md"
 _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
 
-_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 33))
-_FR_IDS = tuple(f"FR{index:02d}" for index in range(1, 19))
+# FR04 / P1-AC05 已按重构决策移除且不重编号。
+_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 33) if index != 5)
+_FR_IDS = tuple(f"FR{index:02d}" for index in range(1, 19) if index != 4)
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
 _BLOCKER_KINDS = frozenset(

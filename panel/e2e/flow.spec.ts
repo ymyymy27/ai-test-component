@@ -4,18 +4,20 @@ import { confirmPlan, createProject, createTaskFromCandidate, test } from "./fix
 
 test("选中候选会填入目标并自动生成计划", async ({ page }) => {
   const projectId = await createProject(page, "候选创建验证", "D:/work/flow-auto");
-  await page.getByRole("button", { name: "查看候选" }).click();
-  await page.waitForURL(/tasks\/new/);
-  await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
-  await expect(page.locator('input[name="target-candidate"]:checked')).toHaveCount(0);
-  await expect(page.locator("textarea")).toHaveValue("");
-  await page.locator(".candidate").first().click();
-  await expect(page.locator("textarea")).toHaveValue(/验证/);
-  await page.getByRole("button", { name: "创建任务并生成计划" }).click();
+  await page.getByRole("button", { name: "新建测试任务" }).click();
+  const drawer = page.getByRole("dialog", { name: "新建测试" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("radio", { name: "粘贴需求 / 自选功能" }).click();
+  await expect(drawer.locator("#composer-goal-req")).toHaveValue("");
+  const details = drawer.locator("details.details-tech");
+  await details.locator("summary").click();
+  await details.locator("button").first().click();
+  await expect(drawer.locator("#composer-goal-req")).toHaveValue(/验证/);
+  await drawer.getByRole("button", { name: "生成测试计划" }).click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`), {
     timeout: 15_000,
   });
-  await expect(page.locator(".plan-summary")).toContainText("待确认");
+  await expect(page.locator(".page-head")).toContainText("待确认");
   // 不只等 URL：核对本地落盘的任务与计划确实生成了用例。
   const stored = (await page.evaluate(() =>
     JSON.parse(localStorage.getItem("aitest.panel.v1") || "{}"),
@@ -35,11 +37,11 @@ test("选中候选会填入目标并自动生成计划", async ({ page }) => {
 test("调整范围后取消调整返回计划页", async ({ page }) => {
   const projectId = await createProject(page, "取消调整验证", "D:/work/flow-cancel");
   await createTaskFromCandidate(page, 0);
-  await page.getByRole("button", { name: "调整范围" }).click();
+  await page.getByRole("button", { name: "调整本次纳入范围" }).click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/scope`));
   await page.getByRole("button", { name: "取消调整", exact: true }).click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/tasks/[^/]+/plan`));
-  await expect(page.locator(".plan-summary")).toBeVisible();
+  await expect(page.getByRole("region", { name: "覆盖率与任务摘要" })).toBeVisible();
 });
 
 test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) => {
@@ -52,7 +54,7 @@ test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) 
   await page.locator(".side-nav").getByRole("button", { name: /^运行记录/ }).click();
   await page.waitForURL(/\/history$/);
   await expect(page.locator("#main-content")).toContainText("运行记录");
-  await page.locator(".side-nav").getByRole("button", { name: "设置" }).click();
+  await page.getByRole("button", { name: "项目设置" }).click();
   await page.waitForURL(/\/settings$/);
   await expect(page.locator("#main-content")).toContainText("项目资料");
   await page.goto(`/projects/${projectId}/overview`);
@@ -73,9 +75,7 @@ test("侧边栏可以重命名、编辑资料并新建任务", async ({ page }) 
   await page.waitForURL(/\/details/);
   await page.goto(`/projects/${projectId}/overview`);
   await page.locator(".side-add").click();
-  await page.waitForURL(/\/tasks\/new/);
-  await expect(page.locator(".side-task.is-active")).toHaveCount(0);
-  await expect(page.locator(".test-mode.is-active")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "新建测试" })).toBeVisible();
 });
 
 test("删除任务需要确认并从侧栏移除", async ({ page }) => {
@@ -94,13 +94,11 @@ test("删除任务需要确认并从侧栏移除", async ({ page }) => {
 test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → 报告", async ({ page }) => {
   await createProject(page, "流程验证", "D:/work/flow-a");
   await expect(page.locator(".stats-bar")).toContainText("业务功能");
-  await expect(page.locator(".candidate-brief")).toContainText("已整理 3 条候选");
 
   await createTaskFromCandidate(page, 0);
-  await expect(page.locator(".plan-summary")).toContainText("本次 1 项 / 共 4 项");
-  const start = page.getByRole("button", { name: "开始测试" });
+  await expect(page.getByRole("region", { name: "覆盖率与任务摘要" })).toContainText("本次纳入");
+  const start = page.getByRole("button", { name: "确认并开始测试" });
   await expect(start).toBeDisabled();
-  await expect(page.locator(".actionbar")).toContainText("先勾选页面下方");
   await confirmPlan(page);
   await expect(start).toBeEnabled();
   await start.click();
@@ -109,9 +107,8 @@ test("建立项目 → 目标 → 计划 → 确认 → 运行 → 结果 → �
   await expect(page.locator(".result-verdict")).toHaveText("通过");
   await expect(page.locator(".guidance").first()).toContainText("本次范围通过");
   await expect(page.locator(".guidance").first()).not.toContainText("全部通过");
-  await expect(page.locator(".section-title").filter({ hasText: "项目级检查" })).toBeVisible();
 
-  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.getByRole("button", { name: "独立打开报告" }).click();
   await page.waitForURL(/\/reports\//);
   await expect(page.locator("h1").first()).toHaveText("测试报告");
   await expect(page.getByRole("button", { name: "返回运行结果" })).toBeVisible();
@@ -168,6 +165,7 @@ test("概览不出现目标输入，当前任务条只在有任务时出现", as
 
 test("项目理解可以忽略和恢复业务功能", async ({ page }) => {
   await createProject(page, "理解验证", "D:/work/flow-map");
+  await page.locator("summary").filter({ hasText: "功能模块" }).click();
   await expect(page.locator(".project-map-stats")).toContainText("3 个业务功能");
   await page.getByRole("button", { name: "忽略业务功能 启动与主流程" }).click();
   await expect(page.locator(".project-map-stats")).toContainText("2 个业务功能");

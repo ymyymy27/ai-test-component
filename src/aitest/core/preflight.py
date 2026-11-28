@@ -143,10 +143,9 @@ def _default_healthy(url: str) -> bool | None:
         return False
     try:
         with urllib.request.urlopen(url, timeout=2) as response:
-            status = int(response.status)
-            return status < 400 or status in {401, 403}
+            return int(response.status) < 400
     except urllib.error.HTTPError as exc:
-        return exc.code < 400 or exc.code in {401, 403}
+        return exc.code < 400
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
@@ -179,16 +178,23 @@ def _local_host_port(url: str) -> tuple[str, int] | None:
 
 
 def _port_listening(host: str, port: int, *, scheme: str = "http") -> bool:
-    """使用标准库 HTTPConnection.connect 仅做 TCP 建连探测，精准区分端口占用与空闲。"""
+    """支持 IPv4 与 IPv6 双栈探测本地端口是否正在被监听。"""
     del scheme
-    conn = http.client.HTTPConnection(host, port, timeout=3.0)
-    try:
-        conn.connect()
-        return True
-    except OSError:
-        return False
-    finally:
-        conn.close()
+    hosts = [host]
+    if host in {"127.0.0.1", "localhost"}:
+        hosts = ["127.0.0.1", "::1"]
+    elif host == "::1":
+        hosts = ["::1", "127.0.0.1"]
+    for cand in hosts:
+        conn = http.client.HTTPConnection(cand, port, timeout=1.5)
+        try:
+            conn.connect()
+            return True
+        except OSError:
+            continue
+        finally:
+            conn.close()
+    return False
 
 
 def check_service_ports(
@@ -361,6 +367,25 @@ def check_required_env(
             blocking_reasons.append(msg)
             checks.append({"key": key, "source": "config.required_env", "status": "missing"})
 
+    raw_roles = config.get("test_roles")
+    if isinstance(raw_roles, dict):
+        for role_name, role_spec in raw_roles.items():
+            if not isinstance(role_spec, dict):
+                continue
+            for field_name, env_var_raw in role_spec.items():
+                if not str(field_name).lower().endswith(("_env", "_env_var")):
+                    continue
+                env_key = str(env_var_raw or "").strip()
+                if not env_key:
+                    continue
+                source_tag = f"config.test_roles.{role_name}.{field_name}"
+                if bool(run_env.get(env_key)) or env_key in present_in_dotenv:
+                    checks.append({"key": env_key, "source": source_tag, "status": "ok"})
+                else:
+                    msg = f"缺少测试角色 {role_name} 所需环境变量 {env_key}（来自 {source_tag}）"
+                    blocking_reasons.append(msg)
+                    checks.append({"key": env_key, "source": source_tag, "status": "missing"})
+
     seen_example: set[str] = set(configured_keys)
     for key, rel in example_required:
         if key in seen_example:
@@ -380,10 +405,21 @@ def check_required_env(
     }
 
 
-def _extract_command_executable(command: str) -> str:
-    text = _CHAIN_PREFIX_RE.sub("", command.strip())
+def _extract_command_subdir_and_executable(command: str) -> tuple[str, str]:
+    """解析 `cd <subdir> && <exe> ...` 前缀下的实际工作子目录和可执行工具名。"""
+    text = command.strip()
+    subdir = ""
+    while True:
+        cd_m = re.match(r"^(?:cd|pushd)\s+([^&;]+?)\s*(?:&&|;)\s*(.+)$", text, re.IGNORECASE)
+        if not cd_m:
+            break
+        raw_dir = cd_m.group(1).strip().strip('"').strip("'")
+        if raw_dir:
+            subdir = str(Path(subdir) / raw_dir) if subdir else raw_dir
+        text = cd_m.group(2).strip()
+    text = _CHAIN_PREFIX_RE.sub("", text).strip()
     if not text:
-        return ""
+        return subdir, ""
     try:
         tokens = shlex.split(text, posix=(os.name != "nt"))
     except ValueError:
@@ -397,8 +433,13 @@ def _extract_command_executable(command: str) -> str:
         lowered = cleaned.lower()
         if lowered in _SHELL_BUILTINS or lowered in {"&&", "||", ";"}:
             continue
-        return cleaned
-    return ""
+        return subdir, cleaned
+    return subdir, ""
+
+
+def _extract_command_executable(command: str) -> str:
+    _, exe = _extract_command_subdir_and_executable(command)
+    return exe
 
 
 def check_service_tools(
@@ -408,7 +449,7 @@ def check_service_tools(
     *,
     reused_services: set[str] | None = None,
 ) -> dict[str, Any]:
-    """检查待启动服务的 CLI 工具/解释器在当前 PATH 或工作区中是否存在。"""
+    """检查待启动服务的 CLI 工具/解释器在当前 PATH 或子项目工作区中是否存在。"""
     checks: list[dict[str, str]] = []
     blocking_reasons: list[str] = []
     reused = reused_services or set()
@@ -419,17 +460,30 @@ def check_service_tools(
         start_cmd = str(cfg.get("start") or "").strip()
         if not start_cmd or label in reused:
             continue
-        exe = _extract_command_executable(start_cmd)
+        subdir, exe = _extract_command_subdir_and_executable(start_cmd)
         if not exe:
             continue
+        effective_dir = (workdir / subdir) if subdir else workdir
         path_candidate = Path(exe)
         exists = False
         if path_candidate.is_absolute():
             exists = path_candidate.is_file()
         elif "/" in exe or "\\" in exe:
-            exists = (workdir / path_candidate).is_file()
+            exists = (
+                (effective_dir / path_candidate).is_file()
+                or (workdir / path_candidate).is_file()
+            )
         else:
-            exists = shutil.which(exe, path=search_path) is not None
+            local_bins = [
+                effective_dir / "node_modules" / ".bin",
+                effective_dir / ".venv" / "Scripts",
+                effective_dir / ".venv" / "bin",
+                workdir / "node_modules" / ".bin",
+            ]
+            local_search = os.pathsep.join(
+                [*(str(b) for b in local_bins if b.is_dir()), search_path or ""]
+            )
+            exists = shutil.which(exe, path=local_search) is not None
         if exists:
             checks.append({"service": label, "tool": exe, "status": "ok"})
         else:

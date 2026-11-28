@@ -678,8 +678,6 @@ def test_worker_records_request_id_and_sends_header(
     tmp_path: Path, capsys: Capsys, http_server: _RecordingServer
 ) -> None:
     setup = _setup(tmp_path, capsys)
-    ws = _workspace(tmp_path)
-    project_id = setup["project"]["project_id"]
     item_id = setup["task"]["acceptance_items"][0]["item_id"]
     requests = [
         {
@@ -694,14 +692,14 @@ def test_worker_records_request_id_and_sends_header(
         setup,
         [_case(item_id, "http:" + json.dumps(requests))],
     )
-    case_id = read_json(
-        ws.project_dir(project_id) / "plans" / f"{plan['plan_id']}.json"
-    )["cases"][0]["case_id"]
-    run_id, run = _run_plan(tmp_path, capsys, setup, plan)
+    _, run = _run_plan(tmp_path, capsys, setup, plan)
 
-    expected = f"{run_id}-{case_id}"
-    assert run["request_ids"] == [expected]
-    assert http_server.seen[0].get("X-Request-Id") == expected
+    import uuid as _uuid
+
+    assert len(run["request_ids"]) == 1
+    req_id = run["request_ids"][0]
+    assert _uuid.UUID(req_id, version=4).version == 4
+    assert http_server.seen[0].get("X-Request-Id") == req_id
 
 
 def test_link_import_filters_logs_to_run_window(tmp_path: Path, capsys: Capsys) -> None:

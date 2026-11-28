@@ -624,6 +624,7 @@ def _extract_django_routes(
                 "file": rel_posix,
                 "line": str(lineno),
                 "fields_complete": False,
+                "confidence": "heuristic",
                 "source_kind": "django",
             }
         )
@@ -936,6 +937,7 @@ def extract_python_api_routes(
                             "file": rel_posix,
                             "line": str(line_no),
                             "fields_complete": fields_complete,
+                            "confidence": "heuristic",
                             "source_kind": "python_ast",
                         }
                         if fn_fields:

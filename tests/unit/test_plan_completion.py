@@ -457,7 +457,6 @@ def test_report_contains_issues_analysis_layers_and_github_mapping(
     assert report["issues"] == []
     assert report["analysis"] == []
     assert report["layers"] == {"L1": 0, "L2": 1, "L3": 0}
-    assert report["rules_version_id"] is None
     assert report["source_commit"] == "abc123"
     assert report["environment"]["python"]
     assert report["environment"]["services"] == []

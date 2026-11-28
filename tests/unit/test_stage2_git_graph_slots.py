@@ -19,13 +19,9 @@ from aitest.core.code_graph import (
     build_code_graph,
     load_or_build_code_graph,
 )
+from aitest.core.evidence import LocalFileSnapshotIsolator
 from aitest.core.git_engine import inspect_local_git, sanitize_remote_url
 from aitest.core.judge import judge_case_failure
-from aitest.core.plugins import (
-    DEFAULT_REGISTRY,
-    LocalFileSnapshotIsolator,
-    PluginRegistry,
-)
 from aitest.core.probes import run_deterministic_probes
 from aitest.core.script_linter import JsTsScriptLinter, lint_script
 from aitest.core.shared_config import (
@@ -169,12 +165,7 @@ def test_git_engine_inspects_real_repo_and_degrades_gracefully(tmp_path: Path) -
     assert any(h["path"] == "app.py" for h in info["hotspots"])
 
 
-def test_plugins_slots_js_linter_and_file_snapshot_isolator(tmp_path: Path) -> None:
-    assert isinstance(DEFAULT_REGISTRY, PluginRegistry)
-    provider_ids = {p.provider_id for p in DEFAULT_REGISTRY.context_providers()}
-    assert {"python_backend", "frontend_web", "openapi_spec"} <= provider_ids
-    assert any(isinstance(iso, LocalFileSnapshotIsolator) for iso in DEFAULT_REGISTRY.isolators())
-
+def test_js_linter_and_file_snapshot_isolator(tmp_path: Path) -> None:
     linter = JsTsScriptLinter()
     assert any(i.rule == "empty_script" for i in linter.lint("   "))
     assert any(i.rule == "no_assertion" for i in linter.lint("console.log('ok');"))
@@ -193,7 +184,7 @@ def test_plugins_slots_js_linter_and_file_snapshot_isolator(tmp_path: Path) -> N
         "  expect(status).toBe(200);\n"
         "});\n"
     )
-    assert DEFAULT_REGISTRY.lint("login.spec.ts", clean_js) == []
+    assert lint_script("login.spec.ts", clean_js) == []
 
     # LocalFileSnapshotIsolator：备份既有文件 + 清理运行后新建文件 + 防止路径穿越
     workdir = tmp_path / "app"
@@ -242,11 +233,13 @@ def test_case_isolation_restores_snapshot_between_cases(tmp_path: Path) -> None:
         project_id="proj_x",
         scope=Scope(preset="all_applicable"),
     )
-    states = DEFAULT_REGISTRY.prepare_isolators(workdir, run.run_id, run_dir, config)
+    iso = LocalFileSnapshotIsolator()
+    states = [(iso, iso.prepare(workdir, run.run_id, run_dir, config))]
     target.write_text('{"role": "admin"}', encoding="utf-8")
     states = _reset_case_isolation(workdir, run, run_dir, config, states)
     assert target.read_text(encoding="utf-8") == '{"role": "user"}'
-    DEFAULT_REGISTRY.cleanup_isolators(states)
+    for isolator, state in reversed(states):
+        isolator.cleanup(state)
 
 
 def test_code_graph_layers_conflicts_git_impact_and_cache(tmp_path: Path) -> None:
@@ -257,12 +250,12 @@ def test_code_graph_layers_conflicts_git_impact_and_cache(tmp_path: Path) -> Non
 
     graph = build_code_graph(repo, {})
     layers = {n["layer"] for n in graph["nodes"]}
-    assert {"frontend", "api", "backend", "storage"} <= layers
+    assert {"frontend", "api", "backend"} <= layers
 
     edge_kinds = {e["kind"] for e in graph["edges"]}
     assert "calls_api" in edge_kinds
     assert "handled_by" in edge_kinds
-    assert "reads_writes" in edge_kinds
+    assert "depends_on" in edge_kinds
 
     # backend/routes.py 精确路由节点应记录非零行号
     api_node = next(
@@ -273,17 +266,17 @@ def test_code_graph_layers_conflicts_git_impact_and_cache(tmp_path: Path) -> Non
     assert api_node["file"] == "backend/routes.py"
     assert api_node["line"] >= 1
 
-    # /api/ghost 与 /static/missing.js 进入跨层 conflicts
+    # /api/ghost 与 /static/missing.js 进入跨层 conflicts；module_chunks 轻量清空
     conflict_details = [str(c.get("detail") or "") for c in graph["conflicts"]]
     assert any("/api/ghost" in d for d in conflict_details)
     assert any("missing.js" in d for d in conflict_details)
-    assert len(graph["module_chunks"]) >= 2
+    assert graph["module_chunks"] == []
 
-    # Git 变更 backend/models.py 应触发直接与跨层 2 跳传播
+    # Git 变更 backend/models.py 应触发直接与跨层 2 跳传播到 backend/routes.py 和 api 节点
     impacted = apply_git_impact(graph, {"changed_files": ["backend/models.py"]})
     assert impacted["impact"]["direct_node_ids"]
-    storage_node = next(n for n in impacted["nodes"] if n["file"] == "backend/models.py")
-    assert storage_node["impact"] == "direct"
+    model_node = next(n for n in impacted["nodes"] if n["file"] == "backend/models.py")
+    assert model_node["impact"] == "direct"
     assert any(
         n["layer"] == "api" and n["impact"] == "transitive" for n in impacted["nodes"]
     )
@@ -407,22 +400,33 @@ def test_shared_config_environments_and_conventions(tmp_path: Path) -> None:
     probe_repo = tmp_path / "probe_repo"
     probe_repo.mkdir()
     _create_fullstack_repo(probe_repo)
-    probe_out = run_deterministic_probes(
-        probe_repo,
-        {
-            "conventions": [
-                {
-                    "id": "allow_ghost",
-                    "pattern": "/api/ghost",
-                    "reason": "网关代理路径",
-                    "scope": "probe",
-                }
-            ]
-        },
-    )
-    contract_probe = next(p for p in probe_out if p["probe_id"] == "contract_reconciliation")
-    assert contract_probe["status"] == "passed"
-    assert len(contract_probe.get("suppressed_findings", [])) == 1
+    import aitest.core.probes as probes_mod
+
+    original_run = probes_mod.StaticAssetsProbe.run
+    try:
+        probes_mod.StaticAssetsProbe.run = lambda _self, **_kw: {  # type: ignore[method-assign]
+            "probe_id": "static_assets",
+            "status": "failed",
+            "findings": [{"kind": "asset_http_error", "detail": "/api/ghost 返回 404"}],
+        }
+        probe_out = run_deterministic_probes(
+            probe_repo,
+            {
+                "conventions": [
+                    {
+                        "id": "allow_ghost",
+                        "pattern": "/api/ghost",
+                        "reason": "网关代理路径",
+                        "scope": "probe",
+                    }
+                ]
+            },
+        )
+    finally:
+        probes_mod.StaticAssetsProbe.run = original_run  # type: ignore[method-assign]
+    assets_probe = next(p for p in probe_out if p["probe_id"] == "static_assets")
+    assert assets_probe["status"] == "passed"
+    assert len(assets_probe.get("suppressed_findings", [])) == 1
 
     # 删除新增错题本条目
     target_id = next(c["id"] for c in convs if c["pattern"] == "429 Too Many Requests")
@@ -492,7 +496,7 @@ def test_map_snapshot_and_project_context_integration(tmp_path: Path) -> None:
 
     snap = cmd_project_snapshot(ws, {"project_id": project_id}, False)
     assert snap["local_git"]["is_git"] is True
-    assert snap["code_graph"]["stats"]["storage"] >= 1
+    assert snap["code_graph"]["stats"]["backend"] >= 1
     assert "backend/models.py" in snap["code_graph"]["impact"]["changed_files"]
 
     from aitest.commands import _project

@@ -198,28 +198,19 @@ def test_code_graph_filters_empty_init_and_links_socketio_events(tmp_path: Path)
     assert graph["conflicts"] == []
 
 
-def test_summarize_report_retries_once_on_banned_word_and_drops_double_violation() -> None:
-    """首次 AI 摘要命中结论词时应自动纠偏重试 1 次；两次都违规仍返回 None。"""
-    facts = {"outcome": "passed", "counts": {"passed": 3, "failed": 0}}
-    client_retry_ok = _SeqClient(
-        [
-            {"summary": "全部 3 项用例执行通过，建议上线。"},
-            {"summary": "本次共执行 3 项，符合预期 3 项、出现失败 0 项。"},
-        ]
-    )
-    result = summarize_report(facts, client=client_retry_ok)  # type: ignore[arg-type]
-    assert result == "本次共执行 3 项，符合预期 3 项、出现失败 0 项。"
-    assert len(client_retry_ok.calls) == 2
-    retry_user = json.loads(client_retry_ok.calls[1][1])
-    assert "correction" in retry_user
-
-    client_double_bad = _SeqClient(
-        [
-            {"summary": "测试已通过"},
-            {"summary": "依然包含passed结论词"},
-        ]
-    )
-    assert summarize_report(facts, client=client_double_bad) is None  # type: ignore[arg-type]
+def test_summarize_report_is_deterministic_without_model_call() -> None:
+    """报告摘要完全由确定性计数生成，不依赖或调用模型且不含结论词。"""
+    facts = {
+        "outcome": "passed",
+        "counts": {"selected": 3, "applicable": 3, "passed": 3, "failed": 0, "incomplete": 0},
+        "uncovered_items": [],
+    }
+    client = _SeqClient([{"summary": "全部 3 项用例执行通过，建议上线。"}])
+    result = summarize_report(facts, client=client)  # type: ignore[arg-type]
+    assert client.calls == []
+    assert "本次范围 3/3" in result
+    assert "符合预期 3" in result
+    assert "通过" not in result
 
 
 def test_install_dependencies_marks_shared_host_env_notice(

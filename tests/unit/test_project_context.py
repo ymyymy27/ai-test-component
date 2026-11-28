@@ -87,10 +87,8 @@ def test_detect_services_for_fastapi_vite_compose_stack(tmp_path: Path) -> None:
         '{"scripts": {"dev": "vite"}, "devDependencies": {"vite": "^8"}}',
     )
     services = detect_services(root)
-    assert list(services) == ["db", "backend", "frontend"]
+    assert list(services) == ["db"]
     assert services["db"]["start"] == "docker compose up -d db"
-    assert "uv run fastapi dev" in str(services["backend"]["start"])
-    assert "bunx vite" in str(services["frontend"]["start"])
 
 
 def test_detect_services_includes_override_services_and_flags(tmp_path: Path) -> None:
@@ -149,7 +147,8 @@ def test_detect_standalone_python_http_service_and_do_not_override_monorepo(
     )
     mono_services = detect_services(mono)
     assert "app" not in mono_services
-    assert "db" in mono_services and "backend" in mono_services
+    assert "db" in mono_services
+    assert "backend" not in mono_services
 
 
 def test_standalone_detection_ignores_dict_get_default_as_port(tmp_path: Path) -> None:

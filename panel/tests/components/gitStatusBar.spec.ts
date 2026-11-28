@@ -93,7 +93,7 @@ describe("GitStatusBar", () => {
       },
     });
     expect(wrapper.text()).toContain("未检测到 Git 仓库");
-    await wrapper.find("button.btn-ghost").trigger("click");
+    await wrapper.find(".git-bar-actions button").trigger("click");
     expect(wrapper.emitted("refresh")).toHaveLength(1);
   });
 });

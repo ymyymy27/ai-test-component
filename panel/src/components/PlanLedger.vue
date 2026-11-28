@@ -78,6 +78,29 @@ const flowBuckets = computed(() => {
 const firstOpen = computed(() => groups.value[0]?.itemId ?? "");
 const elementMap = new Map<string, HTMLElement>();
 
+function generationLabel(testCase: PlanCase): string {
+  const gen = testCase.generation;
+  if (!gen?.source) {
+    return "";
+  }
+  if (gen.source === "invariant") {
+    const gid = gen.generatorId ? `·${gen.generatorId}` : "";
+    const ver = gen.generatorVersion ? ` v${gen.generatorVersion}` : "";
+    return `确定性${gid}${ver}`;
+  }
+  if (gen.source === "model") {
+    return "AI 生成";
+  }
+  return "显式用例";
+}
+
+function strengthLabel(testCase: PlanCase): string {
+  if (testCase.assertionStrength === "strong") return "强断言";
+  if (testCase.assertionStrength === "weak") return "弱断言";
+  if (testCase.assertionStrength === "unverified") return "未证实断言";
+  return "";
+}
+
 function setItemRef(itemId: string, element: Element | ComponentPublicInstance | null): void {
   if (element instanceof HTMLElement) {
     elementMap.set(itemId, element);
@@ -129,6 +152,22 @@ defineExpose({ focusItem });
                 <header class="case-head">
                   <span class="case-title">{{ testCase.title }}</span>
                   <span class="badge">{{ LAYER_LABEL[testCase.layer] }}</span>
+                  <span v-if="generationLabel(testCase)" class="badge is-neutral">
+                    {{ generationLabel(testCase) }}
+                  </span>
+                  <span
+                    v-if="strengthLabel(testCase)"
+                    class="badge"
+                    :class="
+                      testCase.assertionStrength === 'strong'
+                        ? 'is-ok'
+                        : testCase.assertionStrength === 'weak'
+                          ? 'is-warn'
+                          : 'is-neutral'
+                    "
+                  >
+                    {{ strengthLabel(testCase) }}
+                  </span>
                   <span v-if="!testCase.expectationVerified" class="badge is-warn">预期未核实</span>
                 </header>
                 <div class="case-compare">
@@ -178,6 +217,22 @@ defineExpose({ focusItem });
             <header class="case-head">
               <span class="case-title">{{ testCase.title }}</span>
               <span class="badge">{{ LAYER_LABEL[testCase.layer] }}</span>
+              <span v-if="generationLabel(testCase)" class="badge is-neutral">
+                {{ generationLabel(testCase) }}
+              </span>
+              <span
+                v-if="strengthLabel(testCase)"
+                class="badge"
+                :class="
+                  testCase.assertionStrength === 'strong'
+                    ? 'is-ok'
+                    : testCase.assertionStrength === 'weak'
+                      ? 'is-warn'
+                      : 'is-neutral'
+                "
+              >
+                {{ strengthLabel(testCase) }}
+              </span>
               <span v-if="!testCase.expectationVerified" class="badge is-warn">预期未核实</span>
             </header>
             <p class="case-method">{{ testCase.verifyMethod || "人工检查" }}</p>

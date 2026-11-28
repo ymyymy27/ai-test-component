@@ -45,15 +45,15 @@ test("确认对话框 Esc 关闭并返回触发按钮", async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
-test("运行中概览的开始测试按钮被禁用", async ({ page }) => {
+test("运行中概览的新建测试任务按钮被禁用", async ({ page }) => {
   const projectId = await createProject(page, "运行锁验证", "D:/work/flow-lock");
   await createTaskFromCandidate(page, 0);
   await confirmPlan(page);
-  await page.getByRole("button", { name: "开始测试" }).click();
+  await page.getByRole("button", { name: "确认并开始测试" }).click();
   await page.waitForURL(/\/run/);
   await page.locator(".side-project-row").first().click();
   await page.waitForURL(new RegExp(`/projects/${projectId}/overview`));
-  await expect(page.getByRole("button", { name: "开始测试" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "新建测试任务" })).toBeDisabled();
 });
 
 test("键盘可以完成建立项目到运行的主流程", async ({ page }) => {
@@ -66,16 +66,20 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/overview/, { timeout: 10_000 });
-  await page.locator(".candidate-brief").waitFor({ timeout: 10_000 });
+  const newTaskBtn = page.getByRole("button", { name: "新建测试任务" });
+  await newTaskBtn.waitFor({ timeout: 10_000 });
 
-  await page.getByRole("button", { name: "查看候选" }).focus();
+  await newTaskBtn.focus();
   await page.keyboard.press("Enter");
-  await page.waitForURL(/tasks\/new/);
-  await page.locator('input[name="test-mode"][value="target"]').focus();
-  await page.keyboard.press("Space");
-  await page.locator('input[type="radio"][name="target-candidate"]').first().focus();
-  await page.keyboard.press("Space");
-  await page.getByRole("button", { name: "创建任务并生成计划" }).focus();
+  const drawer = page.getByRole("dialog", { name: "新建测试" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("radio", { name: "粘贴需求 / 自选功能" }).focus();
+  await page.keyboard.press("Enter");
+  await drawer.locator("details.details-tech summary").focus();
+  await page.keyboard.press("Enter");
+  await drawer.locator("details.details-tech button").first().focus();
+  await page.keyboard.press("Enter");
+  await drawer.getByRole("button", { name: "生成测试计划" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/plan/, { timeout: 15_000 });
   await page.locator("#confirm-execution").focus();
@@ -84,7 +88,7 @@ test("键盘可以完成建立项目到运行的主流程", async ({ page }) => 
     await page.locator("#confirm-warnings").focus();
     await page.keyboard.press("Space");
   }
-  await page.getByRole("button", { name: "开始测试" }).focus();
+  await page.getByRole("button", { name: "确认并开始测试" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/result/, { timeout: 15_000 });
   await expect(page.locator(".result-verdict")).toHaveText("通过");

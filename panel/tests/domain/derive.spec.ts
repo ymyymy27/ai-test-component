@@ -38,8 +38,6 @@ describe("derived results", () => {
         catalog: [],
         tasks: [],
         activeTaskId: null,
-        rules: [],
-        rulesVersionId: null,
         config: {},
         github: null,
         quickChecks: [],

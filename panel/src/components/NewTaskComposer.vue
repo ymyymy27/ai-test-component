@@ -311,7 +311,7 @@ async function startManualRange(): Promise<void> {
 </script>
 
 <template>
-  <div class="stack">
+  <div class="new-task-composer">
     <div v-if="runningTask" class="notice is-warn" role="alert">
       <Icon name="warn" :size="14" />
       <span>当前已有任务「{{ runningTask.title }}」正在执行，请等待完成或先停止后再发起新测试。</span>
@@ -333,7 +333,7 @@ async function startManualRange(): Promise<void> {
 
     <div class="stack-sm">
       <p class="field-label">测试方式</p>
-      <div class="tab-pills" role="radiogroup" aria-label="测试方式">
+      <div class="tab-pills is-segmented" role="radiogroup" aria-label="测试方式">
         <button
           class="tab-pill"
           :class="{ 'is-active': activeIntent === 'changes' }"
@@ -483,17 +483,19 @@ async function startManualRange(): Promise<void> {
 
       <details v-if="project.candidates.length" class="details-tech">
         <summary>从推荐目标中选择 ({{ project.candidates.length }})</summary>
-        <div class="stack-sm" style="margin-top: 8px;">
+        <div class="stack-sm" style="margin-top: var(--space-2);">
           <button
             v-for="cand in project.candidates"
             :key="cand.id"
             type="button"
-            class="btn btn-sm btn-ghost"
-            style="justify-content: flex-start; text-align: left;"
+            class="flow-card-btn"
+            :class="{ 'is-active': selectedCandidateId === cand.id }"
             @click="applyCandidate(cand)"
           >
-            <strong>{{ cand.title }}</strong>
-            <span class="muted"> · {{ cand.itemCount }} 条可测项</span>
+            <div class="row-between">
+              <strong>{{ cand.title }}</strong>
+              <span class="badge is-neutral">{{ cand.itemCount }} 条可测项</span>
+            </div>
           </button>
         </div>
       </details>
@@ -515,7 +517,7 @@ async function startManualRange(): Promise<void> {
       </div>
     </div>
 
-    <div class="row-between" style="flex-wrap: wrap; gap: 12px;">
+    <div class="composer-footer row-between">
       <button
         class="link-btn"
         type="button"
@@ -528,7 +530,7 @@ async function startManualRange(): Promise<void> {
       <div class="row">
         <button
           v-if="inDrawer"
-          class="btn btn-ghost btn-sm"
+          class="btn btn-sm"
           type="button"
           :disabled="submitting"
           @click="emit('cancel')"

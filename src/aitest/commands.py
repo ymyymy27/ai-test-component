@@ -23,14 +23,6 @@ from aitest.command_handlers.asset_commands import (
     cmd_delivery_draft,
     cmd_delivery_save,
     cmd_delivery_show,
-    cmd_rules_bind,
-    cmd_rules_export,
-    cmd_rules_import,
-    cmd_rules_list,
-    cmd_rules_save,
-    cmd_rules_show,
-    cmd_template_apply,
-    cmd_template_list,
 )
 from aitest.command_handlers.doctor_commands import _reference_problems, cmd_doctor
 from aitest.command_handlers.map_task_commands import (
@@ -80,14 +72,6 @@ REGISTRY: dict[str, Handler] = {
     "delivery.save": cmd_delivery_save,
     "delivery.show": cmd_delivery_show,
     "delivery.draft": cmd_delivery_draft,
-    "template.list": cmd_template_list,
-    "template.apply": cmd_template_apply,
-    "rules.save": cmd_rules_save,
-    "rules.list": cmd_rules_list,
-    "rules.show": cmd_rules_show,
-    "rules.bind": cmd_rules_bind,
-    "rules.import": cmd_rules_import,
-    "rules.export": cmd_rules_export,
 }
 
 MUTATING = {
@@ -100,11 +84,6 @@ MUTATING = {
     "task.update",
     "task.delete",
     "delivery.save",
-    "template.apply",
-    "rules.save",
-    "rules.bind",
-    "rules.import",
-    "rules.export",
 }
 
 __all__ = [
@@ -142,20 +121,12 @@ __all__ = [
     "cmd_project_map_refresh",
     "cmd_project_show",
     "cmd_project_update",
-    "cmd_rules_bind",
-    "cmd_rules_export",
-    "cmd_rules_import",
-    "cmd_rules_list",
-    "cmd_rules_save",
-    "cmd_rules_show",
     "cmd_task_add",
     "cmd_task_delete",
     "cmd_task_list",
     "cmd_task_show",
     "cmd_task_suggest",
     "cmd_task_update",
-    "cmd_template_apply",
-    "cmd_template_list",
     "infer_task_intent",
     "request_cache_path",
     "store_result",

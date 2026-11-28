@@ -314,9 +314,16 @@ def cmd_backup_create(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             with zipfile.ZipFile(temp_target, "w", zipfile.ZIP_DEFLATED) as archive:
                 for relative in sorted(files):
                     key = str(relative).replace("\\", "/")
-                    data = redact_bytes((stage_root / relative).read_bytes(), secret_list)
-                    manifest["sha256"][key] = hashlib.sha256(data).hexdigest()
-                    archive.writestr(key, data)
+                    staged_file = stage_root / relative
+                    # 超过 2 MiB 或纯二进制文件分块流式写入 zip，防止大证据一次性读入内存。
+                    fsize = staged_file.stat().st_size
+                    if fsize > 2 * 1024 * 1024:
+                        manifest["sha256"][key] = _sha256_file(staged_file)
+                        archive.write(staged_file, arcname=key)
+                    else:
+                        data = redact_bytes(staged_file.read_bytes(), secret_list)
+                        manifest["sha256"][key] = hashlib.sha256(data).hexdigest()
+                        archive.writestr(key, data)
                 archive.writestr(
                     "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2)
                 )

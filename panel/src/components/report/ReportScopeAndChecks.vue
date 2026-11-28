@@ -34,6 +34,30 @@ const projectCheckNote = computed(() => {
   return `${checks.length} 项 · ${passed} 项通过`;
 });
 
+const ledgerHighlights = computed(() =>
+  (props.report.coverageLedger ?? []).filter(
+    (row) => row.status === "gap" || row.status === "unsupported",
+  ),
+);
+
+const sourceSummaryItems = computed(() => {
+  const src = props.report.sourceSummary ?? {};
+  return [
+    src.invariant ? `确定性 ${src.invariant}` : "",
+    src.model ? `AI 补全 ${src.model}` : "",
+    src.explicit ? `显式 ${src.explicit}` : "",
+  ].filter(Boolean);
+});
+
+const strengthSummaryItems = computed(() => {
+  const st = props.report.assertionStrength ?? {};
+  return [
+    st.strong ? `强断言 ${st.strong}` : "",
+    st.weak ? `弱断言 ${st.weak}` : "",
+    st.unverified ? `未证实 ${st.unverified}` : "",
+  ].filter(Boolean);
+});
+
 function toggleScopeNote(note: "uncovered" | "unverified" | "warnings"): void {
   activeScopeNote.value = activeScopeNote.value === note ? "" : note;
 }
@@ -101,6 +125,36 @@ function evidenceForCheck(check: ProjectCheck): EvidenceRef | null {
         </tbody>
       </table>
     </div>
+    <div
+      v-if="sourceSummaryItems.length || strengthSummaryItems.length || ledgerHighlights.length"
+      class="scope-note-panel"
+      style="margin-top: var(--space-3);"
+      aria-label="来源与覆盖账本摘要"
+    >
+      <div class="row" style="flex-wrap: wrap; gap: 10px;">
+        <span v-if="sourceSummaryItems.length" class="muted">
+          用例来源：{{ sourceSummaryItems.join(" · ") }}
+        </span>
+        <span v-if="strengthSummaryItems.length" class="muted">
+          断言强度：{{ strengthSummaryItems.join(" · ") }}
+        </span>
+        <span v-if="report.capabilities?.level" class="badge is-neutral">
+          支持等级 {{ report.capabilities.level }}
+        </span>
+      </div>
+      <div v-if="ledgerHighlights.length" class="coverage-chip-list" style="margin-top: 6px;">
+        <span
+          v-for="row in ledgerHighlights"
+          :key="row.dimension"
+          class="badge"
+          :class="row.status === 'unsupported' ? 'is-bad' : 'is-warn'"
+          :title="row.note"
+        >
+          {{ row.dimension }} · {{ row.status === "unsupported" ? "不支持 (unsupported)" : "覆盖缺口" }}
+        </span>
+      </div>
+    </div>
+
     <div
       v-if="
         report.uncoveredItems.length ||

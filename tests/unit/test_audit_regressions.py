@@ -32,7 +32,6 @@ from aitest.worker_impl.lifecycle import (
     _case_execution_rank,
     _has_reset_command,
     _run_service_resets,
-    _service_restart_allowed,
 )
 
 
@@ -314,10 +313,6 @@ def test_service_reset_command_runs_after_destructive_case(tmp_path: Path) -> No
 def test_service_reset_and_restart_flags() -> None:
     assert _has_reset_command([("svc", {"reset": "reset.cmd"})])
     assert not _has_reset_command([("svc", {"start": "start.cmd"})])
-    assert _service_restart_allowed([("svc", {"start": "start.cmd"})])
-    assert not _service_restart_allowed(
-        [("svc", {"start": "start.cmd", "restart_on_mutation": False})]
-    )
 
 
 def test_command_case_mutates_state_flag_skips_retry() -> None:
@@ -387,11 +382,6 @@ def test_write_validated_script_enforces_assertions_seed_guard_and_index(tmp_pat
         _write_validated_script(
             generated_dir, "case_c1.py", "# hdr\n", "import os\nos.system('id')\nassert True", case
         )
-        is None
-    )
-    seed_attack = "first_superuser\nclient.delete('/api/users/me')\nassert True"
-    assert (
-        _write_validated_script(generated_dir, "case_c1.py", "# hdr\n", seed_attack, case)
         is None
     )
 

@@ -7,7 +7,6 @@ import type {
   MockKind,
   RunStatus,
   Severity,
-  TemplateDisposition,
   Verdict,
 } from "./types";
 
@@ -75,13 +74,6 @@ export const MOCK_LABEL: Record<MockKind, string> = {
   real: "真实",
   mock: "模拟",
   mixed: "混合",
-  unknown: "无法判断",
-};
-
-export const TEMPLATE_DISPOSITION_LABEL: Record<TemplateDisposition, string> = {
-  applicable: "适用",
-  not_applicable: "不适用",
-  unsupported: "不支持",
   unknown: "无法判断",
 };
 

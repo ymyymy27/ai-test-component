@@ -421,8 +421,8 @@ def test_http_runner_accepts_var_path_extract() -> None:
     assert result.status == "passed", result.error
 
 
-def test_negative_status_item_gets_status_assertion() -> None:
-    """验收项要求 400/401 时，http 用例必须断言状态码，不能只断言 error 字段。"""
+def test_negative_status_item_does_not_mutate_http_expect() -> None:
+    """阶段 1B：验收项包含 400/401 时不再盲目向 http 用例强行注入 status 断言，原样保留 expect。"""
     case = Case(
         case_id="case_status",
         title="登录缺少 password 返回 400",
@@ -438,8 +438,8 @@ def test_negative_status_item_gets_status_assertion() -> None:
 
     _validate_verify_method(case)
 
-    assert '"path":"status"' in case.verify_method
-    assert '"value":400' in case.verify_method
+    assert '"path":"error"' in case.verify_method
+    assert '"path":"status"' not in case.verify_method
 
 
 def test_case_expects_auth_failure_detection() -> None:

@@ -262,7 +262,6 @@ describe("host config mapping", () => {
         failure_occurrences: 0,
         analysis: [{ status: "not_generated", reason: "model_missing" }],
         layers: { L2: 1 },
-        templates: [],
         environment: {},
         uncovered_items: [],
         unverified_items: [],
@@ -276,7 +275,6 @@ describe("host config mapping", () => {
       null,
       null,
       [],
-      "未绑定规则",
     );
     expect(report.analysis.status).toBe("not_generated");
     expect(report.analysis.reason).toBe("model_missing");

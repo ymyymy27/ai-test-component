@@ -39,9 +39,6 @@ from aitest.worker_impl.env import (
 )
 from aitest.worker_impl.execution import (
     _execute,
-    _mutates_seed_account,
-    _repair_case_as_script,
-    _repair_script_case,
     _run_python_script,
     _script_precondition_problem,
     _script_runtime_problem,
@@ -86,11 +83,8 @@ __all__ = [
     "_missing_dependencies",
     "_missing_module_from_output",
     "_missing_modules_from_output",
-    "_mutates_seed_account",
     "_postprocess",
     "_project_config",
-    "_repair_case_as_script",
-    "_repair_script_case",
     "_resolve_dependency_package",
     "_run_env",
     "_run_l1",

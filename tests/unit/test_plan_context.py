@@ -1156,7 +1156,7 @@ def test_http_body_prefix_is_normalized(tmp_path: Path) -> None:
     assert paths == ["email", "body", "body.status", "body.status", "status"]
 
 
-def test_http_undefined_header_variable_is_removed_with_warning() -> None:
+def test_http_header_variables_are_preserved() -> None:
     from aitest.runtime.plan_validation import _normalize_http_expect
 
     case = Case(
@@ -1172,11 +1172,7 @@ def test_http_undefined_header_variable_is_removed_with_warning() -> None:
     )
     _normalize_http_expect(case)
     specs = json.loads(case.verify_method[len("http:") :])
-    assert "Authorization" not in specs[0]["headers"]
-    assert any(
-        "未定义变量" in warning and "Authorization" in warning
-        for warning in case.warnings
-    )
+    assert specs[0]["headers"]["Authorization"] == "Bearer ${vars.token}"
 
 
 def test_overshared_bindings_keep_all_plausible_matches(tmp_path: Path) -> None:
@@ -1212,9 +1208,10 @@ def test_script_assertion_detection() -> None:
     assert not _script_has_assertion('print("ok")')
 
 
-def test_test_candidates_and_suggested_replacement(tmp_path: Path) -> None:
-    from aitest.runtime_commands import _apply_suggested_tests, _test_candidates
+def test_test_candidates_discovery(tmp_path: Path) -> None:
+    from aitest.runtime_commands import _test_candidates
 
+    del tmp_path
     context = {
         "test_functions": {"backend/tests/test_a.py": ["test_one"]},
         "playwright_tests": {"frontend/tests/login.spec.ts": ["Log In"]},
@@ -1222,24 +1219,6 @@ def test_test_candidates_and_suggested_replacement(tmp_path: Path) -> None:
     candidates = _test_candidates(context)
     assert "python -m pytest backend/tests/test_a.py::test_one" in candidates
     assert 'cd frontend && bunx playwright test tests/login.spec.ts --grep "Log In"' in candidates
-
-    case = Case(
-        case_id="case_x",
-        acceptance_item_id="ai_a",
-        layer="L2",
-        expected="预期",
-        expectation_source="验收项",
-        preconditions=["可连接"],
-        verify_method="script:probe.py",
-        script_name="probe.py",
-        script_content="assert True",
-    )
-    replaced = _apply_suggested_tests(
-        [case], {"ai_a": "python -m pytest backend/tests/test_a.py::test_one"}
-    )
-    assert replaced == 1
-    assert case.verify_method == "command:python -m pytest backend/tests/test_a.py::test_one"
-    assert case.script_content is None
 
 
 def test_command_mutation_detection_from_test_inputs() -> None:

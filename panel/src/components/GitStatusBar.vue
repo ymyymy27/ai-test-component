@@ -129,7 +129,7 @@ function openFile(file: string): void {
           {{ expanded ? "收起变动" : `变动文件 ${localGit.changedFiles?.length ?? 0}` }}
         </button>
         <button
-          class="btn btn-sm btn-ghost"
+          class="btn btn-sm"
           type="button"
           :disabled="refreshing"
           @click="emit('refresh')"
@@ -149,14 +149,20 @@ function openFile(file: string): void {
 
     <div v-else class="git-bar-main is-nongit">
       <div class="git-bar-facts">
-        <span class="muted">未检测到 Git 仓库；仅基于静态代码图分析项目结构。</span>
+        <span class="muted">
+          {{
+            codeGraph && codeGraph.nodes.length > 0
+              ? "未检测到 Git 仓库；已基于静态代码图分析项目结构。"
+              : "未检测到 Git 仓库；尚未生成静态代码图，可点击右侧刷新扫描。"
+          }}
+        </span>
         <span v-if="dirtyFiles.length > 0" class="badge is-warn">
           源码已保存更新（{{ dirtyFiles.length }} 个文件）
         </span>
       </div>
       <div class="git-bar-actions">
         <button
-          class="btn btn-sm btn-ghost"
+          class="btn btn-sm"
           type="button"
           :disabled="refreshing"
           @click="emit('refresh')"

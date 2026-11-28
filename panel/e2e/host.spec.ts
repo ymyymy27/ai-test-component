@@ -49,29 +49,30 @@ test("真实 CLI 宿主模式：分析、任务、计划、确认、运行、结
   try {
     await installHost(page, sample);
     const projectId = await registerHostProject(page, sample);
-    await expect(page.locator(".candidate-brief")).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole("button", { name: "新建测试任务" })).toBeVisible({
+      timeout: 180_000,
+    });
 
-    await page.getByRole("button", { name: "开始测试" }).click();
-    await page.waitForURL(/tasks\/new/);
-    await page.locator(".test-mode").filter({ hasText: "按目标测试" }).click();
-    await page.locator("textarea").fill("验证 add(1,2) 返回 3");
-    await page.getByRole("button", { name: "创建任务并生成计划" }).click();
+    await page.getByRole("button", { name: "新建测试任务" }).click();
+    const drawer = page.getByRole("dialog", { name: "新建测试" });
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("textbox").fill("验证 add(1,2) 返回 3");
+    await drawer.getByRole("button", { name: "生成测试计划" }).click();
     await page.waitForURL(/\/plan/, { timeout: 180_000 });
-    await expect(page.locator(".plan-summary")).toContainText("本次");
+    await expect(page.getByRole("region", { name: "覆盖率与任务摘要" })).toContainText("本次纳入");
 
     await confirmPlan(page);
-    await page.getByRole("button", { name: "开始测试" }).click();
+    await page.getByRole("button", { name: "确认并开始测试" }).click();
     await page.waitForURL(/\/result/, { timeout: 240_000 });
     await expect(page.locator(".result-verdict")).toBeVisible();
-    await expect(page.locator(".run-environment")).toContainText("Python");
-    await expect(page.locator(".report-strip-title")).toContainText("测试报告", {
+    await expect(page.getByRole("button", { name: "独立打开报告" })).toBeVisible({
       timeout: 60_000,
     });
 
     const persisted = await latestRun(sample.workspace, projectId);
     expect(persisted?.confirmed_by).toBe("本机用户");
 
-    await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+    await page.getByRole("button", { name: "独立打开报告" }).click();
     await page.waitForURL(/\/reports\//);
     await expect(page.getByRole("heading", { name: "范围与覆盖" })).toBeVisible();
     await expect(page.locator("body")).toContainText("本次");

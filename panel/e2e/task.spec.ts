@@ -54,7 +54,7 @@ test("计划过期后可以在计划页原地重新生成", async ({ page }) => 
   await page.getByRole("button", { name: "保存验收项" }).click();
   await expect(page.locator(".notice.is-warn")).toBeVisible();
   await page.goto(page.url().replace(/\/details$/, "/plan"));
-  await expect(page.locator(".plan-summary .badge")).toHaveText("已过期");
+  await expect(page.locator(".page-head .badge").first()).toHaveText("已过期");
   await page.getByRole("button", { name: "重新生成计划" }).click();
-  await expect(page.locator(".plan-summary .badge")).toHaveText("待确认");
+  await expect(page.locator(".page-head .badge").first()).toHaveText("待确认");
 });

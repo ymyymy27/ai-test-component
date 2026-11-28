@@ -14,8 +14,9 @@ from typing import Any
 
 from aitest.commands import cmd_project_add, cmd_task_add
 from aitest.core.code_graph import build_code_graph, load_or_build_code_graph
+from aitest.core.context.contracts import _api_routes_with_meta, _frontend_api_calls
 from aitest.core.git_engine import inspect_local_git
-from aitest.core.probes import run_deterministic_probes
+from aitest.core.probes import ContractReconciliationProbe, run_deterministic_probes
 from aitest.core.script_linter import blocking_lint_errors
 from aitest.core.service_logs import capture_log_offsets, inspect_service_log_window
 from aitest.core.shared_config import load_shared_repo_config, merge_project_configs
@@ -284,8 +285,14 @@ def _case_05_api_bug_contract_mismatch(base_dir: Path) -> BenchmarkOutcome:
         "    return {'ok': True}\n",
         encoding="utf-8",
     )
-    probes = run_deterministic_probes(repo, {})
-    contract = next(p for p in probes if p["probe_id"] == "contract_reconciliation")
+    api_routes, routes_meta = _api_routes_with_meta(repo, max_routes=2000)
+    frontend_calls = _frontend_api_calls(repo, max_files=2000, max_calls=1000)
+    contract = ContractReconciliationProbe().run(
+        root=repo,
+        api_routes=api_routes,
+        frontend_api_calls=frontend_calls,
+        has_dynamic_loader=bool(routes_meta.get("has_dynamic_loader")),
+    )
     detected = contract["status"] == "failed" and any(
         f["kind"] == "missing_route" for f in contract["findings"]
     )
@@ -346,8 +353,14 @@ def _case_07_api_clean(base_dir: Path) -> BenchmarkOutcome:
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write('"GET /api/health HTTP/1.1" 200 -\n')
 
-    probes = run_deterministic_probes(repo, {})
-    contract = next(p for p in probes if p["probe_id"] == "contract_reconciliation")
+    api_routes, routes_meta = _api_routes_with_meta(repo, max_routes=2000)
+    frontend_calls = _frontend_api_calls(repo, max_files=2000, max_calls=1000)
+    contract = ContractReconciliationProbe().run(
+        root=repo,
+        api_routes=api_routes,
+        frontend_api_calls=frontend_calls,
+        has_dynamic_loader=bool(routes_meta.get("has_dynamic_loader")),
+    )
     window = inspect_service_log_window(states, offsets, case_method="http:GET /api/health")
     has_false_positive = contract["status"] == "failed" or bool(window.get("fatal_errors"))
     return BenchmarkOutcome(
@@ -503,7 +516,9 @@ def _case_11_fullstack_clean_with_convention(base_dir: Path) -> BenchmarkOutcome
     )
     shared = load_shared_repo_config(repo)
     effective_cfg = merge_project_configs(shared, {})
-    probes = run_deterministic_probes(repo, effective_cfg)
+    probes = run_deterministic_probes(
+        repo, effective_cfg, probes=(ContractReconciliationProbe(),)
+    )
     contract = next(p for p in probes if p["probe_id"] == "contract_reconciliation")
     # 命中 .aitest.json 错题本豁免后，不得再误报为 failed
     has_false_positive = contract["status"] != "passed" or bool(contract["findings"])

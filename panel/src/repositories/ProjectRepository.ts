@@ -22,7 +22,6 @@ import type {
   ProjectConvention,
   QuickCheck,
   Report,
-  RuleVersion,
   Run,
   RunCase,
   Severity,
@@ -133,14 +132,6 @@ export interface ModuleInput {
   owner: string;
   status: string;
   dependencies: ModuleDependency[];
-}
-
-export interface RuleInput {
-  name: string;
-  version: string;
-  stepsMd: string;
-  aiRules: string[];
-  evidenceRequirements: string[];
 }
 
 export interface LinkAssertInput {
@@ -256,10 +247,7 @@ export interface ProjectRepository {
 
   saveDelivery(projectId: string, taskId: string, input: DeliveryInput): Promise<Task>;
   draftDelivery(projectId: string, taskId: string): Promise<Delivery>;
-  applyTemplate(projectId: string, taskId: string, templateId: string): Promise<Task>;
 
-  saveRule(projectId: string, input: RuleInput): Promise<RuleVersion>;
-  bindRule(projectId: string, ruleId: string): Promise<Project>;
   saveConfig(projectId: string, config: ProjectConfig): Promise<Project>;
   addConvention?(projectId: string, input: ConventionInput): Promise<ProjectConvention[]>;
   removeConvention?(projectId: string, conventionId: string): Promise<ProjectConvention[]>;

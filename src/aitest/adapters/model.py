@@ -10,20 +10,50 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import hashlib
 import http.client
 import json
+import os
 import re
 import threading
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 from aitest.errors import AiTestError
-from aitest.security import redact
+from aitest.security import redact, redact_tree
+from aitest.storage.files import write_json
 
 _ALLOWED_LAYERS = frozenset({"L1", "L2", "L3"})
+_PROMPT_VERSION = "2026-11-26.v1"
+_FAST_TIER_TASKS = frozenset(
+    {
+        "map_tests",
+        "suggest_dependency",
+        "explain_environment",
+        "suggest_targets",
+        "suggest_modules",
+        "extract_items",
+        "draft_delivery",
+        "draft_issue",
+        "summarize",
+        "judge_mock",
+    }
+)
+_STRONG_TIER_TASKS = frozenset(
+    {
+        "generate_cases",
+        "freeze_expectations",
+        "judge_failure",
+        "repair_script",
+        "review_plan",
+        "analyze_failure",
+        "project_map",
+    }
+)
 
 _SYSTEM_SUGGEST = (
     "你是测试范围建议助手。只输出一个 JSON 对象，格式为 "
@@ -45,6 +75,8 @@ _SYSTEM_MAP = (
     "业务功能按用户能理解的业务名称分组，模块只作为对应关系；"
     "对 README、需求文档与 OpenAPI 中每条显式可观察规则逐条保留到 testable_items，"
     "不合并、不省略；过期、越权、请求体字段、查询参数等边界条件必须单独成项；"
+    "当项目路由或文件体量很大时，请按核心业务域合并为不超过 15 个主要 business_functions，"
+    "每个列表保留关键代表项，确保输出结构紧凑、完整、不被截断；"
     "只根据给出的项目事实，不要编造入口、测试命令或文件；"
     "没有依据的内容放进 unknowns，confidence 用 low；"
     "不要输出 JSON 之外的任何文本。"
@@ -170,10 +202,14 @@ _SYSTEM_CASES = (
     "验证新增、更新或删除的数据持久化行为时，写请求完成后必须再次调用查询接口（如 GET 列表或详情）"
     "读回并断言数据确实已写入、已更新或已删除，严禁仅凭写请求返回 200/201/204 就判通过。"
     "验证业务资源（非当前登录用户账号）的更新（PUT/PATCH）或删除（DELETE）功能时，"
-    "必须先调用查询列表接口：只要列表非空，就必须直接使用现存业务条目执行更新或删除"
-    "（建议更新选 items[0]、删除选最后一条 items[-1] 以免影响其余只读/更新断言），"
-    "严禁在列表非空时先调用 POST 创建接口造前置数据去测更新或删除，"
-    "防止创建接口自身缺陷连带导致更新或删除用例误报失败；只有列表为空时才通过创建接口构造前置数据。"
+    "优先在测试中独立创建一条唯一测试数据并对其进行更新或删除，最后读回核验结果，避免污染现有业务数据。"
+    "当项目配置了 context.test_roles（多角色测试账号环境变量映射）时，"
+    "需通过 ${env.环境变量名}（http:）或 os.environ[...]（script:）读取多角色账号，"
+    "绝不在脚本或 http 用例中硬编码密码正文。"
+    "http: 除了 json 外，还支持 form、multipart、raw_body，"
+    "以及断言 headers.<name>、非 JSON 文本 body_text，"
+    "操作符支持 equals/not_equals/contains/not_contains/exists/not_exists/"
+    "gt/gte/lt/lte/in/not_in/regex/length_*/type_is。"
     "访问本机被测服务时优先读取 os.environ.get('APP_BASE_URL') 或 "
     "os.environ.get('BACKEND_BASE_URL')，"
     "并回退到 context.services 中的真实主机和端口，严禁在测试脚本里自行启动服务进程；"
@@ -301,20 +337,32 @@ _SYSTEM_DEPENDENCY = (
 )
 
 _SYSTEM_JUDGE_FAILURE = (
-    "你是独立测试失败裁判助手。给定验收项、冻结预期、脚本/命令验证方式、执行输出和后台服务日志，"
-    "请客观区分失败究竟是真实产品缺陷、测试脚本自身问题还是证据不足无法证实。"
+    "你是测试失败假设分析助手。给定验收项、冻结预期、脚本/命令验证方式、执行输出和后台服务日志，"
+    "请仅基于客观证据提出候选故障假设，不要直接给出终局通过/不通过或缺陷裁决结论。"
     "只输出一个 JSON 对象，格式为："
-    '{"verdict": "confirmed_defect|script_error|inconclusive", '
-    '"reason": "基于证据的简明原因", '
-    '"evidence_points": ["具体证据点"], '
-    '"suggested_fix": "若为 script_error 可选修复提示，否则留空"}。'
-    "判定基准是验收项原文、冻结预期与脚本断言的交集；"
-    "frozen_expectation 为空本身不构成 inconclusive，"
-    "此时以验收项原文和失败断言为准。脚本已执行完成、失败原因是断言不成立，"
-    "且没有环境、前置数据或服务日志证据指向脚本假设错误时，应判 confirmed_defect；"
-    "只有能具体指出脚本断言与验收项原文不符，"
-    "或确有前置/环境未就绪证据时，才可判 inconclusive 或 script_error。"
-    "严禁偏袒任何一方；遇到未认证/缺少前置环境或无法确认时标 inconclusive 或 script_error。"
+    '{"hypotheses": [{"hypothesis": "候选原因假设", '
+    '"category": "product_defect|script_error|environment_blocked|unknown", '
+    '"evidence": ["具体证据点"], '
+    '"confidence": "high|medium|low", '
+    '"next_check": "建议的下一步核验动作", '
+    '"suggested_fix": "若疑似脚本问题可选修复提示，否则留空"}], '
+    '"rationale": "基于证据的简明客观分析（禁止出现通过/不通过/全部通过/建议上线等结论词）"}。'
+    "每条假设必须引用输入中的具体证据，严禁偏袒任何一方或编造未提供的事实；"
+    "不要输出 JSON 之外的任何文本。"
+)
+
+
+_SYSTEM_REVIEW_PLAN = (
+    "你是测试计划双盲复核助手。给定需求验收项、当前计划用例、外部契约与后端路由摘要，"
+    "请找出需求/契约与代码实现的潜在口径冲突、角色权限矩阵盲区以及非重复的业务边界增强建议。"
+    "只输出一个 JSON 对象，格式为："
+    '{"reviews": [{"review_id": "唯一标识", '
+    '"kind": "blind_conflict|permission_gap|weak_assertion|business_enhancement", '
+    '"severity": "high|medium|low", '
+    '"statement": "客观事实描述（严禁出现通过/不通过/全部通过/建议上线/passed/failed 等结论词）", '
+    '"evidence": ["具体源码/契约/用例引用"], '
+    '"patch_cases": []}]}。'
+    "每条评审必须引用具体证据，不得重复计划已覆盖的常规 CRUD 用例；"
     "不要输出 JSON 之外的任何文本。"
 )
 
@@ -437,6 +485,8 @@ def _extract_content(raw: bytes) -> str:
     first = choices[0]
     if not isinstance(first, dict):
         raise _unavailable("模型服务响应结构异常")
+    if first.get("finish_reason") == "length":
+        raise _invalid("模型输出因达到长度上限被截断（finish_reason=length）")
     message = first.get("message")
     if not isinstance(message, dict):
         raise _unavailable("模型服务响应缺少 message")
@@ -458,7 +508,15 @@ def _parse_json_object(content: str) -> dict[str, Any]:
     try:
         data: object = json.loads(text)
     except json.JSONDecodeError:
-        raise _invalid("模型输出不是合法 JSON") from None
+        # 容忍模型在合法 JSON 对象前后附带简短说明文字
+        start = text.find("{")
+        if start >= 0:
+            try:
+                data, _end = json.JSONDecoder().raw_decode(text, idx=start)
+            except json.JSONDecodeError:
+                raise _invalid("模型输出不是合法 JSON") from None
+        else:
+            raise _invalid("模型输出不是合法 JSON") from None
     return _as_mapping(data, "模型输出不是 JSON 对象")
 
 
@@ -555,6 +613,14 @@ class ModelClient:
         timeout_seconds: float = 120,
         secrets: list[str] | None = None,
         max_token_budget: int | None = None,
+        *,
+        cache_dir: Path | str | None = None,
+        enable_cache: bool = True,
+        ai_mode: Literal["assist", "off"] = "assist",
+        model_tier: str = "auto",
+        fast_model: str | None = None,
+        strong_model: str | None = None,
+        task_token_budget: int | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
@@ -564,6 +630,22 @@ class ModelClient:
         self._max_token_budget = (
             max_token_budget if max_token_budget and max_token_budget > 0 else None
         )
+        self._task_token_budget = (
+            task_token_budget if task_token_budget and task_token_budget > 0 else None
+        )
+        self._ai_mode: Literal["assist", "off"] = "off" if ai_mode == "off" else "assist"
+        tier_norm = str(model_tier or "auto").strip().lower()
+        self._model_tier = tier_norm if tier_norm in {"auto", "fast", "strong"} else "auto"
+        self._fast_model = (fast_model or "").strip() or model
+        self._strong_model = (strong_model or "").strip() or model
+        env_cache = os.environ.get("AITEST_MODEL_CACHE", "").strip().lower()
+        env_disabled = env_cache in {"0", "false", "off", "no"}
+        self._cache_enabled = bool(enable_cache) and not env_disabled
+        self._cache_dir = Path(cache_dir) if cache_dir is not None else None
+        self._mem_cache: dict[str, dict[str, Any]] = {}
+        self._cache_lock = threading.Lock()
+        self._cache_hits = 0
+        self._cache_misses = 0
         self._usage_lock = threading.Lock()
         self._usage = {
             "prompt_tokens": 0,
@@ -572,19 +654,149 @@ class ModelClient:
             "calls": 0,
         }
 
+    @property
+    def ai_mode(self) -> Literal["assist", "off"]:
+        """返回当前客户端 AI 模式开关（assist 或 off）。"""
+        return self._ai_mode
+
+    @property
+    def model_tier(self) -> str:
+        """返回模型成本分级策略（auto/fast/strong）。"""
+        return self._model_tier
+
+    def resolve_model_name(self, task_kind: str = "") -> str:
+        """按 model_tier 与任务类型决定实际调用的模型名。"""
+        if self._model_tier == "fast":
+            return self._fast_model
+        if self._model_tier == "strong":
+            return self._strong_model
+        if task_kind in _FAST_TIER_TASKS:
+            return self._fast_model
+        if task_kind in _STRONG_TIER_TASKS:
+            return self._strong_model
+        return self._model
+
+    def cache_stats(self) -> dict[str, int]:
+        """返回当前客户端缓存命中与未命中统计。"""
+        with self._cache_lock:
+            return {"hits": self._cache_hits, "misses": self._cache_misses}
+
+    def compute_input_hash(
+        self,
+        system: str,
+        user: str,
+        *,
+        model_name: str | None = None,
+        prompt_version: str = _PROMPT_VERSION,
+    ) -> str:
+        """基于脱敏后的提示词与模型配置计算稳定 input_hash。"""
+        all_secrets = self._all_secrets()
+        safe_system = redact(system, all_secrets)
+        safe_user = redact(user, all_secrets)
+        canonical = json.dumps(
+            {
+                "model": model_name or self._model,
+                "prompt_version": prompt_version,
+                "system": safe_system,
+                "user": safe_user,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def _all_secrets(self) -> list[str]:
+        secrets = list(self._secrets)
+        if self._api_key and self._api_key not in secrets:
+            secrets.append(self._api_key)
+        return secrets
+
+    def _read_cache(self, input_hash: str) -> dict[str, Any] | None:
+        if not self._cache_enabled:
+            return None
+        with self._cache_lock:
+            cached = self._mem_cache.get(input_hash)
+            if cached is not None:
+                self._cache_hits += 1
+                cloned = json.loads(json.dumps(cached, ensure_ascii=False))
+                return cloned if isinstance(cloned, dict) else dict(cached)
+        if self._cache_dir is not None:
+            path = self._cache_dir / f"{input_hash}.json"
+            if path.is_file():
+                try:
+                    raw = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    raw = None
+                if isinstance(raw, dict) and isinstance(raw.get("response"), dict):
+                    response = raw["response"]
+                    with self._cache_lock:
+                        self._mem_cache[input_hash] = response
+                        self._cache_hits += 1
+                    cloned_disk = json.loads(json.dumps(response, ensure_ascii=False))
+                    return cloned_disk if isinstance(cloned_disk, dict) else dict(response)
+        with self._cache_lock:
+            self._cache_misses += 1
+        return None
+
+    def _write_cache(self, input_hash: str, data: dict[str, Any], *, task_kind: str) -> None:
+        if not self._cache_enabled:
+            return
+        sanitized = redact_tree(data, self._all_secrets())
+        if not isinstance(sanitized, dict):
+            return
+        with self._cache_lock:
+            self._mem_cache[input_hash] = sanitized
+        if self._cache_dir is not None:
+            try:
+                write_json(
+                    self._cache_dir / f"{input_hash}.json",
+                    {
+                        "schema_version": 1,
+                        "input_hash": input_hash,
+                        "prompt_version": _PROMPT_VERSION,
+                        "task_kind": task_kind,
+                        "response": sanitized,
+                    },
+                )
+            except OSError:
+                return
+
     def usage_summary(self) -> dict[str, int]:
         """返回当前客户端实例累计的模型 Token 统计与调用次数。"""
         with self._usage_lock:
             return dict(self._usage)
 
+    def _effective_budget(self) -> int | None:
+        limits = [
+            limit
+            for limit in (self._max_token_budget, self._task_token_budget)
+            if limit is not None and limit > 0
+        ]
+        return min(limits) if limits else None
+
+    def is_budget_exceeded(self) -> bool:
+        """检查当前客户端或运行上下文是否已达到 Token 预算上限。"""
+        budget = self._effective_budget()
+        if budget is not None:
+            with self._usage_lock:
+                if self._usage["total_tokens"] >= budget:
+                    return True
+        active = _ACTIVE_LEDGER.get()
+        return bool(
+            active is not None
+            and active.max_budget is not None
+            and active.summary()["total_tokens"] >= active.max_budget
+        )
+
     def _check_budget(self) -> None:
-        if self._max_token_budget is not None:
+        budget = self._effective_budget()
+        if budget is not None:
             with self._usage_lock:
                 used = self._usage["total_tokens"]
-            if used >= self._max_token_budget:
+            if used >= budget:
                 raise AiTestError(
                     "TOKEN_BUDGET_EXCEEDED",
-                    f"模型 Token 消耗（{used}）已达到预算上限（{self._max_token_budget}）",
+                    f"模型 Token 消耗（{used}）已达到预算上限（{budget}）",
                     "调高 model.max_token_budget 或缩小本次测试范围后重试",
                 )
         active = _ACTIVE_LEDGER.get()
@@ -652,15 +864,37 @@ class ModelClient:
                 "error": "无法连接模型服务",
             }
 
-    def complete_json(self, system: str, user: str) -> dict[str, Any]:
-        """Request one JSON object and return it after validation."""
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        task_kind: str = "",
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        """请求并校验单个 JSON 对象，支持按 input_hash 缓存与分级路由。"""
+        if self._ai_mode == "off":
+            raise AiTestError(
+                "MODEL_DISABLED",
+                "模型已通过 model.ai.mode=off 关闭，已降级为确定性路径",
+                "需要模型增强时将 model.ai.mode 设为 assist",
+            )
         if not self._base_url.lower().startswith(("http://", "https://")):
             raise _unavailable("模型地址只支持 http 或 https")
+        target_model = self.resolve_model_name(task_kind)
+        all_secrets = self._all_secrets()
+        safe_system = redact(system, all_secrets)
+        safe_user = redact(user, all_secrets)
+        input_hash = self.compute_input_hash(
+            safe_system, safe_user, model_name=target_model
+        )
+        if use_cache:
+            cached = self._read_cache(input_hash)
+            if cached is not None:
+                return cached
         self._check_budget()
-        safe_system = redact(system, self._secrets)
-        safe_user = redact(user, self._secrets)
         payload_base: dict[str, Any] = {
-            "model": self._model,
+            "model": target_model,
             "messages": [
                 {"role": "system", "content": safe_system},
                 {"role": "user", "content": safe_user},
@@ -694,18 +928,26 @@ class ModelClient:
                 if code == 400 and use_seed:
                     use_seed = False
                     continue
-                if attempt == 0 and code in {429, 500, 502, 503, 504}:
-                    time.sleep(0.5)
+                if attempt < 2 and code in {429, 500, 502, 503, 504}:
+                    time.sleep(0.5 * (2**attempt))
                     continue
                 raise _unavailable(f"模型服务返回 HTTP {code}") from None
             except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
+                if attempt < 2:
+                    time.sleep(0.5 * (2**attempt))
+                    continue
                 raise _unavailable("模型服务不可用") from None
         self._record_usage(raw)
-        return _parse_json_object(_extract_content(raw))
+        parsed = _parse_json_object(_extract_content(raw))
+        sanitized = redact_tree(parsed, all_secrets)
+        result = sanitized if isinstance(sanitized, dict) else parsed
+        if use_cache:
+            self._write_cache(input_hash, result, task_kind=task_kind)
+        return result
 
     def suggest_targets(self, context: str) -> list[dict[str, Any]]:
         """Return 3-5 suggested targets, or an empty list when there is no signal."""
-        data = self.complete_json(_SYSTEM_SUGGEST, context)
+        data = self.complete_json(_SYSTEM_SUGGEST, context, task_kind="suggest_targets")
         raw = data.get("targets")
         if raw is None:
             raw = data.get("suggestions")
@@ -737,7 +979,7 @@ class ModelClient:
 
     def project_map(self, context: str) -> dict[str, Any]:
         """Return a validated project test map from project facts."""
-        data = self.complete_json(_SYSTEM_MAP, context)
+        data = self.complete_json(_SYSTEM_MAP, context, task_kind="project_map")
         raw = data.get("business_functions")
         if raw is None:
             raw = data.get("functions")
@@ -789,7 +1031,9 @@ class ModelClient:
             },
             ensure_ascii=False,
         )
-        data = self.complete_json(_SYSTEM_REPAIR_SCRIPT, user)
+        data = self.complete_json(
+            _SYSTEM_REPAIR_SCRIPT, user, task_kind="repair_script"
+        )
         text = data.get("script")
         if not isinstance(text, str) or not text.strip():
             raise _invalid("字段 script 必须是非空字符串")
@@ -806,7 +1050,7 @@ class ModelClient:
         if summaries:
             payload["summaries"] = summaries
         user = json.dumps(payload, ensure_ascii=False)
-        data = self.complete_json(_SYSTEM_MAP_TESTS, user)
+        data = self.complete_json(_SYSTEM_MAP_TESTS, user, task_kind="map_tests")
         raw = data.get("mapping")
         if not isinstance(raw, list):
             raise _invalid("字段 mapping 必须是数组")
@@ -845,7 +1089,9 @@ class ModelClient:
             },
             ensure_ascii=False,
         )
-        data = self.complete_json(_SYSTEM_FREEZE_EXPECTATIONS, user)
+        data = self.complete_json(
+            _SYSTEM_FREEZE_EXPECTATIONS, user, task_kind="freeze_expectations"
+        )
         raw = data.get("expectations")
         if raw is None:
             raw = data.get("items")
@@ -891,7 +1137,7 @@ class ModelClient:
             {"task": task, "selected_items": selected_items, "context": context or {}},
             ensure_ascii=False,
         )
-        data = self.complete_json(_SYSTEM_CASES, user)
+        data = self.complete_json(_SYSTEM_CASES, user, task_kind="generate_cases")
         raw = data.get("cases")
         if raw is None:
             raw = data.get("test_cases")
@@ -945,7 +1191,7 @@ class ModelClient:
 
     def extract_acceptance_items(self, requirement: str) -> list[dict[str, Any]]:
         """Extract observable acceptance items from a free-form requirement."""
-        data = self.complete_json(_SYSTEM_ITEMS, requirement)
+        data = self.complete_json(_SYSTEM_ITEMS, requirement, task_kind="extract_items")
         raw = data.get("items")
         if not isinstance(raw, list):
             raise _invalid("字段 items 必须是数组")
@@ -965,7 +1211,11 @@ class ModelClient:
 
     def explain_environment(self, facts: dict[str, Any]) -> dict[str, Any]:
         """Explain doctor facts without executing anything."""
-        data = self.complete_json(_SYSTEM_ENV, json.dumps(facts, ensure_ascii=False))
+        data = self.complete_json(
+            _SYSTEM_ENV,
+            json.dumps(facts, ensure_ascii=False),
+            task_kind="explain_environment",
+        )
         commands = data.get("commands", [])
         if not isinstance(commands, list):
             raise _invalid("字段 commands 必须是数组")
@@ -977,7 +1227,7 @@ class ModelClient:
     def analyze_failure(self, run: dict[str, Any], evidence: list[str]) -> dict[str, Any]:
         """Return the five-part failure analysis, including verified unknowns."""
         user = json.dumps({"run": run, "evidence": evidence}, ensure_ascii=False)
-        data = self.complete_json(_SYSTEM_FAILURE, user)
+        data = self.complete_json(_SYSTEM_FAILURE, user, task_kind="analyze_failure")
         nested = data.get("analysis")
         if isinstance(nested, dict):
             data = _as_mapping(nested, "analysis 必须是对象")
@@ -994,7 +1244,11 @@ class ModelClient:
 
     def draft_issue(self, context: dict[str, Any]) -> dict[str, Any]:
         """Draft a factual issue title, steps, expected and actual."""
-        data = self.complete_json(_SYSTEM_ISSUE, json.dumps(context, ensure_ascii=False))
+        data = self.complete_json(
+            _SYSTEM_ISSUE,
+            json.dumps(context, ensure_ascii=False),
+            task_kind="draft_issue",
+        )
         nested = data.get("issue")
         if isinstance(nested, dict):
             data = _as_mapping(nested, "issue 必须是对象")
@@ -1013,7 +1267,9 @@ class ModelClient:
     def draft_delivery(self, context: dict[str, Any]) -> dict[str, Any]:
         """Draft the eight delivery sections; anything absent becomes ``[]``."""
         data = self.complete_json(
-            _SYSTEM_DELIVERY, json.dumps(context, ensure_ascii=False)
+            _SYSTEM_DELIVERY,
+            json.dumps(context, ensure_ascii=False),
+            task_kind="draft_delivery",
         )
         nested = data.get("delivery")
         if isinstance(nested, dict):
@@ -1027,6 +1283,7 @@ class ModelClient:
         data = self.complete_json(
             _SYSTEM_DEPENDENCY,
             json.dumps({"module": module, "context": context}, ensure_ascii=False),
+            task_kind="suggest_dependency",
         )
         package = str(data.get("package") or "").strip()
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", package):
@@ -1034,24 +1291,128 @@ class ModelClient:
         return package
 
     def judge_failure(self, context: dict[str, Any]) -> dict[str, Any]:
-        """独立裁判复核连续失败用例，区分真缺陷、脚本错误与证据不足。"""
+        """输出结构化故障假设（hypotheses + rationale），不再由模型直接决定终局 verdict。"""
         data = self.complete_json(
-            _SYSTEM_JUDGE_FAILURE, json.dumps(context, ensure_ascii=False)
+            _SYSTEM_JUDGE_FAILURE,
+            json.dumps(context, ensure_ascii=False),
+            task_kind="judge_failure",
         )
-        verdict = _require_text(data, "verdict").strip()
-        if verdict not in {"confirmed_defect", "script_error", "inconclusive"}:
-            raise _invalid("字段 verdict 必须是 confirmed_defect、script_error 或 inconclusive")
-        return {
-            "verdict": verdict,
-            "reason": _require_text(data, "reason"),
-            "evidence_points": _text_list_or_empty(data.get("evidence_points")),
-            "suggested_fix": _optional_text(data, "suggested_fix"),
+        raw_hypotheses = data.get("hypotheses")
+        hypotheses: list[dict[str, Any]] = []
+        allowed_categories = {
+            "product_defect",
+            "script_error",
+            "environment_blocked",
+            "unknown",
         }
+        allowed_conf = {"high", "medium", "low"}
+        case_id = str(context.get("case_id") or "").strip()
+        if isinstance(raw_hypotheses, list):
+            for entry in raw_hypotheses:
+                if not isinstance(entry, dict):
+                    continue
+                hyp_text = _optional_text(entry, "hypothesis") or _optional_text(entry, "reason")
+                if not hyp_text:
+                    continue
+                category = _optional_text(entry, "category").lower()
+                if category not in allowed_categories:
+                    category = "unknown"
+                conf = _optional_text(entry, "confidence").lower()
+                if conf not in allowed_conf:
+                    conf = "low"
+                ev = _text_list_or_empty(entry.get("evidence") or entry.get("evidence_points"))
+                if not ev:
+                    category = "unknown"
+                    conf = "low"
+                hypotheses.append(
+                    {
+                        "case_id": case_id,
+                        "hypothesis": hyp_text,
+                        "category": category,
+                        "evidence": ev,
+                        "confidence": conf,
+                        "next_check": _optional_text(entry, "next_check"),
+                        "suggested_fix": _optional_text(entry, "suggested_fix"),
+                    }
+                )
+        # 兼容模型回退输出单条 reason 的情况，仍统一折叠为 hypotheses 而不直接信任终局 verdict
+        rationale = _optional_text(data, "rationale") or _optional_text(data, "reason")
+        if not hypotheses and rationale:
+            ev = _text_list_or_empty(data.get("evidence_points"))
+            hypotheses.append(
+                {
+                    "case_id": case_id,
+                    "hypothesis": rationale,
+                    "category": "unknown",
+                    "evidence": ev,
+                    "confidence": "low" if not ev else "medium",
+                    "next_check": "",
+                    "suggested_fix": _optional_text(data, "suggested_fix"),
+                }
+            )
+        if not hypotheses and not rationale:
+            raise _invalid("judge_failure 必须返回非空 hypotheses 或 rationale")
+        evidence_points: list[str] = []
+        suggested_fix = _optional_text(data, "suggested_fix")
+        for h in hypotheses:
+            for item in h.get("evidence") or []:
+                if item not in evidence_points:
+                    evidence_points.append(item)
+            if not suggested_fix and h.get("suggested_fix"):
+                suggested_fix = str(h["suggested_fix"])
+        return {
+            "hypotheses": hypotheses,
+            "rationale": rationale or hypotheses[0]["hypothesis"],
+            "evidence_points": evidence_points,
+            "suggested_fix": suggested_fix,
+        }
+
+    def review_plan(self, context: dict[str, Any]) -> dict[str, Any]:
+        """双盲冲突与权限矩阵评审（只读，走 input_hash 缓存与分级路由）。"""
+        data = self.complete_json(
+            _SYSTEM_REVIEW_PLAN,
+            json.dumps(context, ensure_ascii=False),
+            task_kind="review_plan",
+        )
+        raw_reviews = data.get("reviews")
+        if not isinstance(raw_reviews, list):
+            raise _invalid("字段 reviews 必须是数组")
+        reviews: list[dict[str, Any]] = []
+        for idx, entry in enumerate(raw_reviews):
+            if not isinstance(entry, dict):
+                continue
+            statement = _optional_text(entry, "statement")
+            if not statement:
+                continue
+            severity = _optional_text(entry, "severity").lower()
+            if severity not in {"high", "medium", "low"}:
+                severity = "medium"
+            kind = _optional_text(entry, "kind") or "blind_conflict"
+            evidence = _text_list_or_empty(entry.get("evidence"))
+            raw_patches = entry.get("patch_cases")
+            patches = (
+                [p for p in raw_patches if isinstance(p, dict)]
+                if isinstance(raw_patches, list)
+                else []
+            )
+            reviews.append(
+                {
+                    "review_id": _optional_text(entry, "review_id") or f"ai_rev_{idx + 1}",
+                    "kind": kind,
+                    "severity": severity,
+                    "statement": statement,
+                    "evidence": evidence,
+                    "patch_cases": patches,
+                }
+            )
+        return {"reviews": reviews}
 
     def suggest_modules(self, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Return validated module suggestions whose deps stay inside the set."""
         data = self.complete_json(
-            _SYSTEM_MODULES, json.dumps(context, ensure_ascii=False)
+            _SYSTEM_MODULES,
+            json.dumps(context, ensure_ascii=False),
+            task_kind="suggest_modules",
         )
         raw = data.get("modules")
         if raw is None:

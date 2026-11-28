@@ -920,7 +920,7 @@
 
 .report-nav {
   position: sticky;
-  top: calc(var(--header-h) + 4px);
+  top: var(--header-h);
   z-index: 4;
   display: flex;
   flex-wrap: wrap;
@@ -928,7 +928,8 @@
   margin: 0 0 var(--space-4);
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-strip);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-strip) var(--radius-strip);
   background: var(--header-bg);
   backdrop-filter: blur(10px);
   box-shadow: var(--shadow-1);
@@ -945,10 +946,12 @@
   transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
-.report-nav button:hover {
+.report-nav button:hover,
+.report-nav button.is-active {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+  font-weight: 600;
 }
 
 .page-head {
@@ -1128,11 +1131,20 @@
 }
 
 .overview-grid > .overview-feed {
+  display: grid;
+  gap: var(--space-4);
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.page-top-strip {
+  width: min(100%, var(--content-max));
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-6) 0;
 }
 
 .elevated-panel {
@@ -1148,8 +1160,12 @@
 }
 
 .overview-grid > .overview-feed .section {
-  padding: var(--space-4) 0 0;
-  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  margin-top: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-strip);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .stack {
@@ -1296,7 +1312,8 @@
 }
 
 .settings-subtitle {
-  margin-top: var(--space-4);
+  grid-column: 1 / -1;
+  margin: var(--space-3) 0 0;
   color: var(--ink);
   font-size: var(--text-14);
   font-weight: 600;
@@ -1307,11 +1324,6 @@
   margin-right: auto;
   color: var(--ink-3);
   font-size: var(--text-12);
-}
-
-.settings-subtitle {
-  grid-column: 1 / -1;
-  margin: var(--space-2) 0 0;
 }
 
 .settings-savebar {
@@ -1429,10 +1441,21 @@ h3.settings-title {
     padding: var(--space-3) var(--space-4) 0;
   }
 
+  .page-top-strip {
+    padding: var(--space-3) var(--space-4) 0;
+  }
+
   .overview-grid,
   .workbench-split {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .overview-grid > *,
+  .workbench-split > * {
+    min-width: 0;
   }
 
   .workbench-sticky {
@@ -1460,7 +1483,7 @@ h3.settings-title {
   .settings-index {
     position: sticky;
     top: var(--header-h);
-    z-index: var(--z-header);
+    z-index: calc(var(--z-header) - 1);
     background: var(--canvas);
     display: flex;
     gap: var(--space-1);
@@ -1512,8 +1535,8 @@ h3.settings-title {
   }
 
   .settings-index {
-    flex-wrap: wrap;
-    overflow: visible;
+    flex-wrap: nowrap;
+    overflow-x: auto;
   }
 
   .scope-filter-search {
@@ -1561,15 +1584,29 @@ h3.settings-title {
   }
 
   .cmd-trigger-btn {
-    padding: 0 var(--space-2);
+    width: 32px;
+    padding: 0;
+    justify-content: center;
   }
 
+  .cmd-trigger-btn > span,
   .cmd-trigger-btn .cmd-kbd {
     display: none;
   }
 
+  .actionbar-actions {
+    flex-wrap: wrap;
+  }
+
   .actionbar-actions .btn {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .actionbar-actions .btn-primary {
+    flex: 1 1 100%;
   }
 
   .sidebar {
@@ -1588,7 +1625,8 @@ h3.settings-title {
     padding: var(--space-3) var(--space-3) var(--space-12);
   }
 
-  .local-demo-strip {
+  .local-demo-strip,
+  .page-top-strip {
     padding: var(--space-2) var(--space-3) 0;
   }
 

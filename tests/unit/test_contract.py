@@ -302,7 +302,6 @@ def test_project_commands_reject_missing_project_id(tmp_path: Path, capsys: Caps
         "doctor",
         "project.add",
         "project.list",
-        "template.list",
         "run.repair",  # 先校验 --confirm
         "run.manual",  # 先校验 case_id
         "backup.create",

@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from aitest.ai_features import judge_mock, summarize_report
 
 
@@ -316,29 +314,20 @@ def test_judge_mock_skips_model_call_for_empty_dependencies(tmp_path: Path) -> N
 
 
 def test_summarize_report_returns_text(tmp_path: Path) -> None:
-    client = FakeClient({"summary": "运行了 2 条用例，其中 1 条因环境缺失中断。"})
-    assert summarize_report({"runs": 2}, client=client) == (
-        "运行了 2 条用例，其中 1 条因环境缺失中断。"
+    del tmp_path
+    client = FakeClient({"summary": "测试已通过"})
+    text = summarize_report(
+        {
+            "coverage": {"selected": 2, "applicable": 3, "passed": 1, "failed": 0, "incomplete": 1},
+            "uncovered_items": ["ai_3"],
+        },
+        client=client,
     )
-
-
-@pytest.mark.parametrize(
-    "word",
-    ["通过", "不通过", "质量良好", "可以上线", "建议发布", "全部通过"],
-)
-def test_summarize_report_rejects_banned_words(word: str) -> None:
-    client = FakeClient({"summary": f"本次测试{word}。"})
-    assert summarize_report({"runs": 1}, client=client) is None
-
-
-def test_summarize_report_returns_none_on_model_error() -> None:
-    client = FakeClient(RuntimeError("network down"))
-    assert summarize_report({"runs": 1}, client=client) is None
-
-
-def test_summarize_report_returns_none_without_text() -> None:
-    assert summarize_report({"runs": 1}, client=FakeClient({"other": "x"})) is None
-    assert summarize_report({"runs": 1}, client=FakeClient({"summary": "  "})) is None
+    assert "本次范围 2/3" in text
+    assert "符合预期 1" in text
+    assert "出现失败 0" in text
+    assert "未覆盖验收项 1" in text
+    assert client.calls == []
 
 
 def test_judge_mock_caches_by_revision_and_file_digest(tmp_path: Path) -> None:

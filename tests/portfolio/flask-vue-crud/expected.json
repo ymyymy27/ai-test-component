@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "project": "flask-vue-crud",
+  "role": "前后端分离全栈 CRUD",
+  "stack": ["flask", "vue", "vite"],
+  "expected_level": "T1",
+  "known_defects_total": 5,
+  "min_defects_detected": 5,
+  "max_false_positives": 0,
+  "max_false_passes": 0,
+  "require_zero_health_false_wait": true,
+  "notes": "5/5 缺口检出，0 误报，无 SPA 健康检查误判空等。"
+}

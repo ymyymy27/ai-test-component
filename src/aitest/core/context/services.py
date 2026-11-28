@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from aitest.core.context.manifests import _read_json
-
 _FRONTEND_DEPENDENCIES = {
     "react",
     "react-dom",
@@ -327,12 +325,13 @@ def _detect_standalone_service(root: Path) -> dict[str, dict[str, object]]:
 
 
 def detect_services(root: Path) -> dict[str, dict[str, object]]:
-    """Best-effort local stack for a FastAPI + Vite + Compose repository."""
+    """基于 Compose 清单与单服务入口生成可核查的服务草稿（不猜测未知端口或脚本）。"""
     services: dict[str, dict[str, object]] = {}
     compose_names = (
         "compose.yml",
         "compose.yaml",
         "docker-compose.yml",
+        "docker-compose.yaml",
         "compose.override.yml",
         "compose.override.yaml",
         "docker-compose.override.yml",
@@ -346,7 +345,7 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
     compose_text = ""
     for path in compose_files:
         try:
-            compose_text += path.read_text(encoding="utf-8", errors="replace")
+            compose_text += path.read_text(encoding="utf-8", errors="replace") + "\n"
         except OSError:
             continue
     db_name = ""
@@ -369,40 +368,58 @@ def detect_services(root: Path) -> dict[str, dict[str, object]]:
             "health": "http://127.0.0.1:8025/livez",
             "timeout_seconds": 120,
         }
-    backend = root / "backend"
-    if (backend / "app" / "main.py").is_file() and "fastapi" in (
-        (backend / "pyproject.toml").read_text(encoding="utf-8", errors="replace")
-        if (backend / "pyproject.toml").is_file()
-        else ""
-    ).lower():
-        prestart = (
-            "uv run bash scripts/prestart.sh && "
-            if (backend / "scripts" / "prestart.sh").is_file()
-            else ""
-        )
-        services["backend"] = {
-            "start": (
-                "cd backend && "
-                + prestart
-                + "uv run fastapi dev --host 127.0.0.1 --port 18000"
-            ),
-            "health": "http://127.0.0.1:18000/api/v1/utils/health-check/",
-            "timeout_seconds": 180,
-        }
-    frontend = root / "frontend"
-    package = _read_json(frontend / "package.json")
-    scripts = package.get("scripts")
-    dev_script = scripts.get("dev") if isinstance(scripts, dict) else ""
-    if (
-        isinstance(dev_script, str)
-        and "vite" in dev_script.lower()
-        and (frontend / "playwright.config.ts").is_file()
-    ):
-        services["frontend"] = {
-            "start": "cd frontend && bunx vite --host 127.0.0.1 --port 15173",
-            "health": "http://127.0.0.1:15173",
-            "timeout_seconds": 180,
-        }
+    # 若 Compose 中还有其他明确声明了 host:container 端口的 HTTP 服务，补充可核查草稿
+    if compose_text:
+        svc_block = False
+        cur_svc = ""
+        in_ports = False
+        for raw_line in compose_text.splitlines():
+            stripped = raw_line.split("#", 1)[0].rstrip()
+            if not stripped.strip():
+                continue
+            indent = len(stripped) - len(stripped.lstrip(" "))
+            if indent == 0 and stripped.strip().startswith("services:"):
+                svc_block = True
+                cur_svc = ""
+                in_ports = False
+                continue
+            if indent == 0:
+                svc_block = False
+                cur_svc = ""
+                in_ports = False
+                continue
+            if not svc_block:
+                continue
+            if indent == 2 and stripped.strip().endswith(":"):
+                cur_svc = stripped.strip()[:-1].strip()
+                in_ports = False
+                continue
+            if not cur_svc or cur_svc in services:
+                continue
+            if indent == 4 and stripped.strip().startswith("ports:"):
+                in_ports = True
+                continue
+            if indent <= 4 and not stripped.strip().startswith("-"):
+                in_ports = False
+            if in_ports and stripped.strip().startswith("-"):
+                port_m = re.search(r"(\d{2,5})\s*:\s*\d{2,5}", stripped)
+                if port_m:
+                    host_port = _port(port_m.group(1))
+                    if host_port is not None and not any(
+                        tok in cur_svc.lower()
+                        for tok in ("db", "postgres", "mysql", "redis", "mongo", "mq", "rabbit")
+                    ):
+                        up = (
+                            f"docker compose {compose_flags} up -d {cur_svc}"
+                            .replace("  ", " ")
+                            .strip()
+                        )
+                        services[cur_svc] = {
+                            "start": up,
+                            "stop": up.replace(" up -d ", " stop "),
+                            "health": f"http://127.0.0.1:{host_port}/",
+                            "timeout_seconds": 120,
+                        }
     if not services:
         services.update(_detect_standalone_service(root))
     return services

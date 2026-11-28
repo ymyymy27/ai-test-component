@@ -151,20 +151,9 @@ export function reportMarkdown(project: Project, task: Task, rawReport: Report):
     }
     lines.push("");
   }
-  if (report.templates.length > 0) {
-    lines.push("## 检查模板");
-    lines.push("");
-    report.templates.forEach((template) => {
-      lines.push(
-        `- ${template.name} v${template.version}：适用 ${template.summary.applicable} · 不适用 ${template.summary.not_applicable} · 不支持 ${template.summary.unsupported} · 无法判断 ${template.summary.unknown}`,
-      );
-    });
-    lines.push("");
-  }
   lines.push("## 来源与环境");
   lines.push("");
   lines.push(`- 计划：${report.source.planLabel}`);
-  lines.push(`- 规则版本：${report.source.rulesLabel}`);
   lines.push(`- 源码提交：${report.source.commit}`);
   lines.push(`- 模型：${report.source.model}`);
   lines.push(`- GitHub：${report.source.github}`);

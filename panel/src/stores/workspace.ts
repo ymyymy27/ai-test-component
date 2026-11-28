@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-import { buildProjectAnalysis, listBuiltinTemplates, type ProjectAnalysis } from "@/domain/analysis";
+import { buildProjectAnalysis, type ProjectAnalysis } from "@/domain/analysis";
 import {
   activeTask as findActiveTask,
   allReports,
@@ -19,6 +19,7 @@ import type {
   EnvironmentCheck,
   Issue,
   Plan,
+  PlanReviewItem,
   Project,
   ProjectConfig,
   ProjectConvention,
@@ -27,6 +28,9 @@ import type {
   Run,
   Task,
 } from "@/domain/types";
+import { api as hostApi } from "@/host/commands";
+import { mapPlanReviews } from "@/host/map";
+import type { PlanRepairCaseResultDto } from "@/host/dto";
 import { RepositoryError } from "@/repositories/errors";
 import { HostRepository } from "@/repositories/HostRepository";
 import { LocalStorageRepository } from "@/repositories/LocalStorageRepository";
@@ -45,7 +49,7 @@ import {
   type HostGitSummary,
 } from "@/host/bridge";
 import { mapDoctorFacts } from "@/host/environment";
-import type { DoctorFacts, EvidencePreview, RunLogTailEntry, TemplateSummary } from "@/host/dto";
+import type { DoctorFacts, EvidencePreview, RunLogTailEntry } from "@/host/dto";
 import type {
   ConfirmPlanInput,
   ConventionInput,
@@ -58,7 +62,6 @@ import type {
   LinkAssertInput,
   ModuleInput,
   ProjectRepository,
-  RuleInput,
   TaskPatch,
 } from "@/repositories/ProjectRepository";
 import { buildEnvironmentChecks } from "@/services/environmentService";
@@ -1100,6 +1103,125 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
+  /** 合规关闭关联历史问题：按 pending -> in_progress -> retest -> closed 串联流转，绝不绕过状态机。 */
+  async function closeLinkedIssue(
+    projectId: string,
+    issue: Issue,
+    runId: string,
+    reason: string,
+  ): Promise<Issue> {
+    const trimmed = reason.trim() || `新运行 ${runId} 已复测通过`;
+    return withBusy(`issue-close:${issue.id}`, async () => {
+      let currentStatus = issue.status;
+      if (currentStatus === "pending") {
+        await repo().updateIssue(projectId, issue.id, {
+          status: "in_progress",
+          reason: `结果页复测收口：${trimmed}`,
+        });
+        currentStatus = "in_progress";
+      }
+      if (currentStatus === "in_progress") {
+        await repo().updateIssue(projectId, issue.id, {
+          status: "retest",
+          reason: `结果页关联通过运行 ${runId}：${trimmed}`,
+        });
+      }
+      const closed = await repo().closeIssue(projectId, issue.id, runId, trimmed);
+      await syncOrRefreshProject(projectId);
+      return closed;
+    });
+  }
+
+  /** 无锁只读双盲冲突评审（仅宿主模式调用，不阻塞阅读与 run.start）。 */
+  async function reviewPlan(
+    projectId: string,
+    planId: string,
+    refresh = false,
+  ): Promise<{ highSeverityCount: number; reviews: PlanReviewItem[] }> {
+    if (repo().mode !== "host") {
+      return { highSeverityCount: 0, reviews: [] };
+    }
+    const raw = await hostApi.reviewPlan({ projectId, planId, refresh });
+    const reviews = mapPlanReviews(raw.reviews);
+    return {
+      highSeverityCount:
+        raw.high_severity_count ?? reviews.filter((r) => r.severity === "high").length,
+      reviews,
+    };
+  }
+
+  /** 将勾选的评审补丁用例通过 plan.update 持写锁并入计划，生成新 revision。 */
+  async function mergePlanReviewCases(
+    projectId: string,
+    planId: string,
+    selectedReviews: PlanReviewItem[],
+  ): Promise<number> {
+    return withBusy(`plan-merge:${planId}`, async () => {
+      const detail = await hostApi.showPlan(projectId, planId);
+      const existingCases = detail.plan.cases ?? [];
+      const patchCases = selectedReviews.flatMap((r) => r.patchCases ?? []);
+      const updated = await hostApi.updatePlan({
+        projectId,
+        planId,
+        revision: detail.plan.revision,
+        cases: [...existingCases, ...patchCases],
+        aiReviews: selectedReviews.map((r) => ({
+          review_id: r.reviewId,
+          kind: r.kind,
+          severity: r.severity,
+          statement: r.statement,
+          evidence: r.evidence,
+          patch_cases: r.patchCases,
+        })),
+      });
+      await syncOrRefreshProject(projectId);
+      return updated.revision;
+    });
+  }
+
+  /** 只读预览单条脚本用例修复 diff（不要求 --confirm、不落盘）。 */
+  async function previewCaseRepair(input: {
+    projectId: string;
+    planId: string;
+    caseId: string;
+    runId?: string;
+    repairedScript?: string;
+    errorHint?: string;
+  }): Promise<PlanRepairCaseResultDto> {
+    return hostApi.repairPlanCase({ ...input, mode: "preview" });
+  }
+
+  /** 应用脚本修复更新 Plan 新 revision，并定向重跑受影响验收项（发起新 run，不改历史 run）。 */
+  async function applyCaseRepairAndRerun(input: {
+    projectId: string;
+    taskId: string;
+    planId: string;
+    caseId: string;
+    runId?: string;
+    repairedScript?: string;
+    errorHint?: string;
+    expectedRevision?: number;
+  }): Promise<Run> {
+    return withBusy(`repair-case:${input.caseId}`, async () => {
+      const applied = await hostApi.repairPlanCase({
+        projectId: input.projectId,
+        planId: input.planId,
+        caseId: input.caseId,
+        runId: input.runId,
+        mode: "apply",
+        repairedScript: input.repairedScript,
+        errorHint: input.errorHint,
+        expectedRevision: input.expectedRevision,
+      });
+      await syncOrRefreshProject(input.projectId);
+      const targetItems = applied.acceptance_item_ids ?? [];
+      if (targetItems.length > 0 && repo().startTargetedRerun) {
+        return startTargetedRerun(input.projectId, input.taskId, input.planId, targetItems);
+      }
+      return confirmAndStart(input.projectId, input.taskId, input.planId);
+    });
+  }
+
   async function regenerateReport(projectId: string, runId: string): Promise<Report> {
     return withBusy(`report:${runId}`, async () => {
       const report = await repo().regenerateReport(projectId, runId);
@@ -1161,32 +1283,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function draftDelivery(projectId: string, taskId: string): Promise<Delivery> {
     return withBusy(`delivery-draft:${taskId}`, async () => {
       return repo().draftDelivery(projectId, taskId);
-    });
-  }
-
-  async function applyTemplate(
-    projectId: string,
-    taskId: string,
-    templateId: string,
-  ): Promise<Task> {
-    return withBusy(`template:${taskId}`, async () => {
-      const task = await repo().applyTemplate(projectId, taskId, templateId);
-      await syncOrRefreshProject(projectId);
-      return task;
-    });
-  }
-
-  async function saveRule(projectId: string, input: RuleInput): Promise<void> {
-    await withBusy(`rule:${projectId}`, async () => {
-      await repo().saveRule(projectId, input);
-      await refreshProject(projectId);
-    });
-  }
-
-  async function bindRule(projectId: string, ruleId: string): Promise<void> {
-    await withBusy(`rule-bind:${projectId}`, async () => {
-      const updated = await repo().bindRule(projectId, ruleId);
-      replaceProject(updated);
     });
   }
 
@@ -1542,31 +1638,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
-  /** 获取可用的参考核查模板列表（宿主读取 template.list，本地模式使用内置清单）。 */
-  async function listTemplates(): Promise<
-    Array<{ id: string; name: string; version: string; itemCount: number }>
-  > {
-    if (repo().mode !== "host") {
-      return listBuiltinTemplates();
-    }
-    try {
-      const payload = await callHost<{ templates: TemplateSummary[] }>("template.list", {});
-      const list = Array.isArray(payload?.templates) ? payload.templates : [];
-      if (list.length === 0) {
-        return listBuiltinTemplates();
-      }
-      return list.map((entry) => ({
-        id: entry.template_id,
-        name: entry.name,
-        version: entry.version,
-        itemCount: entry.item_count,
-      }));
-    } catch (cause) {
-      toastError(cause);
-      return listBuiltinTemplates();
-    }
-  }
-
   async function backup(): Promise<void> {
     try {
       const payload = await repo().backup();
@@ -1680,16 +1751,17 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     createIssue,
     updateIssue,
     closeIssue,
+    closeLinkedIssue,
+    reviewPlan,
+    mergePlanReviewCases,
+    previewCaseRepair,
+    applyCaseRepairAndRerun,
     regenerateReport,
     saveOpinion,
     exportReport,
     saveDelivery,
     draftDelivery,
-    applyTemplate,
-    listTemplates,
     runAnalysis,
-    saveRule,
-    bindRule,
     saveConfig,
     addConvention,
     removeConvention,

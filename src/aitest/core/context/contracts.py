@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -11,22 +12,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from aitest.core.context.py_routes import extract_python_api_routes, join_route_parts
+from aitest.core.repo_index import DEFAULT_SKIP_DIRS
 from aitest.security import is_ignored_path, load_ignore_patterns
 
-_FE_IGNORE_DIRS = {
-    ".git",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    "dist",
-    "build",
-    "tests",
-    "test",
-    "coverage",
-    ".next",
-    ".nuxt",
-}
+_FE_IGNORE_DIRS = DEFAULT_SKIP_DIRS | {"tests", "test"}
 _FE_CALL_SKIP = frozenset(
     {"if", "for", "while", "switch", "catch", "return", "function", "class", "new", "typeof"}
 )
@@ -141,118 +130,414 @@ def _normalize_compare_path(raw_path: str) -> str:
     return text
 
 
-def _resolve_json_ref(
-    spec: dict[str, Any],
-    node: Any,
-    visiting: frozenset[str] = frozenset(),
-) -> tuple[set[str], bool]:
-    """递归展开 OpenAPI Schema（支持 $ref、allOf/oneOf/anyOf），返回属性名集合与是否封闭。"""
-    if not isinstance(node, dict):
-        return set(), False
-    fields: set[str] = set()
-    is_open = bool(node.get("additionalProperties") is True)
+def _extract_server_base_path(spec: dict[str, Any]) -> str:
+    """提取 OAS 2.0 `basePath` 或 OAS 3.x `servers[0].url` 中的基础路径前缀。"""
+    raw_base = spec.get("basePath")
+    if isinstance(raw_base, str) and raw_base.strip():
+        cleaned = raw_base.strip()
+        if not cleaned.startswith("/"):
+            cleaned = "/" + cleaned
+        return "" if cleaned == "/" else cleaned.rstrip("/")
+    servers = spec.get("servers")
+    if isinstance(servers, list):
+        for srv in servers:
+            if not isinstance(srv, dict):
+                continue
+            raw_url = str(srv.get("url") or "").strip()
+            if not raw_url:
+                continue
+            path_part = urlsplit(raw_url).path if "://" in raw_url else raw_url.split("?", 1)[0]
+            if not path_part or path_part == "/":
+                continue
+            if not path_part.startswith("/"):
+                path_part = "/" + path_part
+            return path_part.rstrip("/")
+    return ""
 
+
+def _resolve_ref_dict(spec: dict[str, Any], node: Any) -> dict[str, Any] | None:
+    if not isinstance(node, dict):
+        return None
     ref = node.get("$ref")
-    if isinstance(ref, str) and ref.startswith("#/") and ref not in visiting:
-        parts = ref[2:].split("/")
+    if isinstance(ref, str) and ref.startswith("#/"):
         cur: Any = spec
-        for part in parts:
+        for part in ref[2:].split("/"):
             if isinstance(cur, dict):
                 cur = cur.get(part)
             else:
                 cur = None
                 break
         if isinstance(cur, dict):
-            sub_fields, sub_open = _resolve_json_ref(spec, cur, visiting | {ref})
-            fields.update(sub_fields)
-            is_open = is_open or sub_open
+            return cur
+    return node
+
+
+def _resolve_schema_details(
+    spec: dict[str, Any],
+    node: Any,
+    visiting: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """递归解析 OpenAPI Schema，提取属性名、必填项、字段 format 与是否开放。"""
+    resolved = _resolve_ref_dict(spec, node) if isinstance(node, dict) else None
+    if not isinstance(resolved, dict):
+        return {"fields": set(), "required": set(), "formats": {}, "is_open": False}
+
+    fields: set[str] = set()
+    required: set[str] = set()
+    formats: dict[str, str] = {}
+    is_open = bool(resolved.get("additionalProperties") is True)
+
+    ref = node.get("$ref") if isinstance(node, dict) else None
+    next_visiting = visiting | ({ref} if isinstance(ref, str) else set())
+    if isinstance(ref, str) and ref in visiting:
+        return {"fields": fields, "required": required, "formats": formats, "is_open": is_open}
 
     for combo_key in ("allOf", "oneOf", "anyOf"):
-        combo = node.get(combo_key)
+        combo = resolved.get(combo_key)
         if isinstance(combo, list):
             for item in combo:
-                sub_fields, sub_open = _resolve_json_ref(spec, item, visiting)
-                fields.update(sub_fields)
-                is_open = is_open or sub_open
+                sub = _resolve_schema_details(spec, item, next_visiting)
+                fields.update(sub["fields"])
+                required.update(sub["required"])
+                formats.update(sub["formats"])
+                is_open = is_open or sub["is_open"]
 
-    props = node.get("properties")
+    raw_req = resolved.get("required")
+    if isinstance(raw_req, list):
+        for rname in raw_req:
+            if isinstance(rname, str) and rname.strip():
+                required.add(rname.strip())
+
+    props = resolved.get("properties")
     if isinstance(props, dict):
-        for prop_name in props:
-            if isinstance(prop_name, str) and prop_name.strip():
-                fields.add(prop_name.strip())
+        for prop_name, prop_schema in props.items():
+            if not isinstance(prop_name, str) or not prop_name.strip():
+                continue
+            clean_name = prop_name.strip()
+            fields.add(clean_name)
+            p_resolved = _resolve_ref_dict(spec, prop_schema)
+            if isinstance(p_resolved, dict):
+                fmt = p_resolved.get("format") or p_resolved.get("type")
+                if isinstance(fmt, str) and fmt.strip():
+                    formats[clean_name] = fmt.strip()
 
-    return fields, is_open
+    return {"fields": fields, "required": required, "formats": formats, "is_open": is_open}
+
+
+def _resolve_json_ref(
+    spec: dict[str, Any],
+    node: Any,
+    visiting: frozenset[str] = frozenset(),
+) -> tuple[set[str], bool]:
+    """递归展开 OpenAPI Schema（支持 $ref、allOf/oneOf/anyOf），返回属性名集合与是否封闭。"""
+    details = _resolve_schema_details(spec, node, visiting)
+    return details["fields"], bool(details["is_open"])
+
+
+def _parse_yaml_scalar(raw: str) -> Any:
+    text = raw.strip()
+    if not text or text in {"~", "null", "Null", "NULL"}:
+        return None
+    if text in {"true", "True", "TRUE"}:
+        return True
+    if text in {"false", "False", "FALSE"}:
+        return False
+    if (text.startswith('"') and text.endswith('"')) or (
+        text.startswith("'") and text.endswith("'")
+    ):
+        return text[1:-1]
+    if re.fullmatch(r"-?\d+", text):
+        return int(text)
+    if re.fullmatch(r"-?\d+\.\d+", text):
+        return float(text)
+    if text.startswith("[") and text.endswith("]"):
+        inner = text[1:-1].strip()
+        if not inner:
+            return []
+        return [_parse_yaml_scalar(part) for part in inner.split(",")]
+    return text
+
+
+def _load_spec_data(path: Path, max_bytes: int) -> dict[str, Any] | None:
+    """读取 JSON 或 YAML OpenAPI 文档（无 PyYAML 时回退轻量缩进 YAML 解析）。"""
+    try:
+        if path.stat().st_size > max_bytes:
+            return None
+        raw_text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if path.suffix.lower() == ".json":
+        try:
+            loaded = json.loads(raw_text)
+            return loaded if isinstance(loaded, dict) else None
+        except json.JSONDecodeError:
+            return None
+    with contextlib.suppress(Exception):
+        import importlib
+
+        yaml_mod = importlib.import_module("yaml")
+        loaded = yaml_mod.safe_load(raw_text)
+        return loaded if isinstance(loaded, dict) else None
+
+    # 轻量标准库缩进 YAML 剖析（覆盖常见 OpenAPI paths/servers/components）
+    tokens: list[tuple[int, str]] = []
+    for line in raw_text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        clean = re.sub(r"\s+#.*$", "", line)
+        indent = len(clean) - len(clean.lstrip(" "))
+        tokens.append((indent, clean.strip()))
+    if not tokens:
+        return None
+
+    def _parse_block(idx: int, min_indent: int) -> tuple[Any, int]:
+        if idx >= len(tokens):
+            return {}, idx
+        if tokens[idx][1].startswith("- "):
+            arr: list[Any] = []
+            list_indent = tokens[idx][0]
+            while (
+                idx < len(tokens)
+                and tokens[idx][0] == list_indent
+                and tokens[idx][1].startswith("- ")
+            ):
+                item_text = tokens[idx][1][2:].strip()
+                idx += 1
+                if ":" in item_text and not item_text.startswith(("'", '"', "{", "[")):
+                    k, _sep, v = item_text.partition(":")
+                    k_name = k.strip().strip('"').strip("'")
+                    item_dict: dict[str, Any] = {
+                        k_name: _parse_yaml_scalar(v) if v.strip() else None
+                    }
+                    if idx < len(tokens) and tokens[idx][0] > list_indent:
+                        sub, idx = _parse_block(idx, list_indent + 1)
+                        if isinstance(sub, dict):
+                            if item_dict[next(iter(item_dict))] is None:
+                                item_dict[next(iter(item_dict))] = sub
+                            else:
+                                item_dict.update(sub)
+                    arr.append(item_dict)
+                elif item_text:
+                    arr.append(_parse_yaml_scalar(item_text))
+                elif idx < len(tokens) and tokens[idx][0] > list_indent:
+                    sub, idx = _parse_block(idx, list_indent + 1)
+                    arr.append(sub)
+            return arr, idx
+
+        mapping: dict[str, Any] = {}
+        map_indent = tokens[idx][0]
+        while idx < len(tokens) and tokens[idx][0] >= min_indent:
+            cur_indent, text = tokens[idx]
+            if cur_indent != map_indent or text.startswith("- "):
+                break
+            if ":" not in text:
+                idx += 1
+                continue
+            key_raw, _sep, val_raw = text.partition(":")
+            key = key_raw.strip().strip('"').strip("'")
+            idx += 1
+            if val_raw.strip():
+                mapping[key] = _parse_yaml_scalar(val_raw)
+            elif idx < len(tokens) and tokens[idx][0] > map_indent:
+                child, idx = _parse_block(idx, map_indent + 1)
+                mapping[key] = child
+            else:
+                mapping[key] = {}
+        return mapping, idx
+
+    parsed, _ = _parse_block(0, 0)
+    return parsed if isinstance(parsed, dict) else None
+
+
+def parse_openapi_spec(
+    data: dict[str, Any],
+    *,
+    source: str,
+    confidence: str = "openapi_file",
+) -> list[dict[str, Any]]:
+    """解析 OAS 2.0/3.x 文档（servers/basePath/security/参数/表单/包装响应）。"""
+    paths = data.get("paths")
+    if not isinstance(paths, dict):
+        return []
+    base_prefix = _extract_server_base_path(data)
+    global_security = data.get("security")
+    http_methods = {"get", "post", "put", "patch", "delete"}
+    routes: list[dict[str, Any]] = []
+
+    for raw_route_path, ops in sorted(paths.items()):
+        if not isinstance(raw_route_path, str) or not isinstance(ops, dict):
+            continue
+        full_path = (
+            join_route_parts(base_prefix, raw_route_path)
+            if base_prefix and not raw_route_path.startswith(base_prefix)
+            else (raw_route_path if raw_route_path.startswith("/") else f"/{raw_route_path}")
+        )
+        raw_pp = ops.get("parameters")
+        path_params_raw: list[Any] = raw_pp if isinstance(raw_pp, list) else []
+
+        for method, detail in sorted(ops.items()):
+            if not isinstance(method, str) or method.lower() not in http_methods:
+                continue
+            if not isinstance(detail, dict):
+                continue
+
+            sec = detail.get("security") if "security" in detail else global_security
+            auth = "user" if isinstance(sec, list) and len(sec) > 0 else "public"
+
+            fields: set[str] = set()
+            required_fields: set[str] = set()
+            formats: dict[str, str] = {}
+            content_types: list[str] = []
+            query_params: list[str] = []
+            path_params: list[str] = []
+            header_params: list[str] = []
+            is_open = False
+
+            # 1. 参数清单（OAS 2.0 & 3.x：query/path/header/formData/body）
+            raw_op = detail.get("parameters")
+            op_params: list[Any] = raw_op if isinstance(raw_op, list) else []
+            for p_raw in [*path_params_raw, *op_params]:
+                param = _resolve_ref_dict(data, p_raw)
+                if not isinstance(param, dict):
+                    continue
+                p_in = str(param.get("in") or "").lower()
+                p_name = str(param.get("name") or "").strip()
+                p_req = bool(param.get("required"))
+                p_schema = param.get("schema") if isinstance(param.get("schema"), dict) else param
+                if p_in == "body":
+                    s_info = _resolve_schema_details(data, p_schema)
+                    fields.update(s_info["fields"])
+                    required_fields.update(s_info["required"])
+                    formats.update(s_info["formats"])
+                    is_open = is_open or bool(s_info["is_open"])
+                    if "application/json" not in content_types:
+                        content_types.append("application/json")
+                elif p_in == "formdata" and p_name:
+                    fields.add(p_name)
+                    if p_req:
+                        required_fields.add(p_name)
+                    if "application/x-www-form-urlencoded" not in content_types:
+                        content_types.append("application/x-www-form-urlencoded")
+                elif p_in == "query" and p_name:
+                    query_params.append(p_name)
+                elif p_in == "path" and p_name:
+                    path_params.append(p_name)
+                elif p_in == "header" and p_name:
+                    header_params.append(p_name)
+
+            # 2. OAS 3.x requestBody（JSON / form-urlencoded / multipart）
+            req_body = _resolve_ref_dict(data, detail.get("requestBody"))
+            if isinstance(req_body, dict):
+                content = req_body.get("content")
+                if isinstance(content, dict):
+                    for ctype in (
+                        "application/json",
+                        "application/x-www-form-urlencoded",
+                        "multipart/form-data",
+                    ):
+                        media = content.get(ctype)
+                        if not isinstance(media, dict):
+                            continue
+                        if ctype not in content_types:
+                            content_types.append(ctype)
+                        s_info = _resolve_schema_details(data, media.get("schema"))
+                        fields.update(s_info["fields"])
+                        required_fields.update(s_info["required"])
+                        formats.update(s_info["formats"])
+                        is_open = is_open or bool(s_info["is_open"])
+
+            entry: dict[str, Any] = {
+                "method": method.upper(),
+                "path": full_path,
+                "auth": auth,
+                "file": source,
+                "line": "1",
+                "source_kind": "openapi",
+                "confidence": confidence,
+                "fields_complete": bool(fields) and not is_open,
+            }
+            if fields:
+                entry["fields"] = ",".join(sorted(fields)[:128])
+            if required_fields:
+                entry["required_fields"] = sorted(required_fields)[:64]
+            if formats:
+                entry["field_formats"] = dict(sorted(formats.items())[:64])
+            if content_types:
+                entry["content_types"] = content_types
+            if query_params:
+                entry["query_params"] = sorted(dict.fromkeys(query_params))
+            if path_params:
+                entry["path_params"] = sorted(dict.fromkeys(path_params))
+            if header_params:
+                entry["header_params"] = sorted(dict.fromkeys(header_params))
+
+            # 3. 成功响应字段及 {code, data} 包装识别
+            responses = detail.get("responses")
+            if isinstance(responses, dict):
+                codes = sorted(
+                    code for code in responses if isinstance(code, str) and code.startswith("2")
+                )
+                if codes:
+                    entry["status_code"] = codes[0]
+                    resp_obj = _resolve_ref_dict(data, responses.get(codes[0]))
+                    resp_schema = None
+                    if isinstance(resp_obj, dict):
+                        resp_content = resp_obj.get("content")
+                        if isinstance(resp_content, dict) and isinstance(
+                            resp_content.get("application/json"), dict
+                        ):
+                            resp_schema = resp_content["application/json"].get("schema")
+                        elif isinstance(resp_obj.get("schema"), dict):
+                            resp_schema = resp_obj.get("schema")
+                    if resp_schema is not None:
+                        r_info = _resolve_schema_details(data, resp_schema)
+                        resp_fields = set(r_info["fields"])
+                        resp_resolved = _resolve_ref_dict(data, resp_schema)
+                        if isinstance(resp_resolved, dict) and isinstance(
+                            resp_resolved.get("properties"), dict
+                        ):
+                            data_prop = resp_resolved["properties"].get("data")
+                            if data_prop is not None:
+                                inner = _resolve_schema_details(data, data_prop)
+                                for sub_f in inner["fields"]:
+                                    resp_fields.add(f"data.{sub_f}")
+                        if resp_fields:
+                            entry["response_fields"] = sorted(resp_fields)[:64]
+
+            routes.append(entry)
+    return routes
 
 
 def _openapi_routes(root: Path, *, max_bytes: int = 2 * 1024 * 1024) -> list[dict[str, Any]]:
-    """静态解析项目内的 openapi.json / swagger.json，展开 $ref 与完整属性集合。"""
+    """静态解析项目内的 openapi/swagger.{json,yaml,yml}，支持 OAS 2.0/3.x。"""
+    spec_names = (
+        "openapi.json",
+        "swagger.json",
+        "openapi.yaml",
+        "openapi.yml",
+        "swagger.yaml",
+        "swagger.yml",
+    )
     candidates: list[Path] = []
-    for name in ("openapi.json", "swagger.json"):
+    for name in spec_names:
         if (root / name).is_file():
             candidates.append(root / name)
     with suppress(OSError):
         for child in sorted(root.iterdir()):
             if not child.is_dir() or child.name.startswith("."):
                 continue
-            for name in ("openapi.json", "swagger.json"):
+            for name in spec_names:
                 target = child / name
                 if target.is_file():
                     candidates.append(target)
 
     routes: list[dict[str, Any]] = []
-    http_methods = {"get", "post", "put", "patch", "delete"}
     for spec_path in candidates:
-        try:
-            if spec_path.stat().st_size > max_bytes:
-                continue
-            data = json.loads(spec_path.read_text(encoding="utf-8", errors="replace"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        data = _load_spec_data(spec_path, max_bytes)
         if not isinstance(data, dict):
             continue
-        paths = data.get("paths")
-        if not isinstance(paths, dict):
-            continue
         rel_spec = spec_path.relative_to(root).as_posix()
-        for route_path, ops in sorted(paths.items()):
-            if not isinstance(route_path, str) or not isinstance(ops, dict):
-                continue
-            for method, detail in sorted(ops.items()):
-                if not isinstance(method, str) or method.lower() not in http_methods:
-                    continue
-                if not isinstance(detail, dict):
-                    continue
-                auth = "user" if detail.get("security") else "public"
-                entry: dict[str, Any] = {
-                    "method": method.upper(),
-                    "path": route_path,
-                    "auth": auth,
-                    "file": rel_spec,
-                    "line": "1",
-                    "source_kind": "openapi",
-                }
-                responses = detail.get("responses")
-                if isinstance(responses, dict):
-                    codes = sorted(
-                        code for code in responses if isinstance(code, str) and code.startswith("2")
-                    )
-                    if codes:
-                        entry["status_code"] = codes[0]
-                req_body = detail.get("requestBody")
-                if isinstance(req_body, dict):
-                    content = req_body.get("content")
-                    json_schema = (
-                        content.get("application/json", {}).get("schema")
-                        if isinstance(content, dict)
-                        and isinstance(content.get("application/json"), dict)
-                        else None
-                    )
-                    props, is_open = _resolve_json_ref(data, json_schema)
-                    if props:
-                        sorted_props = sorted(props)[:128]
-                        entry["fields"] = ",".join(sorted_props)
-                        entry["fields_complete"] = not is_open
-                routes.append(entry)
+        routes.extend(parse_openapi_spec(data, source=rel_spec, confidence="openapi_file"))
     return routes
 
 
@@ -553,6 +838,7 @@ def _nextjs_app_routes(
                 "file": rel_posix,
                 "line": str(line),
                 "fields_complete": complete,
+                "confidence": "heuristic",
                 "source_kind": "nextjs_app",
             }
             if fields:
@@ -775,6 +1061,7 @@ def _js_backend_routes(
                     "file": rel_posix,
                     "line": str(line),
                     "fields_complete": complete,
+                    "confidence": "heuristic",
                     "source_kind": "node_express",
                 }
                 if fields:
@@ -904,10 +1191,29 @@ def _api_routes_with_meta(
     root: Path,
     *,
     max_routes: int = 2000,
+    max_py_files: int = 1500,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """提取全语言后端路由与元数据（如动态插件加载器探测结果）。"""
     files_text: dict[Path, str] = {}
-    ignore = {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build", "tests"}
+    ignore = {
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        "dist",
+        "build",
+        "tests",
+        "test",
+        "".join(("mig", "rations")),
+        "locale",
+        "docs",
+        "storybook",
+        "fixtures",
+        "static",
+        "media",
+        "coverage",
+    }
     ignore_patterns = load_ignore_patterns(root)
     for base, dirs, files in os.walk(root):
         base_path = Path(base)
@@ -925,9 +1231,15 @@ def _api_routes_with_meta(
             if is_ignored_path(root, path, ignore_patterns):
                 continue
             try:
+                if path.stat().st_size > 256 * 1024:
+                    continue
                 files_text[path] = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            if len(files_text) >= max_py_files:
+                break
+        if len(files_text) >= max_py_files:
+            break
 
     py_routes, py_meta = extract_python_api_routes(root, files_text, max_routes=max_routes)
     routes: list[dict[str, Any]] = list(py_routes)
@@ -949,7 +1261,14 @@ def _api_routes_with_meta(
             by_norm_key[key] = r
             routes.append(r)
             if len(routes) >= max_routes:
+                for item in routes:
+                    if isinstance(item, dict) and "confidence" not in item:
+                        item["confidence"] = "heuristic"
                 return routes, py_meta
+
+    for item in routes:
+        if isinstance(item, dict) and "confidence" not in item:
+            item["confidence"] = "heuristic"
 
     # 源码路由优先于 OpenAPI 文档：OpenAPI 若存在对应源码路由，只附加为辅助字段
     for oa in _openapi_routes(root):

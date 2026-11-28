@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -20,15 +21,18 @@ from urllib.parse import urlsplit
 from aitest.adapters.model import TokenLedger, track_token_usage
 from aitest.config import known_secret_values
 from aitest.core.analysis import analyze_run
-from aitest.core.checkpoint import save_checkpoint
 from aitest.core.evidence import (
+    LocalFileSnapshotIsolator,
     data_prefix,
     evidence_bytes,
 )
 from aitest.core.issues import draft_failed_issues, prepare_issue_drafts
-from aitest.core.judge import compute_case_confidence, is_fatal_service_issue, judge_case_failure
+from aitest.core.judge import (
+    build_run_hypotheses,
+    compute_case_confidence,
+    judge_case_failure,
+)
 from aitest.core.manual import is_manual_case
-from aitest.core.plugins import DEFAULT_REGISTRY, Isolator, LocalFileSnapshotIsolator
 from aitest.core.preflight import run_preflight
 from aitest.core.probes import run_deterministic_probes
 from aitest.core.project_context import (
@@ -66,6 +70,7 @@ from aitest.worker_impl.deps_and_l1 import (
 from aitest.worker_impl.env import (
     DELIVERY_INCOMPLETE_MESSAGE,
     EvidenceSettings,
+    _configured_python,
     _delivery_incomplete,
     _dotenv_values,
     _environment_fingerprint,
@@ -81,12 +86,8 @@ from aitest.worker_impl.env import (
     worker_attr,
 )
 from aitest.worker_impl.execution import (
-    _adjust_component_command,
     _destructive_case,
     _execute,
-    _mutates_seed_account,
-    _repair_case_as_script,
-    _repair_script_case,
     _risky_retry,
     _screenshot_artifacts,
     _screenshot_files,
@@ -293,15 +294,15 @@ def _reset_case_isolation(
     run: Run,
     run_dir: Path,
     config: dict[str, Any],
-    states: list[tuple[Isolator, dict[str, Any]]],
-) -> list[tuple[Isolator, dict[str, Any]]]:
+    states: list[tuple[LocalFileSnapshotIsolator, dict[str, Any]]],
+) -> list[tuple[LocalFileSnapshotIsolator, dict[str, Any]]]:
     """在用例边界还原已配置的本地数据快照，避免前序用例污染后序用例。"""
     if not states:
         return states
     for isolator, state in states:
-        if isinstance(isolator, LocalFileSnapshotIsolator):
-            isolator.cleanup(state)
-    return DEFAULT_REGISTRY.prepare_isolators(workdir, run.run_id, run_dir, config)
+        isolator.cleanup(state)
+    iso = LocalFileSnapshotIsolator()
+    return [(iso, iso.prepare(workdir, run.run_id, run_dir, config))]
 
 
 def _run_service_resets(
@@ -347,55 +348,6 @@ def _has_reset_command(service_configs: list[tuple[str, dict[str, Any]]]) -> boo
     return any(str(cfg.get("reset") or "").strip() for _, cfg in service_configs)
 
 
-def _service_restart_allowed(
-    service_configs: list[tuple[str, dict[str, Any]]],
-) -> bool:
-    return all(cfg.get("restart_on_mutation") is not False for _, cfg in service_configs)
-
-
-def _restart_owned_services(
-    workdir: Path,
-    run_dir: Path,
-    service_states: list[dict[str, Any]],
-    run_env: dict[str, str],
-    secrets: list[str],
-    cancelled: Callable[[], bool],
-) -> bool:
-    """重启本次运行启动的本地服务，默认用于隔离破坏性用例的内存状态。"""
-    restarted = 0
-    ok = True
-    for state in service_states:
-        config = state.get("config")
-        log = state.get("log")
-        if (
-            not state.get("started")
-            or state.get("process") is None
-            or not isinstance(config, dict)
-            or not isinstance(log, Path)
-        ):
-            continue
-        _stop_service(config, workdir, log, secrets, run_env, state.get("process"))
-        started, healthy, process = _start_service(
-            config, workdir, log, secrets, run_env, cancelled
-        )
-        state.update({"started": started, "ok": healthy, "process": process})
-        restarted += 1
-        if not healthy:
-            ok = False
-    marker = run_dir / "service-isolation.log"
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    with marker.open("ab") as handle:
-        if restarted:
-            handle.write(
-                f"重启本次运行启动的服务 {restarted} 个，用于隔离破坏性用例\n".encode()
-            )
-        else:
-            handle.write(
-                "未找到由本次运行启动的服务，无法重启隔离；依赖外部服务状态\n".encode()
-            )
-    return ok
-
-
 def _isolate_after_write(
     workdir: Path,
     run_dir: Path,
@@ -407,12 +359,9 @@ def _isolate_after_write(
     *,
     destructive: bool,
 ) -> bool:
+    del cancelled, destructive
     if _has_reset_command(service_configs):
         _run_service_resets(workdir, run_dir, service_configs, run_env, secrets)
-    elif destructive and _service_restart_allowed(service_configs):
-        return _restart_owned_services(
-            workdir, run_dir, service_states, run_env, secrets, cancelled
-        )
     return all(state.get("ok", True) for state in service_states)
 
 
@@ -574,22 +523,6 @@ def _case_expects_auth_failure(case: Case) -> bool:
     """判断验收项是否在主动验收 401/403（负向鉴权），此时不能补认证改写。"""
     text = f"{case.title} {case.expected} {case.expectation_source}"
     return bool(_EXPECTED_AUTH_FAILURE_RE.search(text))
-
-
-def _script_repair_allowed(result: str, message: str) -> bool:
-    """脚本修复只处理脚本自身问题；setup 前置失败必须保持阻塞。
-
-    修脚本会改写 setup 内容，把「种子数据/环境未就绪」这类事实掩盖成通过，
-    因此这类结果不能进入 AI 修复链路。
-    """
-    if result == "error":
-        return True
-    if result != "blocked":
-        return False
-    return (
-        "前置准备阶段（setup）失败" not in message
-        and "stage must be 'setup'" not in message
-    )
 
 
 def _config_base_url(cfg: dict[str, Any]) -> str:
@@ -856,10 +789,7 @@ def _execute_with_service_logs(
         artifacts = [*artifacts, ("service-window.log", window_bytes)]
     fatal_errors = list(cast(list[str], window.get("fatal_errors") or []))
     log_warnings = list(cast(list[str], window.get("warnings") or []))
-    if result == "passed" and fatal_errors:
-        result = "failed"
-        fatal_summary = "；".join(fatal_errors)
-        message = f"{message}；{fatal_summary}" if message else fatal_summary
+    # 阶段 2 红线：后台日志仅作诊断附件与告警记录，绝不把已通过断言的用例翻盘改判为 failed
     return result, outputs, message, artifacts, fatal_errors, log_warnings, elapsed
 
 
@@ -959,13 +889,27 @@ def main(argv: list[str] | None = None) -> int:
         project = read_model(ws.project_path(args.project), Project)
         workdir = Path(project.root)
         cases = {case.case_id: case for case in plan.cases}
-        for plan_case in cases.values():
-            plan_case.verify_method = _adjust_component_command(
-                plan_case.verify_method, workdir
-            )
 
-        project_python = _venv_python(workdir)
-        run_env = _run_env(workdir, project_python, run.run_id)
+        config = _project_config(ws, args.project)
+        allowed_role_envs: set[str] = set()
+        raw_roles = config.get("test_roles")
+        if isinstance(raw_roles, dict):
+            for role_spec in raw_roles.values():
+                if not isinstance(role_spec, dict):
+                    continue
+                for rkey, rval in role_spec.items():
+                    if str(rkey).lower().endswith(("_env", "_env_var")) and isinstance(rval, str):
+                        name_str = rval.strip()
+                        if name_str:
+                            allowed_role_envs.add(name_str)
+        configured_python = _configured_python(config, workdir)
+        project_python = configured_python or _venv_python(workdir)
+        run_env = _run_env(
+            workdir,
+            project_python,
+            run.run_id,
+            allowed_test_role_envs=allowed_role_envs,
+        )
         case_python = project_python or Path(sys.executable)
         requested_profile = str(run.environment.get("profile") or "")
         run.environment = worker_attr(
@@ -974,7 +918,6 @@ def main(argv: list[str] | None = None) -> int:
         dependency_cache: dict[tuple[str, ...], list[str] | None] = {}
         dependency_suggestion_cache: dict[str, dict[str, str]] = {}
         command_cache: dict[str, tuple[str, list[bytes], str, list[tuple[str, bytes]]]] = {}
-        config = _project_config(ws, args.project)
         env_profile = resolve_environment_profile(config, requested_profile)
         if env_profile.get("name"):
             run.environment["profile"] = str(env_profile["name"])
@@ -1002,17 +945,6 @@ def main(argv: list[str] | None = None) -> int:
             detected = detect_services(workdir)
             if detected:
                 service_configs = list(detected.items())
-                if "backend" in detected:
-                    run_env["VITE_API_URL"] = "http://127.0.0.1:18000"
-                if "frontend" in detected:
-                    frontend_health = str(
-                        detected["frontend"].get("health") or ""
-                    )
-                    if frontend_health:
-                        run_env["PLAYWRIGHT_BASE_URL"] = frontend_health
-                        run_env["FRONTEND_HOST"] = frontend_health
-                        run_env["DEV_SERVER_URL"] = frontend_health
-                        run_env["FRONTEND_URL"] = frontend_health
                 for preferred in ("app", "backend", "frontend", *detected.keys()):
                     if preferred in {"db", "mailpit"}:
                         continue
@@ -1060,16 +992,21 @@ def main(argv: list[str] | None = None) -> int:
     beat = threading.Thread(target=_heartbeat, args=(run_path, stop), daemon=True)
     beat.start()
     service_states: list[dict[str, Any]] = []
-    isolator_states: list[tuple[Isolator, dict[str, Any]]] = []
+    isolator_states: list[tuple[LocalFileSnapshotIsolator, dict[str, Any]]] = []
     dependency_ok = True
     try:
-        isolator_states = DEFAULT_REGISTRY.prepare_isolators(
-            workdir, run.run_id, run_dir, config
-        )
+        iso = LocalFileSnapshotIsolator()
+        isolator_states = [(iso, iso.prepare(workdir, run.run_id, run_dir, config))]
         run.dependencies = python_dependencies(
             sorted({dependency for case in plan.cases for dependency in case.dependencies})
         )
         if run.dependencies and not cancelled():
+            runners_cfg = config.get("runners")
+            allow_host_install = (
+                _truthy(runners_cfg.get("allow_host_install"))
+                if isinstance(runners_cfg, dict)
+                else False
+            )
             dependency_ok, dependency_ref = _install_dependencies(
                 ws,
                 run_dir,
@@ -1079,6 +1016,7 @@ def main(argv: list[str] | None = None) -> int:
                 secret_list,
                 run_env,
                 workdir,
+                allow_shared_host=allow_host_install,
             )
             if dependency_ref is not None:
                 run.evidence_refs.append(dependency_ref)
@@ -1120,6 +1058,7 @@ def main(argv: list[str] | None = None) -> int:
             _mark_cancelled(run)
         else:
             conflicted_services: set[str] = set()
+            preflight_blocking: list[str] = []
             if run.kind != "project_check":
                 service_configs, conflicted_services = _run_preflight_gate(
                     workdir=workdir,
@@ -1131,48 +1070,59 @@ def main(argv: list[str] | None = None) -> int:
                     evidence_settings=evidence_settings,
                     secret_list=secret_list,
                 )
-            for name, service_config in service_configs:
-                label = name or "default"
-                log_name = f"service-{name}.log" if name else "service.log"
-                log_path = run_dir / log_name
-                if label in conflicted_services:
-                    log_path.parent.mkdir(parents=True, exist_ok=True)
-                    with log_path.open("ab") as handle:
-                        handle.write(
-                            f"环境安检门拦截：服务 {label} 端口被其他进程占用且不健康\n".encode()
+                if isinstance(run.preflight, dict):
+                    preflight_blocking = [
+                        str(item)
+                        for item in (run.preflight.get("blocking_reasons") or [])
+                        if str(item).strip()
+                    ]
+            if not preflight_blocking:
+                for name, service_config in service_configs:
+                    label = name or "default"
+                    log_name = f"service-{name}.log" if name else "service.log"
+                    log_path = run_dir / log_name
+                    if label in conflicted_services:
+                        log_path.parent.mkdir(parents=True, exist_ok=True)
+                        with log_path.open("ab") as handle:
+                            handle.write(
+                                f"环境安检门拦截：服务 {label} 端口占用且不健康\n".encode()
+                            )
+                        service_states.append(
+                            {
+                                "name": name,
+                                "config": service_config,
+                                "started": False,
+                                "ok": False,
+                                "log": log_path,
+                                "process": None,
+                            }
                         )
+                        break
+                    started, ok, service_process = _start_service(
+                        service_config,
+                        workdir,
+                        log_path,
+                        secret_list,
+                        run_env,
+                        cancelled,
+                        run_dir=run_dir,
+                        service_name=name,
+                    )
                     service_states.append(
                         {
                             "name": name,
                             "config": service_config,
-                            "started": False,
-                            "ok": False,
+                            "started": started,
+                            "ok": ok,
                             "log": log_path,
-                            "process": None,
+                            "process": service_process,
                         }
                     )
-                    break
-                started, ok, service_process = _start_service(
-                    service_config,
-                    workdir,
-                    log_path,
-                    secret_list,
-                    run_env,
-                    cancelled,
-                )
-                service_states.append(
-                    {
-                        "name": name,
-                        "config": service_config,
-                        "started": started,
-                        "ok": ok,
-                        "log": log_path,
-                        "process": service_process,
-                    }
-                )
-                if not ok or cancelled():
-                    break
-            service_ok = all(state["ok"] for state in service_states)
+                    if not ok or cancelled():
+                        break
+            service_ok = (not preflight_blocking) and all(
+                state["ok"] for state in service_states
+            )
             run.service_started = any(state["started"] for state in service_states)
             run.service_name = "、".join(
                 state["name"] or "default" for state in service_states
@@ -1194,7 +1144,6 @@ def main(argv: list[str] | None = None) -> int:
             _save(run_path, run)
             if cancelled():
                 _mark_cancelled(run)
-                save_checkpoint(run_dir, plan, run, secret_list)
             else:
                 exec_order = sorted(
                     run.cases,
@@ -1218,7 +1167,6 @@ def main(argv: list[str] | None = None) -> int:
                                 rest.result = "not_run"
                         run.status = "cancelled"
                         run.current_case_id = ""
-                        save_checkpoint(run_dir, plan, run, secret_list)
                         break
                     if index > 0 and previous_risky:
                         service_ok = _isolate_after_write(
@@ -1247,41 +1195,7 @@ def main(argv: list[str] | None = None) -> int:
                         )
                         continue
                     if run_case.resumed_from_run_id and run_case.result == "passed":
-                        if case.layer == "L1" or _is_build_case(case, build_command):
-                            build_ok = True
-                        save_checkpoint(run_dir, plan, run, secret_list)
                         continue
-                    if _mutates_seed_account(case):
-                        guard = (
-                            "脚本会修改或删除种子账号；必须改用一次性注册用户："
-                            "先注册新用户，用该用户登录，再删除或修改它"
-                        )
-                        fixed = False
-                        for _attempt in range(2):
-                            if not _repair_script_case(
-                                ws,
-                                run.project_id,
-                                case,
-                                run_dir / "generated",
-                                secret_list,
-                                [],
-                                guard,
-                            ):
-                                break
-                            if not _mutates_seed_account(case):
-                                fixed = True
-                                break
-                        if not fixed:
-                            run_case.result = "blocked"
-                            run_case.attempts.append(
-                                Attempt(
-                                    attempt=1,
-                                    result="blocked",
-                                    message=guard + "；自动修正未成功，已阻止执行",
-                                )
-                            )
-                            _save(run_path, run)
-                            continue
                     if is_manual_case(case):
                         if run_case.result != "manual_pending":
                             run_case.result = "manual_pending"
@@ -1318,6 +1232,20 @@ def main(argv: list[str] | None = None) -> int:
                         )
                         _save(run_path, run)
                         continue
+                    if preflight_blocking and (
+                        case.depends_on == "service" or _case_needs_services(case)
+                    ):
+                        block_msg = "开测前环境安检门阻塞：" + "；".join(preflight_blocking)
+                        run_case.result = "blocked"
+                        run_case.attempts.append(
+                            Attempt(
+                                attempt=len(run_case.attempts) + 1,
+                                result="blocked",
+                                message=redact(block_msg, secret_list),
+                            )
+                        )
+                        _save(run_path, run)
+                        continue
                     if case.depends_on == "service" and not service_ok:
                         run_case.result = "blocked"
                         run_case.attempts.append(
@@ -1344,12 +1272,14 @@ def main(argv: list[str] | None = None) -> int:
                     run.heartbeat_at = iso_now()
                     _save(run_path, run)
                     is_http = case.verify_method.startswith("http:")
-                    request_id = f"{run.run_id}-{case.case_id}" if is_http else ""
+                    request_id = str(uuid.uuid4()) if is_http else ""
                     captures_screenshots = case.verify_method.startswith(
                         ("script:", "playwright:")
                     )
                     screenshots_before = (
-                        _screenshot_files(workdir, run_dir) if captures_screenshots else set()
+                        _screenshot_files(workdir, run_dir, case.case_id)
+                        if captures_screenshots
+                        else set()
                     )
                     cache_key = (
                         f"{','.join(sorted(case_item_ids(case))) or '_l1_'}::{case.verify_method}"
@@ -1368,7 +1298,6 @@ def main(argv: list[str] | None = None) -> int:
                     all_log_issues: list[str] = []
                     fatal_log_errors: list[str] = []
                     first_elapsed = 0.0
-                    script_repaired = False
                     from_cache = False
                     if missing_tool:
                         result = "blocked"
@@ -1409,130 +1338,6 @@ def main(argv: list[str] | None = None) -> int:
                             secret_list=secret_list,
                         )
                         all_log_issues.extend([*fatal_log_errors, *log_warnings])
-                        if (
-                            case.verify_method.startswith("script:")
-                            and _script_repair_allowed(result, message)
-                            and not cancelled()
-                            and _repair_script_case(
-                                ws,
-                                run.project_id,
-                                case,
-                                run_dir / "generated",
-                                secret_list,
-                                outputs,
-                                message,
-                            )
-                        ):
-                            script_repaired = True
-                            _persist_case_attempt(
-                                run_dir=run_dir,
-                                case_id=case.case_id,
-                                outputs=outputs,
-                                artifacts=artifacts,
-                                result=result,
-                                message=redact(message, secret_list),
-                                evidence_settings=evidence_settings,
-                                secret_list=secret_list,
-                                run_case=run_case,
-                                run=run,
-                                is_http=is_http,
-                                request_id=request_id,
-                                attempt_prefix=f"try{len(run_case.attempts) + 1}-",
-                                stage=_blocked_stage(result, message),
-                            )
-                            write_model(run_dir / "plan.json", plan)
-                            (
-                                result,
-                                outputs,
-                                message,
-                                artifacts,
-                                fatal_now,
-                                warn_now,
-                                first_elapsed,
-                            ) = _execute_with_service_logs(
-                                case=case,
-                                workdir=workdir,
-                                run_dir=run_dir,
-                                run_env=run_env,
-                                project_python=project_python or Path(sys.executable),
-                                request_id_header=request_id_header,
-                                request_id=request_id,
-                                cancelled=cancelled,
-                                allowed_hosts=allowed_hosts,
-                                service_states=service_states,
-                                secret_list=secret_list,
-                            )
-                            fatal_log_errors.extend(fatal_now)
-                            all_log_issues.extend([*fatal_now, *warn_now])
-                            message = (
-                                f"{message}；脚本修正后已重跑"
-                                if message
-                                else "脚本修正后已重跑"
-                            )
-                        elif (
-                            case.verify_method.startswith("http:")
-                            and result == "blocked"
-                            and "HTTP 401/403" in message
-                            # 负向鉴权用例本来就应返回 401/403；补认证会把它改成
-                            # “带凭证访问成功”，改变验收语义。
-                            and not _case_expects_auth_failure(case)
-                            and not cancelled()
-                            and _repair_case_as_script(
-                                ws,
-                                run.project_id,
-                                case,
-                                run_dir / "generated",
-                                secret_list,
-                                outputs,
-                                message,
-                            )
-                        ):
-                            script_repaired = True
-                            _persist_case_attempt(
-                                run_dir=run_dir,
-                                case_id=case.case_id,
-                                outputs=outputs,
-                                artifacts=artifacts,
-                                result=result,
-                                message=redact(message, secret_list),
-                                evidence_settings=evidence_settings,
-                                secret_list=secret_list,
-                                run_case=run_case,
-                                run=run,
-                                is_http=is_http,
-                                request_id=request_id,
-                                attempt_prefix=f"try{len(run_case.attempts) + 1}-",
-                                stage="setup",
-                            )
-                            write_model(run_dir / "plan.json", plan)
-                            (
-                                result,
-                                outputs,
-                                message,
-                                artifacts,
-                                fatal_now,
-                                warn_now,
-                                first_elapsed,
-                            ) = _execute_with_service_logs(
-                                case=case,
-                                workdir=workdir,
-                                run_dir=run_dir,
-                                run_env=run_env,
-                                project_python=project_python or Path(sys.executable),
-                                request_id_header=request_id_header,
-                                request_id=request_id,
-                                cancelled=cancelled,
-                                allowed_hosts=allowed_hosts,
-                                service_states=service_states,
-                                secret_list=secret_list,
-                            )
-                            fatal_log_errors.extend(fatal_now)
-                            all_log_issues.extend([*fatal_now, *warn_now])
-                            message = (
-                                f"{message}；补充认证后已改写脚本并重跑"
-                                if message
-                                else "补充认证后已改写脚本并重跑"
-                            )
                     suggestion: dict[str, str] | None = None
                     if result == "failed" and case.verify_method.startswith("command:"):
                         missing_modules = _missing_modules_from_output(b"".join(outputs))
@@ -1657,80 +1462,16 @@ def main(argv: list[str] | None = None) -> int:
                                 secrets=secret_list,
                             )
                             run_case.judgement = judgement
-                            verdict_kind = str(judgement.get("verdict") or "")
-                            if (
-                                verdict_kind == "script_error"
-                                and case.verify_method.startswith("script:")
-                                and not script_repaired
-                                and not cancelled()
-                            ):
-                                hint = (
-                                    f"{message}\n独立裁判意见："
-                                    f"{judgement.get('suggested_fix') or judgement.get('reason')}"
-                                )
-                                if _repair_script_case(
-                                    ws,
-                                    run.project_id,
-                                    case,
-                                    run_dir / "generated",
-                                    secret_list,
-                                    outputs,
-                                    hint,
-                                ):
-                                    script_repaired = True
-                                    _persist_case_attempt(
-                                        run_dir=run_dir,
-                                        case_id=case.case_id,
-                                        outputs=outputs,
-                                        artifacts=artifacts,
-                                        result=result,
-                                        message=redact(message, secret_list),
-                                        evidence_settings=evidence_settings,
-                                        secret_list=secret_list,
-                                        run_case=run_case,
-                                        run=run,
-                                        is_http=is_http,
-                                        request_id=request_id,
-                                        attempt_prefix=f"try{len(run_case.attempts) + 1}-",
-                                        stage="verify",
-                                    )
-                                    write_model(run_dir / "plan.json", plan)
-                                    (
-                                        result,
-                                        outputs,
-                                        message,
-                                        artifacts,
-                                        fix_fatal,
-                                        fix_warn,
-                                        _fix_elapsed,
-                                    ) = _execute_with_service_logs(
-                                        case=case,
-                                        workdir=workdir,
-                                        run_dir=run_dir,
-                                        run_env=run_env,
-                                        project_python=project_python or Path(sys.executable),
-                                        request_id_header=request_id_header,
-                                        request_id=request_id,
-                                        cancelled=cancelled,
-                                        allowed_hosts=allowed_hosts,
-                                        service_states=service_states,
-                                        secret_list=secret_list,
-                                    )
-                                    all_log_issues.extend([*fix_fatal, *fix_warn])
-                                    note = "独立裁判认定脚本问题并已修正重跑"
-                                    message = f"{message}；{note}" if message else note
-                            elif verdict_kind == "inconclusive" and not any(
-                                is_fatal_service_issue(item) for item in all_log_issues
-                            ):
-                                result = "blocked"
-                                reason_txt = str(judgement.get("reason") or "请人工复核")
-                                message = (
-                                    f"裁判复核认为证据不足/未证实：{reason_txt}"
-                                    "（不误判为通过或产品缺陷）"
-                                )
+                            case_hyps = build_run_hypotheses(case.case_id, judgement)
+                            if case_hyps:
+                                run.ai_hypotheses = [
+                                    h
+                                    for h in run.ai_hypotheses
+                                    if h.get("case_id") != case.case_id
+                                ] + case_hyps
                     elif result == "failed" and _risky_retry(case) and not cancelled():
-                        # 修改/删除类用例不重跑，但仍要让独立裁判基于单次证据定档，
-                        # 否则所有真实缺陷都会停在“单次失败”的 suspected。
+                        # 严守 D4：PATCH/PUT/DELETE 等不可自动重跑写用例的首次真实失败
+                        # 只收集假设与确定性定档，严禁降级为 blocked 或剔出 coverage.failed。
                         judgement = judge_case_failure(
                             ws,
                             run.project_id,
@@ -1742,20 +1483,13 @@ def main(argv: list[str] | None = None) -> int:
                             secrets=secret_list,
                         )
                         run_case.judgement = judgement
-                        if (
-                            str(judgement.get("verdict") or "") == "inconclusive"
-                            and not any(
-                                is_fatal_service_issue(item) for item in all_log_issues
-                            )
-                        ):
-                            result = "blocked"
-                            reason_txt = str(
-                                judgement.get("reason") or "请人工复核"
-                            )
-                            message = (
-                                f"裁判复核认为证据不足/未证实：{reason_txt}"
-                                "（不误判为通过或产品缺陷）"
-                            )
+                        case_hyps = build_run_hypotheses(case.case_id, judgement)
+                        if case_hyps:
+                            run.ai_hypotheses = [
+                                h
+                                for h in run.ai_hypotheses
+                                if h.get("case_id") != case.case_id
+                            ] + case_hyps
                     message = redact(message, secret_list)
                     if all_log_issues:
                         run_case.service_log_issues = list(dict.fromkeys(all_log_issues))
@@ -1804,14 +1538,12 @@ def main(argv: list[str] | None = None) -> int:
                     run.current_case_id = ""
                     run.heartbeat_at = iso_now()
                     _save(run_path, run)
-                    save_checkpoint(run_dir, plan, run, secret_list)
                 else:
                     if cancelled():
                         _mark_cancelled(run)
                     else:
                         _downgrade_script_failures(plan, run)
                         run.status = "completed"
-                    save_checkpoint(run_dir, plan, run, secret_list)
     except Exception as exc:  # noqa: BLE001 - record unexpected failure, do not crash silently
         run.status = "execution_error"
         run.current_case_id = ""
@@ -1834,9 +1566,12 @@ def main(argv: list[str] | None = None) -> int:
                     cast(
                         subprocess.Popen[bytes] | None, state.get("process")
                     ),
+                    run_dir=run_dir,
+                    service_name=str(state.get("name") or ""),
                 )
         if isolator_states:
-            DEFAULT_REGISTRY.cleanup_isolators(isolator_states)
+            for isolator, state in reversed(isolator_states):
+                isolator.cleanup(state)
         summary = token_ledger.summary()
         if summary.get("calls", 0) > 0:
             run.token_usage = summary

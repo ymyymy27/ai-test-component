@@ -25,6 +25,7 @@ import {
   currentRun,
   displayItemOutcome,
   effectiveCaseResult,
+  itemDiffTag,
   normalizeReport,
   reportsForRun,
   sortedRunItems,
@@ -35,6 +36,7 @@ import type {
   CaseResult,
   EvidenceRef,
   ExportResult,
+  Issue,
   Report,
   ReportCaseDetail,
   Run,
@@ -42,6 +44,7 @@ import type {
   RunItem,
   Task,
 } from "@/domain/types";
+import type { PlanRepairCaseResultDto } from "@/host/dto";
 import type { EvidenceInput, LinkAssertInput } from "@/repositories/ProjectRepository";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -143,8 +146,11 @@ async function installDependenciesAndRerun(): Promise<void> {
   }
 }
 
-const filter = ref<"all" | "problems" | "unfinished">(
-  route.query.filter === "problems" || route.query.filter === "unfinished"
+const filter = ref<"all" | "problems" | "unfinished" | "regressed" | "fixed">(
+  route.query.filter === "problems" ||
+    route.query.filter === "unfinished" ||
+    route.query.filter === "regressed" ||
+    route.query.filter === "fixed"
     ? route.query.filter
     : "all",
 );
@@ -194,6 +200,155 @@ const unfinishedCount = computed(
       ),
     ).length,
 );
+const regressedCount = computed(() =>
+  previousRun.value && run.value
+    ? items.value.filter(
+        (item) => itemDiffTag(previousRun.value, run.value as Run, item.itemId) === "regressed",
+      ).length
+    : 0,
+);
+const fixedCount = computed(() =>
+  previousRun.value && run.value
+    ? items.value.filter(
+        (item) => itemDiffTag(previousRun.value, run.value as Run, item.itemId) === "fixed",
+      ).length
+    : 0,
+);
+
+const openIssuesByCaseId = computed<Record<string, Issue>>(() => {
+  const map: Record<string, Issue> = {};
+  const issues = (project.value?.issues ?? []).filter((issue) => issue.status !== "closed");
+  for (const issue of issues) {
+    if (issue.caseId && !map[issue.caseId]) {
+      map[issue.caseId] = issue;
+    }
+    for (const occ of issue.occurrences ?? []) {
+      if (occ.caseId && !map[occ.caseId]) {
+        map[occ.caseId] = issue;
+      }
+    }
+  }
+  // 兜底匹配：计划重新生成后 caseId 可能变化，按同一验收项原文 itemText 关联未关闭历史问题
+  const currentRun = run.value;
+  if (currentRun) {
+    const itemTextById = new Map(items.value.map((it) => [it.itemId, it.text]));
+    for (const rc of currentRun.cases) {
+      if (map[rc.id]) {
+        continue;
+      }
+      const relatedIds = rc.caseItemIds?.length ? rc.caseItemIds : rc.itemId ? [rc.itemId] : [];
+      const texts = relatedIds
+        .map((id) => itemTextById.get(id) ?? "")
+        .filter(Boolean);
+      if (texts.length === 0) {
+        continue;
+      }
+      const byText = issues.find((issue) => issue.itemText && texts.includes(issue.itemText));
+      if (byText) {
+        map[rc.id] = byText;
+      }
+    }
+  }
+  return map;
+});
+
+const repairPreview = ref<PlanRepairCaseResultDto | null>(null);
+const repairPreviewCase = ref<RunCase | null>(null);
+const repairPreviewBusyCaseId = ref("");
+const applyingCaseRepair = ref(false);
+const closeIssueBusyId = ref("");
+
+async function handlePreviewRepair(testCase: RunCase): Promise<void> {
+  if (!plan.value || !run.value || repairPreviewBusyCaseId.value) {
+    return;
+  }
+  repairPreviewBusyCaseId.value = testCase.id;
+  try {
+    const preview = await workspace.previewCaseRepair({
+      projectId: projectId.value,
+      planId: plan.value.id,
+      caseId: testCase.id,
+      runId: run.value.id,
+      errorHint: testCase.actual || testCase.message || "",
+    });
+    repairPreview.value = preview;
+    repairPreviewCase.value = testCase;
+  } catch (cause) {
+    ui.showToast(
+      cause instanceof Error && cause.message ? cause.message : "生成修复预览失败。",
+      "error",
+    );
+  } finally {
+    repairPreviewBusyCaseId.value = "";
+  }
+}
+
+async function handleApplyRepairAndRerun(): Promise<void> {
+  if (
+    !plan.value ||
+    !run.value ||
+    !repairPreview.value ||
+    !repairPreviewCase.value ||
+    repairPreview.value.blocked ||
+    applyingCaseRepair.value
+  ) {
+    return;
+  }
+  const ok = await ui.askConfirm({
+    title: "应用脚本修复并定向重跑",
+    body: `将基于计划 ${plan.value.no}（第 ${plan.value.revision} 版）生成新修订写入修复脚本，并立即定向重跑「${repairPreviewCase.value.title}」所在验收项（不会修改本次历史运行记录）。`,
+    confirmLabel: "确认应用并重跑",
+  });
+  if (ok === null) {
+    return;
+  }
+  applyingCaseRepair.value = true;
+  try {
+    const nextRun = await workspace.applyCaseRepairAndRerun({
+      projectId: projectId.value,
+      taskId: taskId.value,
+      planId: plan.value.id,
+      caseId: repairPreviewCase.value.id,
+      runId: run.value.id,
+      repairedScript: repairPreview.value.repaired_script,
+      expectedRevision: plan.value.revision,
+    });
+    repairPreview.value = null;
+    repairPreviewCase.value = null;
+    ui.showToast("已应用修复生成新计划修订，并定向启动新运行。", "success");
+    await router.push(`/projects/${projectId.value}/tasks/${taskId.value}/run?run=${nextRun.id}`);
+  } catch (cause) {
+    ui.showToast(
+      cause instanceof Error && cause.message ? cause.message : "应用脚本修复失败。",
+      "error",
+    );
+  } finally {
+    applyingCaseRepair.value = false;
+  }
+}
+
+async function handleCloseLinkedIssue(payload: { issue: Issue; reason: string }): Promise<void> {
+  if (!run.value || closeIssueBusyId.value) {
+    return;
+  }
+  closeIssueBusyId.value = payload.issue.id;
+  try {
+    await workspace.closeLinkedIssue(
+      projectId.value,
+      payload.issue,
+      run.value.id,
+      payload.reason,
+    );
+    ui.showToast(`历史问题「${payload.issue.title}」已合规流转并附证据关闭。`, "success");
+  } catch (cause) {
+    ui.showToast(
+      cause instanceof Error && cause.message ? cause.message : "关闭关联历史问题失败。",
+      "error",
+    );
+  } finally {
+    closeIssueBusyId.value = "";
+  }
+}
 
 const reports = computed(() =>
   project.value && run.value
@@ -830,7 +985,7 @@ function rerunLabel(): string {
               ? "正在导出…"
               : workspace.mode === "host"
                 ? "导出到工作空间"
-                : "导出报告 (MD)"
+                : "导出 Markdown"
           }}
         </button>
       </template>
@@ -974,14 +1129,24 @@ function rerunLabel(): string {
             </button>
           </div>
           <template v-if="activeAnalysis && activeAnalysis.status === 'generated'">
-            <p class="doc-p">{{ activeAnalysis.observed }}</p>
+            <p class="doc-p">{{ activeAnalysis.observed.replace(/。{2,}/g, "。") }}</p>
             <ul class="list-plain">
               <li v-for="cause in activeAnalysis.candidateCauses" :key="cause.cause">
-                <span class="badge is-warn">可能性：{{ cause.confidence }}</span>
-                {{ cause.cause }}
+                <span class="badge is-warn">
+                  可能性：{{
+                    cause.confidence === "high"
+                      ? "高"
+                      : cause.confidence === "medium"
+                        ? "中"
+                        : cause.confidence === "low"
+                          ? "低"
+                          : cause.confidence
+                  }}
+                </span>
+                {{ cause.cause.replace(/。{2,}/g, "。") }}
               </li>
               <li v-for="step in activeAnalysis.nextSteps" :key="step" class="muted">
-                排查建议：{{ step }}
+                排查建议：{{ step.replace(/。{2,}/g, "。") }}
               </li>
             </ul>
             <details v-if="activeAnalysis.unverified.length" class="details-tech">
@@ -1055,11 +1220,69 @@ function rerunLabel(): string {
             >
               未完成<span class="filter-count">{{ unfinishedCount }}</span>
             </button>
+            <button
+              v-if="previousRun"
+              class="filter-btn"
+              :class="{ 'is-active': filter === 'regressed' }"
+              type="button"
+              :aria-pressed="filter === 'regressed'"
+              @click="filter = 'regressed'"
+            >
+              新增失败<span class="filter-count">{{ regressedCount }}</span>
+            </button>
+            <button
+              v-if="previousRun"
+              class="filter-btn"
+              :class="{ 'is-active': filter === 'fixed' }"
+              type="button"
+              :aria-pressed="filter === 'fixed'"
+              @click="filter = 'fixed'"
+            >
+              本次已修复<span class="filter-count">{{ fixedCount }}</span>
+            </button>
           </div>
-          <button v-if="supportsEvidence" class="btn btn-sm btn-ghost" type="button" @click="openEvidence">
+          <button v-if="supportsEvidence" class="btn btn-sm" type="button" @click="openEvidence">
             + 补充人工证据
           </button>
         </div>
+
+        <!-- 脚本修复只读预览与确认应用面板（绝不修改历史 run，更新 Plan 新 revision 并定向重跑） -->
+        <section
+          v-if="repairPreview && repairPreviewCase"
+          class="elevated-panel stack-sm"
+          aria-label="脚本修复 diff 预览"
+        >
+          <div class="row-between" style="flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong>脚本修复预览 · {{ repairPreviewCase.title }}</strong>
+              <span class="badge" :class="repairPreview.blocked ? 'is-fail' : 'is-pass'" style="margin-left: 8px;">
+                {{ repairPreview.blocked ? "安全守卫拦截" : "通过安全守卫" }}
+              </span>
+            </div>
+            <div class="row" style="gap: 8px;">
+              <button
+                class="btn btn-primary btn-sm"
+                type="button"
+                :disabled="repairPreview.blocked || applyingCaseRepair"
+                :aria-busy="applyingCaseRepair"
+                @click="handleApplyRepairAndRerun"
+              >
+                {{ applyingCaseRepair ? "正在更新并重跑…" : "应用更新计划并定向重跑" }}
+              </button>
+              <button
+                class="btn btn-ghost btn-sm"
+                type="button"
+                @click="repairPreview = null; repairPreviewCase = null"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+          <p v-if="repairPreview.guard_blocked.length" class="field-hint">
+            被以下安全守卫拦截（不可应用）：{{ repairPreview.guard_blocked.join("、") }}
+          </p>
+          <pre class="mono" style="white-space: pre-wrap; font-size: 12px; max-height: 260px; overflow: auto;">{{ repairPreview.unified_diff || "脚本内容无差异" }}</pre>
+        </section>
 
         <CaseLedger
           ref="caseLedgerRef"
@@ -1069,10 +1292,16 @@ function rerunLabel(): string {
           :filter="filter"
           allow-manual
           allow-copy-fix
+          :allow-script-repair="workspace.mode === 'host' && Boolean(plan)"
+          :repair-busy-case-id="repairPreviewBusyCaseId"
+          :open-issues-by-case-id="openIssuesByCaseId"
+          :close-issue-busy-id="closeIssueBusyId"
           :manual-busy-case-id="manualCase?.id ?? ''"
           @manual="openManual"
           @show-evidence="showEvidence"
           @copy-fix="copyCaseFix"
+          @preview-repair="handlePreviewRepair"
+          @close-linked-issue="handleCloseLinkedIssue"
           @reset-filter="filter = 'all'"
         />
       </div>
@@ -1111,20 +1340,13 @@ function rerunLabel(): string {
             </div>
             <div class="row">
               <button
-                class="btn btn-ghost btn-sm"
+                class="btn btn-sm"
                 type="button"
                 :disabled="reportBusy"
                 :aria-busy="reportBusy"
                 @click="regenerate"
               >
                 {{ reportBusy ? "正在生成…" : "刷新生成新版报告" }}
-              </button>
-              <button
-                class="btn btn-sm"
-                type="button"
-                @click="router.push(`/projects/${projectId}/reports/${activeReport.id}`)"
-              >
-                独立打开报告
               </button>
             </div>
           </div>
@@ -1247,7 +1469,7 @@ function rerunLabel(): string {
                 : `直接复测未通过项 (${failedAndBlockedItemIds.length})`
             }}
           </button>
-          <button class="btn btn-ghost" type="button" @click="adjustScope">调整范围</button>
+          <button class="btn" type="button" @click="adjustScope">调整范围</button>
           <button class="btn" type="button" @click="rerun">{{ rerunLabel() }}</button>
         </div>
       </div>

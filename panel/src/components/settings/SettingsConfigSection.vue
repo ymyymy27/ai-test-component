@@ -349,6 +349,9 @@ async function saveConfig(): Promise<void> {
         :aria-describedby="describedBy"
         @input="advancedDirty = true; configError = ''"
       />
+      <div class="row" style="margin-top: var(--space-2);">
+        <button class="btn btn-sm" type="button" @click="applyAdvanced">解析并填入表单</button>
+      </div>
     </FormField>
     <div class="form-actions settings-savebar">
       <button
@@ -361,7 +364,6 @@ async function saveConfig(): Promise<void> {
       >
         {{ detectingConfig ? "正在探测…" : "自动探测项目配置" }}
       </button>
-      <button class="btn" type="button" @click="applyAdvanced">解析并填入表单</button>
       <button
         class="btn btn-primary"
         type="button"

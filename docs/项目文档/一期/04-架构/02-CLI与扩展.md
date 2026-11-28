@@ -1,6 +1,6 @@
 # CLI 与扩展（一期）
 
-> 状态：2026-11-16 设计基线（D4），2026-11-21 按代码事实核对。命令字段见[CLI 与数据契约](../03-设计/03-CLI与数据契约.md)。当前 CLI 注册 60 条命令，版本 0.5.0；验收状态只以 `tests/acceptance/p1/status.json` 为准。
+> 状态：2026-11-16 设计基线（D4），2026-11-27 按重构事实核对。命令字段见[CLI 与数据契约](../03-设计/03-CLI与数据契约.md)。当前 CLI 注册 54 条命令，版本 0.5.0；验收状态只以 `tests/acceptance/p1/status.json` 为准。
 
 ## 1 CLI
 
@@ -160,8 +160,8 @@ CLI → JSON → bridge → 面板渲染
 
 ### 4.7 面板命令边界
 
-- 扩展在 `extension.ts` 用 `PANEL_COMMANDS` 白名单放行面板调用，当前 57 条；白名单之外一律 `COMMAND_NOT_ALLOWED`，即使 CLI 已注册；
-- `panel/src/host/commands.ts` 实际接入 55 条命令；`rules.save`、`rules.show` 与 `link.assert` 已有面板入口；`rules.import`、`rules.export` 虽在白名单，仍只走 CLI；
+- 扩展在 `ext_commands.ts` / `extension.ts` 用 `PANEL_COMMANDS` 白名单放行面板调用；白名单之外一律 `COMMAND_NOT_ALLOWED`，即使 CLI 已注册；
+- `panel/src/host/commands.ts` 实际接入 51 条命令；`link.assert` 等已有面板入口；
 - `delivery.show`、`plan.update`、`project.update` 已在 `PANEL_COMMANDS` 白名单；计划保存/交付读取的宿主回归仍待补；
 - `plan.publish`、`data.cleanup` 等命令不在白名单，面板不能直接调用。
 - `project.map`、`project.map.refresh`、`run.quick` 已注册并在白名单放行；`panel/src/host/commands.ts` 与面板入口均已接入。

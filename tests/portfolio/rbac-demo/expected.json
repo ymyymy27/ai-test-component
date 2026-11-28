@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "project": "rbac-demo",
+  "role": "权限 / 多租户基准",
+  "stack": ["python-stdlib-http", "static-web"],
+  "expected_level": "T1",
+  "known_defects_total": 8,
+  "min_defects_detected": 8,
+  "max_false_positives": 0,
+  "max_false_passes": 0,
+  "notes": "8/8 已知权限与多租户缺陷检出，0 误报；未提供外部项目源码，仅作 Portfolio 基线校准。"
+}

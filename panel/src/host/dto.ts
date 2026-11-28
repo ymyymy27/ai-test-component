@@ -94,50 +94,6 @@ export interface TaskSummary {
 
 export type TaskIntent = "smoke" | "business";
 
-export type TemplateDisposition =
-  | "applicable"
-  | "not_applicable"
-  | "unsupported"
-  | "unknown";
-
-export interface TemplateSummary {
-  template_id: string;
-  name: string;
-  version: string;
-  item_count: number;
-}
-
-export interface TemplateItemResult {
-  item_id: string;
-  layer: string;
-  objective: string;
-  disposition: TemplateDisposition;
-  reason: string;
-}
-
-export interface TemplateResult {
-  template_id: string;
-  name: string;
-  version: string;
-  applied_at: string;
-  items: TemplateItemResult[];
-  summary: Record<TemplateDisposition, number>;
-}
-
-export interface RuleSummary {
-  rules_version_id: string;
-  name: string;
-  version: string;
-}
-
-export interface Rule extends RuleSummary {
-  project_id: string;
-  steps_md: string;
-  ai_rules: string[];
-  evidence_requirements: string[];
-  revision: number;
-}
-
 export interface GithubChange {
   repo: string;
   branch: string;
@@ -184,7 +140,6 @@ export interface Project {
   goal?: string;
   archived?: boolean;
   modules: Module[];
-  rules_version_id?: string | null;
   revision: number;
   updated_at?: string;
 }
@@ -241,6 +196,124 @@ export interface AddTaskResult {
   acceptance_items: { item_id: string; status: string; text: string }[];
 }
 
+export interface CaseGenerationDto {
+  source?: "invariant" | "model" | "explicit" | string;
+  generator_id?: string;
+  generator_version?: string;
+}
+
+export interface CapabilitiesDependencyDto {
+  type?: string;
+  level?: string;
+  source?: string;
+  status?: string;
+}
+
+export interface CapabilitiesSnapshotDto {
+  backend?: string[];
+  router?: string[];
+  auth?: string[];
+  frontend_calls?: string[];
+  services?: string[];
+  start_adapters?: string[];
+  dependencies?: CapabilitiesDependencyDto[];
+  external_systems?: CapabilitiesDependencyDto[];
+  hosts?: string[];
+  level?: string;
+  unknowns?: string[];
+  unsupported?: string[];
+  source?: string;
+  degraded?: boolean;
+  evidence?: string[];
+  fingerprint?: string;
+}
+
+export interface ProjectHealthSummaryDto {
+  level?: string;
+  source?: string;
+  degraded?: boolean;
+  service_count?: number;
+  dependencies?: CapabilitiesDependencyDto[];
+  route_count?: number;
+  uncovered_route_count?: number;
+  uncovered_routes_preview?: string[];
+  unknowns_count?: number;
+  unsupported_count?: number;
+  unknowns?: string[];
+  unsupported?: string[];
+  conflicts_count?: number;
+  fingerprint?: string;
+}
+
+export interface PlanRecipeDto {
+  generator_id?: string;
+  generator_version?: string;
+  applies_to?: string[];
+  invariants?: string[];
+  status?: string;
+  skip_reason?: string;
+}
+
+export interface CoverageLedgerItemDto {
+  dimension?: string;
+  status?: string;
+  required_items?: string[];
+  covered_case_ids?: string[];
+  note?: string;
+}
+
+export interface PlanReviewItemDto {
+  review_id?: string;
+  kind?: string;
+  severity?: "high" | "medium" | "low" | string;
+  statement?: string;
+  evidence?: string[];
+  patch_cases?: Array<Record<string, unknown>>;
+}
+
+export interface PlanReviewResultDto {
+  plan_id: string;
+  plan_revision: number;
+  input_hash?: string;
+  ai_used?: boolean;
+  cached?: boolean;
+  high_severity_count?: number;
+  reviews: PlanReviewItemDto[];
+}
+
+export interface ScriptRepairDto {
+  status?: string;
+  reason?: string;
+  unified_diff?: string;
+  guard_blocked?: string[];
+  script_name?: string;
+  at?: string;
+}
+
+export interface PlanRepairCaseResultDto {
+  mode: "preview" | "apply";
+  ok: boolean;
+  blocked: boolean;
+  guard_blocked: string[];
+  plan_id: string;
+  plan_revision: number;
+  previous_revision?: number;
+  case_id: string;
+  script_name?: string;
+  unified_diff: string;
+  repaired_script?: string;
+  error_hint?: string;
+  acceptance_item_ids?: string[];
+}
+
+export interface AiHypothesisDto {
+  case_id?: string;
+  hypothesis?: string;
+  evidence?: string[];
+  confidence?: string;
+  next_check?: string;
+}
+
 export interface PlanCase {
   case_id: string;
   acceptance_item_id: string | null;
@@ -260,6 +333,8 @@ export interface PlanCase {
   depends_on?: "build" | "service" | null;
   script_name?: string | null;
   script_content?: string | null;
+  generation?: CaseGenerationDto | null;
+  assertion_strength?: "strong" | "weak" | "unverified" | null;
 }
 
 export interface Scope {
@@ -293,12 +368,14 @@ export interface Plan {
   applicable_count: number;
   cases: PlanCase[];
   item_texts?: Record<string, string>;
-  templates?: TemplateResult[];
+  capabilities?: CapabilitiesSnapshotDto | null;
+  recipes?: PlanRecipeDto[];
+  coverage_ledger?: CoverageLedgerItemDto[];
+  ai_reviews?: PlanReviewItemDto[];
   unselected_by_module?: UnselectedHint[];
   excluded_items?: ExcludedItemDto[] | null;
   status: "draft" | "published";
   source_signature?: string;
-  rules_version_id?: string | null;
   warnings?: string[];
   revision: number;
 }
@@ -359,6 +436,7 @@ export interface RunCase {
   judgement?: CaseJudgementDto | null;
   service_log_issues?: string[];
   resumed_from_run_id?: string;
+  script_repair?: ScriptRepairDto | null;
 }
 
 export type AnalysisReason =
@@ -431,6 +509,7 @@ export interface Run {
   preflight?: PreflightReportDto | null;
   probe_results?: ProbeResultDto[];
   resumed_from_run_id?: string;
+  ai_hypotheses?: AiHypothesisDto[];
 }
 
 export interface PreflightReportDto {
@@ -680,9 +759,7 @@ export interface Report {
   failure_occurrences: number;
   analysis: Record<string, unknown>[];
   layers: Record<string, number>;
-  rules_version_id?: string | null;
   source_commit?: string | null;
-  templates: Record<string, unknown>[];
   environment: Record<string, unknown>;
   github?: Record<string, unknown> | null;
   uncovered_items: string[];
@@ -696,6 +773,10 @@ export interface Report {
   probe_results?: ProbeResultDto[];
   confidence_summary?: Record<string, number> | null;
   token_usage?: Record<string, number> | null;
+  capabilities?: CapabilitiesSnapshotDto | null;
+  coverage_ledger?: CoverageLedgerItemDto[];
+  source_summary?: Record<string, number>;
+  assertion_strength?: Record<string, number>;
   revision: number;
 }
 
@@ -752,8 +833,9 @@ export interface ProjectSnapshot {
   map_stale: boolean;
   local_git?: LocalGitDto | null;
   code_graph?: CodeGraphDto | null;
+  capabilities?: CapabilitiesSnapshotDto | null;
+  health_summary?: ProjectHealthSummaryDto | null;
   config: ProjectConfig;
-  rules: Rule[];
   tasks: Array<{
     task: Task;
     plans: PlanDetail[];

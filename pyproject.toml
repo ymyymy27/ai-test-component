@@ -34,7 +34,6 @@ packages = ["src/aitest"]
 [tool.hatch.build]
 include = [
   "src/aitest/**/*.py",
-  "src/aitest/resources/templates/**/*.json",
 ]
 
 [tool.pytest.ini_options]
@@ -42,6 +41,9 @@ addopts = "-q"
 testpaths = ["tests"]
 pythonpath = [".", "src"]
 norecursedirs = ["tests/acceptance/p1/evidence"]
+markers = [
+  "portfolio: 外部 5 项目长耗时 Portfolio 回归（默认 skip，显式 -m portfolio 运行）",
+]
 # 单个用例挂起时由插件统一终止，而不是等 CI job 超时。
 timeout = 300
 timeout_method = "thread"

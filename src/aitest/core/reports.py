@@ -7,6 +7,7 @@ Missing data is stored as an empty list or ``None``; nothing is guessed.
 
 from __future__ import annotations
 
+import contextvars
 import mimetypes
 import platform
 import re
@@ -22,6 +23,7 @@ from aitest.core.evidence import evidence_path, sha256_file
 from aitest.core.git_engine import inspect_local_git
 from aitest.core.judge import compute_case_confidence, summarize_confidence
 from aitest.core.scope import uncovered_items as scope_uncovered
+from aitest.core.script_linter import assess_assertion_strength
 from aitest.core.verdict import case_results, coverage, item_outcomes, verdict
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
@@ -38,7 +40,13 @@ from aitest.models import (
     new_id,
 )
 from aitest.security import ensure_within, redact_tree
-from aitest.storage.files import check_schema_version, read_json, read_model, write_model
+from aitest.storage.files import (
+    check_schema_version,
+    read_json,
+    read_model,
+    write_json,
+    write_model,
+)
 from aitest.storage.workspace import Workspace, iso_now
 
 _OUTCOME_LABEL = {
@@ -90,6 +98,8 @@ def _issues_summary(
                     "reason": issue.reason,
                     "confidence_tier": issue.confidence_tier,
                     "confidence_reason": issue.confidence_reason,
+                    "file": issue.file,
+                    "line": issue.line,
                 }
             )
     failures = sum(1 for case in run.cases if case.result == "failed")
@@ -300,6 +310,13 @@ def _case_details(plan: Plan, run: Run) -> list[dict[str, Any]]:
                 "expected": case.expected,
                 "expectation_verified": case.expectation_verified,
                 "coverage_kind": case.coverage_kind,
+                "generation": dict(case.generation) if isinstance(case.generation, dict) else None,
+                "assertion_strength": case.assertion_strength or assess_assertion_strength(case),
+                "script_repair": (
+                    dict(run_case.script_repair)
+                    if run_case is not None and isinstance(run_case.script_repair, dict)
+                    else None
+                ),
                 "test_nodes": list(case.test_nodes),
                 "warnings": list(case.warnings),
                 "result": effective_res,
@@ -421,11 +438,6 @@ def _evidence_index(run_dir: Path, run: Run) -> list[dict[str, Any]]:
     return index
 
 
-def _template_entries(plan: Plan) -> list[dict[str, Any]]:
-    """Template dispositions are part of the plan snapshot, not current task state."""
-    return [dict(entry) for entry in plan.templates if isinstance(entry, dict)]
-
-
 def _mock_judgement(
     project: Project,
     run: Run,
@@ -470,6 +482,7 @@ def _mock_judgement(
     max_files = mock.get("max_files", 240)
     max_depth = mock.get("max_depth", 3)
     per_component_files = mock.get("per_component_files", 120)
+    secrets = known_secret_values([config])
     judgement = judge_mock(
         Path(project.root),
         dependencies,
@@ -493,6 +506,7 @@ def _mock_judgement(
         ),
         workspace=workspace.root,
         project_revision=project.revision,
+        secrets=secrets,
     )
     if persist:
         latest_run = read_model(run_dir / "run.json", Run)
@@ -509,28 +523,19 @@ def _summary(
     *,
     kind: str = "task",
 ) -> tuple[str, Literal["ai", "fallback"]]:
+    del client
     if kind == "project_check":
         label = _PROJECT_CHECK_LABEL.get(outcome, outcome)
         return f"{label}。", "fallback"
-    ai_summary: str | None = None
-    if client is not None:
-        ai_summary = summarize_report(
-            {
-                "outcome": outcome,
-                "coverage": counts,
-                "uncovered_items": uncovered,
-                "failed_cases": counts.get("failed", 0),
-            },
-            client=client,
-        )
-    if ai_summary is not None:
-        return ai_summary, "ai"
-    return (
-        f"本次范围 {counts['selected']}/{counts['applicable']}，"
-        f"通过 {counts['passed']}，失败 {counts['failed']}，"
-        f"阻塞或未完成 {counts['incomplete']}，未覆盖验收项 {len(uncovered)}。",
-        "fallback",
+    text = summarize_report(
+        {
+            "outcome": outcome,
+            "coverage": counts,
+            "uncovered_items": uncovered,
+            "failed_cases": counts.get("failed", 0),
+        }
     )
+    return text, "fallback"
 
 
 def _conclusion(
@@ -582,6 +587,7 @@ def prepare_report_ai(
     client = build_client(ws, project.project_id) if use_model else None
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="aitest-rep-ai") as pool:
         mock_fut = pool.submit(
+            contextvars.copy_context().run,
             _mock_judgement,
             project,
             run,
@@ -592,6 +598,7 @@ def prepare_report_ai(
             persist=False,
         )
         sum_fut = pool.submit(
+            contextvars.copy_context().run,
             _summary,
             outcome,
             counts,
@@ -660,6 +667,18 @@ def build_report(
     ]
     plan_warnings = [warning for warning in plan.warnings if warning not in unverified_items]
     case_details = _case_details(plan, run)
+    source_summary: dict[str, int] = {"invariant": 0, "model": 0, "explicit": 0}
+    strength_summary: dict[str, int] = {"strong": 0, "weak": 0, "unverified": 0}
+    for detail in case_details:
+        gen = detail.get("generation")
+        src = str(gen.get("source") or "explicit") if isinstance(gen, dict) else "explicit"
+        if src not in source_summary:
+            source_summary[src] = 0
+        source_summary[src] += 1
+        strength = str(detail.get("assertion_strength") or "unverified")
+        if strength not in strength_summary:
+            strength_summary[strength] = 0
+        strength_summary[strength] += 1
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
@@ -680,9 +699,7 @@ def build_report(
         failure_occurrences=failure_occurrences,
         analysis=[analysis.model_dump(mode="json") for analysis in run.analysis],
         layers=_layers(plan),
-        rules_version_id=plan.rules_version_id or project.rules_version_id,
         source_commit=source_commit,
-        templates=_template_entries(plan),
         environment=_environment(ws, project.project_id, run),
         github=github,
         uncovered_items=uncovered,
@@ -696,11 +713,37 @@ def build_report(
         probe_results=list(run.probe_results),
         confidence_summary=summarize_confidence(case_details),
         token_usage=dict(run.token_usage),
+        capabilities=plan.capabilities,
+        coverage_ledger=[],
+        source_summary=source_summary,
+        assertion_strength=strength_summary,
         revision=_next_report_revision(ws, project.project_id, run.run_id),
     )
     secrets = known_secret_values([load_project_config(ws, project.project_id)])
     safe = Report.model_validate(redact_tree(report.model_dump(mode="json"), secrets))
-    write_model(ws.project_dir(project.project_id) / "reports" / f"{safe.report_id}.json", safe)
+    report_path = ws.project_dir(project.project_id) / "reports" / f"{safe.report_id}.json"
+    write_model(report_path, safe)
+    # 同步增量写入项目级独立报告索引，避免污染 reports/*.json 扫描列表。
+    idx_path = ws.project_dir(project.project_id) / ".reports_index.json"
+    try:
+        idx_data = read_json(idx_path) if idx_path.is_file() else {"schema_version": 1, "items": {}}
+        items = idx_data.get("items") if isinstance(idx_data, dict) else {}
+        if not isinstance(items, dict):
+            items = {}
+        items[safe.report_id] = {
+            "mtime_ns": report_path.stat().st_mtime_ns,
+            "row": {
+                "report_id": safe.report_id,
+                "run_id": safe.run_id,
+                "generated_at": safe.generated_at,
+                "outcome": safe.outcome,
+                "revision": safe.revision,
+                "has_opinion": safe.opinion is not None,
+            },
+        }
+        write_json(idx_path, {"schema_version": 1, "items": items})
+    except (AiTestError, OSError):
+        pass
     latest_run = read_model(run_dir / "run.json", Run)
     latest_run.mock_judgement = list(mock_judgement)
     latest_run.latest_report_id = safe.report_id

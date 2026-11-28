@@ -29,8 +29,8 @@ def _cli(
     return code, json.loads(out)
 
 
-def test_registry_still_exact_60_commands() -> None:
-    assert len(REGISTRY) == 60
+def test_registry_matches_54_commands() -> None:
+    assert len(REGISTRY) == 54
 
 
 def test_project_config_detect_is_readonly_and_extracts_draft(

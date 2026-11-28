@@ -16,6 +16,8 @@ const editingModule = ref<Module | null>(null);
 
 const project = computed(() => workspace.currentProject);
 const projectId = computed(() => project.value?.id ?? "");
+const healthSummary = computed(() => project.value?.healthSummary ?? null);
+const capabilities = computed(() => project.value?.capabilities ?? null);
 const analyzing = computed(
   () =>
     Boolean(project.value) &&
@@ -134,6 +136,66 @@ function testAffected(goalText: string): void {
 
 <template>
   <div v-if="project">
+    <div v-if="healthSummary" class="page-top-strip">
+      <section class="elevated-panel stack-sm" aria-label="项目只读体检摘要">
+        <div class="row-between">
+          <div class="row">
+            <strong>只读项目体检</strong>
+            <span class="badge is-neutral">支持等级 {{ healthSummary.level }}</span>
+            <span class="badge" :class="healthSummary.degraded ? 'is-warn' : 'is-neutral'">
+              {{ healthSummary.degraded ? "已降级静态事实" : `来源：${healthSummary.source}` }}
+            </span>
+            <span class="muted">
+              服务 {{ healthSummary.serviceCount }} · 依赖 {{ healthSummary.dependencies.length }} · 路由
+              {{ healthSummary.routeCount }}
+            </span>
+          </div>
+          <div class="row">
+            <span v-if="healthSummary.uncoveredRouteCount > 0" class="badge is-warn">
+              未覆盖路由 {{ healthSummary.uncoveredRouteCount }}
+            </span>
+            <span v-if="healthSummary.unknownsCount > 0" class="badge is-warn">
+              未知项 {{ healthSummary.unknownsCount }}
+            </span>
+            <span v-if="healthSummary.unsupportedCount > 0" class="badge is-fail">
+              不支持 {{ healthSummary.unsupportedCount }}
+            </span>
+            <span
+              v-if="
+                healthSummary.uncoveredRouteCount === 0 &&
+                healthSummary.unknownsCount === 0 &&
+                healthSummary.unsupportedCount === 0
+              "
+              class="badge is-pass"
+            >
+              静态事实就绪
+            </span>
+          </div>
+        </div>
+        <div
+          v-if="
+            healthSummary.uncoveredRoutesPreview.length > 0 ||
+            healthSummary.unsupported.length > 0 ||
+            (capabilities?.backend?.length ?? 0) > 0
+          "
+          class="field-hint row"
+        >
+          <span v-if="capabilities?.backend?.length">
+            技术栈：{{ capabilities.backend.join(" / ") }}
+          </span>
+          <span v-if="healthSummary.dependencies.length">
+            依赖分级：{{ healthSummary.dependencies.map((d) => `${d.type}(${d.level})`).join("、") }}
+          </span>
+          <span v-if="healthSummary.uncoveredRoutesPreview.length">
+            未覆盖路由示例：{{ healthSummary.uncoveredRoutesPreview.slice(0, 3).join("，") }}
+          </span>
+          <span v-if="healthSummary.unsupported.length">
+            明确不支持：{{ healthSummary.unsupported.join("、") }}
+          </span>
+        </div>
+      </section>
+    </div>
+
     <ProjectOverview
       :project="project"
       :analyzing="analyzing"

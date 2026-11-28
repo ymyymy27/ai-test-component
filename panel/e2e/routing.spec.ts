@@ -8,7 +8,7 @@ test("直接刷新项目、任务、问题、历史、设置和报告路由都�
   if (!taskId) {
     throw new Error("task id missing");
   }
-  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.getByRole("button", { name: "独立打开报告" }).click();
   await page.waitForURL(/\/reports\//);
   const reportId = page.url().match(/reports\/([^/]+)/)?.[1];
   if (!reportId) {

@@ -8,7 +8,7 @@ import {
   type ItemDiffKind,
   worstResult,
 } from "@/domain/derive";
-import type { CaseResult, EvidenceRef, Run, RunCase, RunItem } from "@/domain/types";
+import type { CaseResult, EvidenceRef, Issue, Run, RunCase, RunItem } from "@/domain/types";
 import CaseDetail from "./CaseDetail.vue";
 import Icon from "./Icon.vue";
 import StatusMark from "./StatusMark.vue";
@@ -19,11 +19,15 @@ const props = withDefaults(
     run: Run;
     previousRun?: Run | null;
     items: RunItem[];
-    filter?: "all" | "problems" | "unfinished";
+    filter?: "all" | "problems" | "unfinished" | "regressed" | "fixed";
     allowManual?: boolean;
     manualBusyCaseId?: string;
     running?: boolean;
     allowCopyFix?: boolean;
+    allowScriptRepair?: boolean;
+    repairBusyCaseId?: string;
+    openIssuesByCaseId?: Record<string, Issue>;
+    closeIssueBusyId?: string;
   }>(),
   {
     previousRun: null,
@@ -32,6 +36,10 @@ const props = withDefaults(
     manualBusyCaseId: "",
     running: false,
     allowCopyFix: false,
+    allowScriptRepair: false,
+    repairBusyCaseId: "",
+    openIssuesByCaseId: () => ({}),
+    closeIssueBusyId: "",
   },
 );
 
@@ -40,6 +48,8 @@ const emit = defineEmits<{
   resetFilter: [];
   showEvidence: [evidence: EvidenceRef];
   copyFix: [testCase: RunCase, item: RunItem];
+  previewRepair: [testCase: RunCase];
+  closeLinkedIssue: [payload: { issue: Issue; reason: string }];
 }>();
 
 const DIFF_LABEL: Record<ItemDiffKind, string> = {
@@ -59,17 +69,40 @@ function diffLabel(itemId: string): string {
 
 const elementMap = new Map<string, HTMLElement>();
 
-const visibleItems = computed(() => {
-  if (props.filter === "all") {
-    return props.items;
-  }
-  return props.items.filter((item) => {
-    const outcome = displayItemOutcome(props.run, item.itemId);
-    if (props.filter === "problems") {
-      return ["failed", "blocked", "error"].includes(outcome);
+function itemPriorityBucket(itemId: string): number {
+  const outcome = displayItemOutcome(props.run, itemId);
+  const related = casesFor(itemId);
+  if (outcome === "failed") {
+    if (related.some((c) => c.confidence === "confirmed")) {
+      return 0; // confirmed 真缺陷置顶
     }
-    return ["not_run", "manual_pending", "blocked"].includes(outcome);
-  });
+    return 1; // 其余失败
+  }
+  if (outcome === "passed") {
+    return 2;
+  }
+  // blocked / error / not_run / manual_pending 隔离在下区
+  return 3;
+}
+
+const visibleItems = computed(() => {
+  const filtered =
+    props.filter === "all"
+      ? [...props.items]
+      : props.items.filter((item) => {
+          const outcome = displayItemOutcome(props.run, item.itemId);
+          if (props.filter === "problems") {
+            return ["failed", "blocked", "error"].includes(outcome);
+          }
+          if (props.filter === "regressed") {
+            return diffKind(item.itemId) === "regressed";
+          }
+          if (props.filter === "fixed") {
+            return diffKind(item.itemId) === "fixed";
+          }
+          return ["not_run", "manual_pending", "blocked"].includes(outcome);
+        });
+  return filtered.sort((a, b) => itemPriorityBucket(a.itemId) - itemPriorityBucket(b.itemId));
 });
 
 const firstProblemId = computed(
@@ -158,9 +191,15 @@ defineExpose({ focusItem });
             :allow-manual="allowManual"
             :manual-busy="manualBusyCaseId === testCase.id"
             :allow-copy-fix="allowCopyFix"
+            :allow-script-repair="allowScriptRepair"
+            :repair-busy="repairBusyCaseId === testCase.id"
+            :linked-open-issue="openIssuesByCaseId[testCase.id] ?? null"
+            :close-issue-busy="Boolean(openIssuesByCaseId[testCase.id] && closeIssueBusyId === openIssuesByCaseId[testCase.id]?.id)"
             @manual="emit('manual', $event)"
             @show-evidence="emit('showEvidence', $event)"
             @copy-fix="emit('copyFix', $event, item)"
+            @preview-repair="emit('previewRepair', $event)"
+            @close-linked-issue="emit('closeLinkedIssue', $event)"
           />
           <p v-if="casesFor(item.itemId).length === 0" class="doc-note">这个验收项没有用例。</p>
         </div>

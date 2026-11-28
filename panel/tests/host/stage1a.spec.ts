@@ -21,7 +21,6 @@ function makeSnapshot(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot
     map: null,
     map_stale: false,
     config: {},
-    rules: [],
     tasks: [],
     runs: [],
     evidence: {},

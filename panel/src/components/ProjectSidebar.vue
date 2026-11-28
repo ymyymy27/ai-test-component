@@ -391,7 +391,11 @@ defineExpose({ focusSearch, focusClose, focusTasks });
       </button>
     </div>
 
-    <div class="sidebar-search-wrap" :class="{ 'has-query': Boolean(query) }">
+    <div
+      v-if="projects.length > 0"
+      class="sidebar-search-wrap"
+      :class="{ 'has-query': Boolean(query) }"
+    >
       <label class="sidebar-search">
         <span class="visually-hidden">搜索项目和任务</span>
         <input

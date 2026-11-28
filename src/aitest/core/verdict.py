@@ -8,7 +8,7 @@ not be tied to the acceptance-item text may execute but can never count as
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from aitest.models import Case, CaseResult, Plan, Run, Verdict, case_item_ids
 
@@ -38,12 +38,17 @@ def _is_project_check_case(case: Case) -> bool:
 
 
 def case_results(plan: Plan, run: Run) -> dict[str, CaseResult]:
-    """Effective per-case results: an unverified expectation cannot pass."""
+    """计算每条用例的有效结果：未核验期望不能判通过；D4 铁律——真实 failed 绝不降级。"""
     by_case = {case.case_id: case for case in plan.cases}
     results: dict[str, CaseResult] = {}
     for run_case in run.cases:
         case = by_case.get(run_case.case_id)
         result = run_case.result
+        # D4 硬红线：真实执行失败（含 PATCH/PUT/DELETE 单次失败与 suspected 失败）始终保留 failed，
+        # 绝不因 confidence_tier 降级成 blocked/incomplete 或从 coverage.failed 剔除。
+        if result == "failed":
+            results[run_case.case_id] = "failed"
+            continue
         if (
             case is not None
             and not _is_project_check_case(case)
@@ -126,6 +131,19 @@ def _project_results(plan: Plan, run: Run) -> list[CaseResult]:
     ]
 
 
+def _l1_entry_ok(entry: dict[str, Any]) -> bool | None:
+    """统一校验 L1 检查条目的 ok 与 exit_code，非零退出码一律判失败。"""
+    has_ok = "ok" in entry
+    exit_code = entry.get("exit_code")
+    if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        if exit_code != 0:
+            return False
+        return bool(entry.get("ok")) if has_ok else True
+    if not has_ok:
+        return None
+    return bool(entry.get("ok"))
+
+
 def _l1_outcome(run: Run) -> Literal["failed", "incomplete"] | None:
     """Project-level checks outside plan cases still affect the run verdict.
 
@@ -137,13 +155,17 @@ def _l1_outcome(run: Run) -> Literal["failed", "incomplete"] | None:
         return None
     checks: list[bool] = []
     build = l1.get("build")
-    if isinstance(build, dict) and "ok" in build:
-        checks.append(bool(build.get("ok")))
+    if isinstance(build, dict):
+        ok_val = _l1_entry_ok(build)
+        if ok_val is not None:
+            checks.append(ok_val)
     entries = l1.get("entries")
     if isinstance(entries, list):
         for entry in entries:
-            if isinstance(entry, dict) and "ok" in entry:
-                checks.append(bool(entry.get("ok")))
+            if isinstance(entry, dict):
+                ok_val = _l1_entry_ok(entry)
+                if ok_val is not None:
+                    checks.append(ok_val)
     if checks and not all(checks):
         return "failed"
     if l1.get("cancelled") is True:
@@ -199,8 +221,13 @@ def coverage(plan: Plan, run: Run) -> dict[str, int]:
             for item_id in selected
             if any(result not in _UNATTEMPTED for result in by_item.get(item_id, []))
         ),
+        "effective_covered": sum(
+            1 for value in outcomes.values() if value in {"passed", "failed"}
+        ),
         "passed": sum(1 for value in outcomes.values() if value == "passed"),
         "failed": sum(1 for value in outcomes.values() if value == "failed"),
+        "blocked": sum(1 for value in outcomes.values() if value == "blocked"),
+        "error": sum(1 for value in outcomes.values() if value == "error"),
         "incomplete": sum(1 for value in outcomes.values() if value in _PENDING),
     }
 

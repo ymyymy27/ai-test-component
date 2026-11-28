@@ -62,6 +62,7 @@ const loadingReport = ref(false);
 const savingOpinion = ref(false);
 const exporting = ref(false);
 const activeItemId = ref("");
+const activeSection = ref("report-conclusion");
 const caseTableRef = ref<InstanceType<typeof ReportCaseTable> | null>(null);
 
 const busyOpinion = computed(
@@ -80,6 +81,7 @@ const regenerating = computed(() =>
 );
 
 function scrollToSection(id: string): void {
+  activeSection.value = id;
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -413,12 +415,48 @@ async function copyMarkdown(): Promise<void> {
     </div>
 
     <nav class="report-nav" aria-label="报告章节">
-      <button type="button" @click="scrollToSection('report-conclusion')">结论</button>
-      <button type="button" @click="scrollToSection('report-scope')">范围</button>
-      <button type="button" @click="scrollToSection('report-checks')">检查</button>
-      <button type="button" @click="scrollToSection('case-details')">用例</button>
-      <button type="button" @click="scrollToSection('report-appendix')">追溯</button>
-      <button type="button" @click="goOpinion">填写意见</button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'report-conclusion' }"
+        @click="scrollToSection('report-conclusion')"
+      >
+        结论
+      </button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'report-scope' }"
+        @click="scrollToSection('report-scope')"
+      >
+        范围
+      </button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'report-checks' }"
+        @click="scrollToSection('report-checks')"
+      >
+        检查
+      </button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'case-details' }"
+        @click="scrollToSection('case-details')"
+      >
+        用例
+      </button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'report-appendix' }"
+        @click="scrollToSection('report-appendix')"
+      >
+        追溯
+      </button>
+      <button
+        type="button"
+        :class="{ 'is-active': activeSection === 'report-opinion' }"
+        @click="goOpinion"
+      >
+        填写意见
+      </button>
     </nav>
 
     <section class="report-group" aria-label="结论与验收">

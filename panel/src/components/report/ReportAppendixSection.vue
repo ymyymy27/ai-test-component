@@ -4,7 +4,6 @@ import {
   ANALYSIS_REASON_LABEL,
   ANALYSIS_REASON_TEXT,
   ISSUE_STATUS_LABEL,
-  TEMPLATE_DISPOSITION_LABEL,
 } from "@/domain/labels";
 import type { EvidenceRef, Issue, Report, Run } from "@/domain/types";
 import type { LinkAssertInput } from "@/repositories/ProjectRepository";
@@ -80,25 +79,6 @@ const emit = defineEmits<{
     <p v-else class="doc-note">运行记录不存在，无法读取调用链。</p>
   </section>
 
-  <section v-if="report.templates.length" class="section">
-    <h2 class="section-title-lg">检查模板</h2>
-    <div class="stack">
-      <div v-for="template in report.templates" :key="template.templateId">
-        <p class="doc-p">
-          <strong>{{ template.name }} v{{ template.version }}</strong> · 适用
-          {{ template.summary.applicable }} · 不适用 {{ template.summary.not_applicable }} ·
-          不支持 {{ template.summary.unsupported }} · 无法判断 {{ template.summary.unknown }}
-        </p>
-        <ul class="list-plain">
-          <li v-for="item in template.items" :key="item.id">
-            {{ item.objective }} · {{ TEMPLATE_DISPOSITION_LABEL[item.disposition] }} ·
-            {{ item.reason }}
-          </li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
   <div
     v-if="report.modules.length || report.unmapped.length || report.evidenceIndex.length"
     class="report-pair"
@@ -152,10 +132,6 @@ const emit = defineEmits<{
       <div class="info-cell">
         <dt>计划</dt>
         <dd>{{ report.source.planLabel }}</dd>
-      </div>
-      <div class="info-cell">
-        <dt>规则版本</dt>
-        <dd>{{ report.source.rulesLabel }}</dd>
       </div>
       <div class="info-cell">
         <dt>源码提交</dt>

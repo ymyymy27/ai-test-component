@@ -19,19 +19,30 @@ _READ_CHUNK_BYTES = 64 * 1024
 
 
 def _read_capped_stream(stream: IO[bytes], limit: int) -> tuple[bytes, int]:
-    """分块读取临时文件流并严格限制在 limit 字节内，同时返回原始总字节数。"""
+    """分块读取临时文件流并限制在 limit 字节内；超限时保留头 25% + 尾 75% 以保完整堆栈。"""
     stream.seek(0, os.SEEK_END)
     total_size = int(stream.tell())
     stream.seek(0)
-    remaining = max(0, limit)
-    chunks: list[bytes] = []
-    while remaining > 0:
-        chunk = stream.read(min(_READ_CHUNK_BYTES, remaining))
-        if not chunk:
-            break
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks), total_size
+    limit = max(0, limit)
+    if total_size <= limit or limit < 256:
+        remaining = limit
+        chunks: list[bytes] = []
+        while remaining > 0:
+            chunk = stream.read(min(_READ_CHUNK_BYTES, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks), total_size
+
+    marker = b"\n...[middle output omitted to preserve error tail]...\n"
+    usable = limit - len(marker)
+    head_cap = usable // 4
+    tail_cap = usable - head_cap
+    head_bytes = stream.read(head_cap)
+    stream.seek(max(head_cap, total_size - tail_cap))
+    tail_bytes = stream.read(tail_cap)
+    return head_bytes + marker + tail_bytes, total_size
 
 
 def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:

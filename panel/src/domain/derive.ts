@@ -513,7 +513,6 @@ export function sourceSignature(project: Project, task: Task): string {
       project: project.id,
       root: project.root,
       taskContract: taskContract(task),
-      rules: project.rulesVersionId,
       config,
       delivery,
     }),
@@ -682,7 +681,6 @@ export function normalizeReport(report: Report): Report {
       unverified: [],
       nextSteps: [],
     },
-    templates: asArray(report.templates),
     modules: asArray(report.modules),
     unmapped: asArray(report.unmapped),
     uncoveredItems: asArray(report.uncoveredItems),
@@ -692,7 +690,6 @@ export function normalizeReport(report: Report): Report {
     source: {
       runTime: report.source?.runTime ?? "",
       planLabel: report.source?.planLabel ?? "计划快照缺失",
-      rulesLabel: report.source?.rulesLabel ?? "未绑定规则",
       commit: report.source?.commit ?? "未记录",
       model: report.source?.model ?? "未记录",
       github: report.source?.github ?? "未连接",

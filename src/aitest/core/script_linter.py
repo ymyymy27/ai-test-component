@@ -7,12 +7,13 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
-from aitest.security import _assertion_profile, _is_trivial_assert
+from aitest.security import _assertion_profile, _is_trivial_assert, script_has_assertion
 
 _WRITE_METHOD_RE = re.compile(
     r"(?:\.(?:post|put|patch|delete)\s*\(|method\s*=\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'])",
@@ -261,3 +262,59 @@ def blocking_lint_errors(name: str, content: str) -> list[str]:
         for issue in lint_script(name, content)
         if issue.severity == "error"
     ]
+
+
+def assess_assertion_strength(case: Any) -> Literal["strong", "weak", "unverified"]:
+    """确定性评定单条用例的断言强度（strong / weak / unverified）。"""
+    method = str(getattr(case, "verify_method", "") or "").strip()
+    if method == "manual" or method.startswith("manual:"):
+        return "unverified"
+    if not getattr(case, "expectation_verified", False) and getattr(case, "layer", "") != "L1":
+        return "unverified"
+    if method.startswith("http:"):
+        raw = method[len("http:") :].strip()
+        try:
+            reqs = json.loads(raw)
+        except json.JSONDecodeError:
+            return "unverified"
+        if not isinstance(reqs, list) or not reqs:
+            return "unverified"
+        assert_reqs = [
+            r for r in reqs if isinstance(r, dict) and str(r.get("stage") or "assert") != "setup"
+        ]
+        if not assert_reqs:
+            return "weak"
+        has_status = False
+        has_field_or_negative_status = False
+        for req in assert_reqs:
+            expects = req.get("expect")
+            if not isinstance(expects, list):
+                continue
+            for exp in expects:
+                if not isinstance(exp, dict):
+                    continue
+                path = str(exp.get("path") or "").strip()
+                if path == "status":
+                    has_status = True
+                    val = exp.get("value")
+                    if isinstance(val, int) and val >= 400:
+                        has_field_or_negative_status = True
+                elif path:
+                    has_field_or_negative_status = True
+        if has_status and has_field_or_negative_status:
+            return "strong"
+        return "weak"
+    if method.startswith("script:"):
+        content = str(getattr(case, "script_content", "") or "")
+        if not content.strip() or not script_has_assertion(content):
+            return "weak"
+        issues = lint_script(str(getattr(case, "script_name", "") or ""), content)
+        weak_codes = {"no_assertion", "trivial_assertion", "swallowed_exception"}
+        if any(issue.rule in weak_codes for issue in issues):
+            return "weak"
+        return "strong"
+    if method.startswith(("command:", "pytest:", "junit:", "playwright:")):
+        if getattr(case, "coverage_kind", None) in {"file", "shared", "unverified"}:
+            return "weak"
+        return "strong"
+    return "unverified"

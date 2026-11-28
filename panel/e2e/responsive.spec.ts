@@ -7,7 +7,7 @@ const widths = [320, 768, 1200];
 test("320 / 768 / 1200 宽度下概览与报告无横向滚动", async ({ page }) => {
   await createAndRun(page, "响应式验证", "D:/work/flow-responsive");
   const resultUrl = page.url();
-  await page.locator(".report-strip").getByRole("button", { name: "查看报告" }).click();
+  await page.getByRole("button", { name: "独立打开报告" }).click();
   await page.waitForURL(/\/reports\//);
   const reportUrl = page.url();
   const overviewUrl = resultUrl.replace(/\/tasks\/[^/]+\/result$/, "/overview");
@@ -39,22 +39,23 @@ test("窄屏侧栏是抽屉，Esc 关闭并把焦点还给菜单按钮", async (
   await expect(toggle).toBeFocused();
 });
 
-test("桌面宽度保留 248px 项目树", async ({ page }) => {
+test("桌面宽度保留 264px 项目树", async ({ page }) => {
   await createAndRun(page, "桌面验证", "D:/work/flow-desktop");
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.goto(page.url().replace(/\/tasks\/[^/]+\/result$/, "/overview"));
   const width = await page.locator("#project-sidebar").evaluate((element) => {
     return element.getBoundingClientRect().width;
   });
-  expect(Math.round(width)).toBe(248);
+  expect(Math.round(width)).toBe(264);
 });
 
 
-test("320 宽度下三个测试入口同级且不横向滚动", async ({ page }) => {
+test("320 宽度下三个测试方式入口同级且不横向滚动", async ({ page }) => {
   await createProject(page, "窄屏开始测试", "D:/work/responsive-start");
-  await page.getByRole("button", { name: "开始测试", exact: true }).click();
   await page.setViewportSize({ width: 320, height: 900 });
-  await expect(page.locator(".test-mode")).toHaveCount(3);
+  await page.getByRole("button", { name: "新建测试任务" }).click();
+  const drawer = page.getByRole("dialog", { name: "新建测试" });
+  await expect(drawer.getByRole("radio")).toHaveCount(3);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );

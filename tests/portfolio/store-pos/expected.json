@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "project": "store-pos",
+  "role": "大项目 + JWT / 负向鉴权",
+  "stack": ["express", "sql.js", "jwt", "react", "typescript"],
+  "expected_level": "T1",
+  "known_defects_total": 0,
+  "min_defects_detected": 0,
+  "max_false_positives": 0,
+  "max_false_passes": 0,
+  "notes": "大项目全部通过，0 误报，Mock 子集采样不因无关前端文件误判 unknown。"
+}

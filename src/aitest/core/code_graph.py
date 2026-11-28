@@ -1,17 +1,14 @@
-"""无上限本地全栈索引与跨层代码依赖图引擎。
+"""轻量级仓库架构节点图引擎（模块/组件 + 接口路由 + 外部系统 + Git 影响范围）。
 
-移除早期 300 文件扫描限制，按 .gitignore/.aitestignore 与安全规则遍历仓库源码，
-构建「前端页面(frontend) -> 接口(api) -> 后端模块(backend) -> 数据存储(storage)」
-四层代码图（nodes + edges + 源码坐标）、跨层契约冲突清单、模块分块摘要，
-以及基于本地 Git diff 的影响范围反推与增量缓存失效。
+基于 ``core.repo_index`` 单遍扫描构建，替代早期千行级多语言正则建表蜘蛛网与分块摘要；
+仅展示可核查的文件模块节点、接口路由节点（优先运行态 OpenAPI）、静态资源冲突与外部依赖，
+结合只读 Git 变更实现 direct + 2 跳 transitive 影响传播。
 """
 
 from __future__ import annotations
 
 import ast
 import contextlib
-import hashlib
-import os
 import re
 from collections import deque
 from pathlib import Path
@@ -24,37 +21,25 @@ from aitest.core.context.contracts import (
     _frontend_assets,
 )
 from aitest.core.probes import ContractReconciliationProbe, _normalize_route_path
-from aitest.security import is_ignored_path, load_ignore_patterns, redact_tree
-from aitest.storage.files import read_json, write_json
+from aitest.core.repo_index import (
+    DEFAULT_SKIP_DIRS,
+    RepoFile,
+    compute_repo_fingerprint,
+    discover_monorepo_packages,
+    is_test_relpath,
+    read_versioned_cache,
+    scan_repo,
+    write_versioned_cache,
+)
+from aitest.security import redact_tree
 from aitest.storage.workspace import Workspace, iso_now
 
-_GRAPH_SCHEMA_VERSION = 4
+_GRAPH_SCHEMA_VERSION = 5
 
 _SOCKET_BUILTIN_EVENTS = frozenset({"connect", "disconnect", "connection", "error", "reconnect"})
 _SOCKET_EMIT_RE = re.compile(r"\b(?:io|socket)\.emit\(\s*[\"']([A-Za-z0-9_.:-]+)[\"']")
 _SOCKET_ON_RE = re.compile(r"\bsocket\.on\(\s*[\"']([A-Za-z0-9_.:-]+)[\"']")
 
-_SKIP_DIRS = frozenset(
-    {
-        ".git",
-        ".hg",
-        ".svn",
-        ".venv",
-        "venv",
-        "env",
-        "node_modules",
-        "__pycache__",
-        ".pytest_cache",
-        ".mypy_cache",
-        ".ruff_cache",
-        "dist",
-        "build",
-        "coverage",
-        "test-results",
-        ".next",
-        ".nuxt",
-    }
-)
 _INDEXED_EXTS = frozenset(
     {
         ".py",
@@ -67,7 +52,9 @@ _INDEXED_EXTS = frozenset(
         ".vue",
         ".html",
         ".css",
-        ".prisma",
+        ".json",
+        ".yaml",
+        ".yml",
         ".sql",
     }
 )
@@ -75,374 +62,125 @@ _FRONTEND_VIEW_EXTS = frozenset({".vue", ".html", ".tsx", ".jsx"})
 _BACKEND_DIR_NAMES = frozenset({"backend", "server", "api", "app", "routes", "routers", "services"})
 _FRONTEND_DIR_NAMES = frozenset({"frontend", "front", "web", "client", "ui", "pages", "views"})
 
-_PY_ROUTE_RE = re.compile(
-    r"@(?:\w+_)?router\.(get|post|put|patch|delete)\(\s*[\"']([^\"']+)[\"']",
-    re.IGNORECASE,
+_EXTERNAL_DEP_RULES: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    (
+        "ext:postgres",
+        "PostgreSQL",
+        "database",
+        ("psycopg", "asyncpg", "pg", "postgres", "sqlmodel"),
+    ),
+    ("ext:mysql", "MySQL", "database", ("pymysql", "mysql2", "mysql-connector")),
+    ("ext:sqlite", "SQLite", "database", ("better-sqlite3", "aiosqlite", "sqlite-vec")),
+    ("ext:mongodb", "MongoDB", "database", ("pymongo", "motor", "mongoose", "mongodb")),
+    ("ext:redis", "Redis", "cache", ("redis", "ioredis", "aioredis")),
+    (
+        "ext:mq",
+        "消息队列 (MQ/Kafka)",
+        "broker",
+        ("celery", "bullmq", "pika", "kafka-python", "kafkajs", "rabbitmq"),
+    ),
+    ("ext:s3", "对象存储 (S3/OSS)", "storage", ("boto3", "minio", "@aws-sdk/client-s3")),
+    (
+        "ext:llm",
+        "大模型 API",
+        "ai",
+        ("openai", "anthropic", "deepseek", "langchain", "google-genai"),
+    ),
+    ("ext:github", "GitHub 服务", "integration", ("@octokit", "pygithub", "octokit")),
+    ("ext:browser", "Playwright 浏览器", "runtime", ("playwright", "@playwright/test")),
+    ("ext:mail", "邮件服务 (SMTP)", "notification", ("nodemailer", "aiosmtplib", "resend")),
 )
-_PY_APP_ROUTE_RE = re.compile(
-    r"@\w+\.(get|post|put|patch|delete)\(\s*[\"']([^\"']+)[\"']",
-    re.IGNORECASE,
-)
-_JS_ROUTE_RE = re.compile(
-    r"\b(?:router|app|fastify)\.(get|post|put|patch|delete)\(\s*[\"']([^\"']+)[\"']",
-    re.IGNORECASE,
-)
-_FE_ROUTE_PATH_RE = re.compile(
-    r"(?:path\s*:\s*[\"'](/[^\"']*)[\"']|<Route\b[^>]*?\bpath\s*=\s*[\"']([^\"']*)[\"'])"
-)
-_JS_EXPORT_RE = re.compile(
-    r"\bexport\s+(?:async\s+)?(?:function|class|const|let)\s+([A-Za-z_]\w*)"
-)
-_JS_IMPORT_RE = re.compile(r"\bfrom\s+[\"']([^\"']+)[\"']")
-_SQLALCHEMY_TABLE_RE = re.compile(r"__tablename__\s*=\s*[\"']([A-Za-z_][A-Za-z0-9_]*)[\"']")
-_DJANGO_MODEL_RE = re.compile(r"class\s+([A-Za-z_]\w*)\s*\([^)]*models\.Model[^)]*\)\s*:")
-_SQLMODEL_CLASS_RE = re.compile(r"class\s+([A-Za-z_]\w*)\s*\([^)]*table\s*=\s*True[^)]*\)\s*:")
-_PRISMA_MODEL_RE = re.compile(r"^\s*model\s+([A-Za-z_]\w*)\s*\{", re.MULTILINE)
-_ENTITY_RE = re.compile(r"@Entity\(\s*(?:[\"']([^\"']+)[\"'])?\s*\)")
-_CLASS_NAME_RE = re.compile(r"class\s+([A-Za-z_]\w*)")
-_CREATE_TABLE_RE = re.compile(
-    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`\"']?([A-Za-z_][A-Za-z0-9_]*)",
-    re.IGNORECASE,
-)
-
-
-def _is_test_file(rel_posix: str) -> bool:
-    parts = [p.lower() for p in rel_posix.split("/")]
-    name = parts[-1] if parts else ""
-    if any(p in {"tests", "test", "e2e", "__tests__"} for p in parts[:-1]):
-        return True
-    return name.startswith("test_") or name.endswith(
-        ("_test.py", ".test.ts", ".test.js", ".spec.ts", ".spec.js")
-    )
 
 
 def _module_name_for_path(rel_posix: str) -> str:
     parts = [part for part in rel_posix.split("/") if part]
     if len(parts) <= 1:
-        return "root"
-    if parts[0] in {"src", "app", "packages"} and len(parts) >= 3:
-        return f"{parts[0]}/{parts[1]}"
+        return Path(rel_posix).stem or "root"
+    if parts[0].lower() in _FRONTEND_DIR_NAMES | _BACKEND_DIR_NAMES | {"src", "apps", "packages"}:
+        return parts[1] if len(parts) >= 3 else parts[0]
     return parts[0]
 
 
-def _line_number_at(text: str, offset: int) -> int:
-    return text.count("\n", 0, max(0, offset)) + 1
-
-
-def _scan_repository_files(
-    root: Path, *, max_files: int = 10000
-) -> tuple[list[tuple[str, str, int, int]], str]:
-    """全量安全遍历工作区源码文件（尊重忽略规则与高危凭据黑名单），返回正文与总指纹。"""
-    ignore_patterns = load_ignore_patterns(root)
-    records: list[tuple[str, str, int, int]] = []
-    hasher = hashlib.sha256()
-
-    for base, dirs, names in os.walk(root):
-        base_path = Path(base)
-        dirs[:] = sorted(
-            d
-            for d in dirs
-            if d not in _SKIP_DIRS
-            and not d.startswith(".")
-            and not is_ignored_path(root, base_path / d, ignore_patterns)
-        )
-        for name in sorted(names):
-            suffix = Path(name).suffix.lower()
-            if suffix not in _INDEXED_EXTS:
-                continue
-            path = base_path / name
-            if is_ignored_path(root, path, ignore_patterns):
-                continue
-            rel_posix = path.relative_to(root).as_posix()
-            if _is_test_file(rel_posix):
-                continue
-            try:
-                stat = path.stat()
-                if stat.st_size > 512 * 1024:
-                    continue
-                content = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            records.append((rel_posix, content, int(stat.st_size), int(stat.st_mtime_ns)))
-            hasher.update(f"{rel_posix}:{stat.st_size}:{stat.st_mtime_ns}\n".encode())
-            if len(records) >= max_files:
-                return records, hasher.hexdigest()
-    return records, hasher.hexdigest()
-
-
-def _parse_python_module_facts(content: str) -> tuple[list[str], list[str]]:
-    symbols: list[str] = []
-    imports: list[str] = []
-    try:
-        tree = ast.parse(content)
-    except SyntaxError:
-        return symbols, imports
-    for node in tree.body:
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            if not node.name.startswith("_"):
-                symbols.append(node.name)
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.append(node.module)
-    return symbols[:24], imports[:24]
-
-
-def _is_frontend_file(rel_posix: str) -> bool:
+def _classify_layer(rel_posix: str) -> str:
+    parts = {p.lower() for p in rel_posix.split("/")[:-1]}
     suffix = Path(rel_posix).suffix.lower()
-    if suffix in _FRONTEND_VIEW_EXTS or suffix == ".css":
-        return True
-    parts = {part.lower() for part in rel_posix.split("/")[:-1]}
-    if parts & _BACKEND_DIR_NAMES:
-        return False
-    return bool(parts & _FRONTEND_DIR_NAMES)
+    if parts & _FRONTEND_DIR_NAMES or suffix in _FRONTEND_VIEW_EXTS:
+        return "frontend"
+    if (parts & _BACKEND_DIR_NAMES) or suffix in {".py", ".sql"}:
+        return "backend"
+    return "frontend" if suffix in {".js", ".ts", ".mjs", ".cjs"} else "backend"
 
 
-def _is_boilerplate_init(rel_posix: str, content: str) -> bool:
-    """判断 __init__.py 是否仅包含导包、文档字符串或 __all__ 等样板定义。"""
-    if Path(rel_posix).name != "__init__.py":
-        return False
-    if "APIRouter" in content or ".include_router" in content or "@" in content:
-        return False
-    try:
-        tree = ast.parse(content)
-    except SyntaxError:
-        return False
-    for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            continue
-        if (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        ):
-            continue
-        if isinstance(node, ast.Assign):
-            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
-            allowed = {"__all__", "__version__", "__author__"}
-            if targets and all(name in allowed for name in targets):
+def _detect_external_systems(root: Path, config: dict[str, Any]) -> list[dict[str, str]]:
+    """基于包清单、Compose 与项目配置识别真实外部基础设施依赖。"""
+    corpus_parts: list[tuple[str, str]] = []
+    manifest_names = {
+        "package.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "go.mod",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+    }
+    search_dirs = discover_monorepo_packages(root)
+    for folder in search_dirs:
+        for fname in sorted(manifest_names):
+            fpath = folder / fname
+            if not fpath.is_file():
                 continue
-        return False
-    return True
+            with contextlib.suppress(OSError, ValueError):
+                if fpath.stat().st_size <= 256 * 1024:
+                    rel = fpath.relative_to(root.resolve()).as_posix()
+                    txt = fpath.read_text(encoding="utf-8", errors="ignore").lower()
+                    corpus_parts.append((rel, txt))
 
+    found: dict[str, dict[str, str]] = {}
+    for ext_id, title, category, tokens in _EXTERNAL_DEP_RULES:
+        for rel, body in corpus_parts:
+            hit = next(
+                (
+                    tok
+                    for tok in tokens
+                    if re.search(rf"(?<![a-z0-9_-]){re.escape(tok)}(?![a-z0-9_-])", body)
+                ),
+                None,
+            )
+            if hit:
+                found[ext_id] = {
+                    "id": ext_id,
+                    "name": title,
+                    "category": category,
+                    "detail": f"依赖标识 {hit}",
+                    "source": rel,
+                }
+                break
 
-def _sort_nodes_by_priority(graph: dict[str, Any]) -> None:
-    """按影响面、冲突、连接度数与样板降权稳定排序节点，提升大图信噪比。"""
-    nodes = graph.get("nodes")
-    edges = graph.get("edges")
-    if not isinstance(nodes, list):
-        return
-    degrees: dict[str, int] = {}
-    if isinstance(edges, list):
-        for edge in edges:
-            if not isinstance(edge, dict):
-                continue
-            src = str(edge.get("source") or "")
-            dst = str(edge.get("target") or "")
-            if src:
-                degrees[src] = degrees.get(src, 0) + 1
-            if dst:
-                degrees[dst] = degrees.get(dst, 0) + 1
-
-    def sort_key(node: dict[str, Any]) -> tuple[int, int, int, int, str]:
-        impact = str(node.get("impact") or "none")
-        has_conflict = bool(node.get("has_conflict"))
-        meta = node.get("meta")
-        is_boilerplate = bool(isinstance(meta, dict) and meta.get("boilerplate"))
-        if impact == "direct":
-            bucket = 0
-        elif has_conflict:
-            bucket = 1
-        elif impact == "transitive":
-            bucket = 2
-        elif not is_boilerplate:
-            bucket = 3
-        else:
-            bucket = 4
-        nid = str(node.get("id") or "")
-        return (
-            bucket,
-            0 if has_conflict else 1,
-            -degrees.get(nid, 0),
-            1 if is_boilerplate else 0,
-            nid,
-        )
-
-    nodes.sort(key=sort_key)
-
-
-def _locate_api_routes(
-    records: list[tuple[str, str, int, int]],
-    declared_routes: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    located: dict[tuple[str, str], dict[str, Any]] = {}
-    located_file_lines: set[tuple[str, int]] = set()
-    covered_file_methods: set[tuple[str, str]] = set()
-    for route in declared_routes:
-        method = str(route.get("method") or "GET").upper()
-        raw_path = str(route.get("path") or "").strip()
-        if not raw_path:
-            continue
-        norm = _normalize_route_path(raw_path)
-        file_rel = str(route.get("file") or "")
-        try:
-            line_no = int(route.get("line") or 0)
-        except (TypeError, ValueError):
-            line_no = 0
-        located[(method, norm)] = {
-            "method": method,
-            "path": raw_path,
-            "norm_path": norm,
-            "auth": str(route.get("auth") or "public"),
-            "fields": str(route.get("fields") or ""),
-            "status_code": str(route.get("status_code") or ""),
-            "file": file_rel,
-            "line": line_no,
-        }
-        if file_rel:
-            covered_file_methods.add((file_rel, method))
-        if file_rel and line_no > 0:
-            located_file_lines.add((file_rel, line_no))
-
-    for rel_posix, content, _size, _mtime in records:
-        suffix = Path(rel_posix).suffix.lower()
-        if suffix == ".py":
-            for pattern in (_PY_ROUTE_RE, _PY_APP_ROUTE_RE):
-                for match in pattern.finditer(content):
-                    line = _line_number_at(content, match.start())
-                    if (rel_posix, line) in located_file_lines:
-                        continue
-                    method = match.group(1).upper()
-                    raw_path = match.group(2).strip()
-                    norm = _normalize_route_path(raw_path)
-                    # 若 AST 已解析并展开了该文件同方法路由前缀，避免再新增无前缀裸路由
-                    if (rel_posix, method) in covered_file_methods:
-                        continue
-                    entry = located.get((method, norm))
-                    if entry is not None:
-                        if not entry["file"]:
-                            entry["file"] = rel_posix
-                            entry["line"] = line
-                    else:
-                        # 前缀路由（如挂载到 /api/notes）尝试按后缀精确匹配唯一项
-                        candidates = [
-                            item
-                            for (m, p), item in located.items()
-                            if m == method and p.endswith(norm) and not item["file"]
-                        ]
-                        if len(candidates) == 1:
-                            candidates[0]["file"] = rel_posix
-                            candidates[0]["line"] = line
-                        elif (method, norm) not in located:
-                            located[(method, norm)] = {
-                                "method": method,
-                                "path": raw_path,
-                                "norm_path": norm,
-                                "auth": "public",
-                                "fields": "",
-                                "status_code": "",
-                                "file": rel_posix,
-                                "line": line,
-                            }
-        elif suffix in {".ts", ".js", ".mjs", ".cjs"} and not _is_frontend_file(rel_posix):
-            for match in _JS_ROUTE_RE.finditer(content):
-                line = _line_number_at(content, match.start())
-                if (rel_posix, line) in located_file_lines:
-                    continue
-                method = match.group(1).upper()
-                raw_path = match.group(2).strip()
-                norm = _normalize_route_path(raw_path)
-                key = (method, norm)
-                if key not in located:
-                    located[key] = {
-                        "method": method,
-                        "path": raw_path,
-                        "norm_path": norm,
-                        "auth": "public",
-                        "fields": "",
-                        "status_code": "",
-                        "file": rel_posix,
-                        "line": line,
-                    }
-    return list(located.values())
-
-
-def _extract_storage_entities(
-    records: list[tuple[str, str, int, int]],
-) -> list[dict[str, Any]]:
-    entities: list[dict[str, Any]] = []
-    seen: set[str] = set()
-
-    def add_entity(name: str, kind: str, rel_posix: str, line: int) -> None:
-        key = name.strip().lower()
-        if not key or key in seen:
-            return
-        seen.add(key)
-        entities.append(
+    if isinstance(config.get("github"), dict) and config["github"].get("repo"):
+        found.setdefault(
+            "ext:github",
             {
-                "id": f"st:{name}",
-                "name": name,
-                "kind": kind,
-                "file": rel_posix,
-                "line": line,
-            }
+                "id": "ext:github",
+                "name": "GitHub 服务",
+                "category": "integration",
+                "detail": str(config["github"].get("repo")),
+                "source": "project.config.json",
+            },
         )
-
-    for rel_posix, content, _size, _mtime in records:
-        suffix = Path(rel_posix).suffix.lower()
-        if suffix == ".py":
-            for match in _SQLALCHEMY_TABLE_RE.finditer(content):
-                add_entity(
-                    match.group(1),
-                    "table",
-                    rel_posix,
-                    _line_number_at(content, match.start()),
-                )
-            for match in _SQLMODEL_CLASS_RE.finditer(content):
-                add_entity(
-                    match.group(1),
-                    "sqlmodel",
-                    rel_posix,
-                    _line_number_at(content, match.start()),
-                )
-            for match in _DJANGO_MODEL_RE.finditer(content):
-                add_entity(
-                    match.group(1),
-                    "django_model",
-                    rel_posix,
-                    _line_number_at(content, match.start()),
-                )
-        elif suffix == ".prisma":
-            for match in _PRISMA_MODEL_RE.finditer(content):
-                add_entity(
-                    match.group(1),
-                    "prisma_model",
-                    rel_posix,
-                    _line_number_at(content, match.start()),
-                )
-        elif suffix in {".ts", ".js"}:
-            for match in _ENTITY_RE.finditer(content):
-                explicit = (match.group(1) or "").strip()
-                after = content[match.end() : match.end() + 160]
-                cls_match = _CLASS_NAME_RE.search(after)
-                name = explicit or (cls_match.group(1) if cls_match else "")
-                if name:
-                    add_entity(
-                        name,
-                        "typeorm_entity",
-                        rel_posix,
-                        _line_number_at(content, match.start()),
-                    )
-        elif suffix == ".sql":
-            for match in _CREATE_TABLE_RE.finditer(content):
-                add_entity(
-                    match.group(1),
-                    "sql_table",
-                    rel_posix,
-                    _line_number_at(content, match.start()),
-                )
-    return entities
+    if isinstance(config.get("model"), dict) and config["model"].get("model"):
+        found.setdefault(
+            "ext:llm",
+            {
+                "id": "ext:llm",
+                "name": "大模型 API",
+                "category": "ai",
+                "detail": str(config["model"].get("model")),
+                "source": "project.config.json",
+            },
+        )
+    return list(found.values())[:10]
 
 
 def apply_git_impact(
@@ -452,11 +190,7 @@ def apply_git_impact(
     """结合本地 Git 变更文件对项目图做双向受影响传播分析（direct + 2 跳 transitive）。"""
     nodes = graph.get("nodes") or []
     edges = graph.get("edges") or []
-    raw_changed = (
-        local_git.get("changed_files")
-        if isinstance(local_git, dict)
-        else None
-    )
+    raw_changed = local_git.get("changed_files") if isinstance(local_git, dict) else None
     changed_list = raw_changed if isinstance(raw_changed, list) else []
     changed_set = {
         str(p).strip().replace("\\", "/").lstrip("./")
@@ -527,110 +261,59 @@ def apply_git_impact(
     return graph
 
 
-_EXTERNAL_DEP_RULES: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
-    (
-        "ext:postgres",
-        "PostgreSQL",
-        "database",
-        ("psycopg", "asyncpg", "pg", "postgres", "sqlmodel"),
-    ),
-    ("ext:mysql", "MySQL", "database", ("pymysql", "mysql2", "mysql-connector")),
-    ("ext:sqlite", "SQLite", "database", ("better-sqlite3", "aiosqlite", "sqlite-vec")),
-    ("ext:mongodb", "MongoDB", "database", ("pymongo", "motor", "mongoose", "mongodb")),
-    ("ext:redis", "Redis", "cache", ("redis", "ioredis", "aioredis")),
-    (
-        "ext:mq",
-        "消息队列 (MQ/Kafka)",
-        "broker",
-        ("celery", "bullmq", "pika", "kafka-python", "kafkajs", "rabbitmq"),
-    ),
-    ("ext:s3", "对象存储 (S3/OSS)", "storage", ("boto3", "minio", "@aws-sdk/client-s3")),
-    (
-        "ext:llm",
-        "大模型 API",
-        "ai",
-        ("openai", "anthropic", "deepseek", "langchain", "google-genai"),
-    ),
-    ("ext:github", "GitHub 服务", "integration", ("@octokit", "pygithub", "octokit")),
-    ("ext:browser", "Playwright 浏览器", "runtime", ("playwright", "@playwright/test")),
-    ("ext:mail", "邮件服务 (SMTP)", "notification", ("nodemailer", "aiosmtplib", "resend")),
-)
+def _sort_nodes_by_priority(graph: dict[str, Any]) -> None:
+    """保持 api/冲突节点优先排列，便于前端裁剪展示高信号节点。"""
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list):
+        return
+
+    def _key(node: Any) -> tuple[int, int, str]:
+        if not isinstance(node, dict):
+            return (9, 9, "")
+        conflict_rank = 0 if node.get("has_conflict") else 1
+        layer = str(node.get("layer") or "")
+        layer_rank = {"api": 0, "backend": 1, "frontend": 2}.get(layer, 3)
+        return (conflict_rank, layer_rank, str(node.get("id") or ""))
+
+    nodes.sort(key=_key)
 
 
-def _detect_external_systems(root: Path, config: dict[str, Any]) -> list[dict[str, str]]:
-    """基于通用依赖清单、编排文件与项目配置探测真实外部系统与基础设施依赖。"""
-    corpus_parts: list[tuple[str, str]] = []
-    manifest_names = {
-        "package.json",
-        "pyproject.toml",
-        "requirements.txt",
-        "requirements-dev.txt",
-        "go.mod",
-        "docker-compose.yml",
-        "docker-compose.yaml",
-        "compose.yml",
-        "compose.yaml",
+def _empty_graph() -> dict[str, Any]:
+    return {
+        "schema_version": _GRAPH_SCHEMA_VERSION,
+        "generated_at": iso_now(),
+        "source_hash": "",
+        "stats": {
+            "total_files": 0,
+            "frontend": 0,
+            "api": 0,
+            "backend": 0,
+            "storage": 0,
+            "edges": 0,
+            "conflicts": 0,
+        },
+        "nodes": [],
+        "edges": [],
+        "conflicts": [],
+        "module_chunks": [],
+        "external_systems": [],
+        "impact": {
+            "changed_files": [],
+            "direct_node_ids": [],
+            "affected_node_ids": [],
+            "affected_modules": [],
+            "affected_routes": [],
+        },
     }
-    search_dirs = [root]
-    with contextlib.suppress(OSError):
-        for child in sorted(root.iterdir()):
-            if child.is_dir() and not child.name.startswith(".") and child.name not in _SKIP_DIRS:
-                search_dirs.append(child)
-    for folder in search_dirs:
-        for fname in sorted(manifest_names):
-            fpath = folder / fname
-            if not fpath.is_file():
-                continue
-            with contextlib.suppress(OSError):
-                if fpath.stat().st_size <= 256 * 1024:
-                    rel = fpath.relative_to(root).as_posix()
-                    txt = fpath.read_text(encoding="utf-8", errors="ignore").lower()
-                    corpus_parts.append((rel, txt))
 
-    found: dict[str, dict[str, str]] = {}
-    for ext_id, title, category, tokens in _EXTERNAL_DEP_RULES:
-        for rel, body in corpus_parts:
-            hit = next(
-                (
-                    tok
-                    for tok in tokens
-                    if re.search(rf"(?<![a-z0-9_-]){re.escape(tok)}(?![a-z0-9_-])", body)
-                ),
-                None,
-            )
-            if hit:
-                found[ext_id] = {
-                    "id": ext_id,
-                    "name": title,
-                    "category": category,
-                    "detail": f"依赖标识 {hit}",
-                    "source": rel,
-                }
-                break
 
-    if isinstance(config.get("github"), dict) and config["github"].get("repo"):
-        found.setdefault(
-            "ext:github",
-            {
-                "id": "ext:github",
-                "name": "GitHub 服务",
-                "category": "integration",
-                "detail": str(config["github"].get("repo")),
-                "source": "project.config.json",
-            },
-        )
-    if isinstance(config.get("model"), dict) and config["model"].get("model"):
-        found.setdefault(
-            "ext:llm",
-            {
-                "id": "ext:llm",
-                "name": "大模型 API",
-                "category": "ai",
-                "detail": str(config["model"].get("model")),
-                "source": "project.config.json",
-            },
-        )
-    return list(found.values())[:8]
+def _read_text_safe(entry: RepoFile, max_bytes: int = 256 * 1024) -> str:
+    if entry.size > max_bytes:
+        return ""
+    try:
+        return entry.path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def build_code_graph(
@@ -639,53 +322,27 @@ def build_code_graph(
     *,
     local_git: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """扫描仓库源码并构建 4 层代码链路图、契约冲突、模块分块、外部系统与 Git 影响范围。"""
+    """构建轻量诚实项目架构图（模块/组件 + 运行态或静态路由 + 外部系统 + Git 影响）。"""
     if not root.is_dir():
-        return {
-            "schema_version": _GRAPH_SCHEMA_VERSION,
-            "generated_at": iso_now(),
-            "source_hash": "",
-            "stats": {
-                "total_files": 0,
-                "frontend": 0,
-                "api": 0,
-                "backend": 0,
-                "storage": 0,
-                "edges": 0,
-                "conflicts": 0,
-            },
-            "nodes": [],
-            "edges": [],
-            "conflicts": [],
-            "module_chunks": [],
-            "external_systems": [],
-            "impact": {
-                "changed_files": [],
-                "direct_node_ids": [],
-                "affected_node_ids": [],
-                "affected_modules": [],
-                "affected_routes": [],
-            },
-        }
+        return _empty_graph()
 
-    records, source_hash = _scan_repository_files(root)
+    scan = scan_repo(root, extensions=_INDEXED_EXTS, include_tests=False, max_files=6000)
+    source_hash, _ = compute_repo_fingerprint(
+        root,
+        cache_version=_GRAPH_SCHEMA_VERSION,
+        extra_data=redact_tree(config, []),
+        include_tests=False,
+        extensions=_INDEXED_EXTS,
+    )
     declared_routes, routes_meta = _api_routes_with_meta(root, max_routes=2000)
     api_calls = _frontend_api_calls(root, max_files=2000, max_calls=1000)
     fe_assets = _frontend_assets(root, max_assets=500, max_html=200)
-    located_routes = _locate_api_routes(records, declared_routes)
-    route_files = {str(r.get("file") or "") for r in located_routes if r.get("file")}
-    git_changed_set = {
-        str(p).strip().replace("\\", "/").lstrip("./")
-        for p in ((local_git or {}).get("changed_files") or [])
-        if isinstance(p, str) and p.strip()
-    }
 
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     seen_edges: set[tuple[str, str, str]] = set()
-    file_to_fe_node: dict[str, str] = {}
-    file_to_be_node: dict[str, str] = {}
-    backend_imports: list[tuple[str, str, list[str]]] = []
+    file_to_node: dict[str, str] = {}
+    layer_by_file: dict[str, str] = {}
 
     def add_edge(
         source: str,
@@ -709,342 +366,251 @@ def build_code_graph(
             }
         )
 
-    # 1. 前端视图节点与后端源码模块节点（跳过无逻辑无挂载且未改动的空 __init__.py 样板）
-    for rel_posix, content, _size, _mtime in records:
-        suffix = Path(rel_posix).suffix.lower()
-        module = _module_name_for_path(rel_posix)
-        if _is_frontend_file(rel_posix):
-            if suffix in _FRONTEND_VIEW_EXTS:
-                fe_id = f"fe:{rel_posix}"
-                file_to_fe_node[rel_posix] = fe_id
-                routes_in_file = [
-                    m.group(1) or m.group(2) for m in _FE_ROUTE_PATH_RE.finditer(content)
-                ]
-                nodes.append(
-                    {
-                        "id": fe_id,
-                        "label": Path(rel_posix).name,
-                        "layer": "frontend",
-                        "kind": suffix.lstrip("."),
-                        "file": rel_posix,
-                        "line": 1,
-                        "module": module,
-                        "meta": {"paths": routes_in_file[:10]},
-                        "has_conflict": False,
-                        "impact": "none",
-                    }
-                )
-        elif suffix in {".py", ".ts", ".js", ".mjs", ".cjs"}:
-            is_boiler = _is_boilerplate_init(rel_posix, content)
-            if is_boiler and rel_posix not in route_files and rel_posix not in git_changed_set:
-                continue
-            be_id = f"be:{rel_posix}"
-            file_to_be_node[rel_posix] = be_id
-            if suffix == ".py":
-                symbols, imports = _parse_python_module_facts(content)
-            else:
-                symbols = _JS_EXPORT_RE.findall(content)[:24]
-                imports = _JS_IMPORT_RE.findall(content)[:24]
-            backend_imports.append((be_id, rel_posix, imports))
-            meta: dict[str, Any] = {"symbols": symbols[:12]}
-            if Path(rel_posix).name == "__init__.py":
-                meta["boilerplate"] = True
-            label = (
-                Path(rel_posix).stem
-                if Path(rel_posix).name != "__init__.py"
-                else f"{Path(rel_posix).parent.name}/__init__"
-            )
+    route_files = {
+        str(r.get("file") or "")
+        for r in declared_routes
+        if isinstance(r, dict) and r.get("file")
+    }
+    call_files = {
+        str(c.get("source") or "")
+        for c in api_calls
+        if isinstance(c, dict) and c.get("source")
+    }
+    asset_files = {
+        str(a.get("source") or "")
+        for a in fe_assets
+        if isinstance(a, dict) and a.get("source")
+    }
+
+    # 1. 注册轻量源码/组件文件节点（过滤空 __init__.py 与无业务符号占位文件）
+    file_texts: dict[str, str] = {}
+    for entry in scan.files[:800]:
+        rel = entry.rel_posix
+        is_empty_init = False
+        text = ""
+        if Path(rel).name == "__init__.py" or rel.endswith((".js", ".ts", ".tsx", ".jsx")):
+            text = _read_text_safe(entry)
+            if text:
+                file_texts[rel] = text
+        if Path(rel).name == "__init__.py" and not text.strip():
+            is_empty_init = True
+        if is_empty_init and rel not in route_files:
+            continue
+        layer = _classify_layer(rel)
+        node_id = f"mod:{rel}"
+        is_fe_view = (
+            rel in call_files
+            or rel in asset_files
+            or Path(rel).suffix.lower() in _FRONTEND_VIEW_EXTS
+        )
+        kind = (
+            "component"
+            if Path(rel).name in {"package.json", "pyproject.toml"}
+            else "frontend_page"
+            if layer == "frontend" and is_fe_view
+            else "module"
+        )
+        nodes.append(
+            {
+                "id": node_id,
+                "layer": layer,
+                "kind": kind,
+                "label": Path(rel).name,
+                "module": _module_name_for_path(rel),
+                "file": rel,
+                "line": 1,
+                "meta": {},
+                "has_conflict": False,
+                "impact": "none",
+            }
+        )
+        file_to_node[rel] = node_id
+        layer_by_file[rel] = layer
+
+    # 2. 注册接口路由节点（优先运行态 OpenAPI 元数据，静态解析标 heuristic）
+    api_node_by_norm: dict[tuple[str, str], list[str]] = {}
+    api_nodes_by_path: dict[str, list[str]] = {}
+    for route in declared_routes:
+        if not isinstance(route, dict):
+            continue
+        method = str(route.get("method") or "GET").upper()
+        path_str = str(route.get("path") or "/")
+        src_file = str(route.get("file") or "")
+        try:
+            line_no = max(1, int(str(route.get("line") or "1")))
+        except ValueError:
+            line_no = 1
+        norm = _normalize_route_path(path_str)
+        api_id = f"api:{method}:{norm}"
+        if not any(n["id"] == api_id for n in nodes):
             nodes.append(
                 {
-                    "id": be_id,
-                    "label": label,
-                    "layer": "backend",
-                    "kind": suffix.lstrip("."),
-                    "file": rel_posix,
-                    "line": 1,
-                    "module": module,
-                    "meta": meta,
+                    "id": api_id,
+                    "layer": "api",
+                    "kind": "api_route",
+                    "label": f"{method} {path_str}",
+                    "module": _module_name_for_path(src_file) if src_file else "api",
+                    "file": src_file,
+                    "line": line_no,
+                    "meta": {
+                        "method": method,
+                        "path": path_str,
+                        "auth": str(route.get("auth") or "public"),
+                        "source_kind": str(route.get("source_kind") or "static"),
+                        "confidence": str(route.get("confidence") or "heuristic"),
+                    },
                     "has_conflict": False,
                     "impact": "none",
                 }
             )
+        api_node_by_norm.setdefault((method, norm), []).append(api_id)
+        api_nodes_by_path.setdefault(norm, []).append(api_id)
+        if src_file and src_file in file_to_node:
+            add_edge(api_id, file_to_node[src_file], "handled_by", label="处理")
 
-    # 如果前端只有纯 .js/.ts（如原生 fetch api.js）没有独立视图节点，为其挂靠前端节点以保调用链完整
+    # 3. 连接前端调用边与轻量级 Python 模块内部依赖边
     for call in api_calls:
-        src_file = str(call.get("source") or "")
-        if src_file and src_file not in file_to_fe_node:
-            # 优先归属同目录下已有 .html 节点，否则新建前端脚本节点
-            parent = Path(src_file).parent.as_posix()
-            sibling_html = next(
-                (
-                    p
-                    for p in file_to_fe_node
-                    if Path(p).parent.as_posix() == parent and p.endswith(".html")
-                ),
-                "",
-            )
-            if sibling_html:
-                file_to_fe_node[src_file] = file_to_fe_node[sibling_html]
-            else:
-                fe_id = f"fe:{src_file}"
-                file_to_fe_node[src_file] = fe_id
-                nodes.append(
-                    {
-                        "id": fe_id,
-                        "label": Path(src_file).name,
-                        "layer": "frontend",
-                        "kind": Path(src_file).suffix.lstrip(".") or "js",
-                        "file": src_file,
-                        "line": 1,
-                        "module": _module_name_for_path(src_file),
-                        "meta": {},
-                        "has_conflict": False,
-                        "impact": "none",
-                    }
-                )
-
-    # 2. API 路由节点（带精确源码行号）并连向所属 backend 模块
-    api_index: dict[tuple[str, str], str] = {}
-    api_by_path: dict[str, list[str]] = {}
-    for route in located_routes:
-        method = str(route["method"])
-        norm = str(route["norm_path"])
-        api_id = f"api:{method}:{norm}"
-        api_index[(method, norm)] = api_id
-        api_by_path.setdefault(norm, []).append(api_id)
-        route_file = str(route.get("file") or "")
-        nodes.append(
-            {
-                "id": api_id,
-                "label": f"{method} {route['path']}",
-                "layer": "api",
-                "kind": method.lower(),
-                "file": route_file,
-                "line": int(route.get("line") or 0),
-                "module": _module_name_for_path(route_file) if route_file else "api",
-                "meta": {
-                    "method": method,
-                    "path": route["path"],
-                    "auth": route["auth"],
-                    "fields": route["fields"],
-                },
-                "has_conflict": False,
-                "impact": "none",
-            }
-        )
-        if route_file and route_file in file_to_be_node:
-            add_edge(api_id, file_to_be_node[route_file], "handled_by", label="处理")
-
-    # 3. 数据存储模型节点
-    storage_entities = _extract_storage_entities(records)
-    for ent in storage_entities:
-        st_file = str(ent["file"])
-        nodes.append(
-            {
-                "id": ent["id"],
-                "label": ent["name"],
-                "layer": "storage",
-                "kind": ent["kind"],
-                "file": st_file,
-                "line": int(ent["line"]),
-                "module": _module_name_for_path(st_file),
-                "meta": {"entity_kind": ent["kind"]},
-                "has_conflict": False,
-                "impact": "none",
-            }
-        )
-
-    # 4. 建立 frontend -> api、backend -> backend、backend -> storage 边
-    for call in api_calls:
-        src_file = str(call.get("source") or "")
-        fe_id = file_to_fe_node.get(src_file) or ""
-        if not fe_id:
+        if not isinstance(call, dict):
             continue
+        src_file = str(call.get("source") or "")
         method = str(call.get("method") or "GET").upper()
         norm = _normalize_route_path(str(call.get("path") or "/"))
-        if method == "ANY":
-            targets = list(api_by_path.get(norm) or [])
-        else:
-            exact = api_index.get((method, norm)) or api_index.get(("ANY", norm))
-            targets = [exact] if exact else []
-        for api_id in targets:
-            add_edge(fe_id, api_id, "calls_api", label=f"{method} {norm}")
+        fe_id = file_to_node.get(src_file)
+        if not fe_id:
+            continue
+        targets = api_node_by_norm.get((method, norm)) or api_nodes_by_path.get(norm) or []
+        for tgt in targets:
+            add_edge(fe_id, tgt, "calls_api", label=f"{method} {norm}")
 
-    # 后端模块间内部 import 边
-    stem_to_be: dict[str, list[str]] = {}
-    for rel_posix, be_id in file_to_be_node.items():
-        dotted = rel_posix.rsplit(".", 1)[0].replace("/", ".")
-        stem_to_be.setdefault(dotted, []).append(be_id)
-        stem_to_be.setdefault(Path(rel_posix).stem, []).append(be_id)
-    for be_id, _rel_posix, imports in backend_imports:
-        for imp in imports:
-            candidates = stem_to_be.get(imp) or stem_to_be.get(imp.split(".")[-1]) or []
-            for target_be in candidates:
-                if target_be != be_id:
-                    add_edge(be_id, target_be, "imports", label=imp)
+    # 基于真实 Python import 语句建立同仓模块依赖边（不靠正则猜 DB 表）
+    py_module_to_file: dict[str, str] = {}
+    for rel in file_to_node:
+        if rel.endswith(".py"):
+            mod = rel[:-3].replace("/", ".")
+            py_module_to_file[mod] = rel
+            if mod.endswith(".__init__"):
+                py_module_to_file[mod[: -len(".__init__")]] = rel
+    for entry in scan.files[:400]:
+        if not entry.rel_posix.endswith(".py") or entry.rel_posix not in file_to_node:
+            continue
+        src_text = file_texts.get(entry.rel_posix) or _read_text_safe(entry)
+        if not src_text:
+            continue
+        src_id = file_to_node[entry.rel_posix]
+        with contextlib.suppress(SyntaxError, ValueError):
+            tree = ast.parse(src_text)
+            for py_node in ast.walk(tree):
+                imported: list[str] = []
+                if isinstance(py_node, ast.Import):
+                    imported.extend(alias.name for alias in py_node.names)
+                elif isinstance(py_node, ast.ImportFrom) and py_node.module:
+                    imported.append(py_node.module)
+                    for alias in py_node.names:
+                        imported.append(f"{py_node.module}.{alias.name}")
+                for cand in imported:
+                    tgt_file = py_module_to_file.get(cand)
+                    if tgt_file and tgt_file != entry.rel_posix and tgt_file in file_to_node:
+                        add_edge(src_id, file_to_node[tgt_file], "depends_on", label="import")
 
-    # 4b. 轻量 Socket.IO 双向事件链路节点（仅当前后端同时匹配事件时生成，不报冲突）
-    fe_emits: dict[str, tuple[str, int]] = {}
-    be_ons: dict[str, tuple[str, int]] = {}
-    for rel_posix, content, _s, _m in records:
-        if rel_posix in file_to_fe_node or _is_frontend_file(rel_posix):
-            for match in _SOCKET_EMIT_RE.finditer(content):
-                ev = match.group(1)
-                if ev not in _SOCKET_BUILTIN_EVENTS and ev not in fe_emits:
-                    fe_emits[ev] = (rel_posix, _line_number_at(content, match.start()))
-        elif rel_posix in file_to_be_node:
-            for match in _SOCKET_ON_RE.finditer(content):
-                ev = match.group(1)
-                if ev not in _SOCKET_BUILTIN_EVENTS and ev not in be_ons:
-                    be_ons[ev] = (rel_posix, _line_number_at(content, match.start()))
-    for ev in sorted(set(fe_emits) & set(be_ons))[:80]:
-        fe_file, _ = fe_emits[ev]
-        be_file, be_line = be_ons[ev]
-        fe_id = file_to_fe_node.get(fe_file, "")
-        be_id = file_to_be_node.get(be_file, "")
-        ws_id = f"api:WS:{ev}"
-        if ws_id not in {n["id"] for n in nodes}:
-            nodes.append(
+    # 4. 保留 Socket 事件轻节点
+    for rel, txt in file_texts.items():
+        if not rel.endswith((".js", ".ts", ".tsx", ".jsx")):
+            continue
+        sock_src_id = file_to_node.get(rel)
+        for evt_m in list(_SOCKET_ON_RE.finditer(txt)) + list(_SOCKET_EMIT_RE.finditer(txt)):
+            evt = evt_m.group(1)
+            if evt in _SOCKET_BUILTIN_EVENTS:
+                continue
+            sock_id = f"sock:{evt}"
+            if not any(n["id"] == sock_id for n in nodes):
+                line_no = txt.count("\n", 0, evt_m.start()) + 1
+                nodes.append(
+                    {
+                        "id": sock_id,
+                        "layer": "api",
+                        "kind": "socket",
+                        "label": f"ws:{evt}",
+                        "module": _module_name_for_path(rel),
+                        "file": rel,
+                        "line": line_no,
+                        "meta": {"event": evt},
+                        "has_conflict": False,
+                        "impact": "none",
+                    }
+                )
+            if sock_src_id is not None:
+                add_edge(sock_src_id, sock_id, "socket", label=evt)
+
+    # 5. 跨层契约与静态资源断链冲突（客观对比，绝不加虚构节点）
+    conflicts: list[dict[str, Any]] = []
+    if api_calls and declared_routes:
+        probe_res = ContractReconciliationProbe().run(
+            root=root,
+            api_routes=declared_routes,
+            frontend_api_calls=api_calls,
+            has_dynamic_loader=bool(routes_meta.get("has_dynamic_loader")),
+        )
+        for finding in probe_res.get("findings") or []:
+            if not isinstance(finding, dict):
+                continue
+            kind = str(finding.get("kind") or "contract_mismatch")
+            severity = (
+                "warning"
+                if routes_meta.get("has_dynamic_loader")
+                else str(finding.get("severity") or "warning")
+            )
+            src_file = str(finding.get("source") or finding.get("file") or "")
+            node_ids = [file_to_node[src_file]] if src_file in file_to_node else []
+            detail = str(
+                finding.get("detail")
+                or f"{finding.get('method', '')} {finding.get('path', '')}"
+            ).strip()
+            conflicts.append(
                 {
-                    "id": ws_id,
-                    "label": f"WS {ev}",
-                    "layer": "api",
-                    "kind": "socket",
-                    "file": be_file,
-                    "line": be_line,
-                    "module": _module_name_for_path(be_file),
-                    "meta": {"event": ev},
-                    "has_conflict": False,
-                    "impact": "none",
+                    "kind": kind,
+                    "severity": severity,
+                    "detail": detail,
+                    "file": src_file,
+                    "node_ids": node_ids,
                 }
             )
-        if fe_id:
-            add_edge(fe_id, ws_id, "calls_api", label=f"WS {ev}")
-        if be_id:
-            add_edge(ws_id, be_id, "handled_by", label="处理")
-
-    # 后端源码对存储模型/表名的引用边
-    content_by_file = {rel_posix: body for rel_posix, body, _s, _m in records}
-    for rel_posix, be_id in file_to_be_node.items():
-        body = content_by_file.get(rel_posix, "")
-        for ent in storage_entities:
-            name = str(ent["name"])
-            if len(name) >= 3 and re.search(rf"\b{re.escape(name)}\b", body):
-                add_edge(be_id, str(ent["id"]), "reads_writes", label=name)
-
-    # 5. 跨层契约对账冲突与缺失资源冲突标注
-    conflicts: list[dict[str, Any]] = []
-    contract_probe = ContractReconciliationProbe().run(
-        root=root,
-        frontend_api_calls=api_calls,
-        api_routes=declared_routes,
-        has_dynamic_loader=bool(routes_meta.get("has_dynamic_loader")),
-    )
-    node_map = {str(n["id"]): n for n in nodes}
-    for finding in contract_probe.get("findings") or []:
-        if not isinstance(finding, dict):
-            continue
-        src_file = str(finding.get("source") or "")
-        method = str(finding.get("method") or "")
-        path = str(finding.get("path") or "")
-        affected: list[str] = []
-        if src_file in file_to_fe_node:
-            fe_id = file_to_fe_node[src_file]
-            affected.append(fe_id)
-            node_map[fe_id]["has_conflict"] = True
-        norm = _normalize_route_path(path) if path else ""
-        if method == "ANY":
-            for aid in api_by_path.get(norm) or []:
-                affected.append(aid)
-                node_map[aid]["has_conflict"] = True
-        elif (method, norm) in api_index:
-            api_id = api_index[(method, norm)]
-            affected.append(api_id)
-            node_map[api_id]["has_conflict"] = True
-        elif ("ANY", norm) in api_index:
-            api_id = api_index[("ANY", norm)]
-            affected.append(api_id)
-            node_map[api_id]["has_conflict"] = True
-        conflicts.append(
-            {
-                "kind": str(finding.get("kind") or "contract_mismatch"),
-                "severity": str(finding.get("severity") or "error"),
-                "detail": str(finding.get("detail") or ""),
-                "file": src_file,
-                "node_ids": affected,
-            }
-        )
     for asset in fe_assets:
         if isinstance(asset, dict) and asset.get("exists_in_repo") is False:
             src_file = str(asset.get("source") or "")
-            affected = [file_to_fe_node[src_file]] if src_file in file_to_fe_node else []
-            for nid in affected:
-                node_map[nid]["has_conflict"] = True
+            href = str(asset.get("href") or "")
+            node_ids = [file_to_node[src_file]] if src_file in file_to_node else []
             conflicts.append(
                 {
                     "kind": "missing_static_asset",
                     "severity": "warning",
-                    "detail": f"{src_file} 引用的本地资源缺失：{asset.get('href')}",
+                    "detail": f"{src_file} 引用缺失静态资源 {href}",
                     "file": src_file,
-                    "node_ids": affected,
+                    "node_ids": node_ids,
                 }
             )
 
-    # 6. 按业务模块切片（支持大项目按模块增量深读与失效缓存）
-    chunks_map: dict[str, dict[str, Any]] = {}
+    conflict_node_ids = {nid for c in conflicts for nid in (c.get("node_ids") or [])}
     for node in nodes:
-        mod = str(node.get("module") or "root")
-        chunk = chunks_map.setdefault(
-            mod,
-            {
-                "chunk_id": f"chunk:{mod}",
-                "module": mod,
-                "files": [],
-                "node_ids": [],
-                "layers": {"frontend": 0, "api": 0, "backend": 0, "storage": 0},
-            },
-        )
-        chunk["node_ids"].append(node["id"])
-        layer = str(node.get("layer") or "")
-        if layer in chunk["layers"]:
-            chunk["layers"][layer] += 1
-        fpath = str(node.get("file") or "")
-        if fpath and fpath not in chunk["files"]:
-            chunk["files"].append(fpath)
-
-    module_chunks: list[dict[str, Any]] = []
-    for mod in sorted(chunks_map):
-        chunk = chunks_map[mod]
-        chunk_hasher = hashlib.sha256()
-        for fpath in sorted(chunk["files"]):
-            chunk_hasher.update(
-                f"{fpath}:{len(content_by_file.get(fpath, ''))}\n".encode()
-            )
-        layers = chunk["layers"]
-        chunk["content_hash"] = chunk_hasher.hexdigest()[:16]
-        chunk["summary"] = (
-            f"模块 {mod}：前端 {layers['frontend']}、接口 {layers['api']}、"
-            f"后端 {layers['backend']}、存储 {layers['storage']}"
-        )
-        module_chunks.append(chunk)
+        if node["id"] in conflict_node_ids:
+            node["has_conflict"] = True
 
     graph: dict[str, Any] = {
         "schema_version": _GRAPH_SCHEMA_VERSION,
         "generated_at": iso_now(),
         "source_hash": source_hash,
         "stats": {
-            "total_files": len(records),
+            "total_files": len(scan.files),
             "frontend": sum(1 for n in nodes if n["layer"] == "frontend"),
             "api": sum(1 for n in nodes if n["layer"] == "api"),
             "backend": sum(1 for n in nodes if n["layer"] == "backend"),
-            "storage": sum(1 for n in nodes if n["layer"] == "storage"),
+            "storage": 0,
             "edges": len(edges),
             "conflicts": len(conflicts),
         },
         "nodes": nodes,
         "edges": edges,
         "conflicts": conflicts,
-        "module_chunks": module_chunks,
+        "module_chunks": [],
         "external_systems": _detect_external_systems(root, config),
     }
     apply_git_impact(graph, local_git)
@@ -1055,35 +621,15 @@ def build_code_graph(
 
 
 def _fast_source_hash(root: Path, *, max_files: int = 10000) -> str:
-    ignore_patterns = load_ignore_patterns(root)
-    hasher = hashlib.sha256()
-    count = 0
-    for base, dirs, names in os.walk(root):
-        base_path = Path(base)
-        dirs[:] = sorted(
-            d
-            for d in dirs
-            if d not in _SKIP_DIRS
-            and not d.startswith(".")
-            and not is_ignored_path(root, base_path / d, ignore_patterns)
-        )
-        for name in sorted(names):
-            if Path(name).suffix.lower() not in _INDEXED_EXTS:
-                continue
-            path = base_path / name
-            if is_ignored_path(root, path, ignore_patterns):
-                continue
-            rel_posix = path.relative_to(root).as_posix()
-            if _is_test_file(rel_posix):
-                continue
-            with contextlib.suppress(OSError):
-                stat = path.stat()
-                if stat.st_size <= 512 * 1024:
-                    hasher.update(f"{rel_posix}:{stat.st_size}:{stat.st_mtime_ns}\n".encode())
-                    count += 1
-            if count >= max_files:
-                return hasher.hexdigest()
-    return hasher.hexdigest()
+    """兼容旧调用点的快速仓源码指纹封装，直接委托 repo_index 计算。"""
+    fp, _cacheable = compute_repo_fingerprint(
+        root,
+        cache_version=_GRAPH_SCHEMA_VERSION,
+        include_tests=False,
+        extensions=_INDEXED_EXTS,
+        max_non_git_files=max_files,
+    )
+    return fp
 
 
 def load_or_build_code_graph(
@@ -1094,21 +640,274 @@ def load_or_build_code_graph(
     *,
     local_git: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """优先从缓存读取代码图并重算当前 Git 影响范围，源码变化时自动增量重建。"""
+    """优先从版本化缓存读取轻量架构图并重算当前 Git 影响范围，源码变更时自动失效重建。"""
     cache_path = ws.root / ".cache" / "code_graph" / project_id / "graph.json"
-    current_hash = _fast_source_hash(root) if root.is_dir() else ""
-    if cache_path.is_file():
+    current_hash, cacheable = (
+        compute_repo_fingerprint(
+            root,
+            cache_version=_GRAPH_SCHEMA_VERSION,
+            extra_data=redact_tree(config, []),
+            include_tests=False,
+            extensions=_INDEXED_EXTS,
+        )
+        if root.is_dir()
+        else ("", False)
+    )
+    cached = read_versioned_cache(
+        cache_path,
+        fingerprint=current_hash,
+        cache_version=_GRAPH_SCHEMA_VERSION,
+        payload_key="graph",
+    )
+    # 兼容直接将 graph 存于 cache 根对象的读取形式
+    if cached is None and cache_path.is_file():
         with contextlib.suppress(Exception):
-            cached = read_json(cache_path)
+            from aitest.storage.files import read_json
+
+            raw = read_json(cache_path)
             if (
-                isinstance(cached, dict)
-                and cached.get("schema_version") == _GRAPH_SCHEMA_VERSION
-                and cached.get("source_hash") == current_hash
+                isinstance(raw, dict)
+                and raw.get("schema_version") == _GRAPH_SCHEMA_VERSION
+                and raw.get("source_hash") == current_hash
             ):
-                apply_git_impact(cached, local_git)
-                _sort_nodes_by_priority(cached)
-                return cached
+                cached = raw
+    if cached is not None:
+        apply_git_impact(cached, local_git)
+        _sort_nodes_by_priority(cached)
+        return cached
+
     graph = build_code_graph(root, config, local_git=local_git)
-    with contextlib.suppress(OSError):
-        write_json(cache_path, graph)
+    if cacheable:
+        from aitest.storage.files import write_json
+
+        with contextlib.suppress(OSError):
+            write_json(cache_path, graph)
+            write_versioned_cache(
+                cache_path.parent / f"slot-{current_hash[:12]}.json",
+                fingerprint=current_hash,
+                cache_version=_GRAPH_SCHEMA_VERSION,
+                data=graph,
+                payload_key="graph",
+                evict_prefix="slot-",
+                keep_slots=2,
+            )
     return graph
+
+
+def _dependency_search_tokens(dependencies: list[str]) -> list[str]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw in dependencies:
+        dep = raw.strip()
+        if not dep:
+            continue
+        candidates = [dep]
+        if "/" in dep:
+            tail = dep.rsplit("/", 1)[-1]
+            head = dep.split("/", 1)[0].lstrip("@")
+            candidates.extend([head, tail])
+        if "." in dep:
+            candidates.append(dep.split(".", 1)[0])
+        if "-" in dep:
+            candidates.append(dep.replace("-", "_"))
+        for token in candidates:
+            cleaned = token.strip().lower()
+            if len(cleaned) >= 2 and cleaned not in seen:
+                seen.add(cleaned)
+                tokens.append(cleaned)
+    return tokens
+
+
+def _file_mentions_dependency(path: Path, tokens: list[str]) -> bool:
+    if not tokens:
+        return False
+    try:
+        if path.stat().st_size > 256 * 1024:
+            return False
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    lower = text.lower()
+    if path.suffix.lower() == ".py":
+        with contextlib.suppress(SyntaxError, ValueError):
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        top = alias.name.split(".", 1)[0].lower()
+                        full = alias.name.lower()
+                        if any(tok in (top, full) for tok in tokens):
+                            return True
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    top = node.module.split(".", 1)[0].lower()
+                    full = node.module.lower()
+                    if any(tok in (top, full) for tok in tokens):
+                        return True
+    return any(
+        re.search(rf"(?<![a-z0-9_]){re.escape(tok)}(?![a-z0-9_])", lower)
+        for tok in tokens
+    )
+
+
+def related_files_for_dependencies(
+    project_root: Path,
+    dependencies: list[str],
+    *,
+    max_depth: int = 3,
+    skip_dirs: frozenset[str] | None = None,
+    candidate_suffixes: frozenset[str] | None = None,
+    config_names: frozenset[str] | None = None,
+    component_manifests: frozenset[str] | None = None,
+    max_direct_hits: int = 240,
+) -> list[Path]:
+    """按单个依赖筛出直接引用文件；超上限时短路仅返回直接命中文件，不附加清单。"""
+    del max_depth
+    grouped = related_files_by_dependency(
+        project_root,
+        dependencies,
+        skip_dirs=skip_dirs,
+        candidate_suffixes=candidate_suffixes,
+        config_names=config_names,
+        component_manifests=component_manifests,
+        per_dep_cap=max(40, max_direct_hits * 2),
+    )
+    selected: dict[str, Path] = {}
+    manifest_set = component_manifests or frozenset(
+        {
+            "pyproject.toml",
+            "package.json",
+            "requirements.txt",
+            "go.mod",
+            "Cargo.toml",
+            "pom.xml",
+            "build.gradle",
+            "composer.json",
+        }
+    )
+    for dep in dependencies:
+        hits = grouped.get(dep, [])
+        direct_only = [p for p in hits if p.name not in manifest_set]
+        chosen = direct_only if len(direct_only) > max_direct_hits else hits
+        for path in chosen:
+            selected[path.relative_to(project_root).as_posix()] = path
+    return [selected[key] for key in sorted(selected)]
+
+
+def related_files_by_dependency(
+    project_root: Path,
+    dependencies: list[str],
+    *,
+    max_depth: int = 3,
+    skip_dirs: frozenset[str] | None = None,
+    candidate_suffixes: frozenset[str] | None = None,
+    config_names: frozenset[str] | None = None,
+    component_manifests: frozenset[str] | None = None,
+    per_dep_cap: int = 40,
+) -> dict[str, list[Path]]:
+    """单遍扫描仓库按依赖分组收集直接引用文件，避免重复遍历与重建架构图。"""
+    del max_depth
+    result: dict[str, list[Path]] = {dep: [] for dep in dependencies}
+    if not dependencies or not project_root.is_dir():
+        return result
+
+    skip = {s.lower() for s in (skip_dirs if skip_dirs is not None else DEFAULT_SKIP_DIRS)}
+    suffixes = candidate_suffixes if candidate_suffixes is not None else _INDEXED_EXTS
+    cfg_names = {c.lower() for c in (config_names or frozenset())}
+    manifests = component_manifests or frozenset(
+        {
+            "pyproject.toml",
+            "package.json",
+            "requirements.txt",
+            "go.mod",
+            "Cargo.toml",
+            "pom.xml",
+            "build.gradle",
+            "composer.json",
+        }
+    )
+
+    dep_tokens: dict[str, list[str]] = {}
+    dep_patterns: dict[str, re.Pattern[str]] = {}
+    for dep in dependencies:
+        if dep in dep_tokens:
+            continue
+        toks = _dependency_search_tokens([dep])
+        if not toks:
+            continue
+        dep_tokens[dep] = toks
+        ordered = sorted(toks, key=len, reverse=True)
+        dep_patterns[dep] = re.compile(
+            "|".join(rf"(?<![a-z0-9_]){re.escape(tok)}(?![a-z0-9_])" for tok in ordered)
+        )
+
+    active_deps = list(dep_patterns.keys())
+    if not active_deps:
+        return result
+
+    def _compile_coarse(deps_list: list[str]) -> re.Pattern[str] | None:
+        all_toks = sorted(
+            {tok for dep in deps_list for tok in dep_tokens[dep]},
+            key=len,
+            reverse=True,
+        )
+        if not all_toks:
+            return None
+        return re.compile(
+            "|".join(rf"(?<![a-z0-9_]){re.escape(tok)}(?![a-z0-9_])" for tok in all_toks)
+        )
+
+    coarse_pattern = _compile_coarse(active_deps)
+    hits: dict[str, dict[str, Path]] = {dep: {} for dep in active_deps}
+    scan = scan_repo(project_root, extra_skip_dirs=skip - DEFAULT_SKIP_DIRS, include_tests=True)
+    manifest_files = {
+        rel: path for rel, path in scan.manifests.items() if Path(rel).name in manifests
+    }
+
+    for entry in scan.files:
+        lname = entry.path.name.lower()
+        if entry.path.suffix.lower() not in suffixes and lname not in cfg_names:
+            continue
+        if not active_deps or coarse_pattern is None or entry.size > 256 * 1024:
+            continue
+        try:
+            lower = entry.path.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        if coarse_pattern.search(lower) is None:
+            continue
+        saturated: list[str] = []
+        for dep in active_deps:
+            if dep_patterns[dep].search(lower) is not None:
+                hits[dep][entry.rel_posix] = entry.path
+                if len(hits[dep]) >= per_dep_cap:
+                    saturated.append(dep)
+        if saturated:
+            saturated_set = set(saturated)
+            active_deps = [dep for dep in active_deps if dep not in saturated_set]
+            coarse_pattern = _compile_coarse(active_deps)
+
+    for dep in dependencies:
+        dep_hits = hits.get(dep)
+        if not dep_hits:
+            result[dep] = []
+            continue
+        if len(dep_hits) >= per_dep_cap:
+            result[dep] = [dep_hits[key] for key in sorted(dep_hits)]
+            continue
+        merged = dict(dep_hits)
+        for mrel in sorted(manifest_files):
+            if len(merged) >= max(len(dep_hits), per_dep_cap - 1):
+                break
+            merged.setdefault(mrel, manifest_files[mrel])
+        result[dep] = [merged[key] for key in sorted(merged)]
+    return result
+
+
+__all__ = [
+    "apply_git_impact",
+    "build_code_graph",
+    "is_test_relpath",
+    "load_or_build_code_graph",
+    "related_files_by_dependency",
+    "related_files_for_dependencies",
+]

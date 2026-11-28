@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +16,8 @@ from aitest.commands import (
     _text,
 )
 from aitest.config import known_secret_values
-from aitest.core.issues import ensure_run_issues
-from aitest.core.reports import build_report
+from aitest.core.issues import ensure_run_issues, prepare_issue_drafts
+from aitest.core.reports import build_report, prepare_report_ai
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import load_project_config
 from aitest.models import (
@@ -25,7 +26,7 @@ from aitest.models import (
 )
 from aitest.runtime._common import _as_bool, _ensure_settled, _run
 from aitest.security import redact
-from aitest.storage.files import read_model, write_model
+from aitest.storage.files import read_json, read_model, write_json, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
 
@@ -34,8 +35,20 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
     project = _project(ws, payload)
     run_dir, run = _run(ws, payload)
     _ensure_settled(run)
-    ensure_run_issues(ws, project.project_id, run_dir)
-    report = build_report(ws, project, run_dir)
+    # 扫描与大模型 Mock 判定/问题预拟全部移出写锁外；仅写回落盘持短项目锁。
+    precomputed_mock, precomputed_summary = prepare_report_ai(ws, project, run_dir)
+    prepare_issue_drafts(ws, project.project_id, run_dir) if any(
+        c.result == "failed" for c in run.cases
+    ) else None
+    with ws.project_lock(project.project_id, timeout=30.0):
+        ensure_run_issues(ws, project.project_id, run_dir)
+        report = build_report(
+            ws,
+            project,
+            run_dir,
+            precomputed_mock=precomputed_mock,
+            precomputed_summary=precomputed_summary,
+        )
     return {
         "report_id": report.report_id,
         "run_id": report.run_id,
@@ -54,15 +67,6 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         "l1": report.l1,
         "issue_count": report.issue_count,
         "failure_occurrences": report.failure_occurrences,
-        "templates": [
-            {
-                "template_id": entry.get("template_id"),
-                "name": entry.get("name"),
-                "summary": entry.get("summary") or {},
-            }
-            for entry in report.templates
-            if isinstance(entry, dict)
-        ],
     }
 
 
@@ -93,7 +97,33 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     rows: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     if directory.is_dir():
+        idx_path = ws.project_dir(project.project_id) / ".reports_index.json"
+        cached_items: dict[str, Any] = {}
+        if idx_path.is_file():
+            try:
+                raw_idx = read_json(idx_path)
+                if isinstance(raw_idx, dict) and isinstance(raw_idx.get("items"), dict):
+                    cached_items = dict(raw_idx["items"])
+            except (AiTestError, OSError):
+                cached_items = {}
+        new_items: dict[str, Any] = {}
+        idx_dirty = False
         for path in directory.glob("*.json"):
+            try:
+                mtime_ns = path.stat().st_mtime_ns
+            except OSError:
+                mtime_ns = 0
+            cached_entry = cached_items.get(path.stem) if not include_body else None
+            if (
+                isinstance(cached_entry, dict)
+                and cached_entry.get("mtime_ns") == mtime_ns
+                and isinstance(cached_entry.get("row"), dict)
+            ):
+                row_cached = dict(cached_entry["row"])
+                new_items[path.stem] = cached_entry
+                if row_cached.get("run_id") == run_id:
+                    rows.append(row_cached)
+                continue
             try:
                 report = read_model(path, Report)
             except AiTestError as exc:
@@ -105,8 +135,6 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
                     }
                 )
                 continue
-            if report.run_id != run_id:
-                continue
             generated_at = report.generated_at
             if not generated_at:
                 try:
@@ -115,7 +143,7 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
                     )
                 except OSError:
                     generated_at = ""
-            row: dict[str, Any] = {
+            summary_row = {
                 "report_id": report.report_id,
                 "run_id": report.run_id,
                 "generated_at": generated_at,
@@ -123,9 +151,17 @@ def cmd_report_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
                 "revision": report.revision,
                 "has_opinion": report.opinion is not None,
             }
+            new_items[report.report_id] = {"mtime_ns": mtime_ns, "row": summary_row}
+            idx_dirty = True
+            if report.run_id != run_id:
+                continue
+            row: dict[str, Any] = dict(summary_row)
             if include_body:
                 row["report"] = report.model_dump(mode="json")
             rows.append(row)
+        if idx_dirty and not skipped:
+            with contextlib.suppress(OSError):
+                write_json(idx_path, {"schema_version": 1, "items": new_items})
     rows.sort(key=lambda item: item["generated_at"], reverse=True)
     return {"reports": rows, "skipped": skipped}
 
@@ -139,9 +175,18 @@ def _cell(value: object) -> str:
 
 def _case_row(detail: dict[str, Any]) -> str:
     refs = "、".join(_cell(item) for item in detail.get("evidence_refs") or []) or "-"
+    tier = detail.get("confidence_tier") or "-"
+    attempts = detail.get("attempts") or []
+    last_msg = ""
+    if isinstance(attempts, list) and attempts:
+        last = attempts[-1]
+        if isinstance(last, dict):
+            last_msg = str(last.get("message") or "").strip()[:120]
     return (
-        f"| {_cell(detail.get('case_id'))} | {_cell(detail.get('acceptance_item_id') or '-')} "
-        f"| {_cell(detail.get('layer'))} | {_cell(detail.get('result'))} | {refs} |"
+        f"| {_cell(detail.get('case_id'))} | {_cell(detail.get('title') or '-')} "
+        f"| {_cell(detail.get('acceptance_item_id') or '-')} "
+        f"| {_cell(detail.get('layer'))} | {_cell(detail.get('result'))} "
+        f"| {_cell(tier)} | {_cell(last_msg or '-')} | {refs} |"
     )
 
 
@@ -207,7 +252,6 @@ def _export_lines(report: Report) -> list[str]:
         f"- 未覆盖：{len(report.uncovered_items)}",
         f"- 失败：{report.counts.get('failed', 0)}",
         f"- 源码提交：{report.source_commit or '未记录'}",
-        f"- 规则版本：{report.rules_version_id or '未记录'}",
     ]
     python_version = report.environment.get("python")
     lines.append(f"- 环境 Python：{python_version or '未记录'}")
@@ -315,22 +359,65 @@ def _export_lines(report: Report) -> list[str]:
             lines.append(f"- 阻塞原因：{reason}")
     lines.append("")
     lines.append("## 用例明细")
-    lines.append("| 用例 | 验收项 | 分层 | 结果 | 证据 |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| 用例 | 标题 | 验收项 | 分层 | 结果 | 可信度 | 结论摘要 | 证据 |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
     if report.case_details:
         lines.extend(_case_row(detail) for detail in report.case_details)
     else:
-        lines.append("| 无 | - | - | - | - |")
+        lines.append("| 无 | - | - | - | - | - | - | - |")
     lines.append("")
     lines.append("## 失败证据")
-    failed = [item for item in report.case_details if item.get("result") == "failed"]
-    if not failed:
-        lines.append("- 无失败用例")
+    abnormal = [
+        item
+        for item in report.case_details
+        if item.get("result") in {"failed", "blocked", "error"}
+    ]
+    if not abnormal:
+        lines.append("- 无失败或阻塞用例")
     else:
-        for detail in failed:
+        for detail in abnormal:
+            cid = str(detail.get("case_id") or "")
+            title = str(detail.get("title") or "-")
+            res = str(detail.get("result") or "")
+            tier = str(detail.get("confidence_tier") or "-")
+            tier_reason = str(detail.get("confidence_reason") or "").strip()
+            attempts = detail.get("attempts") or []
+            err_msg = ""
+            if isinstance(attempts, list) and attempts and isinstance(attempts[-1], dict):
+                err_msg = str(attempts[-1].get("message") or "").strip()
+            log_issues = detail.get("service_log_issues") or []
             refs = detail.get("evidence_refs") or []
             rendered = "、".join(_cell(item) for item in refs) or "未采集证据"
-            lines.append(f"- {_cell(detail.get('case_id'))}：{rendered}")
+            matched_issue = next(
+                (
+                    iss
+                    for iss in report.issues
+                    if isinstance(iss, dict)
+                    and (
+                        cid in str(iss.get("title") or "")
+                        or title in str(iss.get("title") or "")
+                    )
+                ),
+                None,
+            )
+            loc_str = ""
+            if matched_issue is not None:
+                f = matched_issue.get("file")
+                ln = matched_issue.get("line")
+                loc_str = f" | 问题 {matched_issue.get('issue_id')}"
+                if f:
+                    loc_str += f" @ {f}:{ln or 0}"
+            lines.append(
+                f"- [{_cell(res)}/{_cell(tier)}] **{_cell(cid)}**（{_cell(title)}）"
+                f"：{_cell(err_msg or tier_reason or '无报错信息')}{_cell(loc_str)}"
+                f" | 证据：{rendered}"
+            )
+            if tier_reason and tier_reason != err_msg:
+                lines.append(f"  - 可信度依据：{_cell(tier_reason)}")
+            if log_issues:
+                lines.append(
+                    "  - 后台服务日志异常：" + "；".join(_cell(item) for item in log_issues[:3])
+                )
     lines.append("")
     lines.append("## 涉及模块")
     lines.append("- 已映射模块：" + ("、".join(report.changed_modules) or "无"))
@@ -350,9 +437,12 @@ def _export_lines(report: Report) -> list[str]:
     )
     if report.issues:
         for issue in report.issues:
+            loc = ""
+            if issue.get("file"):
+                loc = f" @ {issue.get('file')}:{issue.get('line') or 0}"
             lines.append(
                 f"- {_cell(issue.get('issue_id'))} [{_cell(issue.get('severity'))}"
-                f"/{_cell(issue.get('status'))}] {_cell(issue.get('title'))}"
+                f"/{_cell(issue.get('status'))}] {_cell(issue.get('title'))}{loc}"
                 f"（发生 {issue.get('occurrences', 0)} 次，本运行 "
                 f"{issue.get('run_occurrences', 0)} 次）"
             )
@@ -368,31 +458,6 @@ def _export_lines(report: Report) -> list[str]:
             )
     else:
         lines.append("- 未判定")
-    lines.append("")
-    lines.append("## 模板处置")
-    if not report.templates:
-        lines.append("- 未应用模板")
-    else:
-        for entry in report.templates:
-            if not isinstance(entry, dict):
-                continue
-            raw_summary = entry.get("summary")
-            summary: dict[str, Any] = raw_summary if isinstance(raw_summary, dict) else {}
-            lines.append(
-                f"- {entry.get('name') or entry.get('template_id') or '模板'}"
-                f"（适用 {summary.get('applicable', 0)}，"
-                f"不适用 {summary.get('not_applicable', 0)}，"
-                f"不支持 {summary.get('unsupported', 0)}，"
-                f"未知 {summary.get('unknown', 0)}）"
-            )
-            raw_items = entry.get("items")
-            items: list[Any] = raw_items if isinstance(raw_items, list) else []
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                label = item.get("objective") or item.get("item_id") or ""
-                reason = item.get("reason") or "未提供理由"
-                lines.append(f"  - {label}：{item.get('disposition', 'unknown')}（{reason}）")
     lines.append("")
     lines.append("## 验收意见")
     if report.opinion is None:

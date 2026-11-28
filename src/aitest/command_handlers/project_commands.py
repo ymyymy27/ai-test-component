@@ -11,7 +11,6 @@ from aitest.command_handlers._common import (
     Payload,
     _config_path,
     _find_secret_field,
-    _probe_writable,
     _project,
     _project_map_path,
     _project_secrets,
@@ -23,7 +22,10 @@ from aitest.command_handlers._common import (
 from aitest.config import known_secret_values
 from aitest.core.modules import build_context as build_module_context
 from aitest.core.modules import invalid_dependencies
-from aitest.core.project_context import build_project_context
+from aitest.core.project_context import (
+    build_capabilities_snapshot,
+    cached_project_context,
+)
 from aitest.core.shared_config import (
     extract_conventions,
     load_shared_repo_config,
@@ -46,6 +48,7 @@ CONFIG_SECTIONS: tuple[str, ...] = (
     "data",
     "environments",
     "conventions",
+    "test_roles",
 )
 _MODULE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
@@ -55,9 +58,10 @@ def cmd_project_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     root = Path(_text({"root": _require(payload, "root")}, "root")).expanduser().resolve()
     if not root.is_dir():
         raise invalid_path(f"目录不存在：{root}")
-    writable, writable_error = _probe_writable(root)
-    if not writable:
-        raise invalid_path(f"目录不可写：{root}；{writable_error}")
+    try:
+        next(root.iterdir(), None)
+    except OSError as exc:
+        raise invalid_path(f"目录不可读：{root}；{exc}") from exc
     existing = ws.find_by_root(str(root))
     if existing is not None:
         return {
@@ -279,7 +283,7 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
         return {"conventions": updated_convs}
     if action == "detect":
         root_path = Path(project.root)
-        derived = build_project_context(root_path, {})
+        derived = cached_project_context(ws.root, project.project_id, root_path, existing)
         test_cmds = [str(c) for c in derived.get("test_commands") or [] if isinstance(c, str)]
         existing_cmds = derived.get("existing_commands") or []
         build_cmd = next(
@@ -302,29 +306,60 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             l1_draft["smoke_command"] = smoke_cmd
         if l1_draft:
             draft["l1"] = l1_draft
+        runners_draft: dict[str, Any] = {}
         if test_cmds:
-            draft["runners"] = {"test": test_cmds[0]}
+            runners_draft["test"] = test_cmds[0]
+        from aitest.worker_impl.env import _venv_python
+
+        local_venv = _venv_python(root_path)
+        if local_venv is not None:
+            runners_draft["python"] = str(local_venv)
+        if runners_draft:
+            draft["runners"] = runners_draft
         raw_services = derived.get("services")
         if isinstance(raw_services, dict) and raw_services:
-            first_svc = next(
-                (v for v in raw_services.values() if isinstance(v, dict)),
-                None,
-            )
-            svc_src = first_svc if first_svc is not None else raw_services
-            svc_draft: dict[str, Any] = {}
-            if isinstance(svc_src.get("start"), str) and svc_src["start"]:
-                svc_draft["start"] = svc_src["start"]
-            health = str(svc_src.get("health") or "")
-            if health:
-                svc_draft["health"] = health
-                parsed = urlsplit(health)
-                if parsed.scheme and parsed.netloc:
-                    svc_draft["base_url"] = f"{parsed.scheme}://{parsed.netloc}"
-            if svc_draft:
-                draft["services"] = svc_draft
+            if {"start", "health", "stop"} & set(raw_services):
+                svc_draft: dict[str, Any] = {}
+                if isinstance(raw_services.get("start"), str) and raw_services["start"]:
+                    svc_draft["start"] = raw_services["start"]
+                health = str(raw_services.get("health") or "")
+                if health:
+                    svc_draft["health"] = health
+                    parsed = urlsplit(health)
+                    if parsed.scheme and parsed.netloc:
+                        svc_draft["base_url"] = f"{parsed.scheme}://{parsed.netloc}"
+                if svc_draft:
+                    draft["services"] = svc_draft
+            else:
+                multi_svcs: dict[str, Any] = {}
+                for svc_name, svc_src in raw_services.items():
+                    if not isinstance(svc_src, dict):
+                        continue
+                    item_draft: dict[str, Any] = {}
+                    for k in ("start", "stop", "health", "role"):
+                        val = svc_src.get(k)
+                        if isinstance(val, str) and val:
+                            item_draft[k] = val
+                    health = str(svc_src.get("health") or "")
+                    if health and "base_url" not in item_draft:
+                        parsed = urlsplit(health)
+                        if parsed.scheme and parsed.netloc:
+                            item_draft["base_url"] = f"{parsed.scheme}://{parsed.netloc}"
+                    if item_draft:
+                        multi_svcs[str(svc_name)] = item_draft
+                if multi_svcs:
+                    draft["services"] = multi_svcs
         secrets = known_secret_values([raw])
+        capabilities = build_capabilities_snapshot(
+            root_path,
+            existing,
+            project_context=derived,
+            runtime_introspect=bool(payload.get("runtime_introspect") is True),
+            secrets=secrets,
+        )
         return {
             "draft": _whitelisted_config(_strip_secret_fields(draft)),
+            "capabilities": capabilities,
             "detected": redact_tree(
                 {
                     "framework": derived.get("framework", []),
@@ -367,6 +402,13 @@ def cmd_project_config(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
             raise invalid_request(
                 f"{section} 必须是对象", f"把 {section} 写成 JSON 对象后重试"
             )
+        if section == "test_roles" and isinstance(value, dict):
+            for role_name, role_spec in value.items():
+                if role_spec is not None and not isinstance(role_spec, dict):
+                    raise invalid_request(
+                        f"test_roles.{role_name} 必须是对象",
+                        "使用 username_env / password_env / token_env 等环境变量名映射",
+                    )
     merged = dict(existing)
     for section, value in patch.items():
         if value is None:

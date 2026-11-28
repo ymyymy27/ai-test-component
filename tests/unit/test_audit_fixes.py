@@ -562,20 +562,20 @@ def test_docs_command_counts_and_panel_paths_match_code() -> None:
     from aitest.commands import REGISTRY
 
     root = Path(__file__).resolve().parents[2]
-    assert len(REGISTRY) == 60
+    assert len(REGISTRY) == 54
     readme = (root / "README.md").read_text(encoding="utf-8")
-    assert "**60** 个命令" in readme
+    assert "**54** 个命令" in readme
     assert "**59** 个命令" not in readme
     architecture = (
         root / "docs/项目文档/一期/04-架构/02-CLI与扩展.md"
     ).read_text(encoding="utf-8")
-    assert "注册 60 条命令" in architecture
+    assert "注册 54 条命令" in architecture
     assert "panel/src/host/commands.ts" in architecture
     assert "panel/src/api/commands.ts" not in architecture
     contract = (
         root / "docs/项目文档/一期/03-设计/03-CLI与数据契约.md"
     ).read_text(encoding="utf-8")
-    assert "当前注册 60 条命令" in contract
+    assert "当前注册 54 条命令" in contract
 
 
 # -- T-18 old data visibility ---------------------------------------------
@@ -649,48 +649,11 @@ def test_workspace_lock_blocks_another_process(tmp_path: Path) -> None:
 # -- 补-T09 command-level coverage ----------------------------------------
 
 
-def test_template_rules_module_and_evidence_commands(
+def test_module_and_evidence_commands(
     tmp_path: Path, capsys: Capsys
 ) -> None:
     project, _root = _project(tmp_path, capsys)
     project_id = project["project_id"]
-    templates = call(tmp_path, "template.list", {"project_id": project_id}, capsys)
-    assert templates["data"]["templates"]
-
-    saved = call(
-        tmp_path,
-        "rules.save",
-        {"project_id": project_id, "name": "规则", "version": "1", "steps_md": "# 步骤"},
-        capsys,
-    )["data"]
-    shown = call(
-        tmp_path,
-        "rules.show",
-        {"project_id": project_id, "rules_version_id": saved["rules_version_id"]},
-        capsys,
-    )["data"]["rule"]
-    assert shown["name"] == "规则"
-    target = tmp_path / "rule.md"
-    exported = call(
-        tmp_path,
-        "rules.export",
-        {
-            "project_id": project_id,
-            "rules_version_id": saved["rules_version_id"],
-            "path": str(target),
-        },
-        capsys,
-    )
-    assert exported["ok"] is True
-    source = tmp_path / "import.md"
-    source.write_text("# 导入规则", encoding="utf-8")
-    imported = call(
-        tmp_path,
-        "rules.import",
-        {"project_id": project_id, "name": "导入", "version": "2", "path": str(source)},
-        capsys,
-    )["data"]
-    assert imported["version"] == "2"
 
     module = call(
         tmp_path,

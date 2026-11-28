@@ -155,7 +155,7 @@ async function clearAndRetry(): Promise<void> {
           :error="errors.root"
           v-slot="{ inputId, describedBy, invalid }"
         >
-          <div class="input-with-button">
+          <div class="stack-sm">
             <input
               :id="inputId"
               ref="rootInput"
@@ -170,26 +170,28 @@ async function clearAndRetry(): Promise<void> {
               :disabled="busy"
               @input="clearError('root')"
             />
-            <button
-              class="btn btn-sm"
-              type="button"
-              :disabled="picking || busy || workspace.mode !== 'host'"
-              :title="
-                workspace.mode === 'host'
-                  ? '从本机选择项目目录'
-                  : '浏览器演示模式无法读取本机绝对路径'
-              "
-              @click="chooseDirectory"
-            >
-              <Icon name="folder" :size="14" />
-              {{
-                picking
-                  ? "选择中…"
-                  : workspace.mode === "host"
-                    ? "选择目录"
-                    : "选择目录（需 Trae）"
-              }}
-            </button>
+            <div class="row">
+              <button
+                class="btn btn-sm"
+                type="button"
+                :disabled="picking || busy || workspace.mode !== 'host'"
+                :title="
+                  workspace.mode === 'host'
+                    ? '从本机选择项目目录'
+                    : '浏览器演示模式无法读取本机绝对路径'
+                "
+                @click="chooseDirectory"
+              >
+                <Icon name="folder" :size="14" />
+                {{
+                  picking
+                    ? "选择中…"
+                    : workspace.mode === "host"
+                      ? "选择目录"
+                      : "选择目录（需 Trae）"
+                }}
+              </button>
+            </div>
           </div>
         </FormField>
 

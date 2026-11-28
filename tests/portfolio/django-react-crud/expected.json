@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "project": "django-react-crud",
+  "role": "干净对照 + DRF 协议栈",
+  "stack": ["django", "drf", "sqlite", "react", "vite"],
+  "expected_level": "T1",
+  "known_defects_total": 0,
+  "min_defects_detected": 0,
+  "max_false_positives": 0,
+  "max_false_passes": 0,
+  "notes": "干净对照项目：0 失败，0 误报。"
+}

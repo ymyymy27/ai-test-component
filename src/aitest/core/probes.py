@@ -13,6 +13,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -133,9 +134,27 @@ class ContractReconciliationProbe:
             raw_path = str(call.get("path") or "").strip()
             if not raw_path:
                 continue
-            checked += 1
-            norm = _normalize_route_path(raw_path)
             source = str(call.get("source") or "frontend")
+            low_src = source.lower()
+            if any(
+                noise in low_src
+                for noise in (
+                    "vite-config",
+                    "nitro-mock",
+                    "__mocks__",
+                    "storybook",
+                    ".spec.",
+                    ".test.",
+                    "/msw",
+                    "\\msw",
+                )
+            ):
+                continue
+            norm = _normalize_route_path(raw_path)
+            segs = [s for s in norm.strip("/").split("/") if s]
+            if method == "ANY" and (len(segs) < 2 or norm in {"/api", "/api/v1", "/api/v2"}):
+                continue
+            checked += 1
             if method == "ANY":
                 matched_routes = list(routes_by_path.get(norm) or [])
             else:
@@ -548,7 +567,6 @@ class RouteBoundaryProbe:
 
 
 BUILTIN_PROBES: tuple[DeterministicProbe, ...] = (
-    ContractReconciliationProbe(),
     StaticAssetsProbe(),
     RouteBoundaryProbe(),
 )
@@ -564,11 +582,13 @@ def run_deterministic_probes(
     service_ready: bool = False,
     probe_targets: dict[str, tuple[str, bool]] | None = None,
     secrets: list[str] | None = None,
+    probes: Sequence[DeterministicProbe] | None = None,
 ) -> list[dict[str, Any]]:
     """依次运行内置确定性硬探针，对照项目错题本过滤已豁免约定并执行脱敏。
 
     ``probe_targets`` 允许按探针指定目标服务（如静态资源探针打前端、路由边界
     探针打后端）；未列出的探针沿用 ``base_url`` / ``service_ready``。
+    已按阶段 1B 停用默认 `ContractReconciliationProbe` 全仓扫与 `LivePageProbe`。
     """
     conventions = extract_conventions(config)
     routes_meta: dict[str, Any] = {}
@@ -590,13 +610,9 @@ def run_deterministic_probes(
         else _frontend_assets(root, max_assets=500, max_html=200)
     )
 
-    from aitest.core.live_page_probe import LivePageProbe
-
-    probes_to_run: list[DeterministicProbe] = list(BUILTIN_PROBES)
-    probes_cfg = config.get("probes") if isinstance(config, dict) else None
-    live_cfg = probes_cfg.get("live_page") if isinstance(probes_cfg, dict) else None
-    if isinstance(live_cfg, dict) and live_cfg.get("enabled") is True:
-        probes_to_run.append(LivePageProbe())
+    probes_to_run: list[DeterministicProbe] = (
+        list(probes) if probes is not None else list(BUILTIN_PROBES)
+    )
 
     results: list[dict[str, Any]] = []
     for probe in probes_to_run:

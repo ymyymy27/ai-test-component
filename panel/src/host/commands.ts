@@ -18,12 +18,12 @@ import type {
   ModuleSuggestion,
   Opinion,
   PlanDetail,
+  PlanRepairCaseResultDto,
+  PlanReviewResultDto,
   Project,
   ProjectConfig,
   ProjectSnapshot,
   ProjectSummary,
-  Rule,
-  RuleSummary,
   Report,
   ReportSummary,
   ReportVersion,
@@ -32,8 +32,6 @@ import type {
   SuggestResult,
   Task,
   TaskSummary,
-  TemplateResult,
-  TemplateSummary,
 } from "./dto";
 
 export const api = {
@@ -322,41 +320,16 @@ export const api = {
     });
   },
 
-  listTemplates(): Promise<{ templates: TemplateSummary[] }> {
-    return callHost("template.list", {});
-  },
-
-  applyTemplate(input: {
-    projectId: string;
-    taskId: string;
-    templateName: string;
-    planId?: string;
-  }): Promise<{
-    template: TemplateResult;
-    path: string;
-    plan_id: string;
-    plan_revision: number | null;
-  }> {
-    return callHost("template.apply", {
-      project_id: input.projectId,
-      task_id: input.taskId,
-      template_name: input.templateName,
-      ...(input.planId ? { plan_id: input.planId } : {}),
-    });
-  },
-
   generatePlan(input: {
     projectId: string;
     taskId: string;
     preset: "all_applicable" | "selected";
     moduleIds: string[];
     acceptanceItemIds: string[];
-    rulesVersionId?: string | null;
   }): Promise<GeneratedPlan> {
     return callHost("plan.generate", {
       project_id: input.projectId,
       task_id: input.taskId,
-      ...(input.rulesVersionId ? { rules_version_id: input.rulesVersionId } : {}),
       scope: {
         preset: input.preset,
         module_ids: [...input.moduleIds],
@@ -375,6 +348,7 @@ export const api = {
     planId: string;
     revision: number;
     cases: unknown[];
+    aiReviews?: unknown[];
   }): Promise<{
     plan_id: string;
     plan_no?: number;
@@ -387,8 +361,51 @@ export const api = {
       project_id: input.projectId,
       plan_id: input.planId,
       expected_revision: input.revision,
-      patch: { cases: input.cases },
+      patch: {
+        cases: input.cases,
+        ...(Array.isArray(input.aiReviews) ? { ai_reviews: input.aiReviews } : {}),
+      },
     });
+  },
+
+  reviewPlan(input: {
+    projectId: string;
+    planId: string;
+    refresh?: boolean;
+  }): Promise<PlanReviewResultDto> {
+    return callHost("plan.review", {
+      project_id: input.projectId,
+      plan_id: input.planId,
+      ...(input.refresh ? { refresh: true } : {}),
+    });
+  },
+
+  repairPlanCase(input: {
+    projectId: string;
+    planId: string;
+    caseId: string;
+    runId?: string;
+    mode: "preview" | "apply";
+    repairedScript?: string;
+    errorHint?: string;
+    expectedRevision?: number;
+  }): Promise<PlanRepairCaseResultDto> {
+    return callHost(
+      "plan.repair_case",
+      {
+        project_id: input.projectId,
+        plan_id: input.planId,
+        case_id: input.caseId,
+        mode: input.mode,
+        ...(input.runId ? { run_id: input.runId } : {}),
+        ...(input.repairedScript ? { repaired_script: input.repairedScript } : {}),
+        ...(input.errorHint ? { error_hint: input.errorHint } : {}),
+        ...(typeof input.expectedRevision === "number"
+          ? { expected_revision: input.expectedRevision }
+          : {}),
+      },
+      input.mode === "apply" ? { confirm: true } : undefined,
+    );
   },
 
   runQuick(projectId: string): Promise<{ run_id: string; status: string; kind: string }> {
@@ -674,40 +691,6 @@ export const api = {
       payload["case_id"] = caseId;
     }
     return callHost("evidence.add", payload);
-  },
-
-  listRules(projectId: string): Promise<{ rules: RuleSummary[] }> {
-    return callHost("rules.list", { project_id: projectId });
-  },
-
-  showRule(projectId: string, rulesVersionId: string): Promise<{ rule: Rule }> {
-    return callHost("rules.show", {
-      project_id: projectId,
-      rules_version_id: rulesVersionId,
-    });
-  },
-
-  saveRule(
-    projectId: string,
-    rule: {
-      name: string;
-      version: string;
-      steps_md: string;
-      ai_rules: string[];
-      evidence_requirements: string[];
-    },
-  ): Promise<{ rules_version_id: string; version: string }> {
-    return callHost("rules.save", { project_id: projectId, ...rule });
-  },
-
-  bindRule(
-    projectId: string,
-    rulesVersionId: string,
-  ): Promise<{ project_id: string; rules_version_id: string }> {
-    return callHost("rules.bind", {
-      project_id: projectId,
-      rules_version_id: rulesVersionId,
-    });
   },
 
   readGithub(projectId: string, repo: string, ref = "main"): Promise<GithubChange & { path: string }> {

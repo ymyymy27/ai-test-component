@@ -87,6 +87,8 @@ def _install_dependencies(
     secrets: list[str],
     env: dict[str, str] | None = None,
     cwd: Path | None = None,
+    *,
+    allow_shared_host: bool = True,
 ) -> tuple[bool, str | None]:
     if not dependencies:
         return True, None
@@ -120,6 +122,37 @@ def _install_dependencies(
             sys_res = Path(sys.executable).resolve()
             if py_res == sys_res and not py_res.is_relative_to(cwd_res):
                 shared_host_env = True
+
+    if shared_host_env and not allow_shared_host:
+        notice = (
+            f"[environment] notice: target project lacks an isolated .venv; "
+            f"skipped auto-installing into shared host interpreter: {python}\n"
+            f"请配置项目 runners.python 指向隔离虚拟环境，或在项目目录创建 .venv 后重试；"
+            f"本次缺失包：{', '.join(missing if missing is not None else dependencies)}\n"
+        )
+        _save_evidence(
+            run_dir,
+            "deps-install.log",
+            notice.encode("utf-8", errors="replace"),
+            "blocked",
+            settings,
+            secrets,
+        )
+        ref = candidate if (run_dir / candidate).is_file() else None
+        _write_action(
+            ws,
+            {
+                "at": iso_now(),
+                "action": "install_dependencies",
+                "dependencies": dependencies,
+                "exit_code": 1,
+                "ok": False,
+                "skipped": True,
+                "shared_host_env": True,
+                "skipped_host_install": True,
+            },
+        )
+        return False, ref
 
     installed = install_packages(
         python,

@@ -1,0 +1,6 @@
+{
+  "name": "fetch-wrapper-fixture",
+  "dependencies": {
+    "vue": "^3.4.0"
+  }
+}

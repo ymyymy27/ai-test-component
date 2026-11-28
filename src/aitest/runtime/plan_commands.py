@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import inspect
 import json
 import os
 import re
 import subprocess
+import tempfile
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -21,13 +23,13 @@ from aitest.commands import (
     _text,
 )
 from aitest.config import known_secret_values
-from aitest.core.blind_expectation import (
-    build_contract_only_context,
-    contract_context_digest,
-)
 from aitest.core.expectations import annotate_cases, ensure_publishable
+from aitest.core.project_context import (
+    build_capabilities_snapshot,
+    fetch_runtime_openapi_routes,
+)
 from aitest.core.scope import task_contract
-from aitest.core.script_linter import lint_script
+from aitest.core.script_linter import assess_assertion_strength, lint_script
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import build_client, load_project_config, model_settings
 from aitest.models import (
@@ -64,7 +66,6 @@ from aitest.runtime.plan_validation import (
     _broad_test_command,
     _dedupe_script_names,
     _downgrade_broad_business_cases,
-    _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
     _overshared_bindings,
     _project_import_warnings,
@@ -73,8 +74,9 @@ from aitest.runtime.plan_validation import (
     _split_multi_item_cases,
     _target_problems,
     _validate_plan_cases,
+    merge_and_filter_reviews,
 )
-from aitest.security import redact_tree
+from aitest.security import redact, redact_tree
 from aitest.storage.files import write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -217,119 +219,6 @@ def _workspace_source_fingerprint(root: Path) -> str:
             if count >= 400:
                 return f"fs:{hasher.hexdigest()[:24]}"
     return f"fs:{hasher.hexdigest()[:24]}"
-
-
-def _blind_cache_path(ws: Workspace, project_id: str, cache_key: str) -> Path:
-    return (
-        ws.root / ".cache" / "blind_expectations" / project_id / f"{cache_key[:24]}.json"
-    )
-
-
-def _read_cached_frozen(
-    path: Path, batch: list[dict[str, Any]]
-) -> dict[str, dict[str, Any]] | None:
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    expected_ids = sorted(str(item.get("item_id") or "") for item in batch)
-    if data.get("item_ids") != expected_ids:
-        return None
-    raw = data.get("frozen")
-    if not isinstance(raw, dict):
-        return None
-    return {
-        str(k): dict(v)
-        for k, v in raw.items()
-        if isinstance(k, str) and isinstance(v, dict)
-    }
-
-
-def _write_cached_frozen(
-    path: Path,
-    batch: list[dict[str, Any]],
-    frozen: dict[str, dict[str, Any]],
-    secrets: list[str],
-) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        payload = {
-            "item_ids": sorted(str(item.get("item_id") or "") for item in batch),
-            "frozen": frozen,
-        }
-        tmp.write_text(
-            json.dumps(redact_tree(payload, secrets), ensure_ascii=False),
-            encoding="utf-8",
-        )
-        tmp.replace(path)
-    except OSError:
-        pass
-
-
-def _freeze_expectations_with_cache(
-    ws: Workspace,
-    project_id: str,
-    *,
-    source_fp: str,
-    model_name: str,
-    client: Any,
-    task_payload: dict[str, Any],
-    items: list[dict[str, Any]],
-    contract_context: dict[str, Any],
-    secrets: list[str],
-) -> tuple[dict[str, dict[str, Any]], bool]:
-    """第 1 步盲写预期：仅用契约视图分批冻结断言，并支持本地脱敏缓存与失败平滑降级。"""
-    freezer = getattr(client, "freeze_expectations", None)
-    if not items or not callable(freezer):
-        return {}, False
-    digest = contract_context_digest(contract_context)
-    size = _plan_batch_size()
-    batches = [items[idx : idx + size] for idx in range(0, len(items), size)]
-    frozen: dict[str, dict[str, Any]] = {}
-    degraded = False
-    for batch in batches:
-        key = hashlib.sha256(
-            json.dumps(
-                {
-                    "source_fp": source_fp,
-                    "contract": digest,
-                    "model": model_name,
-                    "rules": _PLAN_CACHE_VERSION,
-                    "items": [
-                        {"item_id": str(i.get("item_id") or ""), "text": str(i.get("text") or "")}
-                        for i in batch
-                    ],
-                },
-                sort_keys=True,
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
-        cache_file = _blind_cache_path(ws, project_id, key)
-        cached = _read_cached_frozen(cache_file, batch)
-        if cached is not None:
-            frozen.update(cached)
-            continue
-        try:
-            batch_result = freezer(task_payload, batch, contract_context)
-        except AiTestError as exc:
-            if exc.info.code == "TOKEN_BUDGET_EXCEEDED":
-                raise
-            degraded = True
-            break
-        if isinstance(batch_result, dict):
-            cleaned = {
-                str(k): dict(v)
-                for k, v in batch_result.items()
-                if isinstance(k, str) and isinstance(v, dict)
-            }
-            frozen.update(cleaned)
-            _write_cached_frozen(cache_file, batch, cleaned, secrets)
-    return frozen, degraded
 
 
 def _map_tests_cache_path(
@@ -551,6 +440,7 @@ def _generate_case_batches(
                 index, batch, key = pending[next_pos]
                 next_pos += 1
                 fut = executor.submit(
+                    contextvars.copy_context().run,
                     _generate_case_batch,
                     client,
                     task_payload,
@@ -597,6 +487,7 @@ def _generate_case_batches(
                         n_idx, n_batch, n_key = pending[next_pos]
                         next_pos += 1
                         n_fut = executor.submit(
+                            contextvars.copy_context().run,
                             _generate_case_batch,
                             client,
                             task_payload,
@@ -825,25 +716,36 @@ def _guard_suggested_tests(
 
 
 
-def _apply_suggested_tests(
-    cases: list[Case], suggested: dict[str, str]
-) -> int:
-    """Replace model-written verifications with the mapped existing test."""
-    replaced = 0
-    for case in cases:
-        if not case.acceptance_item_id:
-            continue
-        command = suggested.get(case.acceptance_item_id)
-        if not command:
-            continue
-        if (case.verify_method or "").startswith(("script:", "http:", "sql:")):
-            case.verify_method = f"command:{command}"
-            case.script_content = None
-            case.script_name = None
-            case.dependencies = []
-            replaced += 1
-    return replaced
-
+def _is_in_memory_mock_test(project_root: Path | None, command: str) -> bool:
+    """识别使用纯内存 Mock App / TestClient 的单元测试，避免顶替真实服务集成验收。"""
+    if project_root is None or not command:
+        return False
+    m = re.search(r"([A-Za-z0-9_./\\-]+\.py)(?:::\S+)?", command)
+    if not m:
+        return False
+    rel = m.group(1).replace("\\", "/")
+    target = project_root / rel
+    if not target.is_file():
+        return False
+    try:
+        text = target.read_text(encoding="utf-8", errors="replace")[:16384]
+    except OSError:
+        return False
+    if "TestClient(" not in text:
+        return False
+    has_mock_app = ("create_mock_app" in text) or (
+        "FastAPI(" in text and "from main import" not in text and "from app import" not in text
+    )
+    has_real_target = any(
+        marker in text
+        for marker in (
+            "APP_BASE_URL",
+            "BACKEND_BASE_URL",
+            "http://127.0.0.1",
+            "http://localhost",
+        )
+    )
+    return has_mock_app and not has_real_target
 
 
 def _merge_repaired_cases(
@@ -884,6 +786,13 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     scope_payload = payload.get("scope")
     if not isinstance(scope_payload, dict):
         raise invalid_request("scope 必须是对象")
+    # 显式传入 acceptance_item_ids 且未显式传入 preset 时，自动按 selected 精确筛选
+    if (
+        "preset" not in scope_payload
+        and isinstance(scope_payload.get("acceptance_item_ids"), list)
+        and scope_payload.get("acceptance_item_ids")
+    ):
+        scope_payload = {**scope_payload, "preset": "selected"}
     scope = Scope.model_validate(scope_payload)
     selected, applicable = _selected_items(task, scope, project)
     if not selected and (task.intent != "smoke" or applicable):
@@ -902,12 +811,75 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
     else:
         context = ctx_fn(project, ws)
     context = redact_tree(context, secret_values)
+    project_config = load_project_config(ws, project.project_id)
+    runtime_openapi_probe = ""
+    if (
+        isinstance(project_config.get("services"), dict)
+        and project_config.get("services")
+        and payload.get("runtime_introspect") is not False
+    ):
+        rt_routes, probe_path = fetch_runtime_openapi_routes(project_config, timeout=1.5)
+        if rt_routes:
+            runtime_openapi_probe = probe_path
+
+            def _norm_rt(raw_p: str) -> str:
+                return re.sub(r"\{[^}]+\}", "{param}", raw_p.strip().rstrip("/") or "/").lower()
+
+            static_routes = list(context.get("api_routes") or [])
+            static_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+            for sr in static_routes:
+                if isinstance(sr, dict) and sr.get("path"):
+                    k = (str(sr.get("method") or "GET").upper(), _norm_rt(str(sr["path"])))
+                    static_by_key.setdefault(k, sr)
+            rt_keys: set[tuple[str, str]] = set()
+            merged_rt: list[dict[str, Any]] = []
+            for rr in rt_routes:
+                k = (str(rr["method"]).upper(), _norm_rt(str(rr["path"])))
+                rt_keys.add(k)
+                merged_entry = dict(rr)
+                sr = static_by_key.get(k)
+                if sr is not None:
+                    if sr.get("file"):
+                        merged_entry["file"] = sr["file"]
+                    if sr.get("line"):
+                        merged_entry["line"] = sr["line"]
+                merged_rt.append(merged_entry)
+            unmounted = [
+                sr
+                for sr in static_routes
+                if isinstance(sr, dict)
+                and sr.get("path")
+                and (str(sr.get("method") or "GET").upper(), _norm_rt(str(sr["path"])))
+                not in rt_keys
+            ]
+            context = dict(context)
+            context["api_routes"] = merged_rt
+            if unmounted:
+                context["unmounted_static_routes"] = unmounted
+
+    capabilities = build_capabilities_snapshot(
+        Path(project.root),
+        project_config,
+        project_context=context,
+        runtime_introspect=False,
+        secrets=secret_values,
+    )
+    if runtime_openapi_probe:
+        capabilities["source"] = "runtime"
+        ev = list(capabilities.get("evidence") or [])
+        probe_ev = f"GET {runtime_openapi_probe}"
+        if probe_ev not in ev:
+            capabilities["evidence"] = [probe_ev, *ev][:24]
+        routers = list(capabilities.get("router") or [])
+        if "openapi" not in routers:
+            capabilities["router"] = [*routers, "openapi"]
+    recipes: list[dict[str, Any]] = []
     raw_cases = payload.get("cases")
+    explicit_input = isinstance(raw_cases, list) and bool(raw_cases)
+    used_deterministic_fallback = False
     regenerate = None
     suggested: dict[str, str] = {}
-    frozen_expectations: dict[str, dict[str, Any]] = {}
-    blind_degraded = False
-    if not isinstance(raw_cases, list) or not raw_cases:
+    if not explicit_input:
         if task.intent == "smoke":
             raw_cases = _smoke_cases(task, selected, context)
             # 冒烟仅做项目级 L1 检查：清空业务验收项选择计数，避免与 S/M 口径混杂。
@@ -968,34 +940,24 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                         else:
                             suggested = mapper(map_items, candidates)
                         _write_cached_map_tests(map_cache, suggested, secret_values)
-                    except AiTestError:
+                    except AiTestError as exc:
+                        if exc.info.code == "TOKEN_BUDGET_EXCEEDED":
+                            raise
                         suggested = {}
             suggested = _guard_suggested_tests(
                 suggested, selected_items, test_summaries
             )
+            suggested = {
+                iid: cmd
+                for iid, cmd in suggested.items()
+                if not _is_in_memory_mock_test(Path(project.root), cmd)
+            }
             for item in selected_items:
                 command = suggested.get(item["item_id"])
                 if command:
                     item["suggested_test"] = command
-            blind_items = [item for item in selected_items if not item.get("suggested_test")]
-            if blind_items and callable(getattr(client, "freeze_expectations", None)):
-                contract_only_ctx = build_contract_only_context(context)
-                frozen_expectations, blind_degraded = _freeze_expectations_with_cache(
-                    ws,
-                    task.project_id,
-                    source_fp=source_fp,
-                    model_name=model_name,
-                    client=client,
-                    task_payload=task_payload,
-                    items=blind_items,
-                    contract_context=contract_only_ctx,
-                    secrets=secret_values,
-                )
-            case_gen_context = (
-                {**context, "frozen_expectations": frozen_expectations}
-                if frozen_expectations
-                else context
-            )
+            # 发送给模型的上下文剥离与 source_excerpts 重复的 routes 字段，消除双倍 Token 浪费
+            case_gen_context = {k: v for k, v in context.items() if k != "routes"}
             context_digest = hashlib.sha256(
                 json.dumps(
                     {
@@ -1003,7 +965,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                         "routes": context.get("routes", []),
                         "test_summaries": test_summaries or {},
                         "services": context.get("services", {}),
-                        "frozen_expectations": frozen_expectations,
                     },
                     sort_keys=True,
                     ensure_ascii=False,
@@ -1056,10 +1017,8 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     "depends_on": first if first in {"build", "service"} else None,
                     "script_name": item.get("script_name"),
                     "script_content": item.get("script_content"),
-                    "frozen_expectation": (
-                        item.get("frozen_expectation")
-                        or frozen_expectations.get(str(item["acceptance_item_id"]))
-                    ),
+                    "frozen_expectation": item.get("frozen_expectation"),
+                    "generation": item.get("generation") or {"source": "model"},
                 }
 
             def _model_raw(
@@ -1085,19 +1044,13 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             raw_cases = _model_raw()
     cases = [
         Case.model_validate(item)
-        for item in raw_cases
+        for item in (raw_cases if isinstance(raw_cases, list) else [])
         if not isinstance(item, dict)
         or item.get("acceptance_item_id") in selected
         or item.get("acceptance_item_id") is None
     ]
     generated_cases = not isinstance(payload.get("cases"), list) or not payload.get("cases")
-    django_dropped: list[str] = []
     command_merged = 0
-    mapped_tests = 0
-    if generated_cases and suggested:
-        mapped_tests = _apply_suggested_tests(cases, suggested)
-    cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
-    django_dropped.extend(dropped_items)
     cases, merged_now = _merge_duplicate_command_cases(cases)
     command_merged += merged_now
     if generated_cases and task.intent != "smoke" and regenerate is not None:
@@ -1125,8 +1078,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     repair_items,
                 )
                 cases = _merge_repaired_cases(cases, raw_cases, repair_ids)
-                cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
-                django_dropped.extend(dropped_items)
                 cases, merged_now = _merge_duplicate_command_cases(cases)
                 command_merged += merged_now
     if generated_cases and task.intent == "business" and regenerate is not None:
@@ -1155,8 +1106,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 shared_items,
             )
             cases = _merge_repaired_cases(cases, raw_cases, set(shared))
-            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
-            django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     if generated_cases and task.intent == "business" and regenerate is not None:
@@ -1181,8 +1130,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                 repair_items,
             )
             cases = _merge_repaired_cases(cases, raw_cases, repair_ids)
-            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
-            django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     downgraded_broad: list[str] = []
@@ -1202,7 +1149,11 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             )
         try:
             _validate_plan_cases(
-                cases, task.intent, context, strict_script_lint=generated_cases
+                cases,
+                task.intent,
+                context,
+                strict_script_lint=generated_cases,
+                collect_all=True,
             )
             preview = Plan(
                 plan_id="preview",
@@ -1269,8 +1220,6 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     or item.get("acceptance_item_id") in selected
                     or item.get("acceptance_item_id") is None
                 ]
-            cases, dropped_items = _drop_unavailable_django_scripts(cases, context)
-            django_dropped.extend(dropped_items)
             cases, merged_now = _merge_duplicate_command_cases(cases)
             command_merged += merged_now
     test_summaries = context.get("test_summaries")
@@ -1309,59 +1258,66 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             f"已拆分 {multi_item_split} 条组合用例为逐项用例；"
             "预期来源使用验收项原文，逐项断言仍需人工确认"
         )
-    if django_dropped:
-        warnings.append(
-            f"已移除 {len(set(django_dropped))} 条 Django TestCase 脚本用例；"
-            "相关验收项并入命令用例，需人工确认覆盖"
-        )
     if command_merged:
         warnings.append(
             f"已合并 {command_merged} 条重复命令用例；相关验收项由同一条命令覆盖"
         )
-    if mapped_tests:
-        warnings.append(
-            f"已将 {mapped_tests} 条生成验证替换为映射到的项目现有测试"
-        )
-    if blind_degraded:
-        warnings.append("盲写预期前置冻结未成功，已降级为单步生成")
-    if frozen_expectations:
-        for case in cases:
-            if case.frozen_expectation is None and case.acceptance_item_id:
-                frozen = frozen_expectations.get(case.acceptance_item_id)
-                if frozen is not None:
-                    case.frozen_expectation = dict(frozen)
     ensure_publishable(cases)
     _redact_cases(cases, secret_values)
+    for case in cases:
+        if case.generation is None:
+            if explicit_input:
+                case.generation = {"source": "explicit"}
+            elif task.intent == "smoke" or used_deterministic_fallback:
+                case.generation = {
+                    "source": "invariant",
+                    "generator_id": "smoke-l1" if task.intent == "smoke" else "deterministic",
+                    "generator_version": "1.0.0",
+                }
+            else:
+                case.generation = {"source": "model"}
+        case.assertion_strength = assess_assertion_strength(case)
+    coverage_ledger: list[dict[str, Any]] = []
     warnings.extend(_project_import_warnings(cases, project))
     warnings.extend(_shared_command_warnings(cases))
-    plan = Plan(
-        plan_id=new_id("plan"),
-        task_id=task.task_id,
-        plan_no=_next_plan_no(ws, task.project_id, task.task_id),
-        task_revision=task.revision,
-        task_contract=task_contract(task),
-        created_at=iso_now(),
-        scope=scope,
-        applicable_count=applicable,
-        rules_version_id=_text(payload, "rules_version_id") or project.rules_version_id or None,
-        cases=cases,
-        item_texts={
-            item.item_id: item.text for item in task.acceptance_items if item.item_id in selected
-        },
-        warnings=warnings,
-        status="published",
-    )
-    plan.unselected_by_module = _unselected_by_module(task, selected, project)
-    plan.excluded_items = (
-        []
-        if task.intent == "smoke" and not selected and applicable == 0
-        else _snapshot_excluded_items(task, selected)
-    )
-    plan.source_signature = _plan_signature(ws, project, task.task_id, plan.rules_version_id)
-    write_model(_plan_path(ws, task.project_id, plan.plan_id), plan)
+    plan_signature = _plan_signature(ws, project, task.task_id)
+    with ws.project_lock(project.project_id, timeout=30.0):
+        plan = Plan(
+            plan_id=new_id("plan"),
+            task_id=task.task_id,
+            plan_no=_next_plan_no(ws, task.project_id, task.task_id),
+            task_revision=task.revision,
+            task_contract=task_contract(task),
+            created_at=iso_now(),
+            scope=scope,
+            applicable_count=applicable,
+            cases=cases,
+            item_texts={
+                item.item_id: item.text
+                for item in task.acceptance_items
+                if item.item_id in selected
+            },
+            capabilities=capabilities,
+            recipes=recipes,
+            coverage_ledger=coverage_ledger,
+            warnings=warnings,
+            status="published",
+        )
+        plan.unselected_by_module = _unselected_by_module(task, selected, project)
+        plan.excluded_items = (
+            []
+            if task.intent == "smoke" and not selected and applicable == 0
+            else _snapshot_excluded_items(task, selected)
+        )
+        plan.source_signature = plan_signature
+        write_model(_plan_path(ws, task.project_id, plan.plan_id), plan)
     scope_payload = scope.model_dump(mode="json")
     scope_payload["coverage"] = {"selected": len(selected), "applicable": applicable}
-    ai_generated = not isinstance(payload.get("cases"), list) or not payload.get("cases")
+    ai_generated = (
+        (not explicit_input)
+        and (not used_deterministic_fallback)
+        and task.intent != "smoke"
+    )
     return {
         "plan_id": plan.plan_id,
         "plan_no": plan.plan_no,
@@ -1376,6 +1332,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         "cases": len(cases),
         "case_count": len(cases),
         "ai_generated": ai_generated,
+        "capabilities": capabilities,
+        "recipes": recipes,
+        "coverage_ledger": coverage_ledger,
         "dependencies": _plan_dependencies(cases),
         "warnings": warnings,
         "unverified_cases": [case.case_id for case in cases if not case.expectation_verified],
@@ -1407,6 +1366,11 @@ def _refresh_plan_annotations(
             case.warnings.append(note)
             plan.warnings.append(f"{case.case_id}：{note}")
     plan.warnings.extend(_shared_command_warnings(plan.cases))
+    for case in plan.cases:
+        if case.generation is None:
+            case.generation = {"source": "explicit"}
+        case.assertion_strength = assess_assertion_strength(case)
+    plan.coverage_ledger = []
     ensure_publishable(plan.cases)
 
 
@@ -1424,7 +1388,19 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     old_plan = plan.model_copy(deep=True)
     data = plan.model_dump(mode="json")
     if "cases" in patch:
-        data["cases"] = patch["cases"]
+        raw_cases = patch["cases"]
+        if isinstance(raw_cases, list):
+            normalized_cases: list[Any] = []
+            for entry in raw_cases:
+                if isinstance(entry, dict) and not str(entry.get("case_id") or "").strip():
+                    normalized_cases.append({**entry, "case_id": new_id("case")})
+                else:
+                    normalized_cases.append(entry)
+            data["cases"] = normalized_cases
+        else:
+            data["cases"] = raw_cases
+    if "ai_reviews" in patch and isinstance(patch["ai_reviews"], list):
+        data["ai_reviews"] = patch["ai_reviews"]
     plan = Plan.model_validate(data)
     task = _task_by_id(ws, project.project_id, plan.task_id)
     current_contract = task_contract(task)
@@ -1453,7 +1429,7 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         task, list(plan.scope.acceptance_item_ids), project
     )
     plan.excluded_items = _snapshot_excluded_items(task, list(plan.scope.acceptance_item_ids))
-    plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
+    plan.source_signature = _plan_signature(ws, project, plan.task_id)
     write_model(_plan_path(ws, project.project_id, plan.plan_id), plan)
     return {
         "plan_id": plan.plan_id,
@@ -1474,7 +1450,7 @@ def cmd_plan_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     plan = _load_plan(ws, project.project_id, _text({"id": _require(payload, "plan_id")}, "id"))
     task = _task_by_id(ws, project.project_id, plan.task_id)
     current_contract = task_contract(task)
-    current_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
+    current_signature = _plan_signature(ws, project, plan.task_id)
     if not plan.task_contract:
         stale = True
         stale_reason = "旧计划没有任务契约，需要重新生成"
@@ -1483,7 +1459,7 @@ def cmd_plan_show(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         stale_reason = "验收项或验证方式已变化，需要重新生成计划"
     elif not plan.source_signature or plan.source_signature != current_signature:
         stale = True
-        stale_reason = "计划生成后项目、交付提交、规则或服务配置已变化，需要重新生成"
+        stale_reason = "计划生成后项目、交付提交、或服务配置已变化，需要重新生成"
     else:
         stale = False
         stale_reason = ""
@@ -1516,7 +1492,7 @@ def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     )
     plan.task_contract = task_contract(task)
     plan.task_revision = task.revision
-    plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
+    plan.source_signature = _plan_signature(ws, project, plan.task_id)
     plan.status = "published"
     plan.revision += 1
     write_model(_plan_path(ws, project.project_id, plan.plan_id), plan)
@@ -1524,6 +1500,526 @@ def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
         "plan_id": plan.plan_id,
         "revision": plan.revision,
         "warnings": plan.warnings,
+    }
+
+
+def _plan_review_cache_path(ws: Workspace, project_id: str, input_hash: str) -> Path:
+    return ws.root / ".cache" / "plan_reviews" / project_id / f"{input_hash[:24]}.json"
+
+
+def cmd_plan_review(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """无锁只读双盲冲突与权限矩阵评审（绝不写 plan.json，绝不抢占排他写锁）。"""
+    del confirm
+    project = _project(ws, payload)
+    plan_id = _text({"id": _require(payload, "plan_id")}, "id")
+    plan = _load_plan(ws, project.project_id, plan_id)
+    task = _task_by_id(ws, project.project_id, plan.task_id)
+    secrets = known_secret_values([load_project_config(ws, project.project_id)])
+    context = facade_attr("_project_context", _project_context)(project, ws)
+    context = redact_tree(context, secrets)
+
+    plan_cases_dump = [c.model_dump(mode="json") for c in plan.cases]
+    selected_set = set(plan.scope.acceptance_item_ids)
+    acceptance_items = [
+        item.model_dump(mode="json")
+        for item in task.acceptance_items
+        if not selected_set or item.item_id in selected_set
+    ]
+    use_cache = bool(payload.get("use_cache", True))
+    force_refresh = bool(payload.get("refresh") is True)
+    input_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "plan_id": plan.plan_id,
+                "plan_revision": plan.revision,
+                "source_signature": plan.source_signature,
+                "cases": [
+                    (c.get("case_id"), c.get("verify_method"), c.get("assertion_strength"))
+                    for c in plan_cases_dump
+                ],
+                "items": [(i.get("item_id"), i.get("text")) for i in acceptance_items],
+                "routes": context.get("api_routes", []),
+                "fe_calls": context.get("frontend_api_calls", []),
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    cache_path = _plan_review_cache_path(ws, project.project_id, input_hash)
+    if use_cache and not force_refresh and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(cached, dict) and isinstance(cached.get("reviews"), list):
+                return {**cached, "cached": True}
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    det_reviews: list[dict[str, Any]] = []
+    for case_dump in plan_cases_dump:
+        if case_dump.get("assertion_strength") == "weak":
+            cid = str(case_dump.get("case_id") or "")
+            det_reviews.append(
+                {
+                    "review_id": f"rev_weak_{hashlib.sha256(cid.encode()).hexdigest()[:10]}",
+                    "kind": "weak_assertion",
+                    "severity": "medium",
+                    "statement": f"用例 {cid} 断言强度偏弱（仅校验基础状态码或缺少业务字段断言）",
+                    "evidence": [f"case:{cid}"],
+                    "patch_cases": [],
+                }
+            )
+    model_reviews: list[dict[str, Any]] = []
+    ai_used = False
+    client = facade_attr("build_client", build_client)(ws, project.project_id)
+    reviewer = getattr(client, "review_plan", None) if client is not None else None
+    if callable(reviewer):
+        try:
+            review_ctx = redact_tree(
+                {
+                    "task_title": task.title,
+                    "acceptance_items": acceptance_items,
+                    "cases": [
+                        {
+                            "case_id": c.get("case_id"),
+                            "acceptance_item_id": c.get("acceptance_item_id"),
+                            "title": c.get("title"),
+                            "expected": c.get("expected"),
+                            "verify_method": c.get("verify_method"),
+                            "assertion_strength": c.get("assertion_strength"),
+                            "frozen_expectation": c.get("frozen_expectation"),
+                        }
+                        for c in plan_cases_dump
+                    ],
+                    "api_routes": list(context.get("api_routes") or [])[:40],
+                    "frontend_api_calls": list(context.get("frontend_api_calls") or [])[:40],
+                },
+                secrets,
+            )
+            raw = reviewer(review_ctx)
+            if isinstance(raw, dict) and isinstance(raw.get("reviews"), list):
+                model_reviews = raw["reviews"]
+                ai_used = True
+        except AiTestError:
+            model_reviews = []
+
+    reviews = merge_and_filter_reviews(det_reviews, model_reviews, plan_cases_dump)
+    high_count = sum(1 for r in reviews if r.get("severity") == "high")
+    result_payload = redact_tree(
+        {
+            "plan_id": plan.plan_id,
+            "plan_revision": plan.revision,
+            "input_hash": input_hash,
+            "ai_used": ai_used,
+            "cached": False,
+            "high_severity_count": high_count,
+            "reviews": reviews,
+        },
+        secrets,
+    )
+    tmp_path: Path | None = None
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{cache_path.name}.", dir=cache_path.parent
+        )
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(result_payload, ensure_ascii=False))
+        os.replace(tmp_path, cache_path)
+    except OSError:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+    return dict(result_payload)
+
+
+def _latest_run_case_error(
+    ws: Workspace, project_id: str, plan_id: str, case_id: str, run_id: str = ""
+) -> str:
+    """只读提取指定或最新运行中目标用例的失败输出，严禁修改任何历史 run 文件。"""
+    from aitest.models import Run
+    from aitest.storage.files import read_model
+
+    runs_dir = ws.project_dir(project_id) / "runs"
+    if not runs_dir.is_dir():
+        return ""
+    candidates: list[Path] = []
+    if run_id:
+        target = runs_dir / run_id / "run.json"
+        if target.is_file():
+            candidates = [target]
+    else:
+        for child in sorted(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime_ns, reverse=True):
+            rpath = child / "run.json"
+            if rpath.is_file():
+                candidates.append(rpath)
+    for rpath in candidates:
+        try:
+            run = read_model(rpath, Run)
+        except AiTestError:
+            continue
+        if not run_id and run.plan_id != plan_id:
+            continue
+        for rc in run.cases:
+            if rc.case_id == case_id and rc.attempts:
+                last = rc.attempts[-1]
+                return last.message or ""
+    return ""
+
+
+def _auto_select_repair_case_ids(
+    ws: Workspace,
+    project_id: str,
+    plan: Plan,
+    run_id: str,
+    *,
+    setup_only: bool,
+) -> tuple[list[str], dict[str, str]]:
+    """从指定 run_id 只读挑选可安全生成 setup 修订草稿的阻塞/构造错用例 ID 与错误摘要。"""
+    from aitest.models import Run
+    from aitest.storage.files import read_model
+
+    run_path = ws.project_dir(project_id) / "runs" / run_id / "run.json"
+    if not run_path.is_file():
+        raise AiTestError("RUN_NOT_FOUND", f"运行不存在：{run_id}", "检查运行 ID")
+    run = read_model(run_path, Run)
+    by_case = {c.case_id: c for c in plan.cases}
+    selected: list[str] = []
+    hints: dict[str, str] = {}
+    for rc in run.cases:
+        plan_case = by_case.get(rc.case_id)
+        if plan_case is None or not plan_case.verify_method.startswith(("script:", "http:")):
+            continue
+        last_att = rc.attempts[-1] if rc.attempts else None
+        msg = (last_att.message if last_att is not None else "") or ""
+        is_setup_hint = bool(
+            (last_att is not None and last_att.stage == "setup")
+            or "前置准备阶段（setup）" in msg
+            or "引用了未定义变量" in msg
+            or (
+                isinstance(rc.judgement, dict)
+                and rc.judgement.get("verdict") == "script_error"
+            )
+        )
+        if setup_only:
+            if rc.result in {"blocked", "error"} and is_setup_hint:
+                selected.append(rc.case_id)
+                hints[rc.case_id] = msg
+        elif rc.result in {"blocked", "error", "failed"}:
+            selected.append(rc.case_id)
+            hints[rc.case_id] = msg
+    return selected, hints
+
+
+def cmd_plan_repair_case(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
+    """预览或应用单条/批量 setup 修订草稿：preview 只读，apply 校验确认并升版。"""
+    from aitest.worker_impl.execution import verify_setup_only_repair
+
+    project = _project(ws, payload)
+    plan_id = _text({"id": _require(payload, "plan_id")}, "id")
+    mode = _text(payload, "mode", "preview").strip().lower()
+    if mode not in {"preview", "apply"}:
+        raise invalid_request("mode 必须是 preview 或 apply")
+    if mode == "apply" and not confirm:
+        raise AiTestError(
+            "CONFIRMATION_REQUIRED",
+            "应用修订草稿并更新计划需要显式确认（--confirm）",
+            "先预览 diff，确认无误后带 --confirm 执行 apply",
+        )
+
+    plan = _load_plan(ws, project.project_id, plan_id)
+    expected_rev = payload.get("expected_revision")
+    if mode == "apply" and expected_rev is not None and expected_rev != plan.revision:
+        raise AiTestError(
+            "RUN_STATE_CONFLICT",
+            "计划修订号不匹配",
+            "刷新后重试",
+        )
+
+    run_id = _text(payload, "run_id").strip()
+    setup_only = bool(payload.get("setup_only", False))
+    single_case_id = _text(payload, "case_id").strip()
+    raw_case_ids = payload.get("case_ids")
+    target_case_ids: list[str] = []
+    auto_hints: dict[str, str] = {}
+    is_batch = False
+
+    if isinstance(raw_case_ids, list) and raw_case_ids:
+        is_batch = True
+        target_case_ids = [
+            str(cid).strip() for cid in raw_case_ids if isinstance(cid, str) and cid.strip()
+        ]
+        if "setup_only" not in payload:
+            setup_only = True
+    elif single_case_id:
+        target_case_ids = [single_case_id]
+    elif run_id:
+        is_batch = True
+        if "setup_only" not in payload:
+            setup_only = True
+        target_case_ids, auto_hints = _auto_select_repair_case_ids(
+            ws, project.project_id, plan, run_id, setup_only=setup_only
+        )
+        if not target_case_ids:
+            return {
+                "mode": mode,
+                "ok": True,
+                "all_ok": True,
+                "blocked": False,
+                "guard_blocked": [],
+                "plan_id": plan.plan_id,
+                "plan_revision": plan.revision,
+                "items": [],
+                "updated_case_ids": [],
+                "rerun_acceptance_item_ids": [],
+            }
+    else:
+        raise invalid_request("plan.repair_case 需要提供 case_id、case_ids 或 run_id")
+
+    case_map = {c.case_id: c for c in plan.cases}
+    for cid in target_case_ids:
+        c = case_map.get(cid)
+        if c is None:
+            raise invalid_request(f"计划 {plan_id} 中不存在用例：{cid}")
+        if not c.verify_method.startswith(("script:", "http:")):
+            raise invalid_request(
+                f"用例 {cid} 不是 script:/http: 类型，无法通过 plan.repair_case 修订"
+            )
+        if c.verify_method.startswith("script:") and not c.script_name:
+            raise invalid_request(f"用例 {cid} 缺少 script_name，无法修订")
+
+    config = load_project_config(ws, project.project_id)
+    secrets = known_secret_values([config])
+    raw_scripts = payload.get("repaired_scripts")
+    repaired_scripts_map: dict[str, Any] = raw_scripts if isinstance(raw_scripts, dict) else {}
+    raw_methods = payload.get("repaired_methods")
+    repaired_methods_map: dict[str, Any] = raw_methods if isinstance(raw_methods, dict) else {}
+    raw_cases_patch = payload.get("repaired_cases")
+    repaired_cases_map: dict[str, Any] = (
+        raw_cases_patch if isinstance(raw_cases_patch, dict) else {}
+    )
+
+    context_cache: dict[str, Any] | None = None
+    client: Any = None
+    items_preview: list[dict[str, Any]] = []
+    pending_updates: dict[str, tuple[str | None, str | None]] = {}
+
+    for cid in target_case_ids:
+        case = case_map[cid]
+        hint = (
+            _text(payload, "error_hint").strip()
+            or auto_hints.get(cid, "")
+            or _latest_run_case_error(ws, project.project_id, plan.plan_id, cid, run_id)
+        )
+        raw_patch = repaired_cases_map.get(cid)
+        case_patch: dict[str, Any] = raw_patch if isinstance(raw_patch, dict) else {}
+        rep_expected = (
+            str(case_patch["expected"])
+            if "expected" in case_patch
+            else (
+                str(payload["expected"])
+                if not is_batch and "expected" in payload
+                else None
+            )
+        )
+        rep_source = (
+            str(case_patch["expectation_source"])
+            if "expectation_source" in case_patch
+            else (
+                str(payload["expectation_source"])
+                if not is_batch and "expectation_source" in payload
+                else None
+            )
+        )
+
+        cand_script: str | None = None
+        cand_method: str | None = None
+        if case.verify_method.startswith("script:"):
+            raw_cand = (
+                case_patch.get("script_content")
+                or repaired_scripts_map.get(cid)
+                or (payload.get("repaired_script") if not is_batch else None)
+            )
+            if isinstance(raw_cand, str) and raw_cand.strip():
+                cand_script = raw_cand
+            else:
+                if client is None:
+                    client = facade_attr("build_client", build_client)(ws, project.project_id)
+                if client is None or not hasattr(client, "repair_script"):
+                    raise AiTestError(
+                        "MODEL_UNAVAILABLE",
+                        "未配置模型且未提供修复候选，无法生成修订草稿",
+                        "配置模型密钥或在请求中直接提供 repaired_script/repaired_scripts",
+                    )
+                if context_cache is None:
+                    context_cache = redact_tree(
+                        facade_attr("_project_context", _project_context)(project, ws),
+                        secrets,
+                    )
+                role_hint = ""
+                roles_cfg = config.get("test_roles")
+                if isinstance(roles_cfg, dict) and roles_cfg:
+                    role_hint = "\n可用角色配置键：" + json.dumps(
+                        redact_tree(roles_cfg, secrets), ensure_ascii=False
+                    )
+                cand_script = client.repair_script(
+                    item_text=case.expectation_source or case.expected or case.title,
+                    expected=case.expected,
+                    script=case.script_content or "",
+                    error=redact(
+                        (hint or "请仅修复 setup 前置步骤，保持 verify 断言不变") + role_hint,
+                        secrets,
+                    ),
+                )
+        else:
+            raw_method = (
+                case_patch.get("verify_method")
+                or repaired_methods_map.get(cid)
+                or (payload.get("repaired_verify_method") if not is_batch else None)
+            )
+            if isinstance(raw_method, str) and raw_method.strip():
+                cand_method = raw_method
+            elif isinstance(raw_method, list):
+                cand_method = "http:" + json.dumps(raw_method, ensure_ascii=False)
+            else:
+                if client is None:
+                    client = facade_attr("build_client", build_client)(ws, project.project_id)
+                if client is None or not hasattr(client, "repair_script"):
+                    raise AiTestError(
+                        "MODEL_UNAVAILABLE",
+                        "未配置模型且未提供 HTTP 修复候选，无法生成修订草稿",
+                        "配置模型密钥或在请求中直接提供 repaired_methods",
+                    )
+                cand_method = client.repair_script(
+                    item_text=case.expectation_source or case.expected or case.title,
+                    expected=case.expected,
+                    script=case.verify_method,
+                    error=redact(
+                        hint
+                        or "请仅修正 http: 中 stage=='setup' 的请求参数，保持 assert 请求不变",
+                        secrets,
+                    ),
+                )
+
+        val_script, val_method, guards, unified_diff = verify_setup_only_repair(
+            case,
+            repaired_script=cand_script,
+            repaired_verify_method=cand_method,
+            repaired_expected=rep_expected,
+            repaired_expectation_source=rep_source,
+            setup_only=setup_only,
+        )
+        safe_diff = redact(unified_diff, secrets)
+        item_ok = not guards and (val_script is not None or val_method is not None)
+        if item_ok:
+            pending_updates[cid] = (val_script, val_method)
+        items_preview.append(
+            {
+                "case_id": cid,
+                "acceptance_item_ids": case_item_ids(case),
+                "script_name": case.script_name or "",
+                "ok": item_ok,
+                "blocked": bool(guards),
+                "guard_blocked": guards,
+                "unified_diff": safe_diff,
+                "repaired_script": redact(val_script or cand_script or "", secrets),
+                "repaired_verify_method": redact(val_method or cand_method or "", secrets),
+                "error_hint": redact(hint, secrets),
+            }
+        )
+
+    all_ok = all(item["ok"] for item in items_preview)
+    all_guards = [g for item in items_preview for g in item["guard_blocked"]]
+    rerun_items = list(
+        dict.fromkeys(
+            iid
+            for item in items_preview
+            if item["ok"]
+            for iid in item["acceptance_item_ids"]
+            if iid in plan.scope.acceptance_item_ids
+        )
+    )
+
+    first = items_preview[0]
+    merged_diff = "\n".join(i["unified_diff"] for i in items_preview if i["unified_diff"])
+    if mode == "preview":
+        resp: dict[str, Any] = {
+            "mode": "preview",
+            "ok": all_ok,
+            "all_ok": all_ok,
+            "blocked": not all_ok,
+            "guard_blocked": list(dict.fromkeys(all_guards)),
+            "plan_id": plan.plan_id,
+            "plan_revision": plan.revision,
+            "setup_only": setup_only,
+            "items": items_preview,
+            "rerun_acceptance_item_ids": rerun_items,
+            "case_id": first["case_id"],
+            "script_name": first["script_name"],
+            "unified_diff": merged_diff,
+            "repaired_script": first["repaired_script"],
+            "error_hint": first["error_hint"],
+        }
+        return resp
+
+    if not all_ok:
+        raise invalid_request(
+            f"修订草稿未通过安全守卫拦截：{', '.join(dict.fromkeys(all_guards))}",
+            "保持 verify()/断言步骤/预期来源完全一致且通过静态安检后重试",
+        )
+
+    # 无锁计算验证上下文（若尚未加载）
+    if context_cache is None:
+        context_cache = facade_attr("_project_context", _project_context)(project, ws)
+    task = _task_by_id(ws, project.project_id, plan.task_id)
+
+    # 毫秒级项目写锁临界区：复核 expected_revision、归档旧版、落盘新修订
+    with ws.project_lock(project.project_id, timeout=30.0):
+        latest_plan = _load_plan(ws, project.project_id, plan_id)
+        if expected_rev is not None and expected_rev != latest_plan.revision:
+            raise AiTestError("RUN_STATE_CONFLICT", "计划修订号已变化", "刷新后重试")
+        old_plan = latest_plan.model_copy(deep=True)
+        for c in latest_plan.cases:
+            upd = pending_updates.get(c.case_id)
+            if upd is None:
+                continue
+            val_script, val_method = upd
+            if val_script is not None:
+                c.script_content = val_script
+            if val_method is not None:
+                c.verify_method = val_method
+        _validate_plan_cases(latest_plan.cases, task.intent, context_cache)
+        _ensure_plan_coverage(latest_plan, task)
+        had_coverage = any(c.coverage_kind is not None for c in old_plan.cases)
+        _refresh_plan_annotations(
+            ws, project.project_id, latest_plan, task, context_cache, had_coverage=had_coverage
+        )
+        revision_path = (
+            ws.project_dir(project.project_id) / "plans" / "revisions" / latest_plan.plan_id
+        ) / f"{old_plan.revision}.json"
+        write_model(revision_path, old_plan)
+        latest_plan.revision += 1
+        latest_plan.status = "published"
+        latest_plan.source_signature = _plan_signature(ws, project, latest_plan.task_id)
+        write_model(_plan_path(ws, project.project_id, latest_plan.plan_id), latest_plan)
+
+    return {
+        "mode": "apply",
+        "ok": True,
+        "all_ok": True,
+        "blocked": False,
+        "guard_blocked": [],
+        "plan_id": latest_plan.plan_id,
+        "plan_revision": latest_plan.revision,
+        "previous_revision": old_plan.revision,
+        "setup_only": setup_only,
+        "updated_case_ids": list(pending_updates),
+        "rerun_acceptance_item_ids": rerun_items,
+        "items": items_preview,
+        "case_id": first["case_id"],
+        "script_name": first["script_name"],
+        "unified_diff": "\n".join(i["unified_diff"] for i in items_preview if i["unified_diff"]),
+        "acceptance_item_ids": rerun_items or first["acceptance_item_ids"],
     }
 
 

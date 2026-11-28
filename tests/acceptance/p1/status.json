@@ -130,35 +130,6 @@
       "verified_at": "2026-11-16"
     },
     {
-      "id": "P1-AC05",
-      "owner": "ymy",
-      "result": "verified",
-      "scenario": "同一项目绑定两个规则版本并分别使用",
-      "expected": "历史运行保留原规则版本，新运行使用新版本",
-      "related_frs": [
-        "FR04"
-      ],
-      "prerequisites": [],
-      "artifact_versions": [
-        "Python 3.11.9",
-        "ai-test-component 0.5.0"
-      ],
-      "actual": "同一项目保存两个规则版本；旧计划保留 v1，新计划使用 v2，项目绑定保持 v1。",
-      "evidence": {
-        "path": "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
-        "description": "2026-11-16 G3 按当前代码重跑的真实输出",
-        "method": "real_cli"
-      },
-      "unverified_reason": "",
-      "blockers": null,
-      "real_environment_verified": true,
-      "source_evidence": [
-        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/ac05-rules-versions-recheck.json",
-        "tests/acceptance/p1/evidence/2026-11-16-g3-rerun/README.md"
-      ],
-      "verified_at": "2026-11-16"
-    },
-    {
       "id": "P1-AC06",
       "owner": "ymy",
       "result": "verified",
@@ -985,10 +956,6 @@
     },
     {
       "id": "P1-AC04",
-      "result": "verified"
-    },
-    {
-      "id": "P1-AC05",
       "result": "verified"
     },
     {

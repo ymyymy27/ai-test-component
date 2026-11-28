@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "project": "flask-rbac",
+  "role": "组织隔离基准",
+  "stack": ["flask", "sqlite"],
+  "expected_level": "T1",
+  "known_defects_total": 7,
+  "min_defects_detected": 7,
+  "max_false_positives": 0,
+  "max_false_passes": 0,
+  "notes": "7/7 已知组织隔离缺陷检出，0 误报。"
+}

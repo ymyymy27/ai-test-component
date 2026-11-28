@@ -16,7 +16,6 @@ from aitest.core.probes import (
 )
 from aitest.worker_impl.lifecycle import (
     _probe_targets,
-    _script_repair_allowed,
     _service_role,
 )
 from aitest.worker_impl.services import _healthy
@@ -85,20 +84,6 @@ def test_service_role_uses_tokens() -> None:
     assert _service_role("backend") == "backend"
     assert _service_role("web-api") == "backend"
     assert _service_role("default") == ""
-
-
-def test_script_repair_rejects_setup_blocked() -> None:
-    """setup 前置失败必须保持阻塞，不能被 AI 修脚本改成通过。"""
-    assert not _script_repair_allowed(
-        "blocked", "前置准备阶段（setup）失败，未进入业务验收（不计为产品缺陷）"
-    )
-    assert not _script_repair_allowed("blocked", "stage must be 'setup'")
-    assert _script_repair_allowed(
-        "blocked", "脚本前置条件不成立（目标服务未启动或端口不通），不算产品失败"
-    )
-    assert _script_repair_allowed("error", "脚本自身错误（语法或导入失败），不算产品失败")
-    assert not _script_repair_allowed("passed", "")
-    assert not _script_repair_allowed("failed", "")
 
 
 def _service_states(*, frontend_ok: bool, backend_ok: bool) -> list[dict[str, Any]]:

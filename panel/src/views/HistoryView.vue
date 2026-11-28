@@ -230,7 +230,7 @@ watch(dialogOpen, (open) => {
                 {{ run.taskTitle || taskFor(run)?.title || "任务已归档" }}
                 <span
                   v-if="taskFor(run)?.currentRunId === run.id"
-                  class="badge is-accent"
+                  class="badge is-neutral"
                   >当前</span
                 >
               </span>

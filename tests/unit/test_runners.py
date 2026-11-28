@@ -218,8 +218,8 @@ class _AuthHandler(BaseHTTPRequestHandler):
         pass
 
 
-def test_http_case_without_credentials_is_blocked(tmp_path: Path) -> None:
-    """401 without an Authorization header is a missing precondition, not a bug."""
+def test_http_case_without_credentials_keeps_real_401_failure(tmp_path: Path) -> None:
+    """阶段 2：删除 401/403 一刀切盲降级，期望 status==200 却返回 401 时客观判 failed。"""
     from aitest.models import Case
     from aitest.worker import _execute
 
@@ -248,8 +248,8 @@ def test_http_case_without_credentials_is_blocked(tmp_path: Path) -> None:
             {},
             Path(sys.executable),
         )
-        assert status == "blocked"
-        assert "认证" in message
+        assert status == "failed"
+        assert "401" in message
         assert outputs
     finally:
         server.shutdown()
@@ -283,24 +283,13 @@ def test_script_http_cases_need_services() -> None:
     assert not _case_needs_services(case("script:s.py", "assert 1 == 1"))
 
 
-def test_repair_script_case_rewrites_and_rejects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_validate_script_repair_rewrites_and_rejects(
+    tmp_path: Path,
 ) -> None:
     from aitest.models import Case
-    from aitest.storage.workspace import Workspace
-    from aitest.worker import _repair_script_case
+    from aitest.worker_impl.execution import validate_script_repair
 
-    class _Client:
-        def __init__(self, script: str) -> None:
-            self.script = script
-
-        def repair_script(self, **kwargs: object) -> str:
-            return self.script
-
-    ws = Workspace(tmp_path / "ws")
-    ws.init()
-    generated = tmp_path / "generated"
-    generated.mkdir()
+    del tmp_path
     case = Case(
         case_id="case_x",
         acceptance_item_id="ai_a",
@@ -312,49 +301,34 @@ def test_repair_script_case_rewrites_and_rejects(
         script_name="probe.py",
         script_content="assert 0\n",
     )
-    monkeypatch.setattr(
-        "aitest.model_config.build_client",
-        lambda *a, **k: _Client("import os\nassert os.environ['X']\n"),
+    ok_content, ok_guards, _diff = validate_script_repair(
+        "assert 0\n", "import os\nassert os.environ['X']\n", case, script_name="probe.py"
     )
-    assert _repair_script_case(ws, "proj_x", case, generated, [], [b"boom"], "failed")
-    assert (generated / "probe.py").is_file()
-    assert "os.environ" in (case.script_content or "")
+    assert ok_content is not None and not ok_guards
+    assert "os.environ" in ok_content
 
-    monkeypatch.setattr(
-        "aitest.model_config.build_client",
-        lambda *a, **k: _Client("import shutil\nshutil.rmtree('/')\n"),
+    bad_content, bad_guards, _ = validate_script_repair(
+        "assert 0\n", "import shutil\nshutil.rmtree('/')\n", case, script_name="probe.py"
     )
-    assert not _repair_script_case(ws, "proj_x", case, generated, [], [b"boom"], "failed")
+    assert bad_content is None and "dangerous_script" in bad_guards
 
     # AST 断言锁：禁止删除断言、退化为恒真断言或放宽状态码集合。
-    strict_case = case.model_copy(
-        update={
-            "script_content": "def test_api():\n    status = 200\n    assert status == 200\n"
-        }
+    strict_orig = "def test_api():\n    status = 200\n    assert status == 200\n"
+    strict_case = case.model_copy(update={"script_content": strict_orig})
+    assert validate_script_repair(
+        strict_orig, "def test_api():\n    assert True\n", strict_case, script_name="probe.py"
+    )[0] is None
+    assert validate_script_repair(
+        strict_orig,
+        "def test_api():\n    status = 500\n    assert status in [200, 500]\n",
+        strict_case,
+        script_name="probe.py",
+    )[0] is None
+    good_content, good_guards, _ = validate_script_repair(
+        strict_orig,
+        "import os\ndef test_api():\n    status = int(os.environ.get('OK', '200'))\n"
+        "    assert status == 200\n",
+        strict_case,
+        script_name="probe.py",
     )
-    monkeypatch.setattr(
-        "aitest.model_config.build_client",
-        lambda *a, **k: _Client("def test_api():\n    assert True\n"),
-    )
-    assert not _repair_script_case(
-        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
-    )
-    monkeypatch.setattr(
-        "aitest.model_config.build_client",
-        lambda *a, **k: _Client(
-            "def test_api():\n    status = 500\n    assert status in [200, 500]\n"
-        ),
-    )
-    assert not _repair_script_case(
-        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
-    )
-    monkeypatch.setattr(
-        "aitest.model_config.build_client",
-        lambda *a, **k: _Client(
-            "import os\ndef test_api():\n    status = int(os.environ.get('OK', '200'))\n"
-            "    assert status == 200\n"
-        ),
-    )
-    assert _repair_script_case(
-        ws, "proj_x", strict_case, generated, [], [b"boom"], "error"
-    )
+    assert good_content is not None and not good_guards

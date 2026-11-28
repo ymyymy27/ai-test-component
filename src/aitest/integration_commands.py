@@ -45,7 +45,8 @@ def cmd_github_read(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     target = ws.project_dir(project.project_id) / "github" / f"{commit}.json"
     secrets = _project_secrets(ws, project.project_id)
     safe_result = redact_tree(result, secrets)
-    write_json(target, {"schema_version": 1, **safe_result})
+    with ws.project_lock(project.project_id, timeout=30.0):
+        write_json(target, {"schema_version": 1, **safe_result})
     return {
         **safe_result,
         "change": safe_result,
@@ -118,7 +119,8 @@ def cmd_link_import(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
     target = run_dir / "link.json"
     secrets = _project_secrets(ws, project.project_id)
     safe_result = redact_tree(result, secrets)
-    write_json(target, {"schema_version": 1, "imported_at": iso_now(), **safe_result})
+    with ws.project_lock(project.project_id, timeout=30.0):
+        write_json(target, {"schema_version": 1, "imported_at": iso_now(), **safe_result})
     return dict(safe_result)
 
 

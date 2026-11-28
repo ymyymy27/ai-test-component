@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 from contextlib import suppress
@@ -12,7 +13,7 @@ from urllib.parse import urlsplit
 
 from aitest.core.http_spec import normalize_extract
 from aitest.core.manual import is_manual_case
-from aitest.core.script_linter import blocking_lint_errors
+from aitest.core.script_linter import assess_assertion_strength, blocking_lint_errors
 from aitest.errors import AiTestError, invalid_request
 from aitest.models import (
     AcceptanceItem,
@@ -34,19 +35,6 @@ _EXAMPLE_HOSTS = (
 )
 
 _HTTP_VAR_RE = re.compile(r"\$\{vars\.([A-Za-z_][A-Za-z0-9_]*)\}")
-_STATUS_CODE_RE = re.compile(r"(?<!\d)([1-5]\d{2})(?!\d)")
-
-
-def _expected_status_code(case: Case) -> int | None:
-    """从验收项/预期中取应断言的状态码；优先 4xx/5xx，避免负向用例漏断言。"""
-    text = f"{case.title} {case.expected} {case.expectation_source}"
-    codes = [int(match.group(1)) for match in _STATUS_CODE_RE.finditer(text)]
-    if not codes:
-        return None
-    for code in codes:
-        if 400 <= code <= 599:
-            return code
-    return codes[0]
 
 
 
@@ -164,32 +152,6 @@ def _validate_verify_method(case: Case) -> None:
                     case.verify_method = "http:" + json.dumps(
                         requests, ensure_ascii=False, separators=(",", ":")
                     )
-        expected_code = _expected_status_code(case)
-        if expected_code is not None:
-            assert_items = [
-                item
-                for item in requests
-                if str(item.get("stage") or "assert") != "setup"
-            ]
-            has_status_check = any(
-                isinstance(entry, dict) and entry.get("path") == "status"
-                for item in assert_items
-                for entry in (
-                    item.get("expect") if isinstance(item.get("expect"), list) else []
-                )
-            )
-            if assert_items and not has_status_check:
-                target_item = assert_items[-1]
-                expectations = target_item.get("expect")
-                if not isinstance(expectations, list):
-                    expectations = []
-                    target_item["expect"] = expectations
-                expectations.append(
-                    {"path": "status", "operator": "equals", "value": expected_code}
-                )
-                case.verify_method = "http:" + json.dumps(
-                    requests, ensure_ascii=False, separators=(",", ":")
-                )
         defined_vars: set[str] = set()
         for index, item in enumerate(requests, start=1):
             text = json.dumps(item, ensure_ascii=False)
@@ -203,6 +165,22 @@ def _validate_verify_method(case: Case) -> None:
             extract = item.get("extract")
             if isinstance(extract, dict):
                 defined_vars.update(str(key) for key in extract)
+            # 五条红线 #2：setup 阶段请求不得设置 4xx/5xx 期望或放入负向断言
+            if str(item.get("stage") or "assert") == "setup":
+                setup_expects = item.get("expect")
+                if isinstance(setup_expects, list):
+                    for exp in setup_expects:
+                        if (
+                            isinstance(exp, dict)
+                            and exp.get("path") == "status"
+                            and isinstance(exp.get("value"), int)
+                            and exp["value"] >= 400
+                        ):
+                            raise _invalid_method(
+                                case,
+                                f"http: 第 {index} 个请求属于 setup 阶段，"
+                                f"禁止期望 4xx/5xx 状态码（{exp['value']}）",
+                            )
         return
     if method.startswith("playwright:"):
         rest = method[len("playwright:") :].strip()
@@ -368,6 +346,14 @@ def _broad_test_command(method: str) -> str:
         "pnpm run test",
         "bun test",
         "bun run test",
+        "vitest",
+        "vitest run",
+        "npx vitest",
+        "npx vitest run",
+        "jest",
+        "npx jest",
+        "go test",
+        "cargo test",
         "tox",
         "npx playwright test",
         "bunx playwright test",
@@ -376,43 +362,6 @@ def _broad_test_command(method: str) -> str:
     if re.fullmatch(r"(?:python(?:3)?\s+-m\s+)?pytest(?:\s+-\S+)*", value):
         return value
     return value if value in whole_suite else ""
-
-
-
-def _drop_unavailable_django_scripts(
-    cases: list[Case], context: dict[str, Any]
-) -> tuple[list[Case], list[str]]:
-    """Remove Django TestCase scripts when the project has no pytest-django.
-
-    Such scripts cannot create a test database through pytest, so they would
-    fail for environment reasons. Their items are attached to the remaining
-    command case and the plan carries a warning.
-    """
-
-    frameworks = set(_string_list(context.get("framework")))
-    if "django" not in frameworks or "pytest" in frameworks:
-        return cases, []
-    dropped: list[str] = []
-    kept: list[Case] = []
-    for case in cases:
-        if case.script_content and "django.test" in case.script_content:
-            dropped.extend(case_item_ids(case))
-            continue
-        kept.append(case)
-    if not dropped:
-        return cases, []
-    if not kept:
-        # Dropping every case would leave selected items uncovered; let the
-        # validator ask the model to replace the scripts instead.
-        return cases, []
-    target = next(
-        (case for case in kept if case.verify_method.startswith("command:")),
-        kept[0],
-    )
-    target.acceptance_item_ids = list(
-        dict.fromkeys([*(target.acceptance_item_ids or []), *dropped])
-    )
-    return kept, dropped
 
 
 
@@ -531,7 +480,7 @@ def _split_multi_item_cases(
 
 
 _TEST_NODE_RE = re.compile(
-    r"([A-Za-z0-9_./\\-]+\.py)::([A-Za-z0-9_:]+)"
+    r"([A-Za-z0-9_./\\-]+\.py)::([A-Za-z0-9_:]+(?:\[[^\]]+\])?)"
 )
 
 
@@ -621,6 +570,15 @@ def _target_problems(
 
 
 
+def _match_python_test_name(node: str, names: object) -> bool:
+    if not isinstance(names, list):
+        return False
+    if node in names:
+        return True
+    base = node.split("[", 1)[0]
+    return base in names
+
+
 def _test_node_key(case: Case, context: dict[str, Any]) -> str | None:
     """Return the existing test node a case points at, when it is real."""
     method = (case.verify_method or "").strip()
@@ -636,7 +594,7 @@ def _test_node_key(case: Case, context: dict[str, Any]) -> str | None:
     if node:
         path = node.group(1).replace("\\", "/").lstrip("./")
         names = _mapped_test_value(context.get("test_functions"), path)
-        if isinstance(names, list) and node.group(2) in names:
+        if _match_python_test_name(node.group(2), names):
             return f"{path}::{node.group(2)}"
     return None
 
@@ -816,7 +774,7 @@ def _annotate_case_coverage(
             path = node_match.group(1).replace("\\", "/").lstrip("./")
             node = node_match.group(2)
             names = _mapped_test_value(function_map, path)
-            if isinstance(names, list) and node in names:
+            if _match_python_test_name(node, names):
                 case.coverage_kind = "direct"
                 case.test_nodes = [f"{path}::{node}"]
                 node_items.setdefault(f"{path}::{node}", set()).update(
@@ -883,28 +841,9 @@ def _normalize_http_expect(case: Case) -> None:
     if not isinstance(specs, list):
         return
     changed = False
-    defined_vars: set[str] = set()
     for spec in specs:
         if not isinstance(spec, dict):
             continue
-        headers = spec.get("headers")
-        if isinstance(headers, dict):
-            for key, value in list(headers.items()):
-                if not isinstance(value, str):
-                    continue
-                missing = [
-                    name
-                    for name in _HTTP_VAR_RE.findall(value)
-                    if name not in defined_vars
-                ]
-                if missing:
-                    headers.pop(key, None)
-                    changed = True
-                    warning = (
-                        f"已移除引用未定义变量的请求头 {key}：{', '.join(missing)}"
-                    )
-                    if warning not in case.warnings:
-                        case.warnings.append(warning)
         expects = spec.get("expect")
         if isinstance(expects, list):
             for check in expects:
@@ -930,9 +869,6 @@ def _normalize_http_expect(case: Case) -> None:
                     if remainder != "status":
                         check["path"] = remainder
                         changed = True
-        extract = spec.get("extract")
-        if isinstance(extract, dict):
-            defined_vars.update(str(key) for key in extract)
     if changed:
         case.verify_method = "http:" + json.dumps(specs, ensure_ascii=False)
 
@@ -944,6 +880,7 @@ def _validate_plan_cases(
     context: dict[str, Any],
     *,
     strict_script_lint: bool = False,
+    collect_all: bool = False,
 ) -> None:
     allowed_commands = _string_list(context.get("test_commands"))
     smoke_command = str(context.get("smoke_command") or "").strip()
@@ -963,120 +900,132 @@ def _validate_plan_cases(
     seen_ids: set[str] = set()
     seen_scripts: set[str] = set()
     seen_broad: set[str] = set()
+    collected_errors: list[str] = []
     for case in cases:
-        _normalize_http_expect(case)
-        if intent == "business" and case.layer == "L1" and case_item_ids(case):
-            # L1 是项目级检查，不参与 S/M 覆盖；业务验收项必须由业务用例证明。
-            case.layer = "L2"
-            case.warnings.append(
-                "业务验收项用例被模型标为 L1，已按业务用例规整为 L2"
-            )
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
-            raise invalid_request(
-                f"用例 ID 不合法：{case.case_id}",
-                "用例 ID 只允许字母、数字、下划线和连字符，最多 128 字符",
-            )
-        if case.case_id in seen_ids:
-            raise invalid_request(f"用例 ID 重复：{case.case_id}")
-        seen_ids.add(case.case_id)
-        if case.script_name:
-            script_key = case.script_name.strip().lower()
-            if script_key in seen_scripts:
-                raise invalid_request(
-                    f"脚本文件名重复：{case.script_name}",
-                    "每条脚本用例必须使用唯一 script_name",
+        try:
+            _normalize_http_expect(case)
+            if intent == "business" and case.layer == "L1" and case_item_ids(case):
+                # L1 是项目级检查，不参与 S/M 覆盖；业务验收项必须由业务用例证明。
+                case.layer = "L2"
+                case.warnings.append(
+                    "业务验收项用例被模型标为 L1，已按业务用例规整为 L2"
                 )
-            seen_scripts.add(script_key)
-        _validate_verify_method(case)
-        if intent == "business" and case.layer != "L1":
-            command = case.verify_method.split(":", 1)[1] if ":" in case.verify_method else ""
-            file_match = _TEST_FILE_RE.search(command)
-            if (
-                file_match
-                and "::" not in command
-                and _mapped_test_value(context.get("test_functions"), file_match.group(1))
-            ):
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", case.case_id):
                 raise invalid_request(
-                    f"用例 {case.case_id} 只执行测试文件，未定位到具体测试函数",
-                    "使用 python -m pytest <文件>::<函数>；函数名必须来自 context.test_functions",
+                    f"用例 ID 不合法：{case.case_id}",
+                    "用例 ID 只允许字母、数字、下划线和连字符，最多 128 字符",
                 )
-            playwright_match = _PLAYWRIGHT_NODE_RE.search(command)
-            spec_match = re.search(
-                r"([A-Za-z0-9_./\\-]+\.spec\.ts)\b", command
-            )
-            if (
-                spec_match
-                and not playwright_match
-                and _mapped_test_value(context.get("playwright_tests"), spec_match.group(1))
-            ):
-                raise invalid_request(
-                    f"用例 {case.case_id} 只执行 Playwright spec，未定位到测试标题",
-                    "使用 --grep \"标题\"；标题必须来自 context.playwright_tests",
-                )
-        if (
-            intent == "business"
-            and case.layer != "L1"
-            and not is_manual_case(case)
-            and case.acceptance_item_ids
-        ):
-            raise invalid_request(
-                f"业务用例 {case.case_id} 绑定了多个验收项",
-                "业务用例必须一项一案；同一命令可分别绑定各验收项，执行阶段会复用结果",
-            )
-        broad = _broad_test_command(case.verify_method)
-        if broad:
-            if intent == "business" and case.layer != "L1":
-                raise invalid_request(
-                    f"业务用例不能使用整包测试命令：{broad}",
-                    "改用具体测试模块或目录；整包命令只用于 L1 冒烟检查",
-                )
-            if broad in seen_broad:
-                raise invalid_request(
-                    f"整包测试命令重复：{broad}",
-                    "同一整包命令只保留一条用例；其他验收项改用具体测试模块或目录",
-                )
-            seen_broad.add(broad)
-        _validate_dependencies(case)
-        if case.script_content:
-            if strict_script_lint:
-                lint_errors = blocking_lint_errors(case.script_name or "", case.script_content)
-                if lint_errors:
+            if case.case_id in seen_ids:
+                raise invalid_request(f"用例 ID 重复：{case.case_id}")
+            seen_ids.add(case.case_id)
+            if case.script_name:
+                script_key = case.script_name.strip().lower()
+                if script_key in seen_scripts:
                     raise invalid_request(
-                        f"用例 {case.case_id} 的脚本未通过跑前静态安检：{'；'.join(lint_errors)}",
-                        "请补充针对产品输出的实质断言，避免恒真断言或空 except 吞异常",
+                        f"脚本文件名重复：{case.script_name}",
+                        "每条脚本用例必须使用唯一 script_name",
                     )
-            hosts = _script_example_hosts(case.script_content)
-            if hosts:
-                raise invalid_request(f"用例 {case.case_id} 的脚本访问了外网示例域名：{hosts[0]}")
-            frameworks = set(_string_list(context.get("framework")))
+                seen_scripts.add(script_key)
+            _validate_verify_method(case)
+            if intent == "business" and case.layer != "L1":
+                command = case.verify_method.split(":", 1)[1] if ":" in case.verify_method else ""
+                file_match = _TEST_FILE_RE.search(command)
+                if (
+                    file_match
+                    and "::" not in command
+                    and _mapped_test_value(context.get("test_functions"), file_match.group(1))
+                ):
+                    raise invalid_request(
+                        f"用例 {case.case_id} 只执行测试文件，未定位到具体测试函数",
+                        "使用 python -m pytest <文件>::<函数>；"
+                        "函数名必须来自 context.test_functions",
+                    )
+                playwright_match = _PLAYWRIGHT_NODE_RE.search(command)
+                spec_match = re.search(
+                    r"([A-Za-z0-9_./\\-]+\.spec\.ts)\b", command
+                )
+                if (
+                    spec_match
+                    and not playwright_match
+                    and _mapped_test_value(context.get("playwright_tests"), spec_match.group(1))
+                ):
+                    raise invalid_request(
+                        f"用例 {case.case_id} 只执行 Playwright spec，未定位到测试标题",
+                        "使用 --grep \"标题\"；标题必须来自 context.playwright_tests",
+                    )
             if (
-                "django" in frameworks
-                and "pytest" not in frameworks
-                and "django.test" in case.script_content
+                intent == "business"
+                and case.layer != "L1"
+                and not is_manual_case(case)
+                and case.acceptance_item_ids
             ):
                 raise invalid_request(
-                    f"用例 {case.case_id} 使用 Django TestCase 独立脚本",
-                    "该项目没有 pytest-django；改用 command: 运行既有测试",
+                    f"业务用例 {case.case_id} 绑定了多个验收项",
+                    "业务用例必须一项一案；同一命令可分别绑定各验收项，执行阶段会复用结果",
                 )
-        elif (
-            "django" in set(_string_list(context.get("framework")))
-            and case.verify_method.startswith("command:")
-        ):
-            command = case.verify_method.split(":", 1)[1]
-            if (
-                "python -c" in command
-                and " import " in command
-                and "DJANGO_SETTINGS_MODULE" not in command
+            broad = _broad_test_command(case.verify_method)
+            if broad:
+                if intent == "business" and case.layer != "L1":
+                    raise invalid_request(
+                        f"业务用例不能使用整包测试命令：{broad}",
+                        "改用具体测试模块或目录；整包命令只用于 L1 冒烟检查",
+                    )
+                if broad in seen_broad:
+                    raise invalid_request(
+                        f"整包测试命令重复：{broad}",
+                        "同一整包命令只保留一条用例；其他验收项改用具体测试模块或目录",
+                    )
+                seen_broad.add(broad)
+            _validate_dependencies(case)
+            if case.script_content:
+                if strict_script_lint:
+                    lint_errors = blocking_lint_errors(case.script_name or "", case.script_content)
+                    if lint_errors:
+                        raise invalid_request(
+                            f"用例 {case.case_id} 的脚本未通过跑前静态安检："
+                            f"{'；'.join(lint_errors)}",
+                            "请补充针对产品输出的实质断言，避免恒真断言或空 except 吞异常",
+                        )
+                hosts = _script_example_hosts(case.script_content)
+                if hosts:
+                    raise invalid_request(
+                        f"用例 {case.case_id} 的脚本访问了外网示例域名：{hosts[0]}"
+                    )
+                frameworks = set(_string_list(context.get("framework")))
+                if (
+                    "django" in frameworks
+                    and "pytest" not in frameworks
+                    and "django.test" in case.script_content
+                ):
+                    raise invalid_request(
+                        f"用例 {case.case_id} 使用 Django TestCase 独立脚本",
+                        "该项目没有 pytest-django；改用 command: 运行既有测试",
+                    )
+            elif (
+                "django" in set(_string_list(context.get("framework")))
+                and case.verify_method.startswith("command:")
             ):
-                raise invalid_request(
-                    f"用例 {case.case_id} 的 Django 导入命令未配置 DJANGO_SETTINGS_MODULE",
-                    "改用项目测试运行器，或在命令中设置 DJANGO_SETTINGS_MODULE "
-                    "并调用 django.setup()",
-                )
-        if intent == "smoke":
-            _validate_smoke_case(case, allowed_commands)
-        else:
-            _validate_business_http(case, allowed_hosts)
+                command = case.verify_method.split(":", 1)[1]
+                if (
+                    "python -c" in command
+                    and " import " in command
+                    and "DJANGO_SETTINGS_MODULE" not in command
+                ):
+                    raise invalid_request(
+                        f"用例 {case.case_id} 的 Django 导入命令未配置 DJANGO_SETTINGS_MODULE",
+                        "改用项目测试运行器，或在命令中设置 DJANGO_SETTINGS_MODULE "
+                        "并调用 django.setup()",
+                    )
+            if intent == "smoke":
+                _validate_smoke_case(case, allowed_commands)
+            else:
+                _validate_business_http(case, allowed_hosts)
+        except AiTestError as exc:
+            if not collect_all or exc.info.code != "INVALID_REQUEST":
+                raise
+            collected_errors.append(exc.info.message)
+    if collected_errors:
+        raise invalid_request("；".join(collected_errors), "修正所有不合法用例后重试")
 
 
 
@@ -1253,6 +1202,187 @@ def _dedupe_script_names(cases: list[Case]) -> None:
         if (case.verify_method or "").startswith("script:"):
             case.verify_method = f"script:{candidate}"
         seen.add(candidate.lower())
+
+
+def _annotate_assertion_strength(cases: list[Case]) -> None:
+    """为计划中的每条用例确定性评定断言强度（strong / weak / unverified）。"""
+    for case in cases:
+        case.assertion_strength = assess_assertion_strength(case)
+
+
+_REVIEW_BANNED_WORDS = (
+    "全部通过",
+    "建议上线",
+    "可以上线",
+    "建议发布",
+    "可以发布",
+    "质量良好",
+    "验收通过",
+    "测试通过",
+    "alltestspassed",
+    "testspassed",
+    "readyforrelease",
+    "readytoship",
+    "passed",
+    "failed",
+)
+
+
+def review_text_conclusion_free(text: str) -> bool:
+    """检验评审说明是否不含禁止结论词（防止 AI 越权下结论）。"""
+    compact = re.sub(r"[\s\W_]+", "", text or "", flags=re.UNICODE).lower()
+    return not any(word in compact for word in _REVIEW_BANNED_WORDS)
+
+
+def case_dedupe_signature(
+    item_id: str,
+    scenario_type: str,
+    assertion_target: str,
+    data_shape: str,
+) -> str:
+    """计算确定性去重签名：item_id + scenario_type + assertion_target + data_shape。"""
+    parts = [
+        re.sub(r"\s+", " ", (item_id or "").strip().lower()),
+        re.sub(r"\s+", " ", (scenario_type or "").strip().lower()),
+        re.sub(r"\s+", " ", (assertion_target or "").strip().lower()),
+        re.sub(r"\s+", " ", (data_shape or "").strip().lower()),
+    ]
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:20]
+
+
+def infer_case_signature(case_like: dict[str, Any]) -> str:
+    """从计划用例或候选补丁用例推导标准去重签名。"""
+    item_id = str(case_like.get("acceptance_item_id") or "").strip()
+    verify = str(case_like.get("verify_method") or "").strip()
+    title = str(case_like.get("title") or "").strip()
+    expected = str(case_like.get("expected") or "").strip()
+
+    scenario_type = "general"
+    assertion_target = ""
+    data_shape = ""
+
+    if verify.startswith("http:"):
+        try:
+            reqs = json.loads(verify[len("http:") :].strip())
+        except json.JSONDecodeError:
+            reqs = []
+        if isinstance(reqs, list) and reqs:
+            last = reqs[-1] if isinstance(reqs[-1], dict) else {}
+            method = str(last.get("method") or "GET").upper()
+            url = str(last.get("url") or "")
+            path = re.sub(r"^https?://[^/]+", "", url)
+            path = re.sub(r"/\d+(?=/|$)", "/{id}", path)
+            assertion_target = f"{method} {path}"
+            raw_body = last.get("json")
+            body: dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
+            data_shape = ",".join(sorted(str(k) for k in body))
+            raw_expects = last.get("expect")
+            expects: list[Any] = raw_expects if isinstance(raw_expects, list) else []
+            status_vals = [
+                str(e.get("value"))
+                for e in expects
+                if isinstance(e, dict) and e.get("path") == "status"
+            ]
+            if any(s in {"401", "403"} for s in status_vals):
+                scenario_type = f"negative_auth_{status_vals[0]}"
+            elif any(s in {"400", "422"} for s in status_vals):
+                scenario_type = "validation_4xx"
+            elif method in {"POST", "PUT", "PATCH", "DELETE"}:
+                scenario_type = f"write_{method.lower()}"
+            else:
+                scenario_type = "read"
+    else:
+        assertion_target = verify[:120] or title[:80]
+        if any(k in f"{title} {expected}" for k in ("401", "未认证", "未登录")):
+            scenario_type = "negative_auth_401"
+        elif any(k in f"{title} {expected}" for k in ("403", "越权", "无权限")):
+            scenario_type = "negative_auth_403"
+        elif any(k in f"{title} {expected}" for k in ("400", "422", "必填", "校验")):
+            scenario_type = "validation_4xx"
+
+    return case_dedupe_signature(item_id, scenario_type, assertion_target, data_shape)
+
+
+def dedupe_patch_cases(
+    existing_cases: list[dict[str, Any]],
+    candidate_cases: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """过滤与已有用例或候选集合内部签名完全重复的用例，确保 exact duplicate = 0。"""
+    seen = {infer_case_signature(c) for c in existing_cases}
+    unique: list[dict[str, Any]] = []
+    for cand in candidate_cases:
+        if not isinstance(cand, dict):
+            continue
+        sig = infer_case_signature(cand)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        unique.append(cand)
+    return unique
+
+
+def merge_and_filter_reviews(
+    deterministic_reviews: list[dict[str, Any]],
+    model_reviews: list[dict[str, Any]],
+    existing_cases: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """合并评审建议，强制过滤结论词、无证据项与重复补丁用例。"""
+    merged: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    accumulated_cases = list(existing_cases)
+
+    for raw_list, is_model in ((deterministic_reviews, False), (model_reviews, True)):
+        for entry in raw_list:
+            if not isinstance(entry, dict):
+                continue
+            statement = str(entry.get("statement") or "").strip()
+            if not statement:
+                continue
+            if is_model and not review_text_conclusion_free(statement):
+                continue
+            evidence = [
+                str(e).strip() for e in (entry.get("evidence") or []) if str(e).strip()
+            ]
+            if is_model and not evidence:
+                continue
+            rid = str(entry.get("review_id") or "").strip() or (
+                "rev_" + hashlib.sha256(statement.encode("utf-8")).hexdigest()[:10]
+            )
+            if rid in seen_ids:
+                continue
+            seen_ids.add(rid)
+            raw_patches = entry.get("patch_cases")
+            normalized_patches: list[dict[str, Any]] = []
+            if isinstance(raw_patches, list):
+                for p in raw_patches:
+                    if not isinstance(p, dict):
+                        continue
+                    item_copy = dict(p)
+                    if not str(item_copy.get("case_id") or "").strip():
+                        item_copy["case_id"] = (
+                            f"case_rev_{infer_case_signature(item_copy)[:12]}"
+                        )
+                    normalized_patches.append(item_copy)
+            patches = (
+                dedupe_patch_cases(accumulated_cases, normalized_patches)
+                if normalized_patches
+                else []
+            )
+            accumulated_cases.extend(patches)
+            severity = str(entry.get("severity") or "medium").lower()
+            if severity not in {"high", "medium", "low"}:
+                severity = "medium"
+            merged.append(
+                {
+                    "review_id": rid,
+                    "kind": str(entry.get("kind") or "blind_conflict"),
+                    "severity": severity,
+                    "statement": statement,
+                    "evidence": evidence,
+                    "patch_cases": patches,
+                }
+            )
+    return merged
 
 
 

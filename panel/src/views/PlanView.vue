@@ -14,8 +14,7 @@ import {
   currentPlan as readCurrentPlan,
   unselectedItems,
 } from "@/domain/derive";
-import { TEMPLATE_DISPOSITION_LABEL } from "@/domain/labels";
-import type { CaseResult, Plan, Task, TemplateResult } from "@/domain/types";
+import type { CaseResult, Plan, PlanReviewItem, Task } from "@/domain/types";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 
@@ -39,45 +38,80 @@ const startError = ref("");
 
 const viewByFlow = ref(true);
 const deliveryDrawerOpen = ref(false);
-const templateDrawerOpen = ref(false);
-const availableTemplates = ref<Array<{ id: string; name: string; version: string; itemCount: number }>>([]);
-const loadingTemplates = ref(false);
-const applyingTemplateId = ref("");
+const reviewLoading = ref(false);
+const reviewItems = ref<PlanReviewItem[]>([]);
+const reviewExpanded = ref(false);
+const selectedReviewIds = ref<string[]>([]);
+const mergingReviews = ref(false);
 
-// 合并任务级与计划快照内的模板参考检查（保持独立展示，绝不计入 S/M 主覆盖分母）
-const appliedTemplates = computed<TemplateResult[]>(() => {
-  const merged = new Map<string, TemplateResult>();
-  (plan.value?.templates ?? []).forEach((item) => merged.set(item.templateId, item));
-  (task.value?.templates ?? []).forEach((item) => merged.set(item.templateId, item));
-  return Array.from(merged.values());
-});
+const highSeverityReviews = computed(() =>
+  reviewItems.value.filter(
+    (entry) =>
+      entry.severity === "high" ||
+      entry.kind === "blind_conflict" ||
+      entry.kind === "permission_gap",
+  ),
+);
+const coverageGaps = computed(() =>
+  (plan.value?.coverageLedger ?? []).filter(
+    (row) => row.status === "gap" || row.status === "unsupported",
+  ),
+);
 
-async function openTemplateDrawer(): Promise<void> {
-  templateDrawerOpen.value = true;
-  if (availableTemplates.value.length > 0 || loadingTemplates.value) {
+async function triggerPlanReview(refresh = false): Promise<void> {
+  if (!plan.value || workspace.mode !== "host" || reviewLoading.value) {
     return;
   }
-  loadingTemplates.value = true;
+  const targetPlanId = plan.value.id;
+  reviewLoading.value = true;
   try {
-    availableTemplates.value = await workspace.listTemplates();
+    const res = await workspace.reviewPlan(projectId.value, targetPlanId, refresh);
+    if (plan.value?.id !== targetPlanId) {
+      return;
+    }
+    reviewItems.value = res.reviews;
+    selectedReviewIds.value = res.reviews
+      .filter((r) => (r.patchCases?.length ?? 0) > 0 && r.severity === "high")
+      .map((r) => r.reviewId);
+  } catch {
+    // 静默复核失败不阻塞主流程阅读与 run.start
   } finally {
-    loadingTemplates.value = false;
+    reviewLoading.value = false;
   }
 }
 
-async function applyTemplate(templateId: string): Promise<void> {
-  if (!task.value || applyingTemplateId.value) {
+function toggleReviewSelection(reviewId: string): void {
+  const target = reviewItems.value.find((r) => r.reviewId === reviewId);
+  if (!target || target.patchCases.length === 0) {
     return;
   }
-  applyingTemplateId.value = templateId;
+  selectedReviewIds.value = selectedReviewIds.value.includes(reviewId)
+    ? selectedReviewIds.value.filter((id) => id !== reviewId)
+    : [...selectedReviewIds.value, reviewId];
+}
+
+async function mergeSelectedReviews(): Promise<void> {
+  if (!plan.value || mergingReviews.value) {
+    return;
+  }
+  const chosen = reviewItems.value.filter(
+    (r) => selectedReviewIds.value.includes(r.reviewId) && r.patchCases.length > 0,
+  );
+  if (chosen.length === 0) {
+    return;
+  }
+  mergingReviews.value = true;
   try {
-    await workspace.applyTemplate(projectId.value, taskId.value, templateId);
-    ui.showToast("已套用参考核查模板（结果作为参考展示，不计入 S/M 分母）。", "success");
-    templateDrawerOpen.value = false;
+    const nextRev = await workspace.mergePlanReviewCases(projectId.value, plan.value.id, chosen);
+    reviewExpanded.value = false;
+    reviewItems.value = [];
+    selectedReviewIds.value = [];
+    checked.value = false;
+    ui.showToast(`已将 ${chosen.length} 条评审补丁合并进计划（第 ${nextRev} 版），请重新确认。`, "success");
   } catch {
     // store 已提示。
   } finally {
-    applyingTemplateId.value = "";
+    mergingReviews.value = false;
   }
 }
 
@@ -182,17 +216,18 @@ const unselected = computed(() => {
   }
   return unselectedItems(task.value, plan.value.scope.acceptanceItemIds);
 });
-const rule = computed(
-  () =>
-    project.value?.rules.find((entry) => entry.id === plan.value?.rulesVersionId) ?? null,
-);
 
 watch(
   () => plan.value?.id,
   () => {
     checked.value = false;
     warningsAcknowledged.value = false;
+    reviewItems.value = [];
+    reviewExpanded.value = false;
+    selectedReviewIds.value = [];
+    void triggerPlanReview(false);
   },
+  { immediate: true },
 );
 
 async function start(): Promise<void> {
@@ -222,10 +257,6 @@ async function adjustScope(): Promise<void> {
 
 function onGlobalKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") {
-    if (templateDrawerOpen.value) {
-      templateDrawerOpen.value = false;
-      return;
-    }
     if (deliveryDrawerOpen.value) {
       deliveryDrawerOpen.value = false;
       return;
@@ -326,17 +357,10 @@ onBeforeUnmount(() => {
         >
           任务说明
         </button>
-        <button
-          class="btn btn-sm"
-          type="button"
-          @click="openTemplateDrawer"
-        >
-          检查模板
-        </button>
       </template>
     </PageHeader>
 
-    <div v-if="stale" class="notice is-warn" role="alert">
+      <div v-if="stale" class="notice is-warn" role="alert">
       <Icon name="warn" :size="14" />
       <span>{{ plan.staleReason || "任务契约已变化，计划过期；重新生成计划后才能启动。" }}</span>
       <button
@@ -350,18 +374,94 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
+    <!-- 仅当无锁双盲评审发现高危冲突或权限盲区时冒泡一条提醒；无问题时零打扰 -->
+    <section
+      v-if="highSeverityReviews.length > 0"
+      class="notice is-warn stack-sm"
+      style="flex-direction: column; align-items: stretch;"
+      role="status"
+      aria-label="双盲冲突与权限盲区提醒"
+    >
+      <div class="row-between" style="flex-wrap: wrap; gap: 8px;">
+        <div class="row" style="gap: 8px;">
+          <Icon name="warn" :size="14" />
+          <strong>
+            发现 {{ highSeverityReviews.length }} 处需求/代码口径冲突或缺失权限边界
+          </strong>
+        </div>
+        <div class="row" style="gap: 8px;">
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            @click="reviewExpanded = !reviewExpanded"
+          >
+            {{ reviewExpanded ? "收起详情" : "查看并勾选采纳" }}
+          </button>
+          <button
+            v-if="selectedReviewIds.length > 0"
+            class="btn btn-primary btn-sm"
+            type="button"
+            :disabled="mergingReviews"
+            :aria-busy="mergingReviews"
+            @click="mergeSelectedReviews"
+          >
+            {{ mergingReviews ? "正在合并…" : `一键合并进计划 (${selectedReviewIds.length})` }}
+          </button>
+        </div>
+      </div>
+      <div v-if="reviewExpanded" class="stack-sm" style="margin-top: 6px;">
+        <label
+          v-for="item in highSeverityReviews"
+          :key="item.reviewId"
+          class="repair-row"
+          style="align-items: flex-start;"
+        >
+          <input
+            type="checkbox"
+            :checked="selectedReviewIds.includes(item.reviewId)"
+            :disabled="item.patchCases.length === 0"
+            :title="item.patchCases.length === 0 ? '仅文字提醒，无补丁用例可合并' : '勾选合并进计划'"
+            @change="toggleReviewSelection(item.reviewId)"
+          />
+          <div class="stack-sm" style="gap: 2px;">
+            <div>
+              <span class="badge is-warn">{{ item.kind === "permission_gap" ? "权限盲区" : "口径冲突" }}</span>
+              <strong>{{ item.statement }}</strong>
+            </div>
+            <span v-if="item.evidence.length" class="field-hint">
+              依据：{{ item.evidence.join(" · ") }}
+              <template v-if="item.patchCases.length">
+                · 附 {{ item.patchCases.length }} 条补丁用例
+              </template>
+              <template v-else> · 仅提醒，无可直接合并补丁</template>
+            </span>
+          </div>
+        </label>
+      </div>
+    </section>
+
     <!-- 开放式覆盖率与任务摘要条 -->
     <section class="plan-summary-strip" aria-label="覆盖率与任务摘要">
       <div class="row-between" style="flex-wrap: wrap; gap: 10px;">
         <p class="page-subtitle">
           本次纳入 <strong class="num">{{ plan.scope.coverage.selected }}</strong> / 共
           <strong class="num">{{ plan.scope.coverage.applicable }}</strong> 项验收 ·
-          包含 <strong class="num">{{ plan.cases.length }}</strong> 条检查 ·
-          规则：{{ rule ? `${rule.name} v${rule.version}` : "项目默认" }}
+          包含 <strong class="num">{{ plan.cases.length }}</strong> 条检查
         </p>
-        <span v-if="plan.cases.some((c) => !c.expectationVerified)" class="badge is-warn">
-          {{ plan.cases.filter((c) => !c.expectationVerified).length }} 条预期待核实
-        </span>
+        <div class="row" style="flex-wrap: wrap; gap: 6px;">
+          <span v-if="plan.cases.some((c) => !c.expectationVerified)" class="badge is-warn">
+            {{ plan.cases.filter((c) => !c.expectationVerified).length }} 条预期待核实
+          </span>
+          <span
+            v-for="gap in coverageGaps"
+            :key="gap.dimension"
+            class="badge"
+            :class="gap.status === 'unsupported' ? 'is-fail' : 'is-warn'"
+            :title="gap.note"
+          >
+            {{ gap.dimension }}·{{ gap.status === "unsupported" ? "不支持" : "缺口" }}
+          </span>
+        </div>
       </div>
       <CoverageRuler
         :items="items"
@@ -411,36 +511,6 @@ onBeforeUnmount(() => {
           </ul>
         </details>
 
-        <!-- 独立的检查模板区：绝不计入 S/M 主覆盖率分母 -->
-        <section
-          v-if="appliedTemplates.length"
-          class="elevated-panel stack-sm"
-          aria-label="检查模板"
-        >
-          <div class="row-between">
-            <h3 class="section-title">检查模板（不计入 S/M）</h3>
-            <span class="badge is-info">仅供参考</span>
-          </div>
-          <p class="field-hint">
-            模板检查结果独立记录，不计入 S/M 通过率分母。
-          </p>
-          <div v-for="tpl in appliedTemplates" :key="tpl.templateId" class="stack-sm">
-            <div class="row-between">
-              <strong>{{ tpl.name }} v{{ tpl.version }}</strong>
-              <span class="muted">
-                适用 {{ tpl.summary.applicable }} · 不适用 {{ tpl.summary.not_applicable }}
-              </span>
-            </div>
-            <ul class="list-plain">
-              <li v-for="item in tpl.items" :key="item.id">
-                <span class="badge is-neutral">{{ item.layer }}</span>
-                <strong>{{ item.objective }}</strong>
-                <span class="muted"> · {{ TEMPLATE_DISPOSITION_LABEL[item.disposition] }} · {{ item.reason }}</span>
-              </li>
-            </ul>
-          </div>
-        </section>
-
         <div v-if="plan.cases.length === 0" class="notice is-warn" role="alert">
           <Icon name="warn" :size="14" />
           <span>这个计划没有用例，不能启动；请回到范围页重新勾选验收项。</span>
@@ -483,7 +553,7 @@ onBeforeUnmount(() => {
               {{ starting ? "正在启动测试…" : "确认并开始测试" }}
             </button>
             <button
-              class="btn btn-ghost btn-sm"
+              class="btn btn-sm"
               type="button"
               style="width: 100%;"
               :disabled="busy"
@@ -550,54 +620,6 @@ onBeforeUnmount(() => {
           >
             {{ draftingDelivery ? "正在整理…" : "重新自动整理说明" }}
           </button>
-        </div>
-      </aside>
-    </div>
-
-    <!-- 参考核查模板抽屉 -->
-    <div
-      v-if="templateDrawerOpen"
-      class="drawer-backdrop"
-      role="presentation"
-      @click.self="templateDrawerOpen = false"
-    >
-      <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="检查模板">
-        <div class="drawer-head">
-          <div>
-            <h2 class="drawer-title">套用检查模板</h2>
-            <p class="drawer-sub">不计入 S/M 分母</p>
-          </div>
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            aria-label="关闭模板抽屉"
-            @click="templateDrawerOpen = false"
-          >
-            <Icon name="close" :size="15" />
-          </button>
-        </div>
-        <div class="drawer-body">
-          <p v-if="loadingTemplates" class="field-hint">正在获取可用模板…</p>
-          <p v-else-if="availableTemplates.length === 0" class="side-empty">
-            暂无可用的参考核查模板。
-          </p>
-          <div v-else class="stack-sm">
-            <div v-for="tpl in availableTemplates" :key="tpl.id" class="elevated-panel row-between">
-              <div>
-                <strong>{{ tpl.name }}</strong>
-                <p class="field-hint">版本 {{ tpl.version }} · 包含 {{ tpl.itemCount }} 项检查</p>
-              </div>
-              <button
-                class="btn btn-sm btn-primary"
-                type="button"
-                :disabled="applyingTemplateId === tpl.id"
-                :aria-busy="applyingTemplateId === tpl.id"
-                @click="applyTemplate(tpl.id)"
-              >
-                {{ applyingTemplateId === tpl.id ? "套用中…" : "套用到当前计划" }}
-              </button>
-            </div>
-          </div>
         </div>
       </aside>
     </div>

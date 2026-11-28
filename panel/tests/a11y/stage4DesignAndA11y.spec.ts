@@ -281,7 +281,7 @@ describe("Stage 4 Design Token, Breakpoint & A11y Gate", () => {
     );
 
     const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(6);
     expect(tabs.map((tab) => tab.text())).not.toContain("数据边界");
 
     const boundaryDetails = wrapper.find("details#settings-boundary");

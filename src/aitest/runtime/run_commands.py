@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 import mimetypes
@@ -24,11 +25,6 @@ from aitest.commands import (
 )
 from aitest.config import github_token, known_secret_values, model_key
 from aitest.core.analysis import analyze_run
-from aitest.core.checkpoint import (
-    build_resumed_run_cases,
-    copy_resumed_evidence,
-    load_resumable_cases,
-)
 from aitest.core.evidence import (
     data_prefix,
     evidence_bytes,
@@ -67,6 +63,7 @@ from aitest.runtime._common import (
     _plan_dependencies,
     _plan_signature,
     _refresh_and_save,
+    _refresh_stale,
     _run,
     _runs_dir,
     _safe_script_name,
@@ -74,7 +71,10 @@ from aitest.runtime._common import (
     _save_evidence_stream,
     _snapshot_excluded_items,
     _task_by_id,
+    build_resumed_run_cases,
+    copy_resumed_evidence,
     facade_attr,
+    load_resumable_cases,
 )
 from aitest.security import redact, scan_script
 from aitest.storage.files import read_json, read_model, write_json, write_model
@@ -385,11 +385,11 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     if plan.status != "published":
         raise AiTestError("PLAN_NOT_PUBLISHED", "计划尚未发布", "先发布计划")
     warnings: list[str] = []
-    current_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
+    current_signature = _plan_signature(ws, project, plan.task_id)
     if not plan.source_signature or plan.source_signature != current_signature:
         raise AiTestError(
             "PLAN_STALE",
-            "计划缺少来源签名，或生成后项目、交付提交、任务验收项、规则或服务配置已变化",
+            "计划缺少来源签名，或生成后项目、交付提交、任务验收项或服务配置已变化",
             "重新生成计划后重试",
         )
     confirmed_by = _text(payload, "confirmed_by")
@@ -832,9 +832,17 @@ _REPAIR_SPEC = re.compile(
 
 
 
-def _project_python(root: Path) -> Path:
+def _project_python(
+    root: Path,
+    config: dict[str, Any] | None = None,
+) -> Path:
+    """统一与 Worker 一致的解释器解析：runners.python -> 项目 .venv -> sys.executable。"""
     from aitest.worker import _venv_python
+    from aitest.worker_impl.env import _configured_python
 
+    configured = _configured_python(config, root) if isinstance(config, dict) else None
+    if configured is not None:
+        return configured
     found = _venv_python(root)
     return found if found is not None else Path(sys.executable)
 
@@ -931,7 +939,8 @@ def cmd_run_repair(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
                 )
             run_id = run.run_id
 
-        python = _project_python(Path(project.root))
+        cfg_repair = load_project_config(ws, project.project_id)
+        python = _project_python(Path(project.root), cfg_repair)
         from aitest.worker import _environment_fingerprint, _run_env
 
         env = _run_env(Path(project.root), python, run_id)
@@ -1030,29 +1039,59 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     skipped: list[dict[str, str]] = []
     directory = _runs_dir(ws, project.project_id)
     if directory.is_dir():
-        for path in sorted(directory.glob("*/run.json")):
+        idx_path = ws.project_dir(project.project_id) / ".runs_index.json"
+        cached_items: dict[str, Any] = {}
+        if idx_path.is_file():
             try:
-                run = _refresh_and_save(path, read_model(path, Run))
+                raw_idx = read_json(idx_path)
+                if isinstance(raw_idx, dict) and isinstance(raw_idx.get("items"), dict):
+                    cached_items = dict(raw_idx["items"])
+            except (AiTestError, OSError):
+                cached_items = {}
+        new_items: dict[str, Any] = {}
+        idx_dirty = False
+        for path in sorted(directory.glob("*/run.json")):
+            rid = path.parent.name
+            run_dir = path.parent
+            plan_path = run_dir / "plan.json"
+            task_path = run_dir / "task.json"
+            try:
+                mtime_sig = [
+                    path.stat().st_mtime_ns,
+                    plan_path.stat().st_mtime_ns if plan_path.is_file() else -1,
+                    task_path.stat().st_mtime_ns if task_path.is_file() else -1,
+                ]
+            except OSError:
+                mtime_sig = [0, -1, -1]
+            cached_entry = cached_items.get(rid)
+            if (
+                isinstance(cached_entry, dict)
+                and cached_entry.get("sig") == mtime_sig
+                and isinstance(cached_entry.get("row"), dict)
+                and cached_entry["row"].get("status") != "running"
+            ):
+                new_items[rid] = cached_entry
+                runs.append(dict(cached_entry["row"]))
+                continue
+            try:
+                run = _refresh_stale(read_model(path, Run))
             except AiTestError as exc:
                 skipped.append(
                     {
-                        "run_id": path.parent.name,
+                        "run_id": rid,
                         "code": exc.info.code,
                         "message": exc.info.message,
                     }
                 )
                 continue
-            run_dir = path.parent
             plan_snapshot: Plan | None = None
             task_snapshot: Task | None = None
             task_snapshot_exists = False
-            plan_path = run_dir / "plan.json"
             if plan_path.is_file():
                 try:
                     plan_snapshot = read_model(plan_path, Plan)
                 except AiTestError:
                     plan_snapshot = None
-            task_path = run_dir / "task.json"
             if task_path.is_file():
                 try:
                     task_snapshot = read_model(task_path, Task)
@@ -1072,29 +1111,34 @@ def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
                         task_snapshot = None
             outcome = verdict(plan_snapshot, run) if plan_snapshot is not None else None
             counts = coverage(plan_snapshot, run) if plan_snapshot is not None else {}
-            runs.append(
-                {
-                    "run_id": run.run_id,
-                    "kind": run.kind,
-                    "status": run.status,
-                    "started_at": run.started_at,
-                    "heartbeat_at": run.heartbeat_at,
-                    "elapsed_seconds": _elapsed_seconds(run.started_at, run.heartbeat_at),
-                    "plan_id": run.plan_id,
-                    "plan_no": plan_snapshot.plan_no if plan_snapshot is not None else 0,
-                    "plan_revision": plan_snapshot.revision if plan_snapshot is not None else 0,
-                    "task_id": plan_snapshot.task_id if plan_snapshot is not None else "",
-                    "task_title": task_snapshot.title if task_snapshot is not None else "",
-                    "task_snapshot": task_snapshot_exists,
-                    "outcome": outcome,
-                    "counts": counts,
-                    "scope": {
-                        "selected": counts.get("selected", 0),
-                        "applicable": counts.get("applicable", 0),
-                    },
-                    "latest_report_id": run.latest_report_id,
-                }
-            )
+            row = {
+                "run_id": run.run_id,
+                "kind": run.kind,
+                "status": run.status,
+                "started_at": run.started_at,
+                "heartbeat_at": run.heartbeat_at,
+                "elapsed_seconds": _elapsed_seconds(run.started_at, run.heartbeat_at),
+                "plan_id": run.plan_id,
+                "plan_no": plan_snapshot.plan_no if plan_snapshot is not None else 0,
+                "plan_revision": plan_snapshot.revision if plan_snapshot is not None else 0,
+                "task_id": plan_snapshot.task_id if plan_snapshot is not None else "",
+                "task_title": task_snapshot.title if task_snapshot is not None else "",
+                "task_snapshot": task_snapshot_exists,
+                "outcome": outcome,
+                "counts": counts,
+                "scope": {
+                    "selected": counts.get("selected", 0),
+                    "applicable": counts.get("applicable", 0),
+                },
+                "latest_report_id": run.latest_report_id,
+            }
+            if run.status != "running":
+                new_items[rid] = {"sig": mtime_sig, "row": row}
+                idx_dirty = True
+            runs.append(row)
+        if idx_dirty and not skipped:
+            with contextlib.suppress(OSError):
+                write_json(idx_path, {"schema_version": 1, "items": new_items})
     runs.sort(key=lambda item: item["started_at"], reverse=True)
     raw_limit = payload.get("limit", 20)
     try:
@@ -1147,10 +1191,13 @@ def _manual_evidence_ref(
     candidate = Path(value)
     if not candidate.is_absolute():
         relative = value.replace("\\", "/")
+        if ".." in Path(relative).parts:
+            raise invalid_path(f"证据路径不能包含父级跳转：{value}")
         target = (run_dir / relative).resolve()
         evidence_root = (run_dir / "evidence").resolve()
         if evidence_root in target.parents and target.is_file():
             return relative
+        raise invalid_path(f"相对证据路径不在 evidence/ 内或不存在：{value}")
     source = candidate.expanduser().resolve()
     if not source.is_file():
         raise invalid_path(f"证据文件不存在：{source}")

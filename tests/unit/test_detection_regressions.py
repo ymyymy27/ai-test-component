@@ -23,7 +23,6 @@ from aitest.runtime_commands import (
     _annotate_case_coverage,
     _broad_test_command,
     _downgrade_broad_business_cases,
-    _drop_unavailable_django_scripts,
     _merge_duplicate_command_cases,
     _plan_dependencies,
     _prefix_component_command,
@@ -372,31 +371,6 @@ def test_django_testcase_script_is_rejected_without_pytest_django(tmp_path: Path
     assert "Django TestCase" in str(excinfo.value)
 
 
-def test_django_scripts_are_dropped_and_bound_to_command(tmp_path: Path) -> None:
-    command = Case(
-        case_id="case_cmd",
-        acceptance_item_id="item_1",
-        layer="L2",
-        expected="页面动作通过",
-        verify_method="command:python runtests.py wagtail.admin.tests.pages",
-    )
-    script = Case(
-        case_id="case_script",
-        acceptance_item_id="item_2",
-        layer="L2",
-        expected="页面动作通过",
-        verify_method="script:test_page.py",
-        script_name="test_page.py",
-        script_content="from django.test import TestCase\n",
-    )
-    kept, dropped = _drop_unavailable_django_scripts(
-        [command, script], {"framework": ["django"]}
-    )
-    assert dropped == ["item_2"]
-    assert [case.case_id for case in kept] == ["case_cmd"]
-    assert "item_2" in kept[0].acceptance_item_ids
-
-
 def test_django_import_command_without_settings_is_rejected(tmp_path: Path) -> None:
     case = Case(
         case_id="case_import",
@@ -476,12 +450,12 @@ def test_duplicate_command_cases_for_different_items_are_not_merged() -> None:
     assert [case.acceptance_item_id for case in merged] == ["item_1", "item_2"]
 
 
-def test_alembic_command_runs_from_owning_subproject(tmp_path: Path) -> None:
+def test_command_prefix_keeps_explicit_commands_without_alembic_hardcoding(tmp_path: Path) -> None:
     (tmp_path / "backend").mkdir()
     (tmp_path / "backend" / "alembic.ini").write_text("[alembic]\n", encoding="utf-8")
     assert (
         _prefix_component_command("command:alembic upgrade head", tmp_path)
-        == "command:cd backend && alembic upgrade head"
+        == "command:alembic upgrade head"
     )
     assert (
         _prefix_component_command("command:alembic -c custom.ini upgrade head", tmp_path)

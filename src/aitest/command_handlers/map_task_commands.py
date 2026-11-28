@@ -28,7 +28,8 @@ from aitest.command_handlers._common import (
 from aitest.config import known_secret_values
 from aitest.core.code_graph import load_or_build_code_graph
 from aitest.core.git_engine import inspect_local_git
-from aitest.core.project_context import build_project_context
+from aitest.core.project_context import cached_project_context
+from aitest.core.repo_index import DEFAULT_SKIP_DIRS, compute_repo_fingerprint
 from aitest.errors import AiTestError, invalid_request
 from aitest.model_config import build_client, load_project_config, model_settings
 from aitest.models import (
@@ -53,20 +54,7 @@ from aitest.storage.workspace import Workspace, iso_now
 
 def _signal_source_files(root: Path) -> list[tuple[str, str]]:
     """收集少量非测试核心源码（供无 README 项目生成任务推荐与测试地图）。"""
-    skip_dirs = {
-        ".git",
-        ".venv",
-        "venv",
-        "node_modules",
-        "__pycache__",
-        "tests",
-        "test",
-        "e2e",
-        "dist",
-        "build",
-        "data",
-        "coverage",
-    }
+    skip_dirs = DEFAULT_SKIP_DIRS | {"tests", "test", "e2e", "data"}
     exts = {".py", ".js", ".ts", ".tsx", ".vue", ".html", ".go", ".java"}
     priority = ("server", "app", "main", "routes", "router", "index")
     candidates: list[tuple[int, str, str]] = []
@@ -112,7 +100,72 @@ def _signal_source_files(root: Path) -> list[tuple[str, str]]:
     return [(rel, body) for _rank, rel, body in candidates]
 
 
-def _task_signal_context(ws: Workspace, project: Project) -> str:
+def _compact_map_context(
+    proj_ctx: dict[str, Any],
+    *,
+    max_chars: int = 16000,
+    max_routes: int = 60,
+    max_fe_calls: int = 30,
+    max_test_modules: int = 40,
+) -> dict[str, Any]:
+    """为 project.map.refresh 压缩项目上下文体积，消除大仓库超长 prompt 导致 JSON 截断。"""
+    raw_routes = [r for r in (proj_ctx.get("api_routes") or []) if isinstance(r, dict)]
+    prefix_counts: dict[str, int] = {}
+    compact_routes: list[dict[str, Any]] = []
+    for r in raw_routes:
+        path_str = str(r.get("path") or "/")
+        seg = path_str.strip("/").split("/", 2)
+        prefix = "/" + "/".join(seg[:2]) if seg and seg[0] else "/"
+        prefix_counts[prefix] = prefix_counts.get(prefix, 0) + 1
+        if len(compact_routes) < max_routes:
+            compact_routes.append(
+                {
+                    "method": r.get("method", "GET"),
+                    "path": path_str,
+                    "auth": r.get("auth", "public"),
+                    "file": r.get("file", ""),
+                }
+            )
+    raw_fe = [c for c in (proj_ctx.get("frontend_api_calls") or []) if isinstance(c, dict)]
+    compact_fe = [
+        {
+            "method": c.get("method", "GET"),
+            "path": c.get("path", ""),
+            "source": c.get("source", ""),
+            **({"body_keys": list(c["body_keys"])[:8]} if c.get("body_keys") else {}),
+        }
+        for c in raw_fe[:max_fe_calls]
+    ]
+    compact: dict[str, Any] = {
+        "framework": list(proj_ctx.get("framework") or []),
+        "has_frontend": bool(proj_ctx.get("has_frontend")),
+        "has_database": bool(proj_ctx.get("has_database")),
+        "services": proj_ctx.get("services") or {},
+        "test_dirs": list(proj_ctx.get("test_dirs") or [])[:20],
+        "test_commands": list(proj_ctx.get("test_commands") or [])[:20],
+        "existing_commands": list(proj_ctx.get("existing_commands") or [])[:15],
+        "test_modules": list(proj_ctx.get("test_modules") or [])[:max_test_modules],
+        "total_api_routes": len(raw_routes),
+        "route_prefix_summary": dict(
+            sorted(prefix_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:25]
+        ),
+        "api_routes": compact_routes,
+        "frontend_api_calls": compact_fe,
+    }
+    encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    if len(encoded) > max_chars:
+        compact["api_routes"] = compact_routes[: max(10, max_routes // 3)]
+        compact["frontend_api_calls"] = compact_fe[: max(5, max_fe_calls // 3)]
+        compact["test_modules"] = list(compact["test_modules"])[:15]
+    return compact
+
+
+def _task_signal_context(
+    ws: Workspace,
+    project: Project,
+    *,
+    derived: dict[str, Any] | None = None,
+) -> str:
     """Collect the five target signals: changes, issues, modules, docs, history."""
     root = Path(project.root)
     parts = [f"项目：{project.name}\n目标：{project.goal or '未填写'}"]
@@ -225,8 +278,12 @@ def _task_signal_context(ws: Workspace, project: Project) -> str:
                 f"--- {rel} ---\n{body[:900]}" for rel, body in source_files[:3]
             ]
             parts.append("核心源码摘要：\n" + "\n".join(excerpts))
-        derived = build_project_context(root, config)
-        services = derived.get("services")
+        derived_ctx = (
+            derived
+            if derived is not None
+            else cached_project_context(ws.root, project.project_id, root, config)
+        )
+        services = derived_ctx.get("services")
         if isinstance(services, dict) and services:
             svc_lines = [
                 f"{name}: {cfg.get('health') or cfg.get('start') or ''}"
@@ -235,27 +292,27 @@ def _task_signal_context(ws: Workspace, project: Project) -> str:
             ]
             if svc_lines:
                 parts.append("识别服务：" + "；".join(svc_lines))
-        api_routes = derived.get("api_routes")
+        api_routes = derived_ctx.get("api_routes")
         if isinstance(api_routes, list) and api_routes:
             parts.append(
                 "后端接口："
                 + "；".join(
                     f"{r.get('method')} {r.get('path')}"
-                    for r in api_routes[:8]
+                    for r in api_routes[:15]
                     if isinstance(r, dict)
                 )
             )
-        fe_calls = derived.get("frontend_api_calls")
+        fe_calls = derived_ctx.get("frontend_api_calls")
         if isinstance(fe_calls, list) and fe_calls:
             parts.append(
                 "前端调用契约："
                 + "；".join(
                     f"{c.get('method')} {c.get('path')} body={c.get('body_keys', [])}"
-                    for c in fe_calls[:8]
+                    for c in fe_calls[:12]
                     if isinstance(c, dict)
                 )
             )
-        fe_assets = derived.get("frontend_assets")
+        fe_assets = derived_ctx.get("frontend_assets")
         if isinstance(fe_assets, list) and fe_assets:
             parts.append(
                 "前端静态资源："
@@ -317,12 +374,18 @@ def _source_stamp(root: Path) -> str:
 
 def _map_stale(ws: Workspace, project: Project, record: dict[str, Any]) -> bool:
     config = load_project_config(ws, project.project_id)
-    git_head = _git_head(Path(project.root))
-    source_changed = (
-        record.get("source_commit") != git_head
-        if git_head
-        else record.get("source_stamp") != _source_stamp(Path(project.root))
-    )
+    root = Path(project.root)
+    saved_fp = str(record.get("source_fingerprint") or "")
+    if saved_fp:
+        cur_fp, _cacheable = compute_repo_fingerprint(root, include_tests=False)
+        source_changed = saved_fp != cur_fp
+    else:
+        git_head = _git_head(root)
+        source_changed = (
+            record.get("source_commit") != git_head
+            if git_head
+            else record.get("source_stamp") != _source_stamp(root)
+        )
     return (
         record.get("project_revision") != project.revision
         or source_changed
@@ -422,29 +485,46 @@ def cmd_project_map_refresh(
     config = load_project_config(ws, project.project_id)
     secrets = known_secret_values([config])
     local_git, graph = _project_git_and_graph(ws, project, config)
-    graph_digest = {
+    project_root = Path(project.root)
+    proj_ctx = cached_project_context(ws.root, project.project_id, project_root, config)
+    from aitest.core.project_context import build_capabilities_snapshot
+
+    capabilities = build_capabilities_snapshot(
+        project_root,
+        config,
+        project_context=proj_ctx,
+        runtime_introspect=bool(payload.get("runtime_introspect") is True),
+        secrets=secrets,
+    )
+    signal_ctx = _task_signal_context(ws, project, derived=proj_ctx)
+    compact_facts = _compact_map_context(proj_ctx, max_chars=16000)
+    compact_digest = {
         "stats": graph.get("stats", {}),
-        "module_chunks": list(graph.get("module_chunks") or [])[:30],
-        "conflicts": list(graph.get("conflicts") or [])[:20],
+        "module_chunks": list(graph.get("module_chunks") or [])[:20],
+        "conflicts": list(graph.get("conflicts") or [])[:15],
         "impact": graph.get("impact", {}),
         "local_git": {
             "branch": local_git.get("branch", ""),
             "head": local_git.get("head", ""),
             "dirty": local_git.get("dirty", False),
             "diff_stat": local_git.get("diff_stat", {}),
-            "changed_files": list(local_git.get("changed_files") or [])[:30],
+            "changed_files": list(local_git.get("changed_files") or [])[:20],
         },
     }
-    context = _task_signal_context(ws, project)
-    context += "\n\n结构化项目事实：\n" + json.dumps(
-        build_project_context(Path(project.root), config),
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    context += "\n\n全栈代码图分块与本地 Git 变更：\n" + redact(
-        json.dumps(graph_digest, ensure_ascii=False, sort_keys=True),
-        secrets,
-    )
+
+    def _build_prompt_context(facts: dict[str, Any], digest: dict[str, Any]) -> str:
+        text = signal_ctx
+        text += "\n\n结构化项目事实（精简摘要）：\n" + redact(
+            json.dumps(facts, ensure_ascii=False, sort_keys=True),
+            secrets,
+        )
+        text += "\n\n全栈代码图分块与本地 Git 变更：\n" + redact(
+            json.dumps(digest, ensure_ascii=False, sort_keys=True),
+            secrets,
+        )
+        return text
+
+    context = _build_prompt_context(compact_facts, compact_digest)
     map_path = _project_map_path(ws, project.project_id)
     existing_ignored: list[str] = []
     if map_path.is_file():
@@ -460,25 +540,63 @@ def cmd_project_map_refresh(
                 ]
         except AiTestError:
             existing_ignored = []
-    result = redact_tree(client.project_map(context), secrets)
-    record = {
-        "schema_version": 1,
-        "project_id": project.project_id,
-        "project_revision": project.revision,
-        "source_commit": _git_head(Path(project.root)),
-        "source_stamp": _source_stamp(Path(project.root)),
-        "config_hash": _map_config_hash(config),
-        "generated_at": iso_now(),
-        "model": _map_model_name(ws, project.project_id),
-        "ignored_features": existing_ignored,
-        **result,
-    }
-    write_json(map_path, record)
+    try:
+        raw_map = client.project_map(context)
+    except AiTestError as exc:
+        if exc.info.code != "MODEL_OUTPUT_INVALID":
+            raise
+        # 大仓库 JSON 截断或超限时，缩减至极简业务域摘要再重试一次
+        minimal_facts = _compact_map_context(
+            proj_ctx,
+            max_chars=7000,
+            max_routes=20,
+            max_fe_calls=10,
+            max_test_modules=15,
+        )
+        minimal_digest = {
+            "stats": graph.get("stats", {}),
+            "module_chunks": list(graph.get("module_chunks") or [])[:10],
+            "conflicts": list(graph.get("conflicts") or [])[:5],
+        }
+        raw_map = client.project_map(_build_prompt_context(minimal_facts, minimal_digest))
+    result = redact_tree(raw_map, secrets)
+    source_fp, _ = compute_repo_fingerprint(project_root, include_tests=False)
+    # 扫描与大模型调用全部在锁外完成，仅在读取 latest ignored_features 与写回时持毫秒级项目写锁。
+    with ws.project_lock(project.project_id, timeout=30.0):
+        latest_ignored = list(existing_ignored)
+        if map_path.is_file():
+            try:
+                latest_old = read_json(map_path)
+                if isinstance(latest_old, dict) and isinstance(
+                    latest_old.get("ignored_features"), list
+                ):
+                    latest_ignored = [
+                        str(item).strip()
+                        for item in latest_old["ignored_features"]
+                        if isinstance(item, str) and item.strip()
+                    ]
+            except AiTestError:
+                pass
+        record = {
+            "schema_version": 1,
+            "project_id": project.project_id,
+            "project_revision": project.revision,
+            "source_commit": _git_head(project_root),
+            "source_stamp": _source_stamp(project_root),
+            "source_fingerprint": source_fp,
+            "config_hash": _map_config_hash(config),
+            "generated_at": iso_now(),
+            "model": _map_model_name(ws, project.project_id),
+            "ignored_features": latest_ignored,
+            **result,
+        }
+        write_json(map_path, record)
     return {
         "map": record,
         "stale": False,
         "graph": graph,
         "local_git": local_git,
+        "capabilities": capabilities,
     }
 
 

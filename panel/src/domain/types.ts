@@ -21,7 +21,6 @@ export type IssueDisposition = "fixed" | "non_defect" | "duplicate" | "deferred"
 export type Severity = "P0" | "P1" | "P2" | "P3";
 export type MockKind = "real" | "mock" | "mixed" | "unknown";
 export type AnalysisRunStatus = "generated" | "not_generated" | "invalid";
-export type TemplateDisposition = "applicable" | "not_applicable" | "unsupported" | "unknown";
 export type Confidence = "high" | "medium" | "low";
 export type ConfidenceTier = "confirmed" | "suspected" | "blocked" | "";
 export type CodeGraphLayer = "frontend" | "api" | "backend" | "storage";
@@ -310,18 +309,6 @@ export interface ProjectConfig {
   environments?: Record<string, unknown>;
 }
 
-export interface RuleVersion {
-  id: string;
-  projectId: string;
-  name: string;
-  version: string;
-  stepsMd: string;
-  aiRules: string[];
-  evidenceRequirements: string[];
-  revision: number;
-  createdAt: string;
-}
-
 export interface Delivery {
   id: string;
   taskId: string;
@@ -338,6 +325,100 @@ export interface Delivery {
   complete: boolean;
   revision: number;
   updatedAt: string;
+}
+
+export interface CaseGeneration {
+  source: "invariant" | "model" | "explicit" | string;
+  generatorId?: string;
+  generatorVersion?: string;
+}
+
+export type AssertionStrength = "strong" | "weak" | "unverified";
+
+export interface CapabilitiesDependency {
+  type: string;
+  level: string;
+  source: string;
+  status: string;
+}
+
+export interface CapabilitiesSnapshot {
+  backend: string[];
+  router: string[];
+  auth: string[];
+  frontendCalls: string[];
+  services: string[];
+  startAdapters: string[];
+  dependencies: CapabilitiesDependency[];
+  externalSystems: CapabilitiesDependency[];
+  hosts: string[];
+  level: string;
+  unknowns: string[];
+  unsupported: string[];
+  source: string;
+  degraded: boolean;
+  evidence: string[];
+  fingerprint: string;
+}
+
+export interface ProjectHealthSummary {
+  level: string;
+  source: string;
+  degraded: boolean;
+  serviceCount: number;
+  dependencies: CapabilitiesDependency[];
+  routeCount: number;
+  uncoveredRouteCount: number;
+  uncoveredRoutesPreview: string[];
+  unknownsCount: number;
+  unsupportedCount: number;
+  unknowns: string[];
+  unsupported: string[];
+  conflictsCount: number;
+  fingerprint: string;
+}
+
+export interface PlanRecipe {
+  generatorId: string;
+  generatorVersion: string;
+  appliesTo: string[];
+  invariants: string[];
+  status: string;
+  skipReason: string;
+}
+
+export interface CoverageLedgerItem {
+  dimension: string;
+  status: string;
+  requiredItems: string[];
+  coveredCaseIds: string[];
+  note: string;
+}
+
+export interface PlanReviewItem {
+  reviewId: string;
+  kind: string;
+  severity: "high" | "medium" | "low";
+  statement: string;
+  evidence: string[];
+  patchCases: Array<Record<string, unknown>>;
+}
+
+export interface ScriptRepairInfo {
+  status: string;
+  reason: string;
+  unifiedDiff: string;
+  guardBlocked: string[];
+  scriptName: string;
+  at: string;
+}
+
+export interface AiHypothesis {
+  caseId: string;
+  hypothesis: string;
+  evidence: string[];
+  confidence: string;
+  nextCheck: string;
 }
 
 export interface PlanCase {
@@ -359,6 +440,8 @@ export interface PlanCase {
   scriptName: string | null;
   scriptContent: string | null;
   manual: boolean;
+  generation?: CaseGeneration | null;
+  assertionStrength?: AssertionStrength | null;
 }
 
 export interface Scope {
@@ -383,23 +466,6 @@ export interface Confirmation {
   fingerprint: string;
   confirmedBy: string;
   confirmedAt: string;
-}
-
-export interface TemplateItemResult {
-  id: string;
-  layer: Layer;
-  objective: string;
-  disposition: TemplateDisposition;
-  reason: string;
-}
-
-export interface TemplateResult {
-  templateId: string;
-  name: string;
-  version: string;
-  appliedAt: string;
-  items: TemplateItemResult[];
-  summary: Record<TemplateDisposition, number>;
 }
 
 export interface ExcludedItemSnapshot {
@@ -428,10 +494,12 @@ export interface Plan {
   createdAt: string;
   scope: Scope;
   applicableCount: number;
-  rulesVersionId: string | null;
   cases: PlanCase[];
   itemTexts?: Record<string, string>;
-  templates: TemplateResult[];
+  capabilities?: CapabilitiesSnapshot | null;
+  recipes?: PlanRecipe[];
+  coverageLedger?: CoverageLedgerItem[];
+  aiReviews?: PlanReviewItem[];
   unselectedByModule: Array<{ moduleId: string; moduleName: string; count: number }>;
   excludedItems?: ExcludedItemSnapshot[];
   warnings: string[];
@@ -496,6 +564,7 @@ export interface RunCase {
   phaseFailed?: string;
   file?: string;
   line?: number;
+  scriptRepair?: ScriptRepairInfo | null;
 }
 
 export interface RunItem {
@@ -572,6 +641,7 @@ export interface Run {
   preflight?: PreflightReport | null;
   probeResults?: ProbeResult[];
   resumedFromRunId?: string;
+  aiHypotheses?: AiHypothesis[];
 }
 
 export interface IssueOccurrence {
@@ -707,7 +777,6 @@ export interface Opinion {
 export interface ReportSource {
   runTime: string;
   planLabel: string;
-  rulesLabel: string;
   commit: string;
   model: string;
   github: string;
@@ -737,7 +806,6 @@ export interface Report {
   mock: MockSummary;
   analysis: FailureAnalysis;
   link: LinkData | null;
-  templates: TemplateResult[];
   modules: Array<{ name: string; count: number }>;
   unmapped: string[];
   uncoveredItems: string[];
@@ -754,6 +822,10 @@ export interface Report {
   probeResults?: ProbeResult[];
   confidenceSummary?: ConfidenceSummary | null;
   tokenUsage?: TokenUsage | null;
+  capabilities?: CapabilitiesSnapshot | null;
+  coverageLedger?: CoverageLedgerItem[];
+  sourceSummary?: Record<string, number>;
+  assertionStrength?: Record<string, number>;
 }
 
 export interface QuickCheck {
@@ -819,7 +891,6 @@ export interface Task {
   runs: Run[];
   currentRunId: string | null;
   delivery: Delivery | null;
-  templates: TemplateResult[];
 }
 
 export interface Project {
@@ -837,11 +908,11 @@ export interface Project {
   map: ProjectMap | null;
   localGit?: LocalGitInfo | null;
   codeGraph?: CodeGraph | null;
+  capabilities?: CapabilitiesSnapshot | null;
+  healthSummary?: ProjectHealthSummary | null;
   catalog: AcceptanceItem[];
   tasks: Task[];
   activeTaskId: string | null;
-  rules: RuleVersion[];
-  rulesVersionId: string | null;
   config: ProjectConfig;
   github: GithubSnapshot | null;
   quickChecks: QuickCheck[];

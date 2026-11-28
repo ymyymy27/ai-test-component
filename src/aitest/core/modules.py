@@ -10,29 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from aitest.core.repo_index import DEFAULT_SKIP_DIRS
 from aitest.models import Project
 
 _MAX_EXCERPT = 3000
 _MAX_ENTRIES = 500
 _MAX_DEPTH = 3
 
-_SKIP_DIRS = frozenset(
-    {
-        ".git",
-        ".hg",
-        ".svn",
-        "node_modules",
-        ".venv",
-        "venv",
-        "dist",
-        "build",
-        "legacy",
-        "__pycache__",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-    }
-)
+_SKIP_DIRS = DEFAULT_SKIP_DIRS
 
 _README_NAMES = ("README.md", "readme.md", "README.rst", "readme.rst", "README.txt")
 _MANIFEST_NAMES = ("pyproject.toml", "package.json", "setup.py", "go.mod", "Cargo.toml")

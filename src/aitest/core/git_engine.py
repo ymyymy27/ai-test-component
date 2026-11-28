@@ -14,6 +14,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from aitest.core.repo_index import run_git_porcelain_z
+
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _DIFF_FILE_RE = re.compile(r"^diff --git a/.+ b/(.+)$")
 _SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/@^~-]{1,128}$")
@@ -22,7 +24,7 @@ _SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/@^~-]{1,128}$")
 def _run_git(root: Path, *args: str) -> tuple[int, str]:
     try:
         completed = subprocess.run(
-            ["git", "-C", str(root), *args],
+            ["git", "-c", "core.quotepath=false", "-C", str(root), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -221,14 +223,9 @@ def inspect_local_git(
     staged_files: list[str] = []
     unstaged_files: list[str] = []
     untracked_files: list[str] = []
-    _, status_out = _run_git(root, "status", "--porcelain=v1", "-uall")
-    for line in status_out.splitlines():
-        if len(line) < 4:
-            continue
-        x_flag, y_flag = line[0], line[1]
-        rel = _unquote_git_path(line[3:])
-        if not rel:
-            continue
+    _, status_entries, _ = run_git_porcelain_z(root)
+    for xy, rel in status_entries:
+        x_flag, y_flag = xy[0], xy[1]
         if x_flag == "?" and y_flag == "?":
             untracked_files.append(rel)
             continue

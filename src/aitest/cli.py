@@ -12,7 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from aitest import __version__
-from aitest.commands import MUTATING, REGISTRY, Payload, cached_result, store_result
+from aitest.commands import (
+    MUTATING,
+    REGISTRY,
+    Payload,
+    cached_result,
+    request_cache_path,
+    store_result,
+)
 from aitest.errors import AiTestError, ErrorInfo
 from aitest.storage.workspace import Workspace
 
@@ -24,6 +31,8 @@ _LAZY_RUNTIME: dict[str, tuple[str, str]] = {
     "plan.update": ("aitest.runtime.plan_commands", "cmd_plan_update"),
     "plan.show": ("aitest.runtime.plan_commands", "cmd_plan_show"),
     "plan.publish": ("aitest.runtime.plan_commands", "cmd_plan_publish"),
+    "plan.review": ("aitest.runtime.plan_commands", "cmd_plan_review"),
+    "plan.repair_case": ("aitest.runtime.plan_commands", "cmd_plan_repair_case"),
     "run.start": ("aitest.runtime.run_commands", "cmd_run_start"),
     "run.quick": ("aitest.runtime.run_commands", "cmd_run_quick"),
     "run.status": ("aitest.runtime.run_commands", "cmd_run_status"),
@@ -61,6 +70,7 @@ _LAZY_MUTATING: frozenset[str] = frozenset(
         "plan.generate",
         "plan.update",
         "plan.publish",
+        "plan.repair_case",
         "run.start",
         "run.quick",
         "run.cancel",
@@ -102,7 +112,7 @@ def _lazy(module_name: str, func_name: str) -> _Handler:
 
 
 def _register_lazy_commands() -> None:
-    """保证在不急切导入全部模块时，60 个命令契约与写命令集合仍完整就绪。"""
+    """保证在不急切导入全部模块时，54 个命令契约与写命令集合仍完整就绪。"""
     for cmd, (mod_name, fn_name) in {**_LAZY_RUNTIME, **_LAZY_INTEGRATION}.items():
         REGISTRY.setdefault(cmd, _lazy(mod_name, fn_name))
     MUTATING.update(_LAZY_MUTATING)
@@ -112,6 +122,12 @@ _register_lazy_commands()
 
 _SELF_LOCKED = frozenset(
     {
+        "project.map.refresh",
+        "plan.generate",
+        "plan.repair_case",
+        "report.generate",
+        "github.read",
+        "link.import",
         "run.start",
         "run.quick",
         "run.manual",
@@ -183,13 +199,64 @@ def _parse(argv: list[str]) -> tuple[str, Path, str | None, bool]:
     return command, Path(workspace).expanduser().resolve(), input_file, confirm
 
 
+def _stdin_has_data(timeout_seconds: float = 1.0) -> bool:
+    """探测非 TTY 标准输入是否真有待读字节，防止无 --input 调用时阻塞或慢写管道丢包。"""
+    if sys.stdin is None or sys.stdin.isatty():
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            if handle in (0, -1):
+                return False
+            ftype = kernel32.GetFileType(handle)
+            if ftype == 1:  # FILE_TYPE_DISK: 文件重定向立即可读
+                return True
+            if ftype == 2:  # FILE_TYPE_CHAR: 控制台/NUL 无数据
+                return False
+            if ftype == 3:  # FILE_TYPE_PIPE
+                avail = wintypes.DWORD(0)
+                deadline = time.monotonic() + max(0.05, timeout_seconds)
+                while True:
+                    ok = kernel32.PeekNamedPipe(
+                        handle,
+                        None,
+                        0,
+                        None,
+                        ctypes.byref(avail),
+                        None,
+                    )
+                    if ok:
+                        if avail.value > 0:
+                            return True
+                        if time.monotonic() >= deadline:
+                            return False
+                        time.sleep(0.01)
+                    else:
+                        # ERROR_BROKEN_PIPE (109) 表示写端已关闭且缓冲区已空
+                        return False
+            return False
+        except OSError:
+            return False
+    try:
+        import select
+
+        ready, _, _ = select.select([sys.stdin], [], [], timeout_seconds)
+        return bool(ready)
+    except (OSError, ValueError):
+        return False
+
+
 def _read_payload(input_file: str | None) -> dict[str, Any]:
     if input_file:
         try:
             raw = Path(input_file).read_text(encoding="utf-8")
         except OSError as exc:
             raise _usage(f"无法读取输入文件：{exc}") from exc
-    elif not sys.stdin.isatty():
+    elif _stdin_has_data():
         raw = sys.stdin.read()
     else:
         raw = ""
@@ -265,6 +332,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 lock_ctx = workspace.lock(timeout=_lock_timeout(command))
             with lock_ctx:
+                response, from_cache = execute()
+        elif request_id and command in MUTATING and command in _SELF_LOCKED:
+            # 同 request_id 使用独立请求短锁防止并发双击穿透，不阻塞其他请求并发执行。
+            req_cache = request_cache_path(workspace, request_id, command, inner)
+            req_lock = req_cache.with_suffix(".lock")
+            with workspace._file_lock(req_lock, timeout=30.0):
                 response, from_cache = execute()
         else:
             response, from_cache = execute()

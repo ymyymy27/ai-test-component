@@ -17,7 +17,6 @@ import type {
   ProjectConvention,
   QuickCheck,
   Report,
-  RuleVersion,
   Run,
   Task,
 } from "@/domain/types";
@@ -36,7 +35,6 @@ import type {
   ModuleInput,
   ProjectRepository,
   RepositoryCapabilities,
-  RuleInput,
   TaskPatch,
 } from "@/repositories/ProjectRepository";
 import { HostError, readHostContext } from "@/host/bridge";
@@ -62,7 +60,6 @@ import {
   mapQuickCheck,
   mapReport,
   mapRun,
-  mapTemplateResult,
   toHostConfig,
 } from "@/host/map";
 import { HostSidecar } from "@/host/sidecar";
@@ -150,14 +147,6 @@ export class HostRepository implements ProjectRepository {
     const next: Project = { ...project, tasks };
     this.projectCache.set(projectId, next);
     return next;
-  }
-
-  private rulesLabelFor(project: Project | null, rulesVersionId?: string | null): string {
-    if (!rulesVersionId) {
-      return "未绑定规则";
-    }
-    const rule = project?.rules.find((entry) => entry.id === rulesVersionId);
-    return rule ? `${rule.name} v${rule.version}` : rulesVersionId;
   }
 
   /** 当前 CLI 工作空间；面板顶部据此说明“项目为何不在这里”。 */
@@ -282,8 +271,9 @@ export class HostRepository implements ProjectRepository {
       mapStaleReason: "",
       localGit: snapshot.local_git ?? null,
       codeGraph: snapshot.code_graph ?? null,
+      capabilities: snapshot.capabilities ?? null,
+      healthSummary: snapshot.health_summary ?? null,
       config: snapshot.config,
-      rules: snapshot.rules,
       tasks: taskBundles,
       reports: snapshot.reports,
       issues: snapshot.issues,
@@ -715,7 +705,6 @@ export class HostRepository implements ProjectRepository {
       preset: "selected",
       moduleIds: [],
       acceptanceItemIds: selected,
-      rulesVersionId: project?.rulesVersionId,
     });
     const refreshed = await this.getProject(projectId);
     const plan = refreshed?.tasks
@@ -752,7 +741,6 @@ export class HostRepository implements ProjectRepository {
       preset: selected.length > 0 ? "selected" : "all_applicable",
       moduleIds: [],
       acceptanceItemIds: selected,
-      rulesVersionId: project?.rulesVersionId,
     });
     this.sidecar.setStage(taskId, null);
     const refreshed = await this.getProject(projectId);
@@ -1219,61 +1207,6 @@ export class HostRepository implements ProjectRepository {
         };
   }
 
-  async applyTemplate(projectId: string, taskId: string, templateId: string): Promise<Task> {
-    const cachedTask = this.projectCache
-      .get(projectId)
-      ?.tasks.find((entry) => entry.id === taskId);
-    const planId = cachedTask?.currentPlanId ?? cachedTask?.plans[0]?.id ?? undefined;
-    const data = await this.client.applyTemplate({
-      projectId,
-      taskId,
-      templateName: templateId,
-      ...(planId ? { planId } : {}),
-    });
-    const existing = this.sidecar.templates[taskId] ?? [];
-    this.sidecar.setTemplates(taskId, [
-      ...existing.filter((entry) => entry.templateId !== data.template.template_id),
-      mapTemplateResult(data.template),
-    ]);
-    const project = await this.getProject(projectId);
-    const task = project?.tasks.find((entry) => entry.id === taskId);
-    if (!task) {
-      throw new RepositoryError("NOT_FOUND", "任务不存在。");
-    }
-    return task;
-  }
-
-  async saveRule(projectId: string, input: RuleInput): Promise<RuleVersion> {
-    const saved = await this.client.saveRule(projectId, {
-      name: input.name,
-      version: input.version,
-      steps_md: input.stepsMd,
-      ai_rules: input.aiRules,
-      evidence_requirements: input.evidenceRequirements,
-    });
-    const rule = await this.client.showRule(projectId, saved.rules_version_id);
-    return {
-      id: rule.rule.rules_version_id,
-      projectId,
-      name: rule.rule.name,
-      version: rule.rule.version,
-      stepsMd: rule.rule.steps_md,
-      aiRules: [...rule.rule.ai_rules],
-      evidenceRequirements: [...rule.rule.evidence_requirements],
-      revision: rule.rule.revision,
-      createdAt: isoNow(),
-    };
-  }
-
-  async bindRule(projectId: string, ruleId: string): Promise<Project> {
-    await this.client.bindRule(projectId, ruleId);
-    const project = await this.getProject(projectId);
-    if (!project) {
-      throw new RepositoryError("NOT_FOUND", "项目不存在。");
-    }
-    return project;
-  }
-
   async saveConfig(projectId: string, config: ProjectConfig): Promise<Project> {
     await this.client.saveProjectConfig(projectId, toHostConfig(config));
     const project = await this.getProject(projectId);
@@ -1518,7 +1451,6 @@ export class HostRepository implements ProjectRepository {
           plan,
           run ?? null,
           evidence,
-          this.rulesLabelFor(project, reportDto.rules_version_id),
         ),
       );
     }
@@ -1544,7 +1476,6 @@ export class HostRepository implements ProjectRepository {
       plan,
       run ?? null,
       run?.evidence ?? [],
-      this.rulesLabelFor(project, shown.report.rules_version_id),
     );
   }
 

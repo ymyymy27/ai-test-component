@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, TypeVar, cast
 
 import aitest
+from aitest.config import GITHUB_KEY_ENV, MODEL_KEY_ENV
 from aitest.core.evidence import (
     DEFAULT_FILE_CAP_BYTES,
     data_prefix,
@@ -22,9 +23,6 @@ from aitest.core.evidence import (
 from aitest.core.shared_config import load_merged_project_config
 from aitest.errors import AiTestError
 from aitest.models import Delivery, Run
-from aitest.security import (
-    is_secret_field,
-)
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -113,12 +111,12 @@ _SUBSERVICE_DIRS = ("api", "app", "backend", "server")
 
 
 def _venv_python(root: Path) -> Path | None:
+    """仅在项目自身及一级服务子目录查找隔离 `.venv`，绝不向父目录攀爬劫持宿主机环境。"""
     search_bases: list[Path] = [root]
     for name in _SUBSERVICE_DIRS:
         sub = root / name
         if sub.is_dir():
             search_bases.append(sub)
-    search_bases.extend([root.parent, root.parent.parent])
     for base in search_bases:
         for candidate in (
             base / ".venv" / "Scripts" / "python.exe",
@@ -127,6 +125,24 @@ def _venv_python(root: Path) -> Path | None:
             if candidate.is_file():
                 return candidate
     return None
+
+
+def _configured_python(config: dict[str, object], root: Path) -> Path | None:
+    """从项目配置 runners.python 解析用户指定的项目独立解释器。"""
+    runners = config.get("runners")
+    if not isinstance(runners, dict):
+        return None
+    raw = str(runners.get("python") or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    return resolved if resolved.is_file() else None
 
 
 
@@ -158,17 +174,14 @@ def _read_env_dir(directory: Path) -> dict[str, str]:
 
 
 def _dotenv_values(root: Path) -> dict[str, str]:
-    """读取项目及一级服务子目录中的 .env 配置，不做执行或记录日志。"""
-
-    values = _read_env_dir(root)
-    if not values:
-        for name in _SUBSERVICE_DIRS:
-            sub = root / name
-            if not sub.is_dir():
-                continue
-            values = _read_env_dir(sub)
-            if values:
-                break
+    """合并根目录与所有一级服务子目录中的 .env 配置（根目录键优先，子目录补全缺失键）。"""
+    values: dict[str, str] = _read_env_dir(root)
+    for name in _SUBSERVICE_DIRS:
+        sub = root / name
+        if not sub.is_dir():
+            continue
+        for key, val in _read_env_dir(sub).items():
+            values.setdefault(key, val)
     for key, value in list(values.items()):
         values[key] = re.sub(
             r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}",
@@ -178,11 +191,30 @@ def _dotenv_values(root: Path) -> dict[str, str]:
     return values
 
 
-def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
+_PLUGIN_SECRET_ENV_BLACKLIST = frozenset(
+    {
+        MODEL_KEY_ENV,
+        GITHUB_KEY_ENV,
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+    }
+)
+
+
+def _run_env(
+    root: Path,
+    python: Path | None,
+    run_id: str,
+    *,
+    allowed_test_role_envs: set[str] | None = None,
+) -> dict[str, str]:
     env: dict[str, str] = {}
+    role_envs = allowed_test_role_envs or set()
     package_root = Path(aitest.__file__).resolve().parents[1]
-    # src-layout projects (e.g. src/pkg) need their source root on PYTHONPATH;
-    # plain layouts need the project root. Keep the host package out of it.
     extra_paths: list[str] = []
     for candidate in (root / "src", root):
         if candidate.is_dir() and candidate.resolve() != package_root:
@@ -191,7 +223,9 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
                 extra_paths.append(value)
     inherited_pythonpath: list[str] = []
     for key, value in os.environ.items():
-        if is_secret_field(key):
+        if key in _PLUGIN_SECRET_ENV_BLACKLIST:
+            continue
+        if key.startswith("AITEST_") and key not in role_envs:
             continue
         if key == "PYTHONPATH":
             inherited_pythonpath = [
@@ -202,9 +236,12 @@ def _run_env(root: Path, python: Path | None, run_id: str) -> dict[str, str]:
             continue
         env[key] = value
     for key, value in _dotenv_values(root).items():
-        if key.startswith("AITEST_"):
+        if key in _PLUGIN_SECRET_ENV_BLACKLIST:
             continue
-        env.setdefault(key, value)
+        if key.startswith("AITEST_") and key not in role_envs:
+            continue
+        # 项目 .env 优先覆盖宿主机同名变量，仅保留插件内部键与凭据黑名单过滤。
+        env[key] = value
     # Chinese Windows defaults to GBK; modern projects store source and templates
     # as UTF-8. Keep the child on UTF-8 so locale decoding cannot create a false
     # product failure. A project .env may still override these values above.
@@ -366,8 +403,11 @@ def _heartbeat(run_path: Path, stop: threading.Event) -> None:
     while not stop.wait(3.0):
         try:
             _touch(run_path)
+        except (OSError, AiTestError):
+            # 遇瞬时文件锁或磁盘抖动继续等待下一轮重试，避免心跳线程意外终止
+            continue
         except Exception:
-            return
+            continue
 
 
 

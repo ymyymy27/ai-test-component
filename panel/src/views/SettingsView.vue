@@ -9,7 +9,6 @@ import SettingsConfigSection from "@/components/settings/SettingsConfigSection.v
 import SettingsEnvironmentSection from "@/components/settings/SettingsEnvironmentSection.vue";
 import SettingsGithubSection from "@/components/settings/SettingsGithubSection.vue";
 import SettingsProfileSection from "@/components/settings/SettingsProfileSection.vue";
-import SettingsRulesSection from "@/components/settings/SettingsRulesSection.vue";
 import SettingsSystemSections from "@/components/settings/SettingsSystemSections.vue";
 import { useUiStore } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -25,7 +24,6 @@ const sections = [
   { id: "settings-profile", label: "项目资料" },
   { id: "settings-config", label: "运行配置" },
   { id: "settings-environment", label: "环境自检" },
-  { id: "settings-rules", label: "项目规则" },
   { id: "settings-github", label: "GitHub 变更" },
   { id: "settings-appearance", label: "外观" },
   { id: "settings-backup", label: "备份" },
@@ -103,7 +101,7 @@ async function selectSection(id: string): Promise<void> {
     />
   </div>
   <div v-else class="page page-data">
-    <PageHeader title="设置" :subtitle="`${project.name} · 环境、规则与运行配置`">
+    <PageHeader title="设置" :subtitle="`${project.name} · 环境与运行配置`">
       <template #actions>
         <button
           class="btn btn-sm settings-back"
@@ -133,7 +131,6 @@ async function selectSection(id: string): Promise<void> {
           @dirty-change="configDirty = $event"
         />
         <SettingsEnvironmentSection :active="activeSection === 'settings-environment'" />
-        <SettingsRulesSection :project="project" :active="activeSection === 'settings-rules'" />
         <SettingsGithubSection :project="project" :active="activeSection === 'settings-github'" />
         <SettingsSystemSections
           :active-section="activeSection"

@@ -67,12 +67,43 @@ def github_token() -> tuple[str, KeySource]:
     return "", "none"
 
 
+_ROLE_SECRET_ENV_KEYS = (
+    "password_env",
+    "pass_env",
+    "token_env",
+    "secret_env",
+    "api_key_env",
+    "cookie_env",
+)
+
+
+def _test_role_env_secrets(tree: object) -> list[str]:
+    """从配置里的 test_roles.*.xxx_env 声明中收集运行时环境变量凭据值用于脱敏。"""
+    found: list[str] = []
+    if not isinstance(tree, dict):
+        return found
+    roles = tree.get("test_roles")
+    if not isinstance(roles, dict):
+        return found
+    for spec in roles.values():
+        if not isinstance(spec, dict):
+            continue
+        for env_key_field in _ROLE_SECRET_ENV_KEYS:
+            env_name = str(spec.get(env_key_field) or "").strip()
+            if env_name:
+                val = os.environ.get(env_name, "").strip()
+                if val:
+                    found.append(val)
+    return found
+
+
 def known_secret_values(extra: Iterable[Any] = ()) -> list[str]:
     """Collect credential bodies that must never reach a persisted file.
 
     Sources: the resolved model key, the optional GitHub token, the user
-    configuration, and any extra config trees the caller passes in. The result
-    is de-duplicated and never logged.
+    configuration, any ``test_roles`` env vars referenced by project configs,
+    and any extra config trees the caller passes in. The result is
+    de-duplicated and never logged.
     """
     values: list[str] = []
     for value, _source in (model_key(), github_token()):
@@ -81,6 +112,7 @@ def known_secret_values(extra: Iterable[Any] = ()) -> list[str]:
     values.extend(secret_values_in(load_user_config()))
     for item in extra:
         values.extend(secret_values_in(item))
+        values.extend(_test_role_env_secrets(item))
     seen: set[str] = set()
     result: list[str] = []
     for value in values:

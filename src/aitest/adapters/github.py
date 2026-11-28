@@ -20,6 +20,7 @@ from aitest.errors import AiTestError
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 _TIMEOUT_SECONDS = 30
+_MAX_GITHUB_ITEMS = 1000
 
 _HOST_HINT = re.compile(r"Logged in to ([A-Za-z0-9][A-Za-z0-9.-]*)")
 _HOST_FALLBACK = re.compile(r"\b([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
@@ -76,7 +77,7 @@ def _mapping(value: object) -> dict[str, Any]:
     return {key: item for key, item in value.items() if isinstance(key, str)}
 
 
-def _items(value: object) -> list[object]:
+def _items(value: object, *, limit: int = _MAX_GITHUB_ITEMS) -> list[object]:
     if not isinstance(value, list):
         return []
     rows: list[object] = []
@@ -85,6 +86,8 @@ def _items(value: object) -> list[object]:
             rows.extend(item)
         else:
             rows.append(item)
+        if len(rows) >= limit:
+            return rows[:limit]
     return rows
 
 

@@ -2,8 +2,8 @@
 
 在单条用例执行前后采集受控服务日志文件（service*.log）字节偏移量，
 截取本用例时间窗口内的新增后台日志（经凭据脱敏后落盘），用于：
-1. 捕捉表面 200/退出码 0 背后的静默 500、未捕获 Traceback/CRITICAL；
-2. 识别预期打到服务却完全零日志命中的疑似空跑。
+1. 捕捉 5xx、未捕获 Traceback/CRITICAL/panic 等诊断信号（仅作证据附件与警告，绝不翻盘通过结论）；
+2. 识别日志轮转（文件截断/重建）并从新文件头部重读。
 """
 
 from __future__ import annotations
@@ -17,11 +17,13 @@ from aitest.security import redact, redact_bytes
 
 _TRACEBACK_RE = re.compile(r"Traceback \(most recent call last\):")
 _UNHANDLED_RE = re.compile(
-    r"(?:UnhandledPromiseRejection|Unhandled exception in|CRITICAL:|FATAL:)",
+    r"(?:UnhandledPromiseRejection|Unhandled exception in|CRITICAL:|FATAL:|"
+    r"\bpanic:\s|\[Nest\]\s+\d+\s+-\s+.*ERROR\b)",
     re.IGNORECASE,
 )
 _HTTP_5XX_RE = re.compile(
-    r'(?:"(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+[^"]+"\s+|HTTP/1\.[01]"?\s+)(50\d)\b'
+    r'(?:"(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+[^"]+"\s+|HTTP/1\.[01]"?\s+|'
+    r'\bstatus[=:]\s*)(50\d)\b'
 )
 _ACCESS_LOG_RE = re.compile(
     r'(?:"(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+[^"]+"|HTTP/1\.[01])'
@@ -62,18 +64,20 @@ def capture_log_offsets(service_states: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _read_slice(path: Path, start: int, max_read_bytes: int = 1024 * 1024) -> bytes:
+    """读取日志增量片段；当发现 `size < start`（发生日志轮转/重建）时归零读取最新文件。"""
     try:
         if not path.is_file():
             return b""
         size = path.stat().st_size
-        if size <= start:
+        if size == 0 or size == start:
             return b""
-        to_read = size - start
+        effective_start = 0 if size < start else start
+        to_read = size - effective_start
         with path.open("rb") as handle:
             if to_read > max_read_bytes:
                 handle.seek(size - max_read_bytes)
             else:
-                handle.seek(start)
+                handle.seek(effective_start)
             return handle.read()
     except OSError:
         return b""
@@ -83,8 +87,11 @@ def _prefix_has_access_log(path: Path, end_offset: int) -> bool:
     if end_offset <= 0 or not path.is_file():
         return False
     try:
+        actual_end = min(end_offset, path.stat().st_size, 256 * 1024)
+        if actual_end <= 0:
+            return False
         with path.open("rb") as handle:
-            head = handle.read(min(end_offset, 256 * 1024)).decode("utf-8", errors="replace")
+            head = handle.read(actual_end).decode("utf-8", errors="replace")
         return bool(_ACCESS_LOG_RE.search(head))
     except OSError:
         return False
@@ -93,27 +100,35 @@ def _prefix_has_access_log(path: Path, end_offset: int) -> bool:
 def _extract_fatal_lines(text: str, service_label: str) -> list[str]:
     issues: list[str] = []
     lines = text.splitlines()
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
+    idx = 0
+    while idx < len(lines):
+        stripped = lines[idx].strip()
         if not stripped:
+            idx += 1
             continue
         if _TRACEBACK_RE.search(stripped):
-            tail = next(
-                (
-                    lines[pos].strip()
-                    for pos in range(min(len(lines) - 1, idx + 8), idx, -1)
-                    if lines[pos].strip()
-                ),
-                stripped,
-            )
-            issues.append(f"[{service_label}] 后台出现未捕获异常：{tail[:200]}")
-            break
+            block_end = min(len(lines), idx + 20)
+            block_lines: list[str] = [stripped]
+            for pos in range(idx + 1, block_end):
+                cur = lines[pos].strip()
+                if not cur:
+                    break
+                block_lines.append(cur)
+                if not lines[pos].startswith((" ", "\t")) and ":" in cur:
+                    break
+            tail = block_lines[-1] if block_lines else stripped
+            preview = " | ".join(block_lines[-3:])
+            issues.append(f"[{service_label}] 后台出现未捕获异常：{tail[:160]} ({preview[:180]})")
+            idx += len(block_lines)
+            continue
         if _UNHANDLED_RE.search(stripped):
             issues.append(f"[{service_label}] {stripped[:200]}")
+            idx += 1
             continue
         match = _HTTP_5XX_RE.search(stripped)
         if match:
             issues.append(f"[{service_label}] 后台返回 HTTP {match.group(1)}：{stripped[:200]}")
+        idx += 1
     return issues[:6]
 
 
@@ -145,11 +160,7 @@ def inspect_service_log_window(
     case_targets: set[str] | None = None,
     max_bytes: int = 65536,
 ) -> dict[str, Any]:
-    """提取用例执行期间新增后台日志并检测静默 5xx/Traceback 与零命中空跑。
-
-    ``case_targets`` 是用例实际请求的 host:port 集合；只在这些目标服务上
-    判断“零命中”，避免前端请求被后端日志的零命中误判为空跑。
-    """
+    """提取用例执行期间新增后台日志并检测 5xx/Traceback 诊断信号与零命中提示。"""
     secret_list = list(secrets or [])
     targets = {item.lower() for item in (case_targets or set()) if item}
     window_parts: list[str] = []

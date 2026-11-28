@@ -21,6 +21,23 @@ from aitest.storage.workspace import Workspace, iso_now
 
 _MAX_EVIDENCE_FILES = 30
 _MAX_EVIDENCE_CHARS = 4000
+_BINARY_EVIDENCE_EXTS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".ico",
+        ".pdf",
+        ".zip",
+        ".gz",
+        ".exe",
+        ".dll",
+        ".bin",
+    }
+)
 
 
 def _causes(value: list[Any]) -> list[dict[str, str]]:
@@ -52,7 +69,15 @@ def _evidence_excerpts(
         if path is None or not path.is_file():
             excerpts.append(f"--- {ref} ---\n（证据文件不存在）")
             continue
+        if path.suffix.lower() in _BINARY_EVIDENCE_EXTS:
+            excerpts.append(f"--- {ref} ---\n（二进制媒体证据文件）")
+            continue
         try:
+            with path.open("rb") as handle:
+                raw = handle.read(8192)
+            if b"\x00" in raw:
+                excerpts.append(f"--- {ref} ---\n（二进制文件已跳过）")
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             excerpts.append(f"--- {ref} ---\n（证据文件无法读取）")
